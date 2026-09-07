@@ -5,8 +5,8 @@ Date: 2026-09-07. Agent: Codex.
 Evidence finalized and CLI argument refusal checked: 2026-09-08 Europe/Kiev.
 Source: local changes on main based on 64c84498c898e61ff370d9f9f1ce30cbd3d00613.
 Base CI: [run 34160201371](https://github.com/Reidond/kedra/actions/runs/34160201371),
-completed/success, exact base SHA verified through GitHub CLI. CI for these local
-changes: not-run; no commit or push was requested. Source file SHA-256 identities
+completed/success, exact base SHA verified through GitHub CLI. CI at initial local
+handoff was not-run; later authorized publication passed, as recorded below. Source file SHA-256 identities
 are in environment.json. [ADR 0004](../../adr/0004-synthetic-home-review.md).
 
 ## Question and experiment
@@ -54,7 +54,7 @@ defense against a malicious Git executable, same-user attacker or path replaceme
 | cargo metadata --locked --no-deps --format-version 1 | Three edition-2024 packages, explicit flat targets, example test=true | 0 | pass | environment.json |
 | Example --home synthetic-home / --help | Path argument refused before any fixture creation; help succeeds | 2 / 0 | pass | Manual invocation on 2026-09-08; fixture-directory count unchanged |
 | git diff --check; source identity/layout review | No diff whitespace errors; recorded source hashes match; no first-party src/ paths | 0 | pass | Local final review |
-| Current-change Actions/Linux execution | Not published or dispatched | — | not-run | Base run cannot certify new code |
+| Published implementation Actions/Linux execution | All checks and 12 R03 cases passed at e492258 | 0 | pass | Run 34164331109; publication follow-up below |
 
 ## Case evidence
 
@@ -142,6 +142,17 @@ or lost-write safety during activation. No baseline is applied to live files.
 Next: extend synthetic R03 with a narrow versioned Noctalia effective-settings
 fixture and explicit I/S/P transition tests across N; keep activation behind R04.
 R11's unavailable automatic discovery/editor checks do not block this work.
+
+## Publication follow-up — 2026-09-08 Europe/Kiev
+
+The owner subsequently authorized commit and push. Implementation commit
+e492258871f6353a0c6548a0ec5d5e318d92bdd3 was pushed to main and passed
+[Actions run 34164331109](https://github.com/Reidond/kedra/actions/runs/34164331109).
+The Ubuntu 24.04 job reported x86_64-unknown-linux-gnu, Rust/Cargo 1.98.1 and
+Git 2.55.0. Formatting, Clippy, 19 tests including all 12 R03 cases, 1 doctest,
+release build and unchanged-source/lockfile checks passed. This adds Linux
+evidence to the initial Windows results; it does not pass the remaining R03/R04
+or agent/editor gates. The evidence-only follow-up's future CI is not claimed.
 
 Durable findings are linked from kedra-home and kedra-rust-workspace.
 Primary mechanisms: [Git update-index](https://git-scm.com/docs/git-update-index),

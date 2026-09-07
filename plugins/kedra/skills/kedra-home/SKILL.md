@@ -75,3 +75,7 @@ blocked for real adoption; R04 activation is not-run. See
 [the report](../../../../docs/research/R03-home-review/REPORT.md) and
 [ADR 0004](../../../../docs/adr/0004-synthetic-home-review.md) for exact cases,
 failure history, unsupported inputs and the next Noctalia/disposition experiment.
+
+Published source e492258 also passed the same 12 cases with Git 2.55.0 and
+Rust/Cargo 1.98.1 on Linux in Actions run 34164331109, observed 2026-09-08.
+This adds platform evidence without qualifying the remaining R03/R04 gates.

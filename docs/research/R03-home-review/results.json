@@ -32,7 +32,7 @@
     {"id":"general-insert-delete-rename-and-discard","status":"not-run","expected":"Preserve dispositions under supported arbitrary edits and safe discard","actual":"Only conservative refusal subset measured; no safe discard"},
     {"id":"mode-label-link-special-file-and-arbitrary-paths","status":"not-run","expected":"Safe real-home path handling including non-UTF-8 policy","actual":"Fixed generated ordinary-file allowlist only; CLI accepts no paths"},
     {"id":"full-disk-permissions-interruption-concurrent-writers","status":"not-run","expected":"No-loss recovery under filesystem and writer failures","actual":"R04/R10 follow-up; sequential fixture writes only"},
-    {"id":"linux-current-change-ci","status":"not-run","expected":"Run this revision on Linux through Actions","actual":"Local Windows checks only; base Actions success is separate"},
+    {"id":"linux-current-change-ci","status":"pass","expected":"Run the implementation revision on Linux through Actions","actual":"e492258871f6353a0c6548a0ec5d5e318d92bdd3 passed formatting, Clippy, 19 tests plus 1 doctest and release build; Git 2.55.0, Rust/Cargo 1.98.1, x86_64-unknown-linux-gnu","run_url":"https://github.com/Reidond/kedra/actions/runs/34164331109","verified_date":"2026-09-08 Europe/Kiev"},
     {"id":"real-home-adoption","status":"blocked","expected":"R03 complete and R04 activation proven before enrollment","actual":"Real homes excluded; operational sysroot home remains unavailable"}
   ]
 }

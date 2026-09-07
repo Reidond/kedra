@@ -14,11 +14,11 @@ Last updated: 2026-09-08 (Europe/Kiev); R03 checks ran on 2026-09-07.
 | Phase | Research-ready repository bootstrap; not an installable operating system. |
 | Implemented | Three-package flat Rust workspace, help/version/bootstrap status, operational refusals, standard Cargo CI, and a synthetic-only R03 Cargo example. No real-home manager or deployment implementation. |
 | Repository knowledge | One Codex/Claude plugin with 12 Kedra and 18 selected upstream skills in plugins/kedra/skills. Ordinary files; no submodule, symlinks or duplicate discovery copies. No personal installation. |
-| Latest verified check | Base 64c84498c898e61ff370d9f9f1ce30cbd3d00613 passed [Actions run 34160201371](https://github.com/Reidond/kedra/actions/runs/34160201371). Local R03 fmt/Clippy/workspace tests (19 + 1 doctest)/release build passed on Windows; current-change CI not-run. |
+| Latest verified check | Published R03 source e492258871f6353a0c6548a0ec5d5e318d92bdd3 passed [Actions run 34164331109](https://github.com/Reidond/kedra/actions/runs/34164331109): Linux fmt/Clippy/19 tests plus 1 doctest/release build. Matching source previously passed local Windows checks. This evidence follow-up does not claim its own future CI result. |
 | R11 | Canonical skill files readable; Codex marketplace and fresh-profile root/crate skills/list found no Kedra entries. Claude authoring validation passed. Loaded-plugin model/editor checks not-run; distribution review blocked. |
 | R03 | Core synthetic review prototype passed 12 tests; full gate remains blocked on Noctalia/app-owned projection, durable disposition transitions and wider path/edit safety. See docs/research/R03-home-review/REPORT.md. |
 | Other R01-R10 | Not run, as recorded in docs/research/status.json. R04 activation remains unavailable; no OS/ISO/signature/auth/hardware success is implied. |
-| Current task | R03 prototype, evidence and ADR 0004 complete; owner authorized commit/push. Publication and exact-revision CI verification are in progress. |
+| Current task | R03 prototype, evidence and ADR 0004 published; exact implementation-revision CI passed. This documentation follow-up records that observed result. Full research gates remain partial. |
 | Machine effects | None. No workstation, home directory, vault, personal agent profile or installation was changed. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
@@ -40,8 +40,8 @@ independently. Do not enable production cron or enroll a real machine/home yet.
 
 For R03, next add a versioned synthetic Noctalia effective-settings projection
 and explicit I/S/P transitions across N. Continue independent work by reading
-canonical skills when native discovery is unavailable. Review local changes
-before any separately authorized publication; new-change Linux CI is not-run.
+canonical skills when native discovery is unavailable. Published R03 implementation
+now has Windows and Linux evidence; real-home and activation gates stay closed.
 
 ## Work entries
 
@@ -279,3 +279,11 @@ before any separately authorized publication; new-change Linux CI is not-run.
 - Checks / evidence: pass — recorded SHA-256 values match all tested source files; earlier fmt/Clippy/19 tests plus 1 doctest/release build remain applicable. pass — git diff --check. No unrelated pending edits were observed.
 - Remaining / blockers: Commit/push and exact-revision Actions observation follow this record; no future CI success is claimed. Full R03/R11 and R04 activation gaps remain unchanged.
 - Next: Commit the reviewed files, push main normally, and record the observed Actions outcome.
+
+### WL-20260908-02 — 2026-09-08 — Verify R03 publication and Linux CI
+- Agent / state: Codex; completed implementation publication and CI verification.
+- Scope / base: e492258871f6353a0c6548a0ec5d5e318d92bdd3 on main, pushed normally to origin/main under the owner's explicit authorization.
+- Completed: Committed the 31 reviewed R03/discovery files; source tree was clean after push. Observed successful exact-revision Actions, including all 12 synthetic R03 cases. Added this documentation follow-up and updated the report/results/status with the newly observed Linux evidence.
+- Checks / evidence: pass — https://github.com/Reidond/kedra/actions/runs/34164331109 at exact e492258871f6353a0c6548a0ec5d5e318d92bdd3. Ubuntu 24.04 runner, x86_64-unknown-linux-gnu, Rust/Cargo 1.98.1 and Git 2.55.0; formatting, Clippy, 19 tests plus 1 doctest, release build and unchanged-source/lockfile check all passed.
+- Remaining / blockers: This evidence-only follow-up has no claimed future CI result. Full R03/R11 and R04 activation gaps are unchanged; no home/OS deployment or global plugin installation occurred.
+- Next: Publish this observed-evidence follow-up; continue the documented synthetic Noctalia and disposition-transition experiment.

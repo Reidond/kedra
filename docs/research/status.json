@@ -10,7 +10,9 @@
       "prototype_status":"pass",
       "report":"R03-home-review/REPORT.md",
       "results":"R03-home-review/results.json",
-      "note":"Local synthetic Git prototype passes partial staging, stable selected snapshots, local-only exclusion and explicit conflicts, with 12 regression tests. Full R03 remains blocked on Noctalia/app-owned projection, durable disposition transitions and broader path/edit safety. Real adoption and R04 activation are unavailable; current-change Actions not-run."
+      "run_url":"https://github.com/Reidond/kedra/actions/runs/34164331109",
+      "verified_source":"e492258871f6353a0c6548a0ec5d5e318d92bdd3",
+      "note":"Published synthetic Git prototype passes Windows local and Linux Actions checks, including 12 R03 regression tests for partial staging, stable selected snapshots, local-only exclusion and explicit conflicts. Full R03 remains blocked on Noctalia/app-owned projection, durable disposition transitions and broader path/edit safety. Real adoption and R04 activation are unavailable."
     },
     {"id":"R04","status":"not-run","topic":"Activation, writers, rollback"},
     {"id":"R05","status":"not-run","topic":"Agent packaging and independence"},

@@ -1,6 +1,17 @@
 # R02: minimal image and VM feasibility
 
-Status: **not-run**. Prepared 2026-09-08; the first Actions execution is pending.
+Status: **fail** for the initial guest-check harness; image/QCOW2 builds passed.
+Updated 2026-09-08 (Europe/Kiev). The corrective rerun is pending.
+
+[Initial run 34164873575](https://github.com/Reidond/kedra/actions/runs/34164873575)
+at source `9016832dfad58c3cdb99cc5ac1b40ed12a6cea62` built and linted the pinned
+Fedora derivative, built QCOW2 and reached Fedora 44 with kernel
+`7.1.13-200.fc44.x86_64` and bootc `1.16.10` in UEFI/KVM. The guest emitted bootc
+status before the harness used an invalid multi-path findmnt invocation. That
+command returned nonzero; the service exited and QEMU timed out (exit 124).
+Corrective change: query each mount separately, emit failure location/status and
+power off on failure, and allow systemd's console prefix on the success marker.
+This remains a failed overall check, not a passed installation test.
 
 The first experiment builds a minimal Fedora 44 derivative and QCOW2 in Actions,
 boots it using QEMU/KVM and UEFI, and requires a guest success marker after bootc

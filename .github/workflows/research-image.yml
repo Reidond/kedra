@@ -80,7 +80,8 @@ jobs:
             -drive "file=${disks[0]},if=virtio,format=qcow2,snapshot=on" \
             -display none -serial stdio -monitor none -nic none \
             2>&1 | tee output/evidence/serial.log
-          grep -q '^KEDRA_R02_BOOT_PASS' output/evidence/serial.log
+          grep -q 'KEDRA_R02_BOOT_PASS' output/evidence/serial.log
+          ! grep -q 'KEDRA_R02_BOOT_FAIL' output/evidence/serial.log
           sha256sum "${disks[0]}" > output/evidence/SHA256SUMS
       - name: Preserve research evidence
         if: always()

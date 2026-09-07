@@ -1,0 +1,11 @@
+# Separate Anaconda environment. The installed desktop is a distinct OCI payload.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+RUN dnf -y --best --refresh --repo=fedora --repo=updates \
+      '--setopt=*.skip_if_unavailable=False' '--setopt=*.gpgcheck=True' \
+      install anaconda anaconda-install-env-deps anaconda-dracut \
+      dracut-config-generic dracut-network net-tools squashfs-tools \
+      grub2-efi-x64-cdboot python3-mako lorax-templates-generic biosdevname prefixdevname && \
+    dnf clean all && \
+    mkdir -p /boot/efi /var/mnt && \
+    cp -ra /usr/lib/efi/*/*/EFI /boot/efi

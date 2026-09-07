@@ -1,0 +1,98 @@
+name: Research interactive installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/usable-system]
+    paths:
+      - .github/workflows/research-installer.yml
+      - installer/**
+permissions:
+  contents: read
+concurrency:
+  group: research-installer-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  iso:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Build source tooling and explicit payload
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          cargo test --workspace --locked
+          cargo build --workspace --release --locked
+          mkdir -p output/installer-evidence output/desktop-context output/installer-image
+          target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
+          cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
+          cp build/research/inputs.json output/installer-evidence/
+      - name: Prepare runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo xorriso squashfs-tools
+          {
+            date --utc --iso-8601=seconds
+            git rev-parse HEAD
+            uname -a
+            free -h
+            df -h
+            podman --version
+            skopeo --version
+          } > output/installer-evidence/environment.txt
+      - name: Build desktop and separate installer environment
+        run: |
+          set -euo pipefail
+          base=$(jq -er .base build/research/inputs.json)
+          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+            --tag localhost/kedra-desktop:installer-research output/desktop-context \
+            2>&1 | tee output/installer-evidence/desktop-build.log
+          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+            --tag localhost/kedra-anaconda:research --file installer/Containerfile installer \
+            2>&1 | tee output/installer-evidence/anaconda-build.log
+          sudo podman image inspect localhost/kedra-desktop:installer-research localhost/kedra-anaconda:research \
+            > output/installer-evidence/image-inspect.json
+      - name: Build bootc-installer ISO with separate payload
+        run: |
+          set -euo pipefail
+          builder=$(jq -er .builder build/research/inputs.json)
+          sudo podman run --rm "$builder" --help > output/installer-evidence/builder-help.txt
+          sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
+            -v "$PWD/output/installer-image:/output" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            "$builder" --type bootc-installer --rootfs ext4 --use-librepo=True \
+            --bootc-installer-payload-ref localhost/kedra-desktop:installer-research \
+            localhost/kedra-anaconda:research 2>&1 | tee output/installer-evidence/iso-build.log
+          sudo chown -R "$(id -u):$(id -g)" output/installer-image
+          find output/installer-image -type f -printf '%P %s bytes\n' > output/installer-evidence/artifact-sizes.txt
+      - name: Inspect boot media before VM use
+        run: |
+          set -euo pipefail
+          mapfile -t images < <(find "$PWD/output/installer-image" -type f -name '*.iso')
+          test "${#images[@]}" -eq 1
+          sha256sum "${images[0]}" > output/installer-evidence/SHA256SUMS
+          xorriso -indev "${images[0]}" -find / -type f -exec lsdl -- \
+            > output/installer-evidence/iso-files.txt 2>&1
+          mkdir -p output/installer-evidence/boot-config
+          xorriso -osirrox on -indev "${images[0]}" -extract /EFI/BOOT/grub.cfg output/installer-evidence/boot-config/grub.cfg
+          # A bootc-installer must be reviewed for interactive storage/account flow.
+          # No unattended first-disk erase profile is supplied by this repository.
+          echo 'Research media only: installer configuration and multi-disk VM behavior remain unqualified.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r02-installer-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/installer-evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve research installation media
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r02-installer-iso-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/installer-image/**/*.iso
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3

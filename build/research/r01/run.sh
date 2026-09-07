@@ -48,7 +48,7 @@ docker:
   registry.kedra.test:5000:
     use-sigstore-attachments: true
 EOF
-jq -n --arg repo "$repository" '{default:[{type:"reject"}],transports:{docker:{($repo):[{type:"sigstoreSigned",keyPath:"/usr/share/kedra-research/release.pub",signedIdentity:{type:"matchRepoDigestOrExact"}}]}}}' > "$root/context/policy.json"
+cp build/research/r01/policy.json "$root/context/policy.json"
 sudo mkdir -p /etc/containers/registries.d /etc/containers/certs.d/registry.kedra.test:5000
 sudo cp "$root/context/registries.yaml" /etc/containers/registries.d/kedra-r01.yaml
 sudo cp "$root/context/tls.crt" /etc/containers/certs.d/registry.kedra.test:5000/ca.crt
@@ -93,7 +93,7 @@ cp "$root/cases/cases.json" "$evidence/cases.json"
 cp "$root/context/policy.json" "$root/context/registries.yaml" "$root/context/public/release.pub" "$evidence/"
 # Verify A before copying it into the local builder store; first-boot policy is
 # still a separate installer-handoff gate, not established by this copy alone.
-jq --arg key "$root/context/public/release.pub" '.transports.docker[][].keyPath=$key' "$root/context/policy.json" > "$root/host-policy.json"
+jq --arg key "$root/context/public/release.pub" '.transports[][][].keyPath=$key' "$root/context/policy.json" > "$root/host-policy.json"
 initial=$(jq -er .initial_a "$root/cases/cases.json")
 sudo skopeo --policy "$root/host-policy.json" copy "docker://$initial" "containers-storage:$initial" > "$evidence/verified-a-copy.log" 2>&1
 sudo podman run --rm "$builder" --version > "$evidence/builder-version.txt"

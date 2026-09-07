@@ -1,6 +1,19 @@
 # R01: enforced signature path through bootc
 
-Status: **not-run**; first experiment prepared 2026-09-08 (Europe/Kiev).
+Status: **blocked** at builder-store signature handoff, 2026-09-08 (Europe/Kiev).
+
+Run [34166267962](https://github.com/Reidond/kedra/actions/runs/34166267962)
+at `be59b4b` built all variants, signed/pushed them through verified TLS, removed
+the selected attachment, and verified A with Skopeo's strict policy before copy.
+The QCOW2 builder then failed during bootc installation: it imports from a
+containers-storage reference by local image ID, which the fixture's global
+reject policy denied. No VM update result was produced.
+
+Next experiment explicitly requires the same Sigstore key and exact original
+repository for containers-storage imports. The global default remains reject;
+no permissive policy or disabled TLS/signature flag is introduced. This tests
+whether signatures survive that builder handoff. The first run's separate jq
+syntax failure (34166170646) occurred before registry/image creation and is fixed.
 
 `Research signed updates` creates short-lived Sigstore keys and a TLS-protected
 CNCF Distribution registry in an ephemeral Actions runner. The listener binds

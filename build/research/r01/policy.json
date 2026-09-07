@@ -1,0 +1,22 @@
+{
+  "default": [{"type": "reject"}],
+  "transports": {
+    "docker": {
+      "registry.kedra.test:5000/kedra/r01": [{
+        "type": "sigstoreSigned",
+        "keyPath": "/usr/share/kedra-research/release.pub",
+        "signedIdentity": {"type": "matchRepoDigestOrExact"}
+      }]
+    },
+    "containers-storage": {
+      "": [{
+        "type": "sigstoreSigned",
+        "keyPath": "/usr/share/kedra-research/release.pub",
+        "signedIdentity": {
+          "type": "exactRepository",
+          "dockerRepository": "registry.kedra.test:5000/kedra/r01"
+        }
+      }]
+    }
+  }
+}

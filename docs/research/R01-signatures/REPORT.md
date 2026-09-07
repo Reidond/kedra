@@ -1,6 +1,21 @@
 # R01: enforced signature path through bootc
 
-Status: **blocked** at builder-store signature handoff, 2026-09-08 (Europe/Kiev).
+Status: **blocked** at full installation-policy/authority gates, 2026-09-08
+(Europe/Kiev); the first strict transport/update/rollback subset passed.
+
+[Run 34166793087](https://github.com/Reidond/kedra/actions/runs/34166793087)
+at `7705cc36b91546c45f006cf099d7621b3f883227` passed strict local-store import,
+all five rejection cases, signed B staging/boot, inherited-policy rejection under
+B and rollback retaining newer data. Global policy remained reject. Both registry
+and local-store verification required the test key and original repository.
+
+Review of the successful logs found an additional installer boundary: initial A
+had no `spec.image.signature`, and returning to A restored that missing setting.
+The test did not claim inherited enforcement after rollback. The next version
+adds bootc 1.16.10's supported `[install] enforce-container-sigpolicy = true`
+drop-in and requires `containerPolicy` on every boot, including unsigned-image
+rejection without the explicit flag on initial A and after rollback. This is a
+stronger test prompted by observed state, not a relaxation of verification.
 
 Run [34166267962](https://github.com/Reidond/kedra/actions/runs/34166267962)
 at `be59b4b` built all variants, signed/pushed them through verified TLS, removed

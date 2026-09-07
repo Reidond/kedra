@@ -14,7 +14,7 @@ dnf -y --refresh "${repos[@]}" install "${packages[@]}"
 if test "${#remove[@]}" -gt 0; then dnf -y "${repos[@]}" remove "${remove[@]}"; fi
 dnf clean all
 chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper
-getent passwd greeter
+getent passwd greetd
 systemctl enable greetd.service NetworkManager.service bluetooth.service
 systemctl set-default graphical.target
 systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service

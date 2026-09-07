@@ -62,7 +62,7 @@ for attempt in $(seq 1 20); do
     sleep 1
 done
 curl --silent --fail --cacert "$root/context/tls.crt" https://registry.kedra.test:5000/v2/ > /dev/null
-cp build/research/r01/{Containerfile,check.sh,check.service} "$root/context/"
+cp build/research/r01/{Containerfile,check.sh,check.service,install.toml} "$root/context/"
 cp build/research/console.toml "$root/context/"
 for variant in A B U W M; do
     sudo podman build --pull=always --build-arg "BASE_IMAGE=$base" --build-arg "VARIANT=$variant" \

@@ -1,7 +1,14 @@
 # R07: Fedora desktop candidate
 
-Status: **not-run**. The first package/configuration build is prepared on
-2026-09-08 (Europe/Kiev); it is not a qualified desktop release.
+Status: **fail** for initial image assembly, 2026-09-08 (Europe/Kiev).
+It is not a qualified desktop release.
+
+[Initial run 34167255886](https://github.com/Reidond/kedra/actions/runs/34167255886)
+at `9e2b752` resolved and installed the entire requested desktop package set. It
+then failed at the service-account check: Fedora greetd 0.10.3-6.fc44 creates the
+account `greetd`, whereas the upstream example uses `greeter`. The source config
+and check now use the actual Fedora account. Config validators and graphical
+runtime remain not-run until the corrected build proceeds.
 
 The candidate uses Fedora 44 packages: niri, Noctalia, greetd/tuigreet login,
 PipeWire/WirePlumber, NetworkManager, Bluetooth, portals, Xwayland satellite,

@@ -9,6 +9,7 @@ COPY tls.crt /etc/containers/certs.d/registry.kedra.test:5000/ca.crt
 COPY check.sh /usr/libexec/kedra-research-r01
 COPY check.service /usr/lib/systemd/system/kedra-research-r01.service
 COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
+COPY install.toml /usr/lib/bootc/install/90-kedra-research.toml
 RUN printf '%s\n' "$VARIANT" > /usr/share/kedra-research/variant && \
     chmod 0755 /usr/libexec/kedra-research-r01 && \
     systemctl enable kedra-research-r01.service && \

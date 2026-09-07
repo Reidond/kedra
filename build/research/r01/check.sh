@@ -13,6 +13,7 @@ bootc --version
 skopeo --version
 bootc status --json
 test "$(getenforce)" = Enforcing
+test "$(bootc status --json | jq -er .spec.image.signature)" = containerPolicy
 policy_before=$(sha256sum /etc/containers/policy.json)
 
 status_identity() {
@@ -20,8 +21,10 @@ status_identity() {
 }
 reject() {
     local name=$1 reference=$2 before code
+    local -a options=(--enforce-container-sigpolicy)
+    if test "${3:-explicit}" = inherited; then options=(); fi
     before=$(status_identity)
-    if bootc switch --enforce-container-sigpolicy "$reference" > "$state/rejection.log" 2>&1; then
+    if bootc switch "${options[@]}" "$reference" > "$state/rejection.log" 2>&1; then
         echo "Unexpected signature acceptance: $name"
         return 1
     else
@@ -45,6 +48,7 @@ case "$variant:$phase" in
         bootc status --json | jq -er .status.booted.image.imageDigest > "$state/a.digest"
         initial=$(jq -er .initial_a "$state/cases.json")
         test "$(cat "$state/a.digest")" = "${initial##*@}"
+        reject initial_inherited "$(jq -er .unsigned "$state/cases.json")" inherited
         printf 'synthetic local edits before update\n' > "$state/personal-data"
         for name in unsigned wrong_key wrong_repository missing_attachment; do
             reject "$name" "$(jq -er --arg name "$name" '.[$name]' "$state/cases.json")"
@@ -80,6 +84,7 @@ case "$variant:$phase" in
     A:rollback-a)
         test "$(bootc status --json | jq -er .status.booted.image.imageDigest)" = "$(cat "$state/a.digest")"
         test "$(cat "$state/personal-data")" = 'newer personal data after update'
+        reject rollback_inherited "$(jq -er .unsigned "$state/cases.json")" inherited
         echo KEDRA_R01_ROLLBACK_PRESERVES_DATA_PASS
         printf complete > "$state/phase"
         ;;

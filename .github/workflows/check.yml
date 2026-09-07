@@ -45,5 +45,5 @@ jobs:
       - name: Scope of this result
         if: always()
         run: |
-          echo 'This workflow validates the repository bootstrap only.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'No OS image, ISO, signatures, home reconciliation, authentication or hardware tests run here.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This workflow validates the Rust bootstrap and synthetic R03 home-review example.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No real-home activation, OS image, ISO, signatures, authentication or hardware tests run here.' >> "$GITHUB_STEP_SUMMARY"

@@ -71,3 +71,22 @@ they describe the former four-package layout, not the present three-package one.
 Evidence gate: R11 for layout/tools/discovery; R10 for privileged protocol.
 Sources: docs/SOURCES.md entries cargo-targets, cargo-workspaces, rust-release,
 rust-skills, codex-skills, claude-skills; ADR 0001.
+
+## Local findings, 2026-09-07
+
+The R03 prototype is an explicit `r03_home` example target in sysroot-core with
+`test = true`. Standard workspace tests execute its 12 synthetic Git tests; no
+new crate, dependency, custom check runner or production library API is needed.
+Git 2.55.0.windows.1 rejected a Rust canonical Windows verbatim path passed as
+GIT_CONFIG_GLOBAL (exit 128); the fixture converts generated Git config/index
+arguments to ordinary slash paths. Keep filesystem and subprocess path handling
+distinct; this is not proof of path-race safety. See
+[R03 evidence](../../../../docs/research/R03-home-review/REPORT.md).
+
+Codex 0.153.4 root/crate marketplace queries returned no Kedra entries; fresh-profile
+app-server skills/list also returned zero repository plugin skills. Canonical
+manual reads work. Claude 2.1.263 authoring validation passes; loaded-plugin model
+sessions and editor behavior are not-run. Do not treat valid manifests, a restart
+suggestion or manual reads as automatic discovery success; do not install globally
+to unblock unrelated Rust research. See
+[the discovery report](../../../../docs/research/R11-rust-workspace/discovery-20260907.md).

@@ -1,5 +1,10 @@
 # State model and adversarial examples (research specification)
 
+The [2026-09-07 R03 report](../../../../../docs/research/R03-home-review/REPORT.md)
+now tests the bounded exact-line subset with separate B/L/N/S/I/P and Git-backed
+export. Durable disposition transitions, structured fields and J remain research
+specifications; do not infer their implementation from the examples below.
+
 ## Separate state dimensions
 
 B: baseline accepted by the current home application group.

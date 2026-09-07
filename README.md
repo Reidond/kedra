@@ -21,6 +21,13 @@ Bitwarden login, agent session, or hardware qualification is implied by a green
 bootstrap check. See [research status](docs/research/status.json) and the
 [Actions runs](https://github.com/Reidond/kedra/actions).
 
+The [R03 synthetic example](docs/research/R03-home-review/REPORT.md) now proves
+selected line staging, stable snapshots under later writes, local-only exclusion
+and explicit conflicts in disposable Git fixtures. Run
+`cargo run -p sysroot-core --example r03_home --locked`. Its 12 tests are included
+in standard workspace tests. This is research code; real home management and
+activation remain unavailable.
+
 ## Continue in Codex or Claude
 
 ```bash
@@ -75,8 +82,10 @@ The plugin's [NOTICE.md](plugins/kedra/third-party/rust-skills/NOTICE.md) record
 [ADR 0003](docs/adr/0003-agent-plugin.md).
 
 For Claude, launch from this checkout with `claude --plugin-dir ./plugins/kedra`.
-For Codex, open this checkout and select `kedra` from the repository marketplace
-`kedra-local` in the Plugins UI. See the plugin README for loading and update details.
+Codex 0.153.4 did not automatically discover this repository plugin in the tested
+environment; read canonical skill files directly when it is unavailable. See
+[discovery evidence](docs/research/R11-rust-workspace/discovery-20260907.md) and the
+plugin README for loading and update details.
 Plugin files are prepared in the repository; personal profiles are unchanged.
 
 ## Target model

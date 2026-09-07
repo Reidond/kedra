@@ -3,7 +3,15 @@
   "packets": [
     {"id":"R01","status":"not-run","topic":"Image signing and bootc enforcement"},
     {"id":"R02","status":"not-run","topic":"Installer and Actions feasibility"},
-    {"id":"R03","status":"not-run","topic":"Home line review and local-only policy"},
+    {
+      "id":"R03",
+      "status":"blocked",
+      "topic":"Home line review and local-only policy",
+      "prototype_status":"pass",
+      "report":"R03-home-review/REPORT.md",
+      "results":"R03-home-review/results.json",
+      "note":"Local synthetic Git prototype passes partial staging, stable selected snapshots, local-only exclusion and explicit conflicts, with 12 regression tests. Full R03 remains blocked on Noctalia/app-owned projection, durable disposition transitions and broader path/edit safety. Real adoption and R04 activation are unavailable; current-change Actions not-run."
+    },
     {"id":"R04","status":"not-run","topic":"Activation, writers, rollback"},
     {"id":"R05","status":"not-run","topic":"Agent packaging and independence"},
     {"id":"R06","status":"not-run","topic":"Bitwarden and credential bootstrap"},
@@ -18,8 +26,9 @@
       "bootstrap_status":"pass",
       "report":"R11-rust-workspace/REPORT.md",
       "local_followup":"R11-rust-workspace/plugins.md",
+      "discovery_followup":"R11-rust-workspace/discovery-20260907.md",
       "run_url":"https://github.com/Reidond/kedra/actions/runs/34138882781",
-      "note":"Historical bootstrap passed. Local three-package standard Cargo checks and Codex/Claude plugin authoring checks passed after removal of xtask and symlinks. Installed interactive plugin discovery, editor behavior and distribution review remain not-run."
+      "note":"Historical bootstrap and local standard Cargo checks passed. Codex 0.153.4 marketplace and empty-profile skills/list probes at root/crate discover no Kedra plugin skills; canonical manual reads work. Claude authoring validation passed; interactive Claude/Codex loaded-plugin and editor checks remain not-run. Distribution review remains blocked. These gaps do not block independent R03 research."
     }
   ]
 }

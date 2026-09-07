@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-07",
+  "packet": "R03",
+  "status": "blocked",
+  "prototype_status": "pass",
+  "test_command": "cargo test --workspace --locked",
+  "test_exit_code": 0,
+  "test_counts": {"r03": 12, "other": 7, "doctests": 1},
+  "evidence": "tests.log",
+  "manual_checks": [
+    {"id":"cli-path-refusal","date":"2026-09-08 Europe/Kiev","status":"pass","command":"r03_home --home synthetic-home","exit_code":2,"actual":"Error before creating any fixture; fixture directory count unchanged"},
+    {"id":"cli-help","date":"2026-09-08 Europe/Kiev","status":"pass","command":"r03_home --help","exit_code":0},
+    {"id":"diff-source-hash-layout-review","date":"2026-09-08 Europe/Kiev","status":"pass","actual":"git diff --check exit 0; recorded source SHA-256 values match; no first-party src/ paths"}
+  ],
+  "cases": [
+    {"id":"partial-staging-later-writes","status":"pass","test":"partial_line_staging_survives_later_application_writes","expected":"One selected line from one larger hunk; later app writes do not alter S","actual":"Selected tree/patch unchanged; font=16 and animation=150 remain visible unstaged"},
+    {"id":"no-leak-source-provenance-pending","status":"pass","test":"exact_export_no_private_objects_or_ancestry_and_pending_deployment","expected":"Only S reaches host source; no private history or local values in source objects; B/L unchanged","actual":"Exact source bytes, all-object audit, private-commit absence, source parent and separate P assertions passed; unknown synthetic credential excluded before private capture"},
+    {"id":"selection-policy-overlap","status":"pass","test":"selection_and_policy_overlap_fail_in_both_orders","expected":"Both overlap orders and export reject; S preserved","actual":"Classification errors with unchanged index"},
+    {"id":"ignored-value-changes","status":"pass","test":"ignored_value_changes_again_becomes_explicit_review","expected":"New ignored value resurfaces, never silently suppressed","actual":"border=5 visible; stale I blocks export; explicit clearing exports original S only"},
+    {"id":"ambiguous-stale-relocated-anchors","status":"pass","test":"duplicate_reordered_inserted_deleted_and_changed_baseline_anchors_refuse","expected":"No fuzzy or ordinal-only reassignment","actual":"Duplicates, moved anchors, insert/delete and changed B all refused"},
+    {"id":"source-key-conflict","status":"pass","test":"source_same_line_conflict_preserves_head_index_worktree_live_and_staging","expected":"Explicit conflict without source/live modification","actual":"ContentConflict with unchanged HEAD, source index bytes, source file, L, S and no P"},
+    {"id":"source-advance-adoption-repeat","status":"pass","test":"source_advance_nonoverlap_and_adopted_value_and_repeat_export","expected":"Preserve unrelated upstream changes; adopted or repeated S is idempotent","actual":"Merged source retains both changes; no extra commit for repeated/adopted S"},
+    {"id":"dirty-source-and-stale-preparation","status":"pass","test":"dirty_source_and_post_prepare_advance_refuse","expected":"Existing work and later source advancement preserved","actual":"DirtySource/Classification errors; source bytes retained"},
+    {"id":"baseline-content-conflict","status":"pass","test":"baseline_conflict_never_writes_live_markers_or_advances_baseline","expected":"Conflicts prepared away from L; B not advanced","actual":"Markers only in candidate artifact; L/B unchanged; N=B returns L candidate"},
+    {"id":"unicode-and-no-final-newline","status":"pass","test":"non_ascii_path_and_no_trailing_newline_round_trip","expected":"Exact bytes and source path survive","actual":"Cyrillic filename and unterminated final line round-trip"},
+    {"id":"unsupported-input-refusal","status":"pass","test":"unsupported_encoding_path_and_rename_refuse","expected":"Unsupported paths/encodings/renamed allowlist entry refuse","actual":"CRLF, NUL, BOM, invalid UTF-8, absolute/traversal paths and missing renamed entry rejected; this is not general rename support"},
+    {"id":"generated-no-loss-no-leak","status":"pass","test":"selected_snapshot_no_loss_no_leak_across_generated_values","expected":"S only in source; latest L unchanged across values","actual":"Four deterministic font values 14..17 passed"},
+    {"id":"noctalia-effective-projection-app-owned-comparison","status":"not-run","expected":"Narrow versioned GUI/curated effective-settings adapter and ownership comparison","actual":"No application adapter implemented"},
+    {"id":"deployed-override-cleanup","status":"not-run","expected":"Clear only unchanged redundant override after deployment","actual":"No deployment/cleanup code"},
+    {"id":"durable-i-s-p-and-upstream-adopts-ignored-value","status":"not-run","expected":"Explicit policy transition/reload across N with schema handling","actual":"I/P are in-memory; no baseline transition protocol"},
+    {"id":"general-insert-delete-rename-and-discard","status":"not-run","expected":"Preserve dispositions under supported arbitrary edits and safe discard","actual":"Only conservative refusal subset measured; no safe discard"},
+    {"id":"mode-label-link-special-file-and-arbitrary-paths","status":"not-run","expected":"Safe real-home path handling including non-UTF-8 policy","actual":"Fixed generated ordinary-file allowlist only; CLI accepts no paths"},
+    {"id":"full-disk-permissions-interruption-concurrent-writers","status":"not-run","expected":"No-loss recovery under filesystem and writer failures","actual":"R04/R10 follow-up; sequential fixture writes only"},
+    {"id":"linux-current-change-ci","status":"not-run","expected":"Run this revision on Linux through Actions","actual":"Local Windows checks only; base Actions success is separate"},
+    {"id":"real-home-adoption","status":"blocked","expected":"R03 complete and R04 activation proven before enrollment","actual":"Real homes excluded; operational sysroot home remains unavailable"}
+  ]
+}

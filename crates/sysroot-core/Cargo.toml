@@ -8,5 +8,10 @@ publish.workspace = true
 [lib]
 path = "lib.rs"
 
+[[example]]
+name = "r03_home"
+path = "examples/r03_home.rs"
+test = true
+
 [lints]
 workspace = true

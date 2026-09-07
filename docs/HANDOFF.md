@@ -32,13 +32,28 @@ never an OS/global skill library. Maintain root worklog.md as AGENTS.md requires
 
 ## First work session
 
+Latest local follow-up: [R03 synthetic review](research/R03-home-review/REPORT.md)
+and [ADR 0004](adr/0004-synthetic-home-review.md) prove the four core review/export
+behaviors with 12 tests in a Cargo example. Run
+`cargo run -p sysroot-core --example r03_home --locked`; it accepts no home paths.
+The complete R03 gate remains blocked on structured projection and durable policy
+transitions; R04 activation is not-run. Next R03 work is a narrow Noctalia
+effective-settings fixture and explicit I/S/P transitions across N.
+
+[Available-environment discovery](research/R11-rust-workspace/discovery-20260907.md)
+found no auto-loaded Kedra skills in Codex 0.153.4 at root or crate cwd. Read the
+canonical skill files directly to continue. Claude manifest checks passed;
+interactive plugin/editor checks remain not-run. These gaps do not block
+independent synthetic research and do not authorize global installation.
+
 1. Read AGENTS.md, worklog.md, the context and Rust-workspace skills, PLAN.md, RESEARCH.md,
    and the latest reports/status. Inspect Git state and the exact source revision.
 2. Skills arrive as ordinary tracked files; no submodule or symlink setup is
    needed. Use existing personal Codex/Claude, not an unimplemented launcher.
 3. Use standard Cargo formatting, Clippy, tests and release-build commands from
    AGENTS.md. The custom xtask runner has been removed.
-4. Complete R11's missing real-agent skill-discovery and editor-layout tests.
+4. Consult the R11 discovery follow-up; complete remaining real-agent/editor tests
+   when the corresponding environment is available, independently of R03 work.
    Manifest validation does not prove discovery, optional tool availability,
    model compliance, or profile isolation. Keep those cases not-run until tested.
 5. Start one independent research track: R01/R02 signed-image and installer proof;

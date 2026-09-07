@@ -1,0 +1,65 @@
+   Compiling sysroot-core v0.1.0 (<checkout>\crates\sysroot-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.83s
+     Running unittests main.rs (target\debug\deps\sysroot-cfe9c3ba608c6904.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\cli.rs (target\debug\deps\cli-a61d80d5ed4ef007.exe)
+
+running 3 tests
+test status_is_explicitly_bootstrap_only ... ok
+test unknown_arguments_are_not_ignored ... ok
+test operational_commands_fail_closed ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running unittests lib.rs (target\debug\deps\sysroot_core-390f39fc8eca364c.exe)
+
+running 3 tests
+test tests::deployment_is_not_advertised ... ok
+test tests::every_operational_command_has_a_gate ... ok
+test tests::unknown_command_has_no_gate ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples\r03_home.rs (target\debug\examples\r03_home-72cff3e3071e3c1d.exe)
+
+running 12 tests
+test r03::tests::duplicate_reordered_inserted_deleted_and_changed_baseline_anchors_refuse ... ok
+test r03::tests::baseline_conflict_never_writes_live_markers_or_advances_baseline ... ok
+test r03::tests::selection_and_policy_overlap_fail_in_both_orders ... ok
+test r03::tests::partial_line_staging_survives_later_application_writes ... ok
+test r03::tests::ignored_value_changes_again_becomes_explicit_review ... ok
+test r03::tests::non_ascii_path_and_no_trailing_newline_round_trip ... ok
+test r03::tests::source_same_line_conflict_preserves_head_index_worktree_live_and_staging ... ok
+test r03::tests::unsupported_encoding_path_and_rename_refuse ... ok
+test r03::tests::exact_export_no_private_objects_or_ancestry_and_pending_deployment ... ok
+test r03::tests::dirty_source_and_post_prepare_advance_refuse ... ok
+test r03::tests::source_advance_nonoverlap_and_adopted_value_and_repeat_export ... ok
+test r03::tests::selected_snapshot_no_loss_no_leak_across_generated_values ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.53s
+
+     Running unittests main.rs (target\debug\deps\sysroot_helper-88d2b0b88f543e37.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\refusal.rs (target\debug\deps\refusal-5e9e93733dd95a01.exe)
+
+running 1 test
+test no_privileged_operation_is_implemented ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests sysroot_core
+
+running 1 test
+test crates\sysroot-core\lib.rs - (line 3) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+all doctests ran in 0.45s; merged doctests compilation took 0.37s

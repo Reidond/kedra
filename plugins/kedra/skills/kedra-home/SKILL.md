@@ -53,5 +53,25 @@ Tests must cover overlap, app writes after staging/preflight, deletes/renames,
 non-UTF paths policy, modes/labels, symlink escapes, full disk, interruption,
 upstream adopting the same value, rollback after new edits and source-branch drift.
 Gates R03/R04 precede real-home adoption. Sources: docs/SOURCES.md git-stage,
-git-merge, git-faq, overlayfs, inotify, bootc-fs, noctalia. This system is not yet
-implemented; never use a simplistic merge prototype on a real home.
+git-merge, git-faq, overlayfs, inotify, bootc-fs, noctalia. Production home management
+is not implemented; never use a synthetic merge prototype on a real home.
+
+## Established synthetic R03 findings
+
+On 2026-09-07, Git 2.55.0.windows.1 and Rust 1.98.1 passed the std-only
+`cargo run -p sysroot-core --example r03_home --locked` experiment and 12 tests.
+One selected line from a larger hunk stays fixed in a pinned Git tree after later
+app writes. Export B-to-S through a temporary source index with
+`git apply --cached --3way`; source conflicts leave the real source index/worktree
+and live fixture unchanged. Audit all source objects, not just the visible diff:
+private snapshot commits and local-only bytes must not cross into source history.
+
+The prototype binds exact before/after line decisions to B, rejects ambiguity,
+relocation, stale values and selection/policy overlap, and checks policy at export.
+This is conservative single-line replacement evidence, not persistent hunk-ignore
+or Noctalia/app-owned-field support. Published S/source commit is separate from B;
+repeat export is a no-op and publication never implies deployment. R03 remains
+blocked for real adoption; R04 activation is not-run. See
+[the report](../../../../docs/research/R03-home-review/REPORT.md) and
+[ADR 0004](../../../../docs/adr/0004-synthetic-home-review.md) for exact cases,
+failure history, unsupported inputs and the next Noctalia/disposition experiment.

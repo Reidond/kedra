@@ -7,17 +7,18 @@ public: no credentials, transcripts, private home data or sensitive raw logs.
 
 ## Current project status
 
-Last updated: 2026-09-07.
+Last updated: 2026-09-08 (Europe/Kiev); R03 checks ran on 2026-09-07.
 
 | Area | Verified status / next boundary |
 |---|---|
 | Phase | Research-ready repository bootstrap; not an installable operating system. |
-| Implemented | Three-package flat Rust workspace, help/version/bootstrap status, refusal of unimplemented operations, standard Cargo CI and documentation. |
+| Implemented | Three-package flat Rust workspace, help/version/bootstrap status, operational refusals, standard Cargo CI, and a synthetic-only R03 Cargo example. No real-home manager or deployment implementation. |
 | Repository knowledge | One Codex/Claude plugin with 12 Kedra and 18 selected upstream skills in plugins/kedra/skills. Ordinary files; no submodule, symlinks or duplicate discovery copies. No personal installation. |
-| Latest verified check | Pushed merge 891cc1506851365d32747caf63b89300294ce71a passed [Actions run 34160120958](https://github.com/Reidond/kedra/actions/runs/34160120958). Local plugin validators also passed after merging. This documentation follow-up does not claim its own future CI result. |
-| R11 | Bootstrap subset passed. Overall packet remains blocked on installed interactive plugin/editor discovery and distribution review. |
-| R01-R10 | Not run, as recorded in `docs/research/status.json`. No OS/ISO/signature/home/auth/hardware success is implied. |
-| Current task | Plugin migration, xtask/skills-lockfile removal and concurrent update-planning merge committed and pushed; merged-source CI passed. Upstream provenance is in NOTICE.md. Plugin installation remains not-run. |
+| Latest verified check | Base 64c84498c898e61ff370d9f9f1ce30cbd3d00613 passed [Actions run 34160201371](https://github.com/Reidond/kedra/actions/runs/34160201371). Local R03 fmt/Clippy/workspace tests (19 + 1 doctest)/release build passed on Windows; current-change CI not-run. |
+| R11 | Canonical skill files readable; Codex marketplace and fresh-profile root/crate skills/list found no Kedra entries. Claude authoring validation passed. Loaded-plugin model/editor checks not-run; distribution review blocked. |
+| R03 | Core synthetic review prototype passed 12 tests; full gate remains blocked on Noctalia/app-owned projection, durable disposition transitions and wider path/edit safety. See docs/research/R03-home-review/REPORT.md. |
+| Other R01-R10 | Not run, as recorded in docs/research/status.json. R04 activation remains unavailable; no OS/ISO/signature/auth/hardware success is implied. |
+| Current task | R03 prototype, evidence and ADR 0004 complete; owner authorized commit/push. Publication and exact-revision CI verification are in progress. |
 | Machine effects | None. No workstation, home directory, vault, personal agent profile or installation was changed. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
@@ -36,6 +37,11 @@ CI RPM-refresh proof (slice 1), covering unchanged-base dependency updates, stal
 cache, no-change and required-repo failure. Connect to signed-image/installer gates
 only after those proofs. R03 home and remaining R11 discovery work can proceed
 independently. Do not enable production cron or enroll a real machine/home yet.
+
+For R03, next add a versioned synthetic Noctalia effective-settings projection
+and explicit I/S/P transitions across N. Continue independent work by reading
+canonical skills when native discovery is unavailable. Review local changes
+before any separately authorized publication; new-change Linux CI is not-run.
 
 ## Work entries
 
@@ -257,3 +263,19 @@ independently. Do not enable production cron or enroll a real machine/home yet.
   installed interactive plugin use and existing R01-R11 research gaps remain.
 - Next: Load the plugin for Kedra work or continue the documented refresh
   experiment. Use standard Cargo commands; no custom task runner is required.
+
+### WL-20260907-10 — 2026-09-07 — R03 synthetic review and R11 discovery
+- Agent / state: Codex; completed requested local prototype; full research gates remain partial. Handoff finalized 2026-09-08 Europe/Kiev.
+- Scope / base: main at 64c84498c898e61ff370d9f9f1ce30cbd3d00613; synthetic R03 only and read-only R11 discovery checks.
+- Completed: Read contracts/source/pinned skills; initial checkout clean. Added a std-only Cargo example and 12 tests for selected line snapshots, later application writes, local-only exclusion including private-history/object audits, source drift and explicit conflicts. Generated homes/repositories only; no path-taking enrollment CLI. Added ADR 0004, R03 report/environment/results/golden fixtures/logs and R11 discovery evidence. Updated home/Rust skills, handoff/readmes/status and CI scope wording. Three packages and one lockfile retained; upstream skills unchanged.
+- Checks / evidence: pass — exact-base Actions run https://github.com/Reidond/kedra/actions/runs/34160201371. pass — Rust/Cargo 1.98.1 fmt, Clippy, workspace tests (19 plus 1 doctest), release build, metadata and synthetic session; Git 2.55.0.windows.1. Final logs/source hashes in docs/research/R03-home-review. Initial Windows Git config-path failure and two test-audit/assertion mistakes corrected; initial Clippy warnings fixed without lint changes. pass — Claude 2.1.263 plugin/marketplace authoring checks and canonical skill reads. blocked — Codex 0.153.4 marketplace and isolated skills/list root/crate discovery returned no Kedra skills. not-run — interactive Claude/loaded-plugin Codex/editor and current-change Actions.
+- Remaining / blockers: R03 full gate still needs Noctalia/app-owned projection, durable I/P and baseline transitions, broader path/edit safety; R04 activation/concurrent writer/crash recovery not-run. No real home, OS, vault or personal agent configuration was modified; no commit/push/global plugin installation. Synthetic publication is not deployment.
+- Next: Review local diff/evidence; extend synthetic R03 with Noctalia effective settings and explicit I/S/P transitions across N, keeping real activation behind R04.
+
+### WL-20260908-01 — 2026-09-08 — Authorized R03 publication preparation
+- Agent / state: Codex; completed publication preparation.
+- Scope / base: main at 64c84498c898e61ff370d9f9f1ce30cbd3d00613; owner explicitly requested commit and push of the completed R03/discovery changes.
+- Completed: Reviewed tracked/untracked publication scope; fetched origin and confirmed no divergence. Preserved synthetic-only boundaries, reports, skill updates and ignored local artifacts.
+- Checks / evidence: pass — recorded SHA-256 values match all tested source files; earlier fmt/Clippy/19 tests plus 1 doctest/release build remain applicable. pass — git diff --check. No unrelated pending edits were observed.
+- Remaining / blockers: Commit/push and exact-revision Actions observation follow this record; no future CI success is claimed. Full R03/R11 and R04 activation gaps remain unchanged.
+- Next: Commit the reviewed files, push main normally, and record the observed Actions outcome.

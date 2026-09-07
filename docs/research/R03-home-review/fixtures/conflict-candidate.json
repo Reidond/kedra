@@ -1,0 +1,5 @@
+{
+  "status": "conflict",
+  "location": "synthetic candidate only; never live configuration",
+  "text": "<<<<<<< live\nfont=16\nborder=4\nanimation=150\n=======\nfont=12\nborder=3\nanimation=250\n>>>>>>> next\n"
+}

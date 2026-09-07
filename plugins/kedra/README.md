@@ -11,11 +11,13 @@ plugin cache. The sysroot agent launchers are still unimplemented.
 
 ## Codex
 
-Open the Kedra checkout in the Codex app. Its repository marketplace is
-`.agents/plugins/marketplace.json`, named `kedra-local`. Restart the app if the
-new marketplace is not listed, then select `kedra` in the Plugins UI. Begin a
-new thread after enabling it. These files have not installed the plugin or
-changed personal configuration.
+The repository marketplace is `.agents/plugins/marketplace.json`, named
+`kedra-local`. On 2026-09-07, Codex CLI 0.153.4 marketplace queries and fresh-profile
+skills/list probes found no Kedra skills at root or crate cwd. The current app
+session did not advertise them either. Read canonical skill files explicitly when
+the plugin is unavailable; a restart is not a verified remedy. See
+[discovery evidence](../../docs/research/R11-rust-workspace/discovery-20260907.md).
+These repository files have not installed the plugin or changed personal config.
 
 Codex CLI supports explicitly registering a marketplace with
 `codex plugin marketplace add .` and installing with

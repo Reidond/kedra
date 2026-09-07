@@ -11,9 +11,9 @@ is intended to replace having to reconstruct the original planning conversation.
 ## What exists now
 
 A flat-source Cargo workspace, read-only bootstrap CLI, non-operational helper,
-repository checks, per-target design inputs, R01-R11 specifications, the session
-contract, twelve Kedra skills, and a pinned upstream Rust-skills submodule with
-repository-local discovery links. The check workflow has no signing secrets,
+standard Cargo CI, per-target design inputs, R01-R11 specifications, the session
+contract, twelve Kedra skills, and eighteen selected upstream Rust skills with
+one shared Codex/Claude plugin (ADR 0002). The check workflow has no signing secrets,
 package publication, workstation access, or OS installation step.
 
 Only help/version/status are CLI capabilities. `sysroot home`, `update`,
@@ -26,11 +26,12 @@ production assembler consumes them yet. Read the actual latest CI result.
 
 1. Read AGENTS.md, the context and Rust-workspace skills, PLAN.md, RESEARCH.md,
    and the latest reports/status. Inspect Git state and the exact source revision.
-2. Initialize the pinned submodule when missing; do not update it to a moving
-   branch. Use existing personal Codex/Claude, not an unimplemented launcher.
-3. Run `cargo xtask check`. Resolve any bootstrap failure without relaxing checks.
+2. Skills arrive as ordinary tracked files; no submodule or symlink setup is
+   needed. Use existing personal Codex/Claude, not an unimplemented launcher.
+3. Use standard Cargo formatting, Clippy, tests and release-build commands from
+   AGENTS.md. The custom xtask runner has been removed.
 4. Complete R11's missing real-agent skill-discovery and editor-layout tests.
-   Static link validation does not prove discovery, optional tool availability,
+   Manifest validation does not prove discovery, optional tool availability,
    model compliance, or profile isolation. Keep those cases not-run until tested.
 5. Start one independent research track: R01/R02 signed-image and installer proof;
    R03 synthetic home line-selection/local-only semantics; or R05 official-agent

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/sysroot", "crates/sysroot-core", "crates/sysroot-helper", "xtask"]
+members = ["crates/sysroot", "crates/sysroot-core", "crates/sysroot-helper"]
 resolver = "3"
 
 [workspace.package]

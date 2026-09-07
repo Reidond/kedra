@@ -314,7 +314,7 @@ Read kedra-security/rust-workspace; language and package layout are settled.
 Define typed operations, machine-readable outputs, stable exits and authorization
 before expanding CLI taxonomy. The user CLI and private home state cannot establish
 root trust. The installed helper never executes writable source code or depends
-on agent/xtask orchestration. Choose necessary parser/persistence/OS bindings in
+on agent/development orchestration. Choose necessary parser/persistence/OS bindings in
 an ADR, not an invented language or Git engine.
 
 Test malformed reference, option/shell injection, environment/PATH substitution,
@@ -340,9 +340,9 @@ recovery commands and minimal status contract.
 
 **Fixed:** Rust edition 2024, no first-party src/, explicit flat entry points,
 one lockfile, rustfmt/Clippy, actionbook/rust-skills at
-5c40d3ad785193231b7d0dbfb8e1eb447e5edd94, local links for both agents and no plugin
+5c40d3ad785193231b7d0dbfb8e1eb447e5edd94, a shared Codex/Claude plugin with ordinary skill files and no
 hooks/MCP/global installation. The bootstrap now scaffolds these choices; it does
-not prove all agent/editor behavior. Read ADR 0001 and kedra-rust-workspace.
+not prove all agent/editor behavior. Read ADRs 0001/0002 and kedra-rust-workspace.
 
 **Workspace cases:** Record exact rustc/cargo/toolchain. Run metadata --locked,
 fmt check, Clippy workspace/all-targets with warnings denied, tests/doctests and
@@ -351,29 +351,30 @@ nested/root src/. Test negative layouts and unintended targets/dependencies, not
 only happy-path compilation. Inspect rust-analyzer behavior separately. Exclude
 vendor examples and target artifacts from first-party layout restrictions.
 
-**Skill cases:** Compare actual gitlink, lock and initialized HEAD. Verify links
-are real, not text files, and resolve to canonical allowed directories. Validate
-frontmatter and useful supporting/cross-skill references; full parser checks can
-be added rather than claiming bootstrap marker checks prove schema compliance.
-Clone/move/offline/missing-submodule cases must not trigger unpinned auto-install.
+**Skill cases:** Review the selected snapshot against the plugin NOTICE.md provenance
+and existing upstream notices. Validate both plugin manifests, marketplace source
+paths, skill frontmatter and skill-relative support files. Confirm ordinary files
+with no symlinks, submodules, duplicate discovery trees or custom check runner.
+Clone/move/offline cases must not trigger unpinned auto-install. Standard Cargo
+commands cover Rust; plugin checks are separate authoring checks, not build gates.
 
 Start each real official CLI at repo root and a crate directory using separate
 empty test profiles, then synthetic personal conflicts. Prove actual discovery
 of Kedra skills and upstream router/domain-cli/coding/ownership/error/unsafe topics.
-Open relative support files through links and canonical paths. Record unsupported
+Open relative support files through plugin and canonical paths. Record unsupported
 optional plugins/tools. Referencing a browser/MCP/subagent is not proof it exists.
 Do not run upstream setup/hooks or copy example permissions. Prove no personal
 profile/global skill writes and no toolchain/lint/source-layout takeover during
 a Rust task. Model obedience remains subject to code review/CI, not certification.
 
-Review upstream notices/licensing before any OS redistribution. A pinned gitlink
-identifies source, not a security audit. Update gitlink/lock/owned links/validator
-pin coherently and retest. Actual runtime profile isolation remains R05 coverage.
+Review upstream notices/licensing before any OS redistribution. A recorded revision
+identifies source, not a security audit. Update the selected files, provenance
+and plugin version coherently and retest. Actual runtime profile isolation remains R05 coverage.
 
-**Pass:** Workspace checks and invalid-layout tests pass; both CLIs identify pinned
-sources/support references without global/personal mutation or plugin execution;
+**Pass:** Standard Cargo checks pass and explicit source layout is reviewed; both CLIs identify pinned
+sources/support references without unintended global/personal mutation or hook execution;
 editor findings recorded. Static bootstrap success alone is not overall R11 pass.
-**Deliver:** Toolchain/dependency decision, workspace/CI evidence, pin/link tests,
+**Deliver:** Toolchain/dependency decision, workspace/CI evidence, plugin validation,
 redacted discovery traces, notices findings and explicit remaining unsupported
 cases. Update skills/status without turning R01-R10 into implied passes.
 

@@ -1,0 +1,12 @@
+{
+  "name": "kedra-local",
+  "owner": { "name": "Kedra contributors" },
+  "metadata": { "description": "Repository-local Kedra development skills." },
+  "plugins": [
+    {
+      "name": "kedra",
+      "source": "./plugins/kedra",
+      "description": "Kedra repository development skills for Claude Code."
+    }
+  ]
+}

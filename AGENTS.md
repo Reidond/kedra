@@ -3,7 +3,7 @@
 ## Read first
 
 Read the current project status and latest entries in `worklog.md`, then
-`docs/HANDOFF.md` and `skills/kedra-context/SKILL.md` at the start of a new or
+`docs/HANDOFF.md` and `plugins/kedra/skills/kedra-context/SKILL.md` at the start of a new or
 resumed session. `PLAN.md` defines the product; `RESEARCH.md` defines evidence
 gates; `docs/research/status.json` and reports describe actual results. Never
 infer an implemented feature from a design example or a stale worklog summary.
@@ -33,10 +33,14 @@ are development knowledge for this repository only. Their scope is a Kedra
 checkout/worktree and its project-local agent discovery directories, not the
 installed operating system or unrelated projects.
 
-Keep canonical sources in `skills/` and `vendor/rust-skills/`, exposed only through
-this checkout's `.agents/skills/` and `.claude/skills/`. Do not copy, symlink,
-register or auto-discover this collection through global user skill directories,
-system skill directories, global plugins, or user-wide agent configuration.
+Keep one canonical skill tree in `plugins/kedra/skills/`, with ordinary files
+and shared Codex/Claude plugin manifests in `plugins/kedra/`. The repository-local
+marketplace catalogs expose this plugin. No submodules, symlinks, generated skill
+copies, synchronization tasks or custom Cargo check runner. Edit skills directly.
+Keep upstream provenance and existing notices in the plugin's
+`third-party/rust-skills/NOTICE.md` and accompanying upstream files.
+Do not install/register this collection in global profiles or unrelated projects
+as an incidental development step. Plugin creation does not authorize installation.
 Do not install the collection into the OS image, installer payload, home baseline,
 or bundled agents' shared profile as a system-wide skill library. An explicitly
 cloned Kedra checkout can contain and use the skills as repository files; that
@@ -65,8 +69,8 @@ report the limitation; do not silently broaden this scope.
 | Experiments, evidence, handoff | `kedra-research` |
 | Privilege, journals, privacy, recovery | `kedra-security` |
 
-Canonical first-party skills are `skills/<name>/SKILL.md`; upstream skills are
-`vendor/rust-skills/skills/<name>/SKILL.md`. Read referenced material as needed,
+Canonical first-party and selected upstream skills are
+`plugins/kedra/skills/<name>/SKILL.md`. Read referenced material as needed,
 not every skill in every prompt. Upstream advice does not override this contract,
 the task's authorization, our source layout, or pinned build/lint settings.
 Do not execute upstream setup scripts, hooks, plugins, permissions, background
@@ -162,9 +166,11 @@ before publication. A successful container build is not a boot/hardware test.
 
 ## Checks and completion
 
-Run `cargo xtask check` before publishing Rust/skill changes. It checks the
-bootstrap's explicit layout, recorded upstream pin and links, Cargo metadata,
-formatting, Clippy, tests, and release compilation. Keep dependency additions
+Use standard Cargo commands appropriate to the change: `cargo fmt --all -- --check`,
+`cargo clippy --workspace --all-targets --locked -- -D warnings`,
+`cargo test --workspace --locked`, and `cargo build --workspace --release --locked`.
+Do not recreate the removed xtask runner or skill-copy validation machinery.
+Keep dependency additions
 small and justified. Prefer typed errors and explicit process arguments over
 shell interpolation. Safe Rust is the default; do not weaken the workspace lint
 for convenience. No custom Git engine, configuration language, fleet server,

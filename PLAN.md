@@ -37,7 +37,7 @@ an AI service, GitHub availability or a continuously running agent process.
 | Build | GitHub Actions, explicit inputs/package lists, narrow scripts/Cargo tasks |
 | Code | Rust edition 2024 Cargo monorepo, no first-party src/ directories |
 | Tooling | One lockfile, pinned toolchain, rustfmt, Clippy, explicit entry points |
-| Rust knowledge | Pinned actionbook/rust-skills submodule, repository-local skills-only integration |
+| Rust knowledge | Selected actionbook/rust-skills snapshot in a repository-local Codex/Claude plugin |
 | Desktop | niri and Noctalia plus working session/audio/portals/network/keyring |
 | Source | Linux-shaped etc/, usr/, home/ plus hosts/<target>/ overrides |
 | Releases | Signed OCI image, installation ISO, signed manifest/checksums and build provenance |
@@ -63,15 +63,14 @@ kedra/
   crates/sysroot/{Cargo.toml,main.rs,...}
   crates/sysroot-core/{Cargo.toml,lib.rs,...}
   crates/sysroot-helper/{Cargo.toml,main.rs,...}
-  xtask/{Cargo.toml,main.rs}
   packages/{common.list,remove.list}
   etc/, usr/, home/
   hosts/desktop/{host.toml,packages.list,etc/,usr/,home/}
   hosts/xps/                         # reserved, disabled/unqualified
   build/, installer/, tests/
-  skills/<kedra-topic>/SKILL.md
-  vendor/rust-skills/                # pinned gitlink
-  .agents/skills/, .claude/skills/    # per-skill links to canonical source
+  plugins/kedra/skills/<topic>/SKILL.md  # single canonical skill tree
+  plugins/kedra/{.codex-plugin/,.claude-plugin/}
+  .agents/plugins/marketplace.json, .claude-plugin/marketplace.json
   docs/{HANDOFF.md,SESSION.md,SOURCES.md,adr/,research/}
   .github/workflows/
 ```
@@ -80,7 +79,7 @@ Every first-party binary/library explicitly declares main.rs/lib.rs directly in
 its package directory. No root src/ or nested crates/*/src/. Modules and crate
 integration tests remain ordinary Rust. Do not rewrite vendored examples. The
 shared core stays small/pure; the helper never depends on the user CLI, agent
-executor, writable hooks or xtask. Async/framework dependencies require a real
+executor, writable hooks or development tooling. Async/framework dependencies require a real
 need. Rust checks and actual agent discovery are separate R11 evidence.
 
 The bootstrap includes read-only CLI status and a helper that refuses operations,

@@ -1,0 +1,20 @@
+{
+  "name": "kedra-local",
+  "interface": {
+    "displayName": "Kedra Local"
+  },
+  "plugins": [
+    {
+      "name": "kedra",
+      "source": {
+        "source": "local",
+        "path": "./plugins/kedra"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rust-and-skills:
+  rust:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -22,7 +22,6 @@ jobs:
       - name: Checkout pinned source and skills
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          submodules: recursive
           persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
@@ -31,10 +30,18 @@ jobs:
           rustc --version --verbose
           cargo --version
           git --version
-      - name: Validate workspace, skills, formatting, lints, tests and release build
-        run: cargo xtask check
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --locked
+      - name: Release build
+        run: cargo build --workspace --release --locked
       - name: Ensure checks did not change source or lockfile
-        run: git diff --exit-code --ignore-submodules=none
+        run: |
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
       - name: Scope of this result
         if: always()
         run: |

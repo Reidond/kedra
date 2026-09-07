@@ -17,8 +17,9 @@
       "topic":"Rust workspace and skill integration",
       "bootstrap_status":"pass",
       "report":"R11-rust-workspace/REPORT.md",
+      "local_followup":"R11-rust-workspace/plugins.md",
       "run_url":"https://github.com/Reidond/kedra/actions/runs/34138882781",
-      "note":"Rust/format/lint/test/release and static skill wiring passed; actual Codex/Claude discovery, editor behavior, complete adversarial validation and distribution review remain not-run."
+      "note":"Historical bootstrap passed. Local three-package standard Cargo checks and Codex/Claude plugin authoring checks passed after removal of xtask and symlinks. Installed interactive plugin discovery, editor behavior and distribution review remain not-run."
     }
   ]
 }

@@ -1,0 +1,18 @@
+{
+  "name": "kedra",
+  "version": "0.1.0",
+  "description": "Repository development knowledge for the Kedra OS and sysroot CLI.",
+  "author": {
+    "name": "Kedra contributors"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Kedra",
+    "shortDescription": "Develop Kedra with its project and Rust skills.",
+    "longDescription": "Kedra repository guidance and selected Rust skills. Open a Kedra checkout and read AGENTS.md before applying these instructions.",
+    "developerName": "Kedra contributors",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Read the Kedra worklog and help with the current task."
+  }
+}

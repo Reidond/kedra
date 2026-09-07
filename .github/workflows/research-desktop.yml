@@ -20,7 +20,7 @@ permissions:
   contents: read
 concurrency:
   group: research-desktop-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   desktop:
     if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'

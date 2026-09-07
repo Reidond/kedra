@@ -7,6 +7,7 @@ The Super key is usually the Windows key.
 | Shortcut | Action |
 |---|---|
 | Super+Return | Open the Foot terminal |
+| Super+Shift+/ | Show the shortcut overlay |
 | Super+D | Open the application launcher |
 | Super+Shift+D | Open the independent Fuzzel launcher |
 | Super+Comma | Open Noctalia settings |

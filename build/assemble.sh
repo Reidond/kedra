@@ -14,6 +14,9 @@ dnf -y --best --refresh "${repos[@]}" install "${packages[@]}"
 if test "${#remove[@]}" -gt 0; then dnf -y "${repos[@]}" remove "${remove[@]}"; fi
 dnf clean all
 dnf check
+# Recomputable build-time caches/logs are not installed machine state.
+rm -rf /var/lib/dnf /var/cache/swcatalog /var/cache/ldconfig
+rm -f /var/log/dnf5.log /var/log/dnf5.log.1
 chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper
 getent passwd greetd
 systemctl enable greetd.service NetworkManager.service bluetooth.service

@@ -22,12 +22,17 @@ layout {
 
 spawn-at-startup "noctalia"
 
+hotkey-overlay {
+    skip-at-startup
+}
+
 window-rule {
     match app-id="dev.noctalia.Noctalia"
     open-floating true
 }
 
 binds {
+    Mod+Shift+Slash { show-hotkey-overlay; }
     Mod+Return { spawn "foot"; }
     Mod+T { spawn "foot"; }
     Mod+D { spawn "noctalia" "msg" "panel-toggle" "launcher"; }

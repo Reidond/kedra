@@ -1,0 +1,2 @@
+# Keep the login screen readable; boot messages remain available in the journal.
+kargs = ["quiet"]

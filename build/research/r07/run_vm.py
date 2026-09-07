@@ -72,7 +72,7 @@ command = [
     "-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
     "-drive", f"if=pflash,format=raw,file={work / 'OVMF_VARS.fd'}",
     "-drive", f"file={disk},if=virtio,format=qcow2,snapshot=on",
-    "-vga", "none", "-device", "virtio-vga-gl", "-display", "gtk,gl=on",
+    "-vga", "none", "-device", "virtio-vga-gl,xres=1280,yres=800", "-display", "gtk,gl=on", "-full-screen",
     "-audiodev", "none,id=audio0", "-device", "ich9-intel-hda", "-device", "hda-duplex,audiodev=audio0",
     "-serial", f"file:{log}", "-serial", f"file:{events}", "-monitor", "none", "-nic", "none",
     "-qmp", f"unix:{qmp_path},server=on,wait=off",

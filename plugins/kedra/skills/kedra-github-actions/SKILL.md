@@ -1,6 +1,6 @@
 ---
 name: kedra-github-actions
-description: Build Kedra CI, target matrices, image/ISO/VM experiments, runner measurements, signed artifact provenance, safe release jobs and checks that do not expose secrets.
+description: Build Kedra CI, target matrices, scheduled Fedora package refresh, image/ISO/VM experiments, runner measurements, signed provenance and safe release jobs without exposing secrets.
 ---
 
 # CI and installer pipeline
@@ -9,6 +9,26 @@ All OS and installer builds run in GitHub Actions. Local Rust tests and syntheti
 home tests are allowed; local OS rebuilding is not the intended workflow.
 Bootstrap check.yml only validates Rust and skill wiring. It is not a release
 pipeline and has no signing, GHCR publishing or workstation access.
+
+## Scheduled Fedora refresh
+
+Read [the refresh notes](references/fedora-refresh.md), docs/UPDATES.md and ADR 0002
+for the proposed 12-hour refresh, no-change/freshness policy and concrete negative
+cases. These are plans, not enabled automation. One future orchestrator handles
+scheduled/manual/accepted-source changes. Fresh metadata and full installed RPM
+closure matter even when the Fedora base digest and source package list do not
+change. A cached RUN can skip DNF entirely; --refresh inside it is insufficient.
+
+Keep fedora/updates as the proposed reviewed allowlist, fail required-repo errors,
+preserve signature checks and audit solver results. Normal upgrade is not routine
+distro-sync. Do not mirror every Fedora package or commit nightly RPM-version
+updates. Never silently update non-RPM pins, personal agents or repository skills.
+No-change checks renew a signed freshness record pointing at the same release/ISO;
+failed resolution or validation is not no changes. Client freshness checks must
+expose stopped schedules, including GitHub's public-repository inactivity limit.
+
+These skills are checkout-only. Do not copy them into image payloads, home baselines
+or global/shared agent profiles. CI is permitted to read them as repository source.
 
 ## Job boundaries
 
@@ -27,9 +47,11 @@ package change and changing trust-critical workflows/helper are different risks.
 
 Build all enabled targets from one accepted commit initially. Resolve and record
 base/artifact inputs deliberately. Never let cached DNF layers make scheduled
-refreshes silently stale. A failed target never advances its channel; per-target
-promotion is serialized. Reruns have distinct identities. Retain exact digest,
-source, toolchain, Cargo.lock, package inventory, builder and source-skill pins.
+refreshes silently stale. A failed target never advances its approved image;
+per-target promotion is serialized AND rechecks source intent/event order. Reruns
+have distinct identities. Retain exact digest, source, toolchain, Cargo.lock,
+package inventory, builder and source-skill pins. Source-skill provenance is not
+permission to install those skills into the OS or force an OS release per doc edit.
 
 ## Installer research
 
@@ -52,4 +74,6 @@ Pin everything material and record actual outputs. Container build/lint, QEMU
 boot, signed update and physical GPU/camera tests are distinct. UEFI Secure Boot
 gets a separate result. Do not enable production publishing before R01/R02/R08.
 Sources: docs/SOURCES.md actions-security, actions-runners, release-limits,
-image-builder; read kedra-release-signing and kedra-research.
+image-builder and docs/UPDATES.md U01-U08. Read kedra-release-signing and
+kedra-research; record actual findings and worklog outcomes without marking planned
+refresh cases passed merely because repository checks succeed.

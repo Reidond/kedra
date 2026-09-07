@@ -342,7 +342,7 @@ recovery commands and minimal status contract.
 one lockfile, rustfmt/Clippy, actionbook/rust-skills at
 5c40d3ad785193231b7d0dbfb8e1eb447e5edd94, a shared Codex/Claude plugin with ordinary skill files and no
 hooks/MCP/global installation. The bootstrap now scaffolds these choices; it does
-not prove all agent/editor behavior. Read ADRs 0001/0002 and kedra-rust-workspace.
+not prove all agent/editor behavior. Read ADRs 0001/0003 and kedra-rust-workspace.
 
 **Workspace cases:** Record exact rustc/cargo/toolchain. Run metadata --locked,
 fmt check, Clippy workspace/all-targets with warnings denied, tests/doctests and

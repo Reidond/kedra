@@ -14,27 +14,28 @@ Last updated: 2026-09-07.
 | Phase | Research-ready repository bootstrap; not an installable operating system. |
 | Implemented | Three-package flat Rust workspace, help/version/bootstrap status, refusal of unimplemented operations, standard Cargo CI and documentation. |
 | Repository knowledge | One Codex/Claude plugin with 12 Kedra and 18 selected upstream skills in plugins/kedra/skills. Ordinary files; no submodule, symlinks or duplicate discovery copies. No personal installation. |
-| Latest verified check | Local Rust 1.98.1: fmt, Clippy, 7 tests + 1 doctest and release build passed; both plugin manifests and Claude skill validation passed. See [local report](docs/research/R11-rust-workspace/plugins.md). Earlier run 4 on 1e094eca remains historical CI evidence; new-revision CI is not-run. |
+| Latest verified check | Local Rust 1.98.1: fmt, Clippy, 7 tests + 1 doctest and release build passed; both plugin manifests and Claude skill validation passed. See [local report](docs/research/R11-rust-workspace/plugins.md). Remote update-plan run 6 on bfb1902 is recorded as passed; merged-revision CI is not-run. |
 | R11 | Bootstrap subset passed. Overall packet remains blocked on installed interactive plugin/editor discovery and distribution review. |
 | R01-R10 | Not run, as recorded in `docs/research/status.json`. No OS/ISO/signature/home/auth/hardware success is implied. |
-| Current task | Completed local plugin packaging, xtask removal and removal of the unused skills lockfile. Upstream provenance lives in the plugin NOTICE.md. Plugin installation and new-revision CI remain not-run. |
+| Current task | Completed local plugin packaging, xtask removal and removal of the unused skills lockfile. Upstream provenance lives in the plugin NOTICE.md. Concurrent update/refresh planning from b7b2962 is preserved. Plugin installation and merged-revision CI remain not-run. |
 | Machine effects | None. No workstation, home directory, vault, personal agent profile or installation was changed. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
 [research index](docs/research/status.json),
 [bootstrap run 2](https://github.com/Reidond/kedra/actions/runs/34138882781),
 [baseline run 3](https://github.com/Reidond/kedra/actions/runs/34139103852),
-and [documentation run 4](https://github.com/Reidond/kedra/actions/runs/34140106798).
+[documentation run 4](https://github.com/Reidond/kedra/actions/runs/34140106798),
+and [update-plan run 6](https://github.com/Reidond/kedra/actions/runs/34145002985).
 The snapshot summarizes those records; source, exact CI runs and case-level
 reports remain authoritative for what was tested.
 
 ### Next concrete actions
 
-Continue from `docs/HANDOFF.md`; inspect current Git/CI state when resuming.
-Complete available R11 plugin-discovery/editor cases without
-claiming unavailable environments passed. R03 synthetic writable-home research
-can proceed independently; R01/R02 use disposable CI-built image/installer tests.
-Do not enroll a real home or deploy to the workstation during those experiments.
+Read docs/HANDOFF.md and docs/UPDATES.md. The update track starts with a disposable
+CI RPM-refresh proof (slice 1), covering unchanged-base dependency updates, stale
+cache, no-change and required-repo failure. Connect to signed-image/installer gates
+only after those proofs. R03 home and remaining R11 discovery work can proceed
+independently. Do not enable production cron or enroll a real machine/home yet.
 
 ## Work entries
 
@@ -100,7 +101,51 @@ Do not enroll a real home or deploy to the workstation during those experiments.
 - Next: Resume the selected research packet using `docs/HANDOFF.md`; read and
   maintain this worklog in the next Codex or Claude session.
 
-### WL-20260907-04 — 2026-09-07 — Local Rust toolchain mismatch
+### WL-20260907-04 — 2026-09-07 — Plan updates and scheduled Fedora refresh
+
+- Agent / state: ChatGPT using GitHub and primary web documentation; completed
+  planning, with resulting CI not yet observed at entry creation.
+- Scope / base: `main` at `f3b44f1fd63af5805167c30e139bb5bf3f9aa3f4`.
+  Documentation/repository-skill changes only; existing research gate statuses stay.
+- Completed: Added docs/UPDATES.md, ADR 0002 and an update-refresh experiment
+  supplement. Added detailed skill references and updated the bootc, CI and signing
+  skills plus HANDOFF. Proposed 12-hour complete Fedora refresh, full RPM closure,
+  no-change/freshness separation, same-digest tests/ISO and notify-only clients.
+  Planned explicit staging/reboot control, pending-image preservation, rollback
+  holds, repository/cache failure handling and signed per-target checkpoints.
+- Checks / evidence: `pass` — inspected repository instructions/worklog/source and
+  checked current bootc/DNF5/Podman/GitHub primary docs (U01-U11 in docs/UPDATES.md).
+  This is documentation review, not experiment success. `not-run` — actual refresh,
+  no-change proof, signer/installer/channel/client behavior and new-revision CI
+  at entry creation. Fedora web docs challenged retrieval; no new exact-content
+  claim relies on those failed fetches.
+- Remaining / blockers: R01/R02/R04/R07/R08/R09/R10 own implementation gates.
+  No schedule, signing keys, protected environment, host package upgrade, client
+  unit or deployment was created. Exact metadata publication and cache/equivalence
+  behavior require tests; policy timings are proposed defaults, not upstream facts.
+- Next: Verify this revision's repository check and readback. Then assign slice 1
+  to Codex with disposable CI fixture RPM repositories; preserve all no-loss,
+  signature and repository-only skill boundaries.
+
+### WL-20260907-05 — 2026-09-07 — Verify update-plan publication
+
+- Agent / state: ChatGPT using GitHub; completed documentation verification.
+- Scope / base: `main` at `bfb190226c5461292e06dc470c42f86f998b07af`;
+  follow-up to WL-20260907-04 without rewriting its pending observation.
+- Completed: Read back the published plan and worklog, confirmed the commit changes
+  ten documentation/skill files only, and observed the exact bootstrap run succeed.
+  Refreshed this status snapshot; no implementation/research status was advanced.
+- Checks / evidence: `pass` — GitHub compare against f3b44f1 confirms no runtime,
+  package, Cargo, active workflow or timer changes. `pass` —
+  [run 6](https://github.com/Reidond/kedra/actions/runs/34145002985), attempt 1,
+  completed successfully for bfb1902. This is repository validation, not evidence
+  that Fedora refresh, client update, signing, home merge or an ISO works.
+- Remaining / blockers: The new experiment supplement remains entirely not-run.
+  The final worklog-only follow-up has no claimed future CI result.
+- Next: Assign the disposable slice-1 refresh experiment using docs/HANDOFF.md;
+  keep production scheduling disabled until its prerequisite gates pass.
+
+### WL-20260907-CODEX-04 — 2026-09-07 — Local Rust toolchain mismatch
 
 - Agent / state: Codex; partial (diagnosis and recovery documentation completed).
 - Scope / base: `main` at `f3b44f1`; R11 local bootstrap troubleshooting.
@@ -120,7 +165,7 @@ Do not enroll a real home or deploy to the workstation during those experiments.
 - Next: Install Rust 1.98.1 with rustfmt/Clippy explicitly, run
   `cargo +1.98.1 xtask check`, and record its actual outcome.
 
-### WL-20260907-05 — 2026-09-07 — Shared plugin and removal of xtask
+### WL-20260907-CODEX-05 — 2026-09-07 — Shared plugin and removal of xtask
 
 - Agent / state: Codex; completed local changes.
 - Scope / base: main at f3b44f1. Owner requested removing submodules/copying
@@ -178,3 +223,20 @@ Do not enroll a real home or deploy to the workstation during those experiments.
   this preparation record; no result is claimed in advance. Plugin installation
   and separate R11 gates remain not-run.
 - Next: Commit the reviewed changes, push main and inspect the resulting CI.
+
+### WL-20260907-08 — 2026-09-07 — Preserve concurrent update planning
+
+- Agent / state: Codex; completed merge preparation for the authorized push.
+- Scope / base: local plugin commit a872522 and origin/main b7b2962; merge is
+  required because two update-planning commits arrived during local work.
+- Completed: Preserved docs/UPDATES.md, the update-refresh experiment, ADR 0002
+  and all remote skill edits. Moved two new skill reference files into the shared
+  plugin. Reconciled HANDOFF and both agents' worklog entries. Disambiguated
+  colliding local entry IDs 04/05 with CODEX in their headings; bodies remain
+  historical. Renumbered the plugin ADR to 0003; earlier mentions of plugin
+  ADR 0002 refer to that pre-merge name. No reset, rebase or force push.
+- Checks / evidence: pass — reviewed remote diff and resolved both content
+  conflicts while retaining the plugin layout and standard Cargo CI.
+- Remaining / blockers: Merge commit/push and CI observation follow this record.
+  Update mechanisms remain planned; plugin installation and R11 gaps unchanged.
+- Next: Validate the merged plugin, commit the merge and push main.

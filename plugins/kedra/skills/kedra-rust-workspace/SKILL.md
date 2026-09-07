@@ -5,7 +5,7 @@ description: Implement, test or refactor Rust in Kedra; preserve the flat Cargo 
 
 # Rust/Cargo implementation contract
 
-Read ADRs 0001 and 0002 and the upstream rust-router, domain-cli and applicable topic skill
+Read ADRs 0001 and 0003 and the upstream rust-router, domain-cli and applicable topic skill
 from plugins/kedra/skills/. Kedra's explicit choices override generic upstream
 scaffolding, lint defaults, global skill creation and optional-tool suggestions.
 
@@ -57,7 +57,7 @@ Source: https://rust-lang.github.io/rustup/overrides.html; local diagnosis 2026-
 
 ## Skill lifecycle
 
-ADR 0002 packages twelve Kedra skills and eighteen selected upstream Rust skills
+ADR 0003 packages twelve Kedra skills and eighteen selected upstream Rust skills
 as one ordinary-file tree in plugins/kedra/skills, with Codex and Claude manifests.
 Edit that tree directly. No submodules, symlinks, duplicate copies or sync step.
 The plugin's third-party/rust-skills/NOTICE.md records selection/revision,

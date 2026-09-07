@@ -13,7 +13,7 @@ is intended to replace having to reconstruct the original planning conversation.
 A flat-source Cargo workspace, read-only bootstrap CLI, non-operational helper,
 standard Cargo CI, per-target design inputs, R01-R11 specifications, the session
 contract, twelve Kedra skills, and eighteen selected upstream Rust skills with
-one shared Codex/Claude plugin (ADR 0002). The check workflow has no signing secrets,
+one shared Codex/Claude plugin (ADR 0003). The check workflow has no signing secrets,
 package publication, workstation access, or OS installation step.
 
 Only help/version/status are CLI capabilities. `sysroot home`, `update`,
@@ -22,9 +22,17 @@ operation. Source placeholders are deliberate boundaries, not hidden TODO
 implementations to trust. `host.toml` and package lists are design inputs; no
 production assembler consumes them yet. Read the actual latest CI result.
 
+[The update/refresh plan](UPDATES.md) now details periodic Fedora input refresh,
+no-change/freshness checkpoints, release approval and notify-only client defaults.
+[ADR 0002](adr/0002-updates-and-fedora-refresh.md) and
+[the supplemental test cases](research/update-refresh/EXPERIMENTS.md) scope its
+implementation. No cron, client timer, signing environment or deployment was
+enabled by writing that plan. Both first-party/upstream skills remain checkout-only,
+never an OS/global skill library. Maintain root worklog.md as AGENTS.md requires.
+
 ## First work session
 
-1. Read AGENTS.md, the context and Rust-workspace skills, PLAN.md, RESEARCH.md,
+1. Read AGENTS.md, worklog.md, the context and Rust-workspace skills, PLAN.md, RESEARCH.md,
    and the latest reports/status. Inspect Git state and the exact source revision.
 2. Skills arrive as ordinary tracked files; no submodule or symlink setup is
    needed. Use existing personal Codex/Claude, not an unimplemented launcher.
@@ -51,9 +59,19 @@ safe experiments rather than installing over the current workstation.
 > during later app writes, local-only hunks excluded from export, and conflict
 > handling. Do not enroll a real home or implement production deployment.
 > Record reproducible evidence, exact versions, statuses, and an ADR; update the
-> relevant skills with what the experiment actually established.
+> relevant skills and worklog.md with what the experiment actually established.
 
-Alternatively assign R01/R02 explicitly when registry and VM resources are ready.
+Alternatively assign the refresh track:
+
+> Read docs/UPDATES.md, ADR 0002, kedra-github-actions and kedra-release-signing.
+> Implement only slice 1: a disposable Actions RPM-refresh experiment using fixture
+> repositories and the exact Fedora tools. Prove base/source-fixed dependency
+> updates, cache invalidation, genuine no-change and required-repository failures.
+> No production keys, promotion, permanent schedule, host DNF or real-home changes.
+> Record evidence under the owning R02/R07/R08 packets and update skills/worklog.
+
+Connect that experiment to R01/R02's signed image/installer flow only when the
+corresponding trust and VM resources/gates are ready.
 
 ## Non-negotiable acceptance story
 

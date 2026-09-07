@@ -72,7 +72,7 @@ one shared `plugins/kedra/skills/` tree: twelve Kedra skills and eighteen select
 Rust skills, including support files. Edit these files directly. There are no
 submodules, symlinks, generated discovery copies, or custom Cargo check commands.
 The plugin's [NOTICE.md](plugins/kedra/third-party/rust-skills/NOTICE.md) records upstream provenance; see
-[ADR 0002](docs/adr/0002-copied-skills.md).
+[ADR 0003](docs/adr/0003-agent-plugin.md).
 
 For Claude, launch from this checkout with `claude --plugin-dir ./plugins/kedra`.
 For Codex, open this checkout and select `kedra` from the repository marketplace

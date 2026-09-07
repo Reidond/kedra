@@ -1,7 +1,7 @@
 # Local plugin migration — 2026-09-07
 
 Source: uncommitted changes on main, inspected base f3b44f1. Agent: Codex.
-Decision: ADR 0002. Overall R11 remains blocked; R01-R10 remain not-run.
+Decision: ADR 0003. Overall R11 remains blocked; R01-R10 remain not-run.
 
 The owner replaced the submodule/link integration and custom xtask check with
 an ordinary-file Codex/Claude plugin. Three Rust packages remain. The plugin has

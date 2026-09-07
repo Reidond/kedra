@@ -1,4 +1,4 @@
-# ADR 0002: Shared Codex/Claude plugin and standard Cargo
+# ADR 0003: Shared Codex/Claude plugin and standard Cargo
 
 Date: 2026-09-07. The owner requested removing submodules, copying relevant
 skills, then removing the custom Cargo task runner and making Codex/Claude

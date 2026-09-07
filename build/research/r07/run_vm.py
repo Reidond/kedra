@@ -51,7 +51,14 @@ class Qmp:
                 return response["return"]
 
     def screenshot(self, name):
-        self.call("screendump", {"filename": str(work / name), "format": "png"})
+        try:
+            self.call("screendump", {"filename": str(work / name), "format": "png"})
+        except RuntimeError as error:
+            if "no surface" not in str(error):
+                raise
+            # GL scanouts need not expose a software QMP surface. Capture the
+            # actual isolated Xvfb display, retaining visual evidence either way.
+            subprocess.run(["import", "-window", "root", str(work / name)], check=True, timeout=15)
 
     def type_text(self, value):
         for character in value:

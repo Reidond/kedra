@@ -13,6 +13,13 @@ network interface. QMP submits a generated disposable account password without
 logging it, and captures login/desktop/settings images. A separate guest serial
 port carries test markers so kernel/audit output cannot split them.
 
+First graphical attempt [34168467701](https://github.com/Reidond/kedra/actions/runs/34168467701)
+at `891d6cc` built the desktop and test disk and reached the login-ready marker.
+The host harness failed before submitting credentials: QMP reported `no surface`,
+and Mesa logged failure to attach X11 shared memory. Xvfb and QEMU had different
+users; the next run uses the same user for both and captures the Xvfb display when
+a GL scanout has no QMP software surface. Graphical login remains unpassed.
+
 [Initial run 34167255886](https://github.com/Reidond/kedra/actions/runs/34167255886)
 at `9e2b752` resolved and installed the entire requested desktop package set. It
 then failed at the service-account check: Fedora greetd 0.10.3-6.fc44 creates the

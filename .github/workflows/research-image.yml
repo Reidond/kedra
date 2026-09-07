@@ -6,7 +6,11 @@ on:
     branches: [codex/usable-system]
     paths:
       - .github/workflows/research-image.yml
-      - build/research/**
+      - build/research/Containerfile
+      - build/research/boot-check.sh
+      - build/research/boot-check.service
+      - build/research/console.toml
+      - build/research/inputs.json
 
 permissions:
   contents: read

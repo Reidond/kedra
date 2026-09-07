@@ -42,9 +42,9 @@ input inspection, not an installation command. See
 [ADR 0005](docs/adr/0005-committed-source-planning.md).
 
 The [R02 experiment](docs/research/R02-installer/REPORT.md) builds a minimal
-Fedora 44 image and QCOW2 in Actions. Its first UEFI guest reached bootc status;
-the check harness failed and a correction is being tested. There is no owner
-installation image yet.
+Fedora 44 image and QCOW2 in Actions. The corrected UEFI boot test passes with
+enforcing SELinux. This is a disposable test disk; there is no owner installation
+image yet. Signed-update/rollback research is the next dependency.
 
 ## Continue in Codex or Claude
 

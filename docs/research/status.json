@@ -2,7 +2,7 @@
   "schema_version": 1,
   "packets": [
     {"id":"R01","status":"not-run","topic":"Image signing and bootc enforcement"},
-    {"id":"R02","status":"blocked","topic":"Installer and Actions feasibility","report":"R02-installer/REPORT.md","run_url":"https://github.com/Reidond/kedra/actions/runs/34164873575","note":"Minimal image lint/build and QCOW2 build passed; UEFI guest reached Fedora 44/bootc status. Initial guest mount-check harness failed and timed out; corrective rerun pending. Interactive installer, encryption, signature handoff and physical installation remain not-run."},
+    {"id":"R02","status":"blocked","topic":"Installer and Actions feasibility","report":"R02-installer/REPORT.md","run_url":"https://github.com/Reidond/kedra/actions/runs/34165475139","prototype_status":"pass","note":"Corrected minimal image lint/build, QCOW2 build and UEFI guest test passed at cfbfc05 with enforcing SELinux. Initial harness failure retained in report. Interactive installer, encryption, signature handoff and physical installation remain not-run."},
     {
       "id":"R03",
       "status":"blocked",

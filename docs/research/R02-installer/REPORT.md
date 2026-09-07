@@ -1,7 +1,19 @@
 # R02: minimal image and VM feasibility
 
-Status: **fail** for the initial guest-check harness; image/QCOW2 builds passed.
-Updated 2026-09-08 (Europe/Kiev). The corrective rerun is pending.
+Status: **pass** for the minimal image/QCOW2/UEFI guest experiment; full R02
+installation gate remains **blocked**. Updated 2026-09-08 (Europe/Kiev).
+
+[Corrected run 34165475139](https://github.com/Reidond/kedra/actions/runs/34165475139)
+passed at `cfbfc05405f13d16dbbe5a604bc116b0763a421a`. The guest emitted
+`KEDRA_R02_BOOT_PASS` after reading bootc state, checking root and persistent /var
+mounts, and requiring enforcing SELinux, then powered off successfully. The QCOW2
+is 1,323,933,184 bytes; SHA-256
+`ad20491cd85267e831e5238d1b3d53025cf7c5111c56eebd066b911cab1b89ea`.
+The pinned builder reports revision `a686afe`, build time 2026-06-18T11:23:37Z,
+and `build_tainted: true`; its exact container digest is the reproducible input,
+not an inferred current upstream release. Host Podman 4.9.3/Skopeo 1.13.3 and QEMU
+8.2.2 were recorded. Initial disk origin is deliberately localhost research input,
+so this result does not establish an installed update source.
 
 [Initial run 34164873575](https://github.com/Reidond/kedra/actions/runs/34164873575)
 at source `9016832dfad58c3cdb99cc5ac1b40ed12a6cea62` built and linted the pinned
@@ -42,7 +54,7 @@ observed. This does not establish VM boot capability until a guest has run.
 
 ## Remaining acceptance cases
 
-- Minimal QCOW2 build and UEFI boot: not-run.
+- Minimal QCOW2 build and UEFI boot: pass (run 34165475139).
 - Interactive multi-disk installer, encryption and account creation: not-run.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).
 - Realistic desktop image size and session checks: not-run (R07).

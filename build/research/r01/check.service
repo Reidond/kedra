@@ -1,0 +1,14 @@
+[Unit]
+Description=Disposable Kedra signature/update/rollback experiment
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/kedra-research-r01
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=15min
+
+[Install]
+WantedBy=multi-user.target

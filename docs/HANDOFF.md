@@ -27,9 +27,9 @@ production assembler consumes them yet. Read the actual latest CI result.
 Active implementation request: owner asked to finish a usable, understandable,
 installable system and authorized VM installation/testing as needed. Work is on
 `codex/usable-system`. Read the current worklog entry and
-[R02 report](research/R02-installer/REPORT.md): the first image/QCOW2 build and
-UEFI boot reached Fedora/bootc, but the guest-check harness failed. Its correction
-is being tested in Actions. QEMU/OVMF are installed in existing Ubuntu WSL2 for
+[R02 report](research/R02-installer/REPORT.md): the corrected minimal image/QCOW2
+and UEFI guest check passed at cfbfc05. The disposable R01 signed-update/rollback
+experiment is prepared next. QEMU/OVMF are installed in existing Ubuntu WSL2 for
 local disposable tests. No production image, owner home adoption or physical
 installation is authorized by those research results.
 

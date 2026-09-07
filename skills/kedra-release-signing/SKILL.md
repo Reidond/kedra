@@ -1,6 +1,6 @@
 ---
 name: kedra-release-signing
-description: Design or test signed Kedra OCI images, manifest verification, exact release identity, promotion, key rotation, negative signature tests and anti-replay behavior.
+description: Design or test signed Kedra OCI images, release and freshness checkpoints, promotion, exact identity, key rotation, negative signature tests and anti-replay behavior.
 ---
 
 # Release identity, cryptography and authority
@@ -8,6 +8,7 @@ description: Design or test signed Kedra OCI images, manifest verification, exac
 A signed candidate is not necessarily an approved release or the right machine's
 image. A signed Git commit is not an OCI signature. Container signing is also
 separate from UEFI Secure Boot, filesystem integrity and automatic recovery.
+This development skill remains repository-only, not part of a system-wide profile.
 
 ## Required identities
 
@@ -39,6 +40,30 @@ regressions. Explicit rollback authorization is different from accepting an old
 manifest as a forward update. Offline/stale installations need a designed replay
 and key-transition policy, not a naive timestamp comparison.
 
+## Freshness without redundant OS releases
+
+Read docs/UPDATES.md section 5 and ADR 0002. The proposed protocol separates an
+immutable approved release record from a signed per-target/Fedora-major/architecture
+channel checkpoint. A successful no-change Fedora reconciliation may renew a
+checkpoint pointing to the same image and ISO. Do not force dummy image releases
+or Git commits to prove the schedule ran. A failed resolution cannot renew a
+last-successful-check value; a new but blocked candidate cannot advance the
+approved image. Report resolution, build/test and promotion status separately.
+
+Bind scope, generation, issued/expiry times and release-record hash/digest. Retain
+a root-owned checkpoint high-water mark, reject same-generation changed payloads,
+and do not reset it on rollback. Routine stage requires fresh trusted metadata;
+local offline boot/explicit retained verified rollback remains possible. Treat
+clock errors and partial/mismatched channel publication as explicit failures.
+The seven-day expiry is proposed policy to validate, not an implemented guarantee.
+Never use one unscoped GitHub latest-release result as authority for every host.
+
+A writer lock does not alone order workflows: recheck current desired image inputs
+and sequence under the promotion lock. Workflow recreation and rerun identities
+need explicit epoch/rank handling. Exact metadata encoding and atomic publication
+remain R01/R08/R10 research, not a home-grown crypto shortcut. See the supplemental
+update-refresh experiment cases for no-change, failed-check, replay and race tests.
+
 ## Prove before production
 
 Read references/threat-matrix.md. Use disposable keys and VM images A/B. Exercise
@@ -51,4 +76,4 @@ older releases and recovery credentials. GC must preserve needed signed digests.
 Gates: R01 proves compatibility; R08 proves authority/lifecycle; R02 proves the
 installer trust handoff; R10 implements independent validation. Sources:
 docs/SOURCES.md policy, registries, podman-sign, blob-sign, bootc-switch,
-actions-security. No production signing workflow exists in bootstrap.
+actions-security; docs/UPDATES.md. No production signing workflow exists in bootstrap.

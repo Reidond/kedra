@@ -1,6 +1,6 @@
 ---
 name: kedra-bootc
-description: Work on Fedora 44 bootc image derivation, filesystem ownership, image-managed configuration, exact-digest updates, boot states or rollback.
+description: Work on Fedora 44 bootc image derivation, filesystem ownership, exact-digest updates, notify-only client checks, pending deployments, boot states or rollback.
 ---
 
 # Fedora bootc operating model
@@ -25,6 +25,8 @@ home file into an image does not update an already-installed live home. Ship
 resolved safe home baselines under /usr/share/sysroot/home, then use the separate
 Git-backed writable-home mechanism. No blindly copying into /var/home or symlinking
 all of .config. Prefer tmpfiles/StateDirectory for required runtime directories.
+Repository knowledge skills, unlike explicitly adopted personal dotfiles, remain
+checkout-only; do not ship this collection as system/global agent skills.
 
 ## Release/deployment procedure
 
@@ -40,6 +42,20 @@ not advance it. Do not insert operational switch commands into bootstrap code
 before R01/R08/R10 pass. A normal mutable Fedora installation is not automatically
 convertible through bootc switch; prove a fresh VM installer first.
 
+Read [the update-client notes](references/update-client.md), docs/UPDATES.md and
+ADR 0002. Proposed default: periodic signed-metadata check/notification only;
+authorized sysroot update stages without an immediate reboot. Audit/mask inherited
+bootc-fetch-apply-updates automation because it can reboot. Do not assume a timer
+that only checks Kedra disables a second upstream updater. --download-only needs
+version-specific pending-slot tests, not a generic safe-prefetch assumption.
+
+Keep an existing manually staged image unless explicit replacement is requested.
+Staging can affect the next ordinary reboot; report that even without --apply.
+Rollback records a hold and never lowers channel trust high-water marks. Check
+freshness separately from image age: a no-change Fedora check can be healthy,
+while an old image with a stopped schedule or blocked candidate needs a warning.
+A dirty/missing source checkout must not be reset or required by installed updates.
+
 Status distinguishes available, verified, preflight, staged, awaiting reboot,
 booted, home-reconciled and healthy. The agent need not survive reboot. Installed
 post-boot checks finalize deterministic state. Keep preflight separate from actual
@@ -49,5 +65,7 @@ a later tested feature. Recovery must work offline without an AI service.
 
 Tests: install A/update B/rollback A, /etc local drift, persistent home retention,
 interrupted staging, candidate-versus-running digest, and old journal readers.
-Gates: R01/R02/R04/R07/R08/R10. Sources: docs/SOURCES.md bootc-fs, bootc-switch,
-bootc-build, bootc-kargs, bootc-secrets. Read kedra-home for reconciliation.
+Also run docs/research/update-refresh/EXPERIMENTS.md client cases. Gates:
+R01/R02/R04/R07/R08/R09/R10. Sources: docs/SOURCES.md bootc-fs, bootc-switch,
+bootc-build, bootc-kargs, bootc-secrets; docs/UPDATES.md U09-U11.
+Read kedra-home for reconciliation and maintain worklog with actual evidence.

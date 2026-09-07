@@ -14,11 +14,11 @@ Last updated: 2026-09-07.
 | Phase | Research-ready repository bootstrap; not an installable operating system. |
 | Implemented | Flat-source Rust workspace, help/version/bootstrap status, refusal of unimplemented operations, repository checks and documentation. |
 | Repository knowledge | 12 Kedra and 38 pinned upstream skills; links for both agents stay within the checkout. No global or system-wide skill installation. |
-| Latest verified check | `cargo xtask check` and the clean-source check passed in run 4 on documentation revision `1e094eca8f482b0203dcbf041c14e5883c8f4123`. This later worklog entry records that exact result, not a claim about its own unobserved future CI run. |
+| Latest verified check | Prior run 4 on `1e094eca8f482b0203dcbf041c14e5883c8f4123` is recorded below. The update-plan revision's CI is not yet observed when this entry is written; no future result is implied. |
 | R11 | Bootstrap subset passed. Overall packet remains blocked on actual agent/editor discovery, additional adversarial validation and distribution review. |
 | R01-R10 | Not run, as recorded in `docs/research/status.json`. No OS/ISO/signature/home/auth/hardware success is implied. |
-| Current task | Completed: repository-only skill scope, required shared worklog instructions, initial status/history and CI follow-up. No implementation/research gate was advanced. |
-| Machine effects | None. No workstation, home directory, vault, personal agent profile or installation was changed. |
+| Current task | Completed planning: periodic Fedora refresh, signed release/freshness records and notify-only machine updates. See docs/UPDATES.md and ADR 0002; production mechanisms remain unimplemented. |
+| Machine effects | None. No live schedule, signing configuration, OS/client timer, workstation/home/vault or personal agent installation was changed. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
 [research index](docs/research/status.json),
@@ -30,11 +30,11 @@ reports remain authoritative for what was tested.
 
 ### Next concrete actions
 
-Continue from `docs/HANDOFF.md`; inspect current Git/CI state when resuming.
-Complete available R11 real-agent/editor and negative-validation cases without
-claiming unavailable environments passed. R03 synthetic writable-home research
-can proceed independently; R01/R02 use disposable CI-built image/installer tests.
-Do not enroll a real home or deploy to the workstation during those experiments.
+Read docs/HANDOFF.md and docs/UPDATES.md. The update track starts with a disposable
+CI RPM-refresh proof (slice 1), covering unchanged-base dependency updates, stale
+cache, no-change and required-repo failure. Connect to signed-image/installer gates
+only after those proofs. R03 home and remaining R11 discovery work can proceed
+independently. Do not enable production cron or enroll a real machine/home yet.
 
 ## Work entries
 
@@ -99,3 +99,29 @@ Do not enroll a real home or deploy to the workstation during those experiments.
   untested. This record does not imply any OS or home deployment.
 - Next: Resume the selected research packet using `docs/HANDOFF.md`; read and
   maintain this worklog in the next Codex or Claude session.
+
+### WL-20260907-04 — 2026-09-07 — Plan updates and scheduled Fedora refresh
+
+- Agent / state: ChatGPT using GitHub and primary web documentation; completed
+  planning, with resulting CI not yet observed at entry creation.
+- Scope / base: `main` at `f3b44f1fd63af5805167c30e139bb5bf3f9aa3f4`.
+  Documentation/repository-skill changes only; existing research gate statuses stay.
+- Completed: Added docs/UPDATES.md, ADR 0002 and an update-refresh experiment
+  supplement. Added detailed skill references and updated the bootc, CI and signing
+  skills plus HANDOFF. Proposed 12-hour complete Fedora refresh, full RPM closure,
+  no-change/freshness separation, same-digest tests/ISO and notify-only clients.
+  Planned explicit staging/reboot control, pending-image preservation, rollback
+  holds, repository/cache failure handling and signed per-target checkpoints.
+- Checks / evidence: `pass` — inspected repository instructions/worklog/source and
+  checked current bootc/DNF5/Podman/GitHub primary docs (U01-U11 in docs/UPDATES.md).
+  This is documentation review, not experiment success. `not-run` — actual refresh,
+  no-change proof, signer/installer/channel/client behavior and new-revision CI
+  at entry creation. Fedora web docs challenged retrieval; no new exact-content
+  claim relies on those failed fetches.
+- Remaining / blockers: R01/R02/R04/R07/R08/R09/R10 own implementation gates.
+  No schedule, signing keys, protected environment, host package upgrade, client
+  unit or deployment was created. Exact metadata publication and cache/equivalence
+  behavior require tests; policy timings are proposed defaults, not upstream facts.
+- Next: Verify this revision's repository check and readback. Then assign slice 1
+  to Codex with disposable CI fixture RPM repositories; preserve all no-loss,
+  signature and repository-only skill boundaries.

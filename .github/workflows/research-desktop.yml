@@ -1,0 +1,78 @@
+name: Research desktop image
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/usable-system]
+    paths:
+      - .github/workflows/research-desktop.yml
+      - Containerfile
+      - build/assemble.sh
+      - packages/**
+      - home/**
+      - etc/**
+      - usr/**
+      - hosts/desktop/**
+      - crates/**
+      - Cargo.lock
+      - Cargo.toml
+permissions:
+  contents: read
+concurrency:
+  group: research-desktop-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  desktop:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Build checked Rust tooling
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --locked
+          cargo build --workspace --release --locked
+      - name: Prepare explicit committed payload
+        run: |
+          mkdir -p output/desktop-evidence output/desktop-context
+          target/release/sysroot source plan --host desktop --json > output/desktop-evidence/source.json
+          target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
+          cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
+          cp build/research/inputs.json output/desktop-evidence/
+          sha256sum output/desktop-context/* > output/desktop-evidence/build-input-hashes.txt
+      - name: Install runner container tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo
+      - name: Build and validate Fedora desktop candidate
+        run: |
+          set -euo pipefail
+          base=$(jq -er .base build/research/inputs.json)
+          {
+            date --utc --iso-8601=seconds
+            uname -a
+            free -h
+            df -h
+            podman --version
+            skopeo --version
+          } > output/desktop-evidence/environment.txt
+          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+            --tag localhost/kedra-desktop:research output/desktop-context \
+            2>&1 | tee output/desktop-evidence/build.log
+          sudo podman image inspect localhost/kedra-desktop:research > output/desktop-evidence/image-inspect.json
+          sudo podman run --rm localhost/kedra-desktop:research cat /usr/share/sysroot/packages.txt > output/desktop-evidence/packages.txt
+          sudo podman run --rm localhost/kedra-desktop:research bash -e -c \
+            'niri --version; noctalia --version; noctalia msg --help; cat /etc/pam.d/greetd; test "$(systemctl is-enabled greetd)" = enabled; test "$(systemctl is-enabled bootc-fetch-apply-updates.timer || true)" = masked' \
+            > output/desktop-evidence/session-interfaces.txt
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r07-desktop-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/desktop-evidence/
+          if-no-files-found: error
+          retention-days: 14

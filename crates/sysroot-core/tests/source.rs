@@ -214,3 +214,84 @@ fn rejects_layer_file_directory_collisions_and_reserved_namespaces() {
         assert!(source::plan(&f.0, "desktop").is_err());
     }
 }
+
+#[test]
+fn archive_is_deterministic_and_preserves_modes_without_worktree_capture() {
+    use std::io::Read;
+    let f = Fixture::new();
+    f.write("usr/bin/demo", "#!/bin/sh\nexit 0\n");
+    f.write("home/.config/demo", "reviewed baseline");
+    f.commit();
+    f.git(&["update-index", "--chmod=+x", "usr/bin/demo"]);
+    f.git(&["commit", "-m", "executable"]);
+    f.write("usr/bin/demo", "unreviewed application write");
+    let first = f.0.join("first.tar");
+    let second = f.0.join("second.tar");
+    let plan = source::archive(&f.0, "desktop", &first).unwrap();
+    source::archive(&f.0, "desktop", &second).unwrap();
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+    let mut archive = tar::Archive::new(fs::File::open(first).unwrap());
+    let mut seen = 0;
+    for entry in archive.entries().unwrap() {
+        let mut entry = entry.unwrap();
+        assert!(entry.header().entry_type().is_file());
+        assert_eq!(entry.header().uid().unwrap(), 0);
+        assert_eq!(entry.header().mtime().unwrap(), 0);
+        let path = entry.path().unwrap().to_str().unwrap().to_owned();
+        let mut bytes = String::new();
+        entry.read_to_string(&mut bytes).unwrap();
+        match path.as_str() {
+            "usr/bin/demo" => {
+                assert_eq!(entry.header().mode().unwrap(), 0o755);
+                assert_eq!(bytes, "#!/bin/sh\nexit 0\n");
+            }
+            "usr/share/sysroot/home/default/.config/demo" => assert_eq!(bytes, "reviewed baseline"),
+            "usr/share/sysroot/source.json" => {
+                let manifest: serde_json::Value = serde_json::from_str(&bytes).unwrap();
+                assert_eq!(manifest["source_revision"], plan.source_revision);
+                assert_eq!(manifest["files"].as_array().unwrap().len(), 2);
+            }
+            _ => panic!("unplanned archive entry: {path}"),
+        }
+        seen += 1;
+    }
+    assert_eq!(seen, 3);
+}
+
+#[test]
+fn archive_never_overwrites_existing_output_or_creates_output_for_bad_target() {
+    let f = Fixture::new();
+    f.commit();
+    let output = f.0.join("existing");
+    fs::write(&output, "keep this").unwrap();
+    assert!(source::archive(&f.0, "desktop", &output).is_err());
+    assert_eq!(fs::read_to_string(output).unwrap(), "keep this");
+    let absent = f.0.join("absent");
+    assert!(source::archive(&f.0, "../desktop", &absent).is_err());
+    assert!(!absent.exists());
+}
+
+#[test]
+fn credential_paths_and_key_material_are_rejected_before_archiving() {
+    for (path, content) in [
+        ("home/.ssh/id_ed25519", "synthetic credential fixture"),
+        ("home/.codex/auth.json", "synthetic credential fixture"),
+        (
+            "home/.local/state/noctalia/settings.toml",
+            "runtime state is not a baseline",
+        ),
+        ("etc/shadow", "synthetic fixture"),
+        ("etc/ssh/ssh_host_ed25519_key", "synthetic fixture"),
+        (
+            "home/.config/misnamed",
+            "-----BEGIN PRIVATE KEY-----\nsynthetic test only",
+        ),
+    ] {
+        let f = Fixture::new();
+        f.write(path, content);
+        f.commit();
+        let output = f.0.join("payload.tar");
+        assert!(source::archive(&f.0, "desktop", &output).is_err());
+        assert!(!output.exists());
+    }
+}

@@ -1,0 +1,58 @@
+// Kedra defaults. This becomes a normal writable file when a new account is made.
+// Super+Return opens a terminal. Super+D opens Noctalia's launcher.
+input {
+    keyboard {
+        xkb {}
+    }
+    touchpad {
+        tap
+        natural-scroll
+    }
+}
+
+layout {
+    gaps 12
+    default-column-width { proportion 0.5; }
+    focus-ring {
+        width 2
+        active-color "#89b4fa"
+        inactive-color "#45475a"
+    }
+}
+
+spawn-at-startup "noctalia"
+
+window-rule {
+    match app-id="dev.noctalia.Noctalia"
+    open-floating true
+}
+
+binds {
+    Mod+Return { spawn "foot"; }
+    Mod+T { spawn "foot"; }
+    Mod+D { spawn "noctalia" "msg" "panel-toggle" "launcher"; }
+    Mod+Shift+D { spawn "fuzzel"; }
+    Mod+Comma { spawn "noctalia" "msg" "settings-toggle"; }
+    Mod+S { spawn "noctalia" "msg" "panel-toggle" "control-center"; }
+    Mod+Q { close-window; }
+    Mod+Left { focus-column-left; }
+    Mod+Right { focus-column-right; }
+    Mod+Up { focus-window-up; }
+    Mod+Down { focus-window-down; }
+    Mod+Ctrl+Left { move-column-left; }
+    Mod+Ctrl+Right { move-column-right; }
+    Mod+Ctrl+Up { move-window-up; }
+    Mod+Ctrl+Down { move-window-down; }
+    Mod+Page_Up { focus-workspace-up; }
+    Mod+Page_Down { focus-workspace-down; }
+    Mod+F { maximize-column; }
+    Mod+Shift+F { fullscreen-window; }
+    Mod+V { toggle-window-floating; }
+    Mod+O { toggle-overview; }
+    Mod+Shift+E { quit; }
+    XF86AudioRaiseVolume { spawn "noctalia" "msg" "volume-up"; }
+    XF86AudioLowerVolume { spawn "noctalia" "msg" "volume-down"; }
+    XF86AudioMute { spawn "noctalia" "msg" "volume-mute"; }
+    XF86MonBrightnessUp { spawn "noctalia" "msg" "brightness-up"; }
+    XF86MonBrightnessDown { spawn "noctalia" "msg" "brightness-down"; }
+}

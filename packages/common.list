@@ -1,6 +1,34 @@
-# Candidate package names, not a resolved or boot-tested package inventory.
-# R07 must verify versions, dependencies, firmware, and the complete desktop session.
+# Fedora 44 desktop candidate. R07 records actual resolution and session tests.
 niri
 noctalia
 git
 openssh-clients
+gh
+foot
+fuzzel
+greetd
+tuigreet
+gnome-keyring
+gnome-keyring-pam
+polkit
+xdg-desktop-portal
+xdg-desktop-portal-gnome
+xdg-desktop-portal-gtk
+xwayland-satellite
+xorg-x11-server-Xwayland
+pipewire
+pipewire-pulseaudio
+wireplumber
+NetworkManager
+NetworkManager-wifi
+bluez
+mesa-dri-drivers
+mesa-vulkan-drivers
+google-noto-sans-fonts
+google-noto-sans-mono-fonts
+wl-clipboard
+brightnessctl
+playerctl
+firefox
+nautilus
+seahorse

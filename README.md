@@ -41,6 +41,12 @@ untouched and are excluded. It refuses the disabled XPS target. This is build
 input inspection, not an installation command. See
 [ADR 0005](docs/adr/0005-committed-source-planning.md).
 
+`sysroot source archive --host desktop --output payload.tar` writes a new,
+deterministic build input archive from the same committed snapshot and refuses
+an existing output. The plain Containerfile consumes that archive in Actions.
+The desktop package/configuration candidate is tracked in
+[R07](docs/research/R07-desktop/REPORT.md); runtime qualification is still pending.
+
 The [R02 experiment](docs/research/R02-installer/REPORT.md) builds a minimal
 Fedora 44 image and QCOW2 in Actions. The corrected UEFI boot test passes with
 enforcing SELinux. This is a disposable test disk; there is no owner installation

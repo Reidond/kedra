@@ -36,8 +36,17 @@ SHA-2 supplies a standard content digest. Versions are locked in Cargo.lock.
 There is no async runtime, new crate, language or check runner. Shared logic
 returns typed errors; application reporting supplies context on stderr.
 
-This read-only slice does not yet materialize an image filesystem, resolve RPMs,
-classify mixed-secret home settings, or implement host enrollment/source export.
+Follow-up: `sysroot source archive --host TARGET --output FILE` materializes a
+new deterministic tar of the validated committed blobs and `source.json`.
+The tar crate supplies the archive format; no home/filesystem walk is used.
+UID/GID and timestamps are fixed, Git executable modes retained, and existing
+output paths are never overwritten. Nine source tests now also cover archive
+contents/determinism and credential/key refusals. Known credential/runtime paths
+and PEM/OpenSSH private-key markers are rejected before creating the archive.
+This is not a universal secret detector; deliberate source review remains needed.
+
+This slice does not resolve RPMs, classify arbitrary mixed-secret home settings,
+or implement host enrollment/source export.
 Real home adoption remains gated by R03/R04. Two-target lifecycle remains R09.
 
 ## Evidence

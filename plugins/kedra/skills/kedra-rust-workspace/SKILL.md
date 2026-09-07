@@ -33,7 +33,7 @@ TOCTOU safety, merge correctness, crash recovery or signature enforcement.
 ## Tooling and checks
 
 rust-toolchain.toml pins the bootstrap toolchain; Cargo.lock pins crate resolution.
-The source planner adds Clap, Serde/JSON, TOML and SHA-2; ADR 0005 records why.
+The source planner adds Clap, Serde/JSON, TOML, SHA-2 and tar; ADR 0005 records why.
 The helper and synthetic R03 example remain std-only. Changing pins requires review and CI, not a
 moving `stable` update during agent startup. Use standard Cargo commands:
 

@@ -32,6 +32,15 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum SourceCommand {
+    /// Write a new deterministic tar of committed payloads for an Actions build.
+    Archive {
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+        #[arg(long)]
+        host: String,
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Resolve packages, payload hashes and host overrides from committed HEAD.
     Plan {
         #[arg(long, default_value = ".")]
@@ -99,6 +108,21 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         }
+        Some(Commands::Source {
+            command: SourceCommand::Archive { repo, host, output },
+        }) => match sysroot_core::source::archive(&repo, &host, &output) {
+            Ok(plan) => println!(
+                "Created {} from {} for {} ({} payload files).",
+                output.display(),
+                plan.source_revision,
+                plan.target.id,
+                plan.files.len()
+            ),
+            Err(error) => {
+                eprintln!("sysroot: {error}");
+                return ExitCode::FAILURE;
+            }
+        },
         Some(Commands::Unavailable(args)) => {
             let command = args
                 .first()

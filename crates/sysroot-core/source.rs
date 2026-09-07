@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write;
 use std::{fmt, path::Path, process::Command};
 
 #[derive(Debug)]
@@ -101,6 +102,36 @@ fn safe_path(s: &str) -> bool {
         && !s.contains(['\\', ':'])
         && !s.chars().any(char::is_control)
         && s.split('/').all(|p| !matches!(p, "" | "." | ".." | ".git"))
+}
+
+fn private_payload(root: &str, rest: &str) -> bool {
+    let path = rest.to_ascii_lowercase();
+    let name = path.rsplit('/').next().unwrap_or_default();
+    if matches!(
+        name,
+        "auth.json" | ".credentials.json" | "credentials.json" | "settings.local.json"
+    ) {
+        return true;
+    }
+    if root == "etc"
+        && (matches!(path.as_str(), "shadow" | "gshadow")
+            || path.starts_with("ssh/ssh_host_") && !path.ends_with(".pub"))
+    {
+        return true;
+    }
+    root == "home"
+        && [
+            ".ssh",
+            ".codex",
+            ".claude",
+            ".cache",
+            ".local/state",
+            ".local/share/keyrings",
+            ".config/bitwarden",
+            ".config/bitwarden desktop",
+        ]
+        .iter()
+        .any(|prefix| path == *prefix || path.starts_with(&format!("{prefix}/")))
 }
 fn entries(repo: &Path, revision: &str) -> Result<Vec<Entry>, Error> {
     let bytes = git(repo, &["ls-tree", "-r", "-z", revision])?;
@@ -217,6 +248,12 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
             if !matches!(root, "etc" | "usr" | "home") {
                 continue;
             }
+            if private_payload(root, rest) {
+                return Err(invalid(format!(
+                    "credential/runtime path cannot enter image payload: {}",
+                    entry.path
+                )));
+            }
             if rest.split('/').any(|p| p == ".gitkeep") {
                 continue;
             }
@@ -231,6 +268,21 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
                 ));
             }
             let bytes = blob(repo, entry)?;
+            if [
+                b"-----BEGIN PRIVATE KEY-----".as_slice(),
+                b"-----BEGIN OPENSSH PRIVATE KEY-----",
+                b"-----BEGIN RSA PRIVATE KEY-----",
+                b"-----BEGIN EC PRIVATE KEY-----",
+                b"-----BEGIN ENCRYPTED PRIVATE KEY-----",
+            ]
+            .iter()
+            .any(|marker| bytes.windows(marker.len()).any(|window| window == *marker))
+            {
+                return Err(invalid(format!(
+                    "private-key material cannot enter image payload: {}",
+                    entry.path
+                )));
+            }
             let destination = if root == "home" {
                 format!("usr/share/sysroot/home/default/{rest}")
             } else {
@@ -275,4 +327,59 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
         remove_packages: remove.into_iter().collect(),
         files: files.into_values().collect(),
     })
+}
+
+fn append<W: Write>(
+    builder: &mut tar::Builder<W>,
+    path: &str,
+    bytes: &[u8],
+    mode: u32,
+) -> Result<(), Error> {
+    let mut header = tar::Header::new_gnu();
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_mode(mode);
+    header.set_uid(0);
+    header.set_gid(0);
+    header.set_mtime(0);
+    header.set_size(bytes.len() as u64);
+    builder.append_data(&mut header, path, bytes)?;
+    Ok(())
+}
+
+/// Materialize only validated raw blobs plus a provenance manifest into a new tar.
+/// Existing output paths are never overwritten. A failed write leaves an incomplete
+/// artifact which must not be consumed; successful callers also check their exit code.
+pub fn archive(repo: &Path, host: &str, output: &Path) -> Result<Plan, Error> {
+    let plan = plan(repo, host)?;
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(output)?;
+    let mut builder = tar::Builder::new(file);
+    builder.follow_symlinks(false);
+    for entry in &plan.files {
+        let bytes = git(repo, &["cat-file", "blob", &entry.git_blob])?;
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        if hash != entry.sha256 {
+            return Err(invalid(
+                "Git object content changed during archive creation",
+            ));
+        }
+        let mode = if entry.mode == "100755" { 0o755 } else { 0o644 };
+        append(&mut builder, &entry.destination, &bytes, mode)?;
+    }
+    let manifest = serde_json::to_vec_pretty(&plan)
+        .map_err(|e| invalid(format!("manifest serialization: {e}")))?;
+    append(
+        &mut builder,
+        "usr/share/sysroot/source.json",
+        &manifest,
+        0o644,
+    )?;
+    builder.finish()?;
+    builder.into_inner()?.sync_all()?;
+    Ok(plan)
 }

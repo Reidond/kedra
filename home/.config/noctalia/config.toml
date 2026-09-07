@@ -1,0 +1,10 @@
+# Curated defaults. GUI changes live separately in Noctalia's settings.toml.
+[theme]
+mode = "dark"
+
+[bar.default]
+position = "top"
+
+[shell]
+polkit_agent = true
+telemetry_enabled = false

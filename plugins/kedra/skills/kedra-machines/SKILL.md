@@ -27,6 +27,12 @@ This R09 source-provenance slice does not establish enrollment, image build,
 home adoption/export or two-machine lifecycle. See ADR 0005 for supported paths
 and the inert default home-baseline namespace.
 
+The follow-up `source archive --host TARGET --output FILE` writes a deterministic
+tar from those raw blobs plus source.json. It creates a new output only, keeps
+Git modes, fixes archive ownership/time, and rejects known credential paths and
+private-key markers. Nine source tests cover this boundary. It never reads live
+homes or claims to detect every secret; public input review remains necessary.
+
 Record each home file's source path/revision/host/content hash/mode/app group.
 Shared keybindings normally export to home/, monitor settings to hosts/<host>/home/.
 Do not infer ownership from the deployed filename alone. A host override can hide

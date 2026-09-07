@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "packets": [
+    {"id":"R01","status":"not-run","topic":"Image signing and bootc enforcement"},
+    {"id":"R02","status":"not-run","topic":"Installer and Actions feasibility"},
+    {"id":"R03","status":"not-run","topic":"Home line review and local-only policy"},
+    {"id":"R04","status":"not-run","topic":"Activation, writers, rollback"},
+    {"id":"R05","status":"not-run","topic":"Agent packaging and independence"},
+    {"id":"R06","status":"not-run","topic":"Bitwarden and credential bootstrap"},
+    {"id":"R07","status":"not-run","topic":"Desktop session and hardware"},
+    {"id":"R08","status":"not-run","topic":"Release authority, privacy, lifecycle"},
+    {"id":"R09","status":"not-run","topic":"Multi-machine isolation and provenance"},
+    {"id":"R10","status":"not-run","topic":"Privileged protocol and persistent state"},
+    {"id":"R11","status":"blocked","topic":"Rust workspace and skill integration","note":"Bootstrap checks are being established; real agent discovery and editor validation remain untested."}
+  ]
+}

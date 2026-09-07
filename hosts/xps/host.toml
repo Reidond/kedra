@@ -1,0 +1,7 @@
+# Reserved future target, not a Dell compatibility claim.
+id = "xps"
+architecture = "x86_64"
+image = "ghcr.io/reidond/kedra-xps"
+fedora_release = 44
+candidate_target = false
+hardware_status = "not-selected"

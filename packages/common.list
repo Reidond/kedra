@@ -1,0 +1,6 @@
+# Candidate package names, not a resolved or boot-tested package inventory.
+# R07 must verify versions, dependencies, firmware, and the complete desktop session.
+niri
+noctalia
+git
+openssh-clients

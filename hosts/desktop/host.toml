@@ -1,0 +1,8 @@
+# Design metadata only; no image assembly or installer reads this yet.
+id = "desktop"
+architecture = "x86_64"
+image = "ghcr.io/reidond/kedra-desktop"
+fedora_release = 44
+candidate_target = true
+hardware_status = "unverified"
+# Do not infer connector names, PCI IDs, disk IDs, usernames, or UIDs.

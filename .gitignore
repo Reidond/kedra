@@ -1,0 +1,18 @@
+/target/
+/dist/
+/output/
+/.local/
+.env
+.env.*
+!.env.example
+*.iso
+*.qcow2
+*.raw
+*.pem
+*.key
+*.p12
+*.pfx
+**/auth.json
+**/.credentials.json
+**/settings.local.json
+# Never use ignore rules as a substitute for excluding credentials before capture.

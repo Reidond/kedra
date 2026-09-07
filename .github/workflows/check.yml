@@ -1,0 +1,42 @@
+name: Check bootstrap
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-and-skills:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout pinned source and skills
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Report toolchain
+        run: |
+          rustc --version --verbose
+          cargo --version
+          git --version
+      - name: Validate workspace, skills, formatting, lints, tests and release build
+        run: cargo xtask check
+      - name: Ensure checks did not change source or lockfile
+        run: git diff --exit-code --ignore-submodules=none
+      - name: Scope of this result
+        if: always()
+        run: |
+          echo 'This workflow validates the repository bootstrap only.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No OS image, ISO, signatures, home reconciliation, authentication or hardware tests run here.' >> "$GITHUB_STEP_SUMMARY"

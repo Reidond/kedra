@@ -43,3 +43,12 @@ Retained notices document the gap; redistribution review remains unresolved.
 Source-layout enforcement is now review plus standard Cargo metadata, not the
 removed validator. Historical REPORT.md/results.json describe the earlier CI
 experiment and are not overwritten with local results.
+
+## Published follow-up
+
+Plugin commit a872522 was merged with concurrent update-planning changes at
+891cc1506851365d32747caf63b89300294ce71a and pushed to main. The plugin ADR is now
+0003; the concurrent update-plan ADR retains 0002. Both plugin/skill validators
+passed after merging. [Actions run 34160120958](https://github.com/Reidond/kedra/actions/runs/34160120958)
+completed successfully for that exact merge. This follow-up does not assert an
+unobserved CI outcome for its own later documentation commit.

@@ -14,10 +14,10 @@ Last updated: 2026-09-07.
 | Phase | Research-ready repository bootstrap; not an installable operating system. |
 | Implemented | Three-package flat Rust workspace, help/version/bootstrap status, refusal of unimplemented operations, standard Cargo CI and documentation. |
 | Repository knowledge | One Codex/Claude plugin with 12 Kedra and 18 selected upstream skills in plugins/kedra/skills. Ordinary files; no submodule, symlinks or duplicate discovery copies. No personal installation. |
-| Latest verified check | Local Rust 1.98.1: fmt, Clippy, 7 tests + 1 doctest and release build passed; both plugin manifests and Claude skill validation passed. See [local report](docs/research/R11-rust-workspace/plugins.md). Remote update-plan run 6 on bfb1902 is recorded as passed; merged-revision CI is not-run. |
+| Latest verified check | Pushed merge 891cc1506851365d32747caf63b89300294ce71a passed [Actions run 34160120958](https://github.com/Reidond/kedra/actions/runs/34160120958). Local plugin validators also passed after merging. This documentation follow-up does not claim its own future CI result. |
 | R11 | Bootstrap subset passed. Overall packet remains blocked on installed interactive plugin/editor discovery and distribution review. |
 | R01-R10 | Not run, as recorded in `docs/research/status.json`. No OS/ISO/signature/home/auth/hardware success is implied. |
-| Current task | Completed local plugin packaging, xtask removal and removal of the unused skills lockfile. Upstream provenance lives in the plugin NOTICE.md. Concurrent update/refresh planning from b7b2962 is preserved. Plugin installation and merged-revision CI remain not-run. |
+| Current task | Plugin migration, xtask/skills-lockfile removal and concurrent update-planning merge committed and pushed; merged-source CI passed. Upstream provenance is in NOTICE.md. Plugin installation remains not-run. |
 | Machine effects | None. No workstation, home directory, vault, personal agent profile or installation was changed. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
@@ -240,3 +240,20 @@ independently. Do not enable production cron or enroll a real machine/home yet.
 - Remaining / blockers: Merge commit/push and CI observation follow this record.
   Update mechanisms remain planned; plugin installation and R11 gaps unchanged.
 - Next: Validate the merged plugin, commit the merge and push main.
+
+### WL-20260907-09 — 2026-09-07 — Verify authorized publication
+
+- Agent / state: Codex; completed push and merged-source verification.
+- Scope / base: plugin commit a872522 and merge
+  891cc1506851365d32747caf63b89300294ce71a, published to origin/main.
+- Completed: Preserved origin/main b7b2962 and both agents' work; pushed normally
+  without force. Revalidated the merged plugin/skills and observed successful CI.
+  This final documentation follow-up records that observed result.
+- Checks / evidence: pass — Codex manifest and Claude skill validation after
+  merge; git diff --check; clean working tree after push. pass —
+  https://github.com/Reidond/kedra/actions/runs/34160120958 completed successfully
+  for exact merge 891cc1506851365d32747caf63b89300294ce71a.
+- Remaining / blockers: This follow-up's own future CI is not claimed. Actual
+  installed interactive plugin use and existing R01-R11 research gaps remain.
+- Next: Load the plugin for Kedra work or continue the documented refresh
+  experiment. Use standard Cargo commands; no custom task runner is required.

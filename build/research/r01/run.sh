@@ -48,7 +48,7 @@ docker:
   registry.kedra.test:5000:
     use-sigstore-attachments: true
 EOF
-jq -n --arg repo "$repository" '{default:[{type:"reject"}],transports:{docker:{($repo):[{type:"sigstoreSigned",keyPath:"/usr/share/kedra-research/release.pub",signedIdentity:{type:"matchRepoDigestOrExact"}}]}}' > "$root/context/policy.json"
+jq -n --arg repo "$repository" '{default:[{type:"reject"}],transports:{docker:{($repo):[{type:"sigstoreSigned",keyPath:"/usr/share/kedra-research/release.pub",signedIdentity:{type:"matchRepoDigestOrExact"}}]}}}' > "$root/context/policy.json"
 sudo mkdir -p /etc/containers/registries.d /etc/containers/certs.d/registry.kedra.test:5000
 sudo cp "$root/context/registries.yaml" /etc/containers/registries.d/kedra-r01.yaml
 sudo cp "$root/context/tls.crt" /etc/containers/certs.d/registry.kedra.test:5000/ca.crt

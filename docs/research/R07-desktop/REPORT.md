@@ -1,7 +1,17 @@
 # R07: Fedora desktop candidate
 
-Status: **fail** for initial image assembly, 2026-09-08 (Europe/Kiev).
-It is not a qualified desktop release.
+Status: **pass** for desktop package resolution/configuration/build, 2026-09-08
+(Europe/Kiev). Graphical runtime is not-run; not a qualified desktop release.
+
+[Corrected run 34167524359](https://github.com/Reidond/kedra/actions/runs/34167524359)
+at `14be822` passed the image build, niri validator, Noctalia validator and bootc
+lint. Actual versions: niri 26.04 and Noctalia 5.0.1. The Fedora greetd PAM file
+includes GNOME Keyring integration. Lint reports three warnings including
+generated /var cache files; these are not claimed resolved. The next workflow
+adds graphical UEFI/KVM testing with host software GL, virtual HDA audio and no
+network interface. QMP submits a generated disposable account password without
+logging it, and captures login/desktop/settings images. A separate guest serial
+port carries test markers so kernel/audit output cannot split them.
 
 [Initial run 34167255886](https://github.com/Reidond/kedra/actions/runs/34167255886)
 at `9e2b752` resolved and installed the entire requested desktop package set. It

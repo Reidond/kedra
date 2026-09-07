@@ -52,6 +52,14 @@ Existing Ubuntu WSL2 has `/dev/kvm`. Installed QEMU 8.2.2
 downloaded or booted yet. Approximately 64 GiB host RAM and 817 GiB free disk were
 observed. This does not establish VM boot capability until a guest has run.
 
+Local follow-up 2026-09-08: the exact passing-run QCOW2 was downloaded and its
+SHA-256 matched the recorded value. It booted in the existing Ubuntu WSL2/KVM
+runtime with OVMF, reached `KEDRA_R02_BOOT_PASS` and powered off (QEMU exit 0).
+The disk used QEMU snapshot mode and no host disks/network interface. A first
+shell wrapper returned 1 despite a guest pass; a saved-script rerun recorded
+both QEMU exit 0 and guest pass explicitly. Guest serial/audit lines can interleave,
+so later graphical tests use a separate marker port. No workstation OS was installed.
+
 ## Remaining acceptance cases
 
 - Minimal QCOW2 build and UEFI boot: pass (run 34165475139).

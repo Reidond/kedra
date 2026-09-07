@@ -1,0 +1,8 @@
+# Test-only observer layered over the desktop; never promote this derivative.
+FROM localhost/kedra-desktop:research
+COPY check.sh /usr/libexec/kedra-research-r07
+COPY check.service /usr/lib/systemd/system/kedra-research-r07.service
+COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
+COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
+RUN chmod 0755 /usr/libexec/kedra-research-r07 && \
+    systemctl enable kedra-research-r07.service && bootc container lint

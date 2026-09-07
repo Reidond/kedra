@@ -7,6 +7,7 @@ on:
       - .github/workflows/research-desktop.yml
       - Containerfile
       - build/assemble.sh
+      - build/research/r07/**
       - packages/**
       - home/**
       - etc/**
@@ -47,7 +48,7 @@ jobs:
       - name: Install runner container tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils
       - name: Build and validate Fedora desktop candidate
         run: |
           set -euo pipefail
@@ -68,11 +69,66 @@ jobs:
           sudo podman run --rm localhost/kedra-desktop:research bash -e -c \
             'niri --version; noctalia --version; noctalia msg --help; cat /etc/pam.d/greetd; test "$(systemctl is-enabled greetd)" = enabled; test "$(systemctl is-enabled bootc-fetch-apply-updates.timer || true)" = masked' \
             > output/desktop-evidence/session-interfaces.txt
+          sudo podman run --rm localhost/kedra-desktop:research find /var -type f > output/desktop-evidence/image-var-files.txt
+      - name: Prepare disposable graphical login fixture
+        run: |
+          mkdir -p output/desktop-test-context output/desktop-image output/desktop-evidence/vm
+          cp build/research/r07/Containerfile build/research/r07/check.sh build/research/r07/check.service build/research/r07/test-profile.toml build/research/console.toml output/desktop-test-context/
+          sudo podman build --pull=never --tag localhost/kedra-desktop-test:r07 output/desktop-test-context \
+            > output/desktop-evidence/test-image-build.log 2>&1
+          python3 - <<'PY'
+          import json, os, pathlib, secrets, subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'kedra-r07-private'
+          root.mkdir(mode=0o700)
+          password = secrets.token_hex(16)
+          (root / 'password').write_text(password)
+          (root / 'password').chmod(0o600)
+          hashed = subprocess.check_output(['openssl', 'passwd', '-6', '-stdin'], input=password.encode()).decode().strip()
+          (root / 'blueprint.toml').write_text('[[customizations.user]]\nname = "kedra-test"\npassword = ' + json.dumps(hashed) + '\ngroups = ["wheel"]\n')
+          (root / 'blueprint.toml').chmod(0o600)
+          PY
+      - name: Build disposable desktop disk
+        run: |
+          builder=$(jq -er .builder build/research/inputs.json)
+          sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
+            -v "$PWD/output/desktop-image:/output" \
+            -v "$RUNNER_TEMP/kedra-r07-private/blueprint.toml:/config.toml:ro" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            "$builder" --type qcow2 --rootfs ext4 --use-librepo=True localhost/kedra-desktop-test:r07 \
+            > "$RUNNER_TEMP/kedra-r07-private/builder.log" 2>&1
+      - name: Test graphical login and session
+        run: |
+          set -euo pipefail
+          mapfile -t disks < <(find "$PWD/output/desktop-image" -name '*.qcow2' -type f)
+          test "${#disks[@]}" -eq 1
+          xvfb-run -a -s '-screen 0 1280x800x24' \
+            env LIBGL_ALWAYS_SOFTWARE=1 sudo --preserve-env=DISPLAY,XAUTHORITY,LIBGL_ALWAYS_SOFTWARE \
+            python3 build/research/r07/run_vm.py --disk "${disks[0]}" \
+            --work "$PWD/output/desktop-evidence/vm" --password-file "$RUNNER_TEMP/kedra-r07-private/password" \
+            | tee output/desktop-evidence/vm-result.txt
+      - name: Sanitize builder evidence and remove disposable account secret
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'kedra-r07-private'
+          log = root / 'builder.log'
+          if log.exists():
+              text = re.sub(r'\$6\$[^\s"\x27]+', '<synthetic-password-hash-redacted>', log.read_text(errors='replace'))
+              pathlib.Path('output/desktop-evidence/qcow2-build.log').write_text(text)
+          for name in ['password', 'blueprint.toml', 'builder.log']:
+              (root / name).unlink(missing_ok=True)
+          PY
       - name: Preserve evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: r07-desktop-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-          path: output/desktop-evidence/
+          path: |
+            output/desktop-evidence/*.txt
+            output/desktop-evidence/*.json
+            output/desktop-evidence/*.log
+            output/desktop-evidence/vm/*.png
+            output/desktop-evidence/vm/*.log
           if-no-files-found: error
           retention-days: 14

@@ -9,10 +9,11 @@ mapfile -t packages < <(jq -r '.packages[]' "$manifest")
 mapfile -t remove < <(jq -r '.remove_packages[]' "$manifest")
 test "${#packages[@]}" -gt 0
 repos=(--repo=fedora --repo=updates '--setopt=*.skip_if_unavailable=False' '--setopt=*.gpgcheck=True')
-dnf -y --refresh "${repos[@]}" upgrade
-dnf -y --refresh "${repos[@]}" install "${packages[@]}"
+dnf -y --best --refresh "${repos[@]}" upgrade
+dnf -y --best --refresh "${repos[@]}" install "${packages[@]}"
 if test "${#remove[@]}" -gt 0; then dnf -y "${repos[@]}" remove "${remove[@]}"; fi
 dnf clean all
+dnf check
 chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper
 getent passwd greetd
 systemctl enable greetd.service NetworkManager.service bluetooth.service

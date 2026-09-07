@@ -14,17 +14,18 @@ Last updated: 2026-09-07.
 | Phase | Research-ready repository bootstrap; not an installable operating system. |
 | Implemented | Flat-source Rust workspace, help/version/bootstrap status, refusal of unimplemented operations, repository checks and documentation. |
 | Repository knowledge | 12 Kedra and 38 pinned upstream skills; links for both agents stay within the checkout. No global or system-wide skill installation. |
-| Latest verified check | Prior run 4 on `1e094eca8f482b0203dcbf041c14e5883c8f4123` is recorded below. The update-plan revision's CI is not yet observed when this entry is written; no future result is implied. |
+| Latest verified check | Update-plan source `bfb190226c5461292e06dc470c42f86f998b07af` passed Check bootstrap run 6 (`34145002985`). This follow-up records that exact source/run, not an unobserved future check of its own commit. |
 | R11 | Bootstrap subset passed. Overall packet remains blocked on actual agent/editor discovery, additional adversarial validation and distribution review. |
 | R01-R10 | Not run, as recorded in `docs/research/status.json`. No OS/ISO/signature/home/auth/hardware success is implied. |
-| Current task | Completed planning: periodic Fedora refresh, signed release/freshness records and notify-only machine updates. See docs/UPDATES.md and ADR 0002; production mechanisms remain unimplemented. |
+| Current task | Completed planning and repository verification: periodic Fedora refresh, signed release/freshness records and notify-only machine updates. See docs/UPDATES.md and ADR 0002; production mechanisms remain unimplemented. |
 | Machine effects | None. No live schedule, signing configuration, OS/client timer, workstation/home/vault or personal agent installation was changed. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
 [research index](docs/research/status.json),
 [bootstrap run 2](https://github.com/Reidond/kedra/actions/runs/34138882781),
 [baseline run 3](https://github.com/Reidond/kedra/actions/runs/34139103852),
-and [documentation run 4](https://github.com/Reidond/kedra/actions/runs/34140106798).
+[documentation run 4](https://github.com/Reidond/kedra/actions/runs/34140106798),
+and [update-plan run 6](https://github.com/Reidond/kedra/actions/runs/34145002985).
 The snapshot summarizes those records; source, exact CI runs and case-level
 reports remain authoritative for what was tested.
 
@@ -125,3 +126,21 @@ independently. Do not enable production cron or enroll a real machine/home yet.
 - Next: Verify this revision's repository check and readback. Then assign slice 1
   to Codex with disposable CI fixture RPM repositories; preserve all no-loss,
   signature and repository-only skill boundaries.
+
+### WL-20260907-05 — 2026-09-07 — Verify update-plan publication
+
+- Agent / state: ChatGPT using GitHub; completed documentation verification.
+- Scope / base: `main` at `bfb190226c5461292e06dc470c42f86f998b07af`;
+  follow-up to WL-20260907-04 without rewriting its pending observation.
+- Completed: Read back the published plan and worklog, confirmed the commit changes
+  ten documentation/skill files only, and observed the exact bootstrap run succeed.
+  Refreshed this status snapshot; no implementation/research status was advanced.
+- Checks / evidence: `pass` — GitHub compare against f3b44f1 confirms no runtime,
+  package, Cargo, active workflow or timer changes. `pass` —
+  [run 6](https://github.com/Reidond/kedra/actions/runs/34145002985), attempt 1,
+  completed successfully for bfb1902. This is repository validation, not evidence
+  that Fedora refresh, client update, signing, home merge or an ISO works.
+- Remaining / blockers: The new experiment supplement remains entirely not-run.
+  The final worklog-only follow-up has no claimed future CI result.
+- Next: Assign the disposable slice-1 refresh experiment using docs/HANDOFF.md;
+  keep production scheduling disabled until its prerequisite gates pass.

@@ -14,22 +14,23 @@ Last updated: 2026-09-07.
 | Phase | Research-ready repository bootstrap; not an installable operating system. |
 | Implemented | Flat-source Rust workspace, help/version/bootstrap status, refusal of unimplemented operations, repository checks and documentation. |
 | Repository knowledge | 12 Kedra and 38 pinned upstream skills; links for both agents stay within the checkout. No global or system-wide skill installation. |
-| Bootstrap evidence | `cargo xtask check` passed on source `98efe4d944a2bcfd27865edf6cbee0bd3ce4b94e`; the subsequent `e807dfe219ba1d57ebb751bd40d46897af31b6d7` check also passed. |
+| Latest verified check | `cargo xtask check` and the clean-source check passed in run 4 on documentation revision `1e094eca8f482b0203dcbf041c14e5883c8f4123`. This later worklog entry records that exact result, not a claim about its own unobserved future CI run. |
 | R11 | Bootstrap subset passed. Overall packet remains blocked on actual agent/editor discovery, additional adversarial validation and distribution review. |
 | R01-R10 | Not run, as recorded in `docs/research/status.json`. No OS/ISO/signature/home/auth/hardware success is implied. |
-| Current task | Documentation-only clarification of repository skill scope and mandatory worklog maintenance. CI for this new documentation revision is not yet observed at entry creation. |
+| Current task | Completed: repository-only skill scope, required shared worklog instructions, initial status/history and CI follow-up. No implementation/research gate was advanced. |
 | Machine effects | None. No workstation, home directory, vault, personal agent profile or installation was changed. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
 [research index](docs/research/status.json),
 [bootstrap run 2](https://github.com/Reidond/kedra/actions/runs/34138882781),
-and [baseline run 3](https://github.com/Reidond/kedra/actions/runs/34139103852).
+[baseline run 3](https://github.com/Reidond/kedra/actions/runs/34139103852),
+and [documentation run 4](https://github.com/Reidond/kedra/actions/runs/34140106798).
 The snapshot summarizes those records; source, exact CI runs and case-level
 reports remain authoritative for what was tested.
 
 ### Next concrete actions
 
-Verify the documentation change's CI, then continue from `docs/HANDOFF.md`.
+Continue from `docs/HANDOFF.md`; inspect current Git/CI state when resuming.
 Complete available R11 real-agent/editor and negative-validation cases without
 claiming unavailable environments passed. R03 synthetic writable-home research
 can proceed independently; R01/R02 use disposable CI-built image/installer tests.
@@ -78,3 +79,23 @@ Do not enroll a real home or deploy to the workstation during those experiments.
   enforcement or a claim of real agent compliance. Existing research gaps remain.
 - Next: Observe the exact resulting Actions run, record its outcome and update
   the status snapshot before handing off to the next coding session.
+
+### WL-20260907-03 — 2026-09-07 — Verify the documentation change
+
+- Agent / state: ChatGPT using the GitHub connector; completed verification and
+  handoff update. Follow-up to WL-20260907-02; its original pending observation
+  remains preserved above.
+- Scope / base: `main` at `1e094eca8f482b0203dcbf041c14e5883c8f4123`.
+- Completed: Confirmed the published change modifies only `AGENTS.md`,
+  `skills/README.md` and `worklog.md`. Read back the instructions and worklog;
+  observed the exact resulting Actions job succeed. Refreshed this status
+  snapshot without changing the research index or claiming new implementation.
+- Checks / evidence: `pass` — GitHub comparison against `e807dfe...` confirms
+  the three-document scope. `pass` — [run 4](https://github.com/Reidond/kedra/actions/runs/34140106798),
+  job `101799936466`, completed all workspace/skills/format/lint/test/release
+  checks and clean-source verification successfully on `1e094eca...`.
+- Remaining / blockers: CI checks repository consistency, not an agent's future
+  adherence to prose. Actual agent discovery/editor behavior and R01-R10 remain
+  untested. This record does not imply any OS or home deployment.
+- Next: Resume the selected research packet using `docs/HANDOFF.md`; read and
+  maintain this worklog in the next Codex or Claude session.

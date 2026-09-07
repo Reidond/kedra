@@ -11,6 +11,14 @@
     {"id":"R08","status":"not-run","topic":"Release authority, privacy, lifecycle"},
     {"id":"R09","status":"not-run","topic":"Multi-machine isolation and provenance"},
     {"id":"R10","status":"not-run","topic":"Privileged protocol and persistent state"},
-    {"id":"R11","status":"blocked","topic":"Rust workspace and skill integration","note":"Bootstrap checks are being established; real agent discovery and editor validation remain untested."}
+    {
+      "id":"R11",
+      "status":"blocked",
+      "topic":"Rust workspace and skill integration",
+      "bootstrap_status":"pass",
+      "report":"R11-rust-workspace/REPORT.md",
+      "run_url":"https://github.com/Reidond/kedra/actions/runs/34138882781",
+      "note":"Rust/format/lint/test/release and static skill wiring passed; actual Codex/Claude discovery, editor behavior, complete adversarial validation and distribution review remain not-run."
+    }
   ]
 }

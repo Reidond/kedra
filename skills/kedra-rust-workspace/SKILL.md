@@ -47,6 +47,11 @@ success is R11 bootstrap evidence, not OS or real-agent qualification. Verify
 rust-analyzer separately. An installed OS binary must be built with a compatible
 Fedora/target ABI, not copied blindly from a newer Ubuntu build environment.
 
+The bootstrap passed this check on Rust 1.98.1 in Actions. Read
+[the evidence summary](references/bootstrap-evidence.md) and the linked R11 report
+for the exact source/run and remaining untested cases. Do not present planned
+research behavior as implemented merely because the scaffold compiles.
+
 ## Skill lifecycle
 
 Pin upstream via gitlink plus skills.lock.toml. Initialize explicitly with

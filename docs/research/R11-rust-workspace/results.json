@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "packet": "R11",
+  "overall_status": "blocked",
+  "bootstrap_status": "pass",
+  "source_commit": "98efe4d944a2bcfd27865edf6cbee0bd3ce4b94e",
+  "run_url": "https://github.com/Reidond/kedra/actions/runs/34138882781",
+  "command": "cargo xtask check",
+  "exit_code": 0,
+  "cases": [
+    {"id":"pinned-submodule-checkout","status":"pass"},
+    {"id":"flat-layout-canonical-check","status":"pass"},
+    {"id":"skill-pin-and-links","status":"pass","canonical_skills":50,"first_party":12,"upstream":38,"agent_link_roots":2},
+    {"id":"cargo-metadata-locked","status":"pass","exit_code":0},
+    {"id":"rustfmt-check","status":"pass","exit_code":0},
+    {"id":"clippy-deny-warnings","status":"pass","exit_code":0},
+    {"id":"cargo-tests","status":"pass","exit_code":0,"unit_and_integration_tests":8,"doctests":1},
+    {"id":"nested-src-negative-fixture","status":"pass"},
+    {"id":"release-build","status":"pass","exit_code":0},
+    {"id":"tracked-source-clean","status":"pass","exit_code":0},
+    {"id":"codex-real-discovery-and-profiles","status":"not-run"},
+    {"id":"claude-real-discovery-and-profiles","status":"not-run"},
+    {"id":"editor-rust-analyzer-layout","status":"not-run"},
+    {"id":"complete-adversarial-validator-suite","status":"not-run"},
+    {"id":"third-party-distribution-review","status":"not-run"}
+  ],
+  "initial_failure": {
+    "source_commit":"0e8a6f1d93b69061f29c10c745e4286065b27746",
+    "run_id":34138732851,
+    "status":"fail",
+    "stage":"rustfmt-check",
+    "resolution":"Applied formatter output; all checks passed on the next source revision."
+  }
+}

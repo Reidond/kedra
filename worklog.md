@@ -18,7 +18,7 @@ Last updated: 2026-09-08 (Europe/Kiev); R03 checks ran on 2026-09-07.
 | R11 | Canonical skill files readable; Codex marketplace and fresh-profile root/crate skills/list found no Kedra entries. Claude authoring validation passed. Loaded-plugin model/editor checks not-run; distribution review blocked. |
 | R03 | Core synthetic review prototype passed 12 tests; full gate remains blocked on Noctalia/app-owned projection, durable disposition transitions and wider path/edit safety. See docs/research/R03-home-review/REPORT.md. |
 | Other R01-R10 | Not run, as recorded in docs/research/status.json. R04 activation remains unavailable; no OS/ISO/signature/auth/hardware success is implied. |
-| Current task | R03 prototype, evidence and ADR 0004 published; exact implementation-revision CI passed. This documentation follow-up records that observed result. Full research gates remain partial. |
+| Current task | Owner requested full implementation through usable installation, including VM testing if needed. Active first slice: R01/R02 disposable Actions image and VM proof, followed by gated management implementation. |
 | Machine effects | None. No workstation, home directory, vault, personal agent profile or installation was changed. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
@@ -287,3 +287,12 @@ now has Windows and Linux evidence; real-home and activation gates stay closed.
 - Checks / evidence: pass — https://github.com/Reidond/kedra/actions/runs/34164331109 at exact e492258871f6353a0c6548a0ec5d5e318d92bdd3. Ubuntu 24.04 runner, x86_64-unknown-linux-gnu, Rust/Cargo 1.98.1 and Git 2.55.0; formatting, Clippy, 19 tests plus 1 doctest, release build and unchanged-source/lockfile check all passed.
 - Remaining / blockers: This evidence-only follow-up has no claimed future CI result. Full R03/R11 and R04 activation gaps are unchanged; no home/OS deployment or global plugin installation occurred.
 - Next: Publish this observed-evidence follow-up; continue the documented synthetic Noctalia and disposition-transition experiment.
+
+### WL-20260908-03 — 2026-09-08 — Usable-system implementation
+- Agent / state: Codex; in-progress.
+- Scope / base: clean main at c00374cae862c669460da35471950237216a3d14; owner requested full implementation and installation guidance, with VM installation/testing if needed.
+- Completed: Reconciled plans, source, research reports and exact-base Actions success (run 34164461001). Selected disposable R01/R02 image/VM path as the first installation dependency. Existing WSL2 Ubuntu exposes /dev/kvm; QEMU is absent. Windows has approximately 64 GiB RAM and 817 GiB free workspace drive space.
+- Checks / evidence: pass — Git status clean at entry, main/origin inspected, exact-base Rust CI successful. not-run — image build, installer, boot, signing, desktop and physical hardware.
+- Remaining / blockers: No image/installer or production management implementation exists; production trust, credential setup and hardware qualification remain unresolved. Research uses disposable keys/VMs and Actions builds.
+- Next: Implement and run an isolated CI image/VM experiment; record actual results before enabling dependent production operations.
+- Milestone: Prepared pinned minimal Fedora/bootc-builder inputs, a disposable boot-evidence service and an Actions QCOW2/UEFI experiment. Local shell syntax, workflow YAML parsing and git diff --check pass. Installed QEMU 8.2.2 and OVMF 2024.02 in existing Ubuntu WSL2 under the owner's VM authorization; no guest has run. Publishing the isolated research branch is necessary to execute the required Actions OS build; production promotion remains unavailable.

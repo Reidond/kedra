@@ -1,0 +1,12 @@
+[Unit]
+Description=Disposable Kedra R02 boot evidence
+After=local-fs.target systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/kedra-research-boot-check
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

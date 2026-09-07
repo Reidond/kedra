@@ -25,6 +25,20 @@ contain per-skill links. Upstream Rust skills remain at their pinned submodule
 source, with links to all top-level skill directories. Skill discovery does not
 authorize execution of scripts, plugins, hooks, tools, or global configuration.
 
+## Repository scope only
+
+This entire collection, including the pinned upstream Rust skills, belongs only
+to the Kedra checkout/worktrees. It must not be installed or registered in global
+user skill directories, system directories, global plugins, or shared agent
+profiles. Do not package it as a system-wide library in the OS image, installer,
+or managed home baseline. A normal Kedra clone contains these repository files;
+that is not a global skill installation.
+
+The bundled `sysroot` agent launchers should find the collection by opening this
+repository, not by copying it into personal or global configuration. This does
+not change the user's independent ownership of personal skills or their optional
+tracking choices. See `AGENTS.md` for the full scope and authorization contract.
+
 ## Maintenance contract
 
 When research changes an assumption, update the skill and the relevant report/ADR
@@ -32,3 +46,10 @@ in the same change. Distinguish product requirement, upstream-documented fact,
 implementation hypothesis, and experimentally validated result. Record exact
 versions/date and link the source or test. Keep detailed fixtures in reports and
 reference notes; do not load the entire skill collection into every agent prompt.
+
+Both agents must also maintain root `worklog.md` as specified in `AGENTS.md`:
+read its current status and recent entries when starting/resuming, record actual
+work and evidence at meaningful milestones, and update status/blockers/next steps
+before handoff. Skills carry reusable knowledge; the worklog records project
+progress. Neither replaces detailed research evidence or grants permission to
+publish or deploy.

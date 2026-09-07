@@ -1,16 +1,19 @@
-//! Shared read-only bootstrap information, not a deployment protocol.
+//! Source planning and capability information, not a deployment protocol.
 //!
 //! ```
 //! assert_eq!(sysroot_core::PROJECT, "Kedra");
 //! assert!(!sysroot_core::DEPLOYMENT_AVAILABLE);
 //! ```
 
+/// Committed source planning and build provenance.
+pub mod source;
+
 /// Human-facing operating system name.
 pub const PROJECT: &str = "Kedra";
 /// Bootstrap never claims operational OS management.
 pub const DEPLOYMENT_AVAILABLE: bool = false;
-/// Stable bootstrap output; production status needs its own researched schema.
-pub const STATUS_JSON: &str = r#"{"schema_version":1,"project":"Kedra","stage":"bootstrap","deployment_available":false,"home_management_available":false,"agent_launchers_available":false}"#;
+/// Capability output; installed deployment status remains a separate future schema.
+pub const STATUS_JSON: &str = r#"{"schema_version":1,"project":"Kedra","stage":"development","source_planning_available":true,"deployment_available":false,"home_management_available":false,"agent_launchers_available":false}"#;
 
 /// Return the blocking research packet for a future command.
 pub fn research_gate(command: &str) -> Option<&'static str> {

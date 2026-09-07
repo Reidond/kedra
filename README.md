@@ -12,8 +12,8 @@ Claude Code. There is no BlueBuild or generic distribution framework.
 
 This is a **research-ready bootstrap**, not an installable OS. The workspace has
 explicit `main.rs` / `lib.rs` paths, no first-party `src/` directories, one lockfile,
-and a pinned Rust toolchain. The CLI implements help, version, and honest
-bootstrap status. Deployment, home mutation, setup, and agent launch commands
+and a pinned Rust toolchain. The CLI implements help, version, capability status
+and committed source planning. Deployment, home mutation, setup, and agent launch commands
 return an unavailable error. The helper performs no privileged operation.
 
 The check workflow validates Rust only. No signed image, ISO,
@@ -27,6 +27,24 @@ and explicit conflicts in disposable Git fixtures. Run
 `cargo run -p sysroot-core --example r03_home --locked`. Its 12 tests are included
 in standard workspace tests. This is research code; real home management and
 activation remain unavailable.
+
+Inspect a target without changing the checkout or machine:
+
+```sh
+cargo run --locked -p sysroot -- source plan --host desktop
+cargo run --locked -p sysroot -- source plan --host desktop --json
+```
+
+The plan reads committed HEAD only. It lists package intent, source paths,
+content hashes and host overrides; staged, unstaged and untracked edits stay
+untouched and are excluded. It refuses the disabled XPS target. This is build
+input inspection, not an installation command. See
+[ADR 0005](docs/adr/0005-committed-source-planning.md).
+
+The [R02 experiment](docs/research/R02-installer/REPORT.md) builds a minimal
+Fedora 44 image and QCOW2 in Actions. Its first UEFI guest reached bootc status;
+the check harness failed and a correction is being tested. There is no owner
+installation image yet.
 
 ## Continue in Codex or Claude
 

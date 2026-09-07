@@ -12,14 +12,14 @@ Last updated: 2026-09-08 (Europe/Kiev); R03 checks ran on 2026-09-07.
 | Area | Verified status / next boundary |
 |---|---|
 | Phase | Research-ready repository bootstrap; not an installable operating system. |
-| Implemented | Three-package flat Rust workspace, help/version/bootstrap status, operational refusals, standard Cargo CI, and a synthetic-only R03 Cargo example. No real-home manager or deployment implementation. |
+| Implemented | Three-package flat Rust workspace; help/version/capability status; committed-source planning with host overrides and content provenance; operational refusals; standard Cargo CI; synthetic R03 example. No real-home manager or deployment implementation. |
 | Repository knowledge | One Codex/Claude plugin with 12 Kedra and 18 selected upstream skills in plugins/kedra/skills. Ordinary files; no submodule, symlinks or duplicate discovery copies. No personal installation. |
 | Latest verified check | Published R03 source e492258871f6353a0c6548a0ec5d5e318d92bdd3 passed [Actions run 34164331109](https://github.com/Reidond/kedra/actions/runs/34164331109): Linux fmt/Clippy/19 tests plus 1 doctest/release build. Matching source previously passed local Windows checks. This evidence follow-up does not claim its own future CI result. |
 | R11 | Canonical skill files readable; Codex marketplace and fresh-profile root/crate skills/list found no Kedra entries. Claude authoring validation passed. Loaded-plugin model/editor checks not-run; distribution review blocked. |
 | R03 | Core synthetic review prototype passed 12 tests; full gate remains blocked on Noctalia/app-owned projection, durable disposition transitions and wider path/edit safety. See docs/research/R03-home-review/REPORT.md. |
-| Other R01-R10 | Not run, as recorded in docs/research/status.json. R04 activation remains unavailable; no OS/ISO/signature/auth/hardware success is implied. |
+| Other R01-R10 | R02 minimal image/QCOW2 build passed and UEFI guest reached bootc, but initial harness failed; correction pending. R09 source planning has local synthetic evidence. Full installer, signatures, activation, authentication and hardware gates remain unpassed. |
 | Current task | Owner requested full implementation through usable installation, including VM testing if needed. Active first slice: R01/R02 disposable Actions image and VM proof, followed by gated management implementation. |
-| Machine effects | None. No workstation, home directory, vault, personal agent profile or installation was changed. |
+| Machine effects | QEMU 8.2.2 and OVMF installed in existing Ubuntu WSL2 under the owner's VM-test authorization. No real-home enrollment, vault/profile changes, disk formatting or workstation OS installation. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
 [research index](docs/research/status.json),
@@ -297,3 +297,4 @@ now has Windows and Linux evidence; real-home and activation gates stay closed.
 - Next: Implement and run an isolated CI image/VM experiment; record actual results before enabling dependent production operations.
 - Milestone: Prepared pinned minimal Fedora/bootc-builder inputs, a disposable boot-evidence service and an Actions QCOW2/UEFI experiment. Local shell syntax, workflow YAML parsing and git diff --check pass. Installed QEMU 8.2.2 and OVMF 2024.02 in existing Ubuntu WSL2 under the owner's VM authorization; no guest has run. Publishing the isolated research branch is necessary to execute the required Actions OS build; production promotion remains unavailable.
 - R02 finding: Actions run 34164873575 at 9016832 passed container lint/build and QCOW2 build; UEFI guest reached Fedora 44/kernel 7.1.13/bootc 1.16.10. Overall VM check failed (124) because the harness passed two paths to findmnt, then left QEMU waiting. Corrected mount invocations, failure poweroff and prefixed serial marker matching. Rerun pending; full installation/signing remain not-run.
+- Source-planning milestone: Implemented sysroot source plan with committed HEAD snapshots, typed target validation, package intent, host replacements, modes and SHA-256 provenance. Added six synthetic Git tests and ADR 0005. pass — Rust 1.98.1 formatting, Clippy, 25 tests plus one doctest, release build; actual desktop JSON plan emits the four existing package candidates and zero placeholder payloads. Existing staged/unstaged/untracked files are preserved in tests. Linux CI for this implementation is not-run until publication.

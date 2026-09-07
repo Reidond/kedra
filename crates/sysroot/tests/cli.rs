@@ -1,7 +1,7 @@
 use std::process::Command;
 
 #[test]
-fn status_is_explicitly_bootstrap_only() {
+fn status_distinguishes_source_planning_from_deployment() {
     let output = Command::new(env!("CARGO_BIN_EXE_sysroot"))
         .args(["status", "--json"])
         .output()

@@ -18,6 +18,15 @@ same source commit/base but produce different image digests and installers.
 
 ## Provenance and identity
 
+Implemented 2026-09-08: `sysroot source plan --repo PATH --host TARGET [--json]`
+reads one committed HEAD via raw Git tree/blobs, excludes index/worktree/untracked
+edits and emits package intent plus source paths, replacements, modes and SHA-256.
+Disabled/mismatched targets, links, package options and payload collisions fail.
+Six synthetic Git tests pass on Rust 1.98.1/Windows; Linux evidence follows CI.
+This R09 source-provenance slice does not establish enrollment, image build,
+home adoption/export or two-machine lifecycle. See ADR 0005 for supported paths
+and the inert default home-baseline namespace.
+
 Record each home file's source path/revision/host/content hash/mode/app group.
 Shared keybindings normally export to home/, monitor settings to hosts/<host>/home/.
 Do not infer ownership from the deployed filename alone. A host override can hide

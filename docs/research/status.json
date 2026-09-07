@@ -2,7 +2,7 @@
   "schema_version": 1,
   "packets": [
     {"id":"R01","status":"not-run","topic":"Image signing and bootc enforcement"},
-    {"id":"R02","status":"not-run","topic":"Installer and Actions feasibility"},
+    {"id":"R02","status":"blocked","topic":"Installer and Actions feasibility","report":"R02-installer/REPORT.md","run_url":"https://github.com/Reidond/kedra/actions/runs/34164873575","note":"Minimal image lint/build and QCOW2 build passed; UEFI guest reached Fedora 44/bootc status. Initial guest mount-check harness failed and timed out; corrective rerun pending. Interactive installer, encryption, signature handoff and physical installation remain not-run."},
     {
       "id":"R03",
       "status":"blocked",
@@ -19,7 +19,7 @@
     {"id":"R06","status":"not-run","topic":"Bitwarden and credential bootstrap"},
     {"id":"R07","status":"not-run","topic":"Desktop session and hardware"},
     {"id":"R08","status":"not-run","topic":"Release authority, privacy, lifecycle"},
-    {"id":"R09","status":"not-run","topic":"Multi-machine isolation and provenance"},
+    {"id":"R09","status":"blocked","topic":"Multi-machine isolation and provenance","note":"Committed-source plan implemented; six synthetic Git tests pass locally on Windows/Rust 1.98.1 for provenance, host overrides, untouched dirty source and invalid inputs. ADR 0005 records scope. Two-target images, enrollment, source export and independent updates/rollback remain not-run; new-source Linux CI pending."},
     {"id":"R10","status":"not-run","topic":"Privileged protocol and persistent state"},
     {
       "id":"R11",

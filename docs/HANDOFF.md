@@ -16,11 +16,22 @@ contract, twelve Kedra skills, and eighteen selected upstream Rust skills with
 one shared Codex/Claude plugin (ADR 0003). The check workflow has no signing secrets,
 package publication, workstation access, or OS installation step.
 
-Only help/version/status are CLI capabilities. `sysroot home`, `update`,
+Help/version/status and `sysroot source plan --host desktop [--json]` are CLI
+capabilities. The source plan resolves committed inputs and provenance without
+touching index/worktree files (ADR 0005). `sysroot home`, `update`,
 `deploy`, `rollback`, `setup`, `doctor`, `context`, `codex`, and `claude` refuse
 operation. Source placeholders are deliberate boundaries, not hidden TODO
 implementations to trust. `host.toml` and package lists are design inputs; no
 production assembler consumes them yet. Read the actual latest CI result.
+
+Active implementation request: owner asked to finish a usable, understandable,
+installable system and authorized VM installation/testing as needed. Work is on
+`codex/usable-system`. Read the current worklog entry and
+[R02 report](research/R02-installer/REPORT.md): the first image/QCOW2 build and
+UEFI boot reached Fedora/bootc, but the guest-check harness failed. Its correction
+is being tested in Actions. QEMU/OVMF are installed in existing Ubuntu WSL2 for
+local disposable tests. No production image, owner home adoption or physical
+installation is authorized by those research results.
 
 [The update/refresh plan](UPDATES.md) now details periodic Fedora input refresh,
 no-change/freshness checkpoints, release approval and notify-only client defaults.

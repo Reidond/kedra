@@ -20,6 +20,16 @@ and Mesa logged failure to attach X11 shared memory. Xvfb and QEMU had different
 users; the next run uses the same user for both and captures the Xvfb display when
 a GL scanout has no QMP software surface. Graphical login remains unpassed.
 
+Corrected [run 34169415857](https://github.com/Reidond/kedra/actions/runs/34169415857)
+at `b3e569a` passed real password login, niri/Noctalia IPC, PipeWire/WirePlumber,
+portal D-Bus availability and an unlocked synthetic login keyring. Login, launcher
+and settings screenshots were downloaded and visually inspected. They confirm
+rendered Noctalia, but show the startup hotkey overlay covering the UI, a small
+virtual preferred mode and audit text over the login prompt. Follow-up changes
+provide an explicit help shortcut without startup overlay, a quiet boot console,
+and a larger fullscreen VM display. Physical audio, screen sharing, lock/idle,
+hardware and owner-account authentication are separate, unpassed cases.
+
 [Initial run 34167255886](https://github.com/Reidond/kedra/actions/runs/34167255886)
 at `9e2b752` resolved and installed the entire requested desktop package set. It
 then failed at the service-account check: Fedora greetd 0.10.3-6.fc44 creates the

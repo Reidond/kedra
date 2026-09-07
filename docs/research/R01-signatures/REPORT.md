@@ -3,6 +3,12 @@
 Status: **blocked** at full installation-policy/authority gates, 2026-09-08
 (Europe/Kiev); the first strict transport/update/rollback subset passed.
 
+The stronger [run 34167524353](https://github.com/Reidond/kedra/actions/runs/34167524353)
+at `14be822` also passed. Initial A, booted B and rolled-back A all reported
+containerPolicy; unsigned switches without the explicit enforcement flag were
+rejected on all three. The supported install drop-in resolves the missing-setting
+boundary described below. Production authority/rotation/installer cases remain open.
+
 [Run 34166793087](https://github.com/Reidond/kedra/actions/runs/34166793087)
 at `7705cc36b91546c45f006cf099d7621b3f883227` passed strict local-store import,
 all five rejection cases, signed B staging/boot, inherited-policy rejection under
@@ -45,7 +51,7 @@ policy, image digests and serial logs are captured in each Actions artifact.
 
 ## Intended cases
 
-All cases are not-run until observed:
+The five cases below passed in run 34167524353:
 
 1. Verify signed A with containers/image before local builder-store copy.
 2. Boot A at the expected final registry digest; reject unsigned, wrong-key,

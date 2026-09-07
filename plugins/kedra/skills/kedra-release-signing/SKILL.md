@@ -66,6 +66,15 @@ update-refresh experiment cases for no-change, failed-check, replay and race tes
 
 ## Prove before production
 
+Measured 2026-09-08: Fedora bootc 1.16.10 with Skopeo 1.22.2 passed the local TLS
+registry/VM experiment (Actions 34167524353). The pinned builder imports a local
+containers-storage image ID: it needs a strict sigstoreSigned storage rule with
+the trusted key and exactRepository, in addition to the docker scope. Default
+reject is retained. `/usr/lib/bootc/install/*.toml` with `[install]
+`enforce-container-sigpolicy = true` preserves inherited enforcement on initial
+install and rollback. Without it, initial/rolled-back A lacked the signature
+setting. See R01-signatures/REPORT.md; production authority/rotation remain gated.
+
 Read references/threat-matrix.md. Use disposable keys and VM images A/B. Exercise
 unsigned, wrong key/repository/target/architecture, tampered metadata, absent
 attachments, unapproved candidate, stale replay, and race cases. Check running

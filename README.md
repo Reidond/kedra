@@ -47,6 +47,10 @@ an existing output. The plain Containerfile consumes that archive in Actions.
 The desktop package/configuration candidate is tracked in
 [R07](docs/research/R07-desktop/REPORT.md); runtime qualification is still pending.
 
+`sysroot release verify` checks signed release records and optional installer
+checksums offline. Its scope and key requirements are described in
+[release verification](docs/RELEASES.md). No production release has been promoted.
+
 The [R02 experiment](docs/research/R02-installer/REPORT.md) builds a minimal
 Fedora 44 image and QCOW2 in Actions. The corrected UEFI boot test passes with
 enforcing SELinux. This is a disposable test disk; there is no owner installation

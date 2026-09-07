@@ -12,6 +12,13 @@ The root package list is a research candidate, not a complete bill of materials.
 
 ## Session checklist
 
+Measured Fedora 44 candidate on 2026-09-08: niri 26.04, Noctalia 5.0.1 and
+greetd 0.10.3-6.fc44. The service account is `greetd`, not upstream's `greeter`.
+Actions 34169415857 passed a generated-password VM login, IPC, service/portal
+availability and unlocked synthetic keyring; the Fedora PAM file includes
+GNOME Keyring integration. This does not prove physical devices or owner auth.
+See R07-desktop/REPORT.md for images, harness failures and visual refinements.
+
 Prove niri session startup, D-Bus/systemd user environment, portal backends/file
 chooser/screen sharing, Xwayland application support, PipeWire/WirePlumber,
 NetworkManager/Wi-Fi, Bluetooth, notifications, authentication/keyring, lock/idle,

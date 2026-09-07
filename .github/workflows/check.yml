@@ -38,6 +38,8 @@ jobs:
         run: cargo test --workspace --locked
       - name: Release build
         run: cargo build --workspace --release --locked
+      - name: Independent OpenSSL signature interoperability
+        run: python3 tests/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
       - name: Ensure checks did not change source or lockfile
         run: |
           git diff --exit-code

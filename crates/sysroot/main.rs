@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -16,6 +17,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Verify a signed release record and, optionally, a downloaded installer.
+    Release {
+        #[command(subcommand)]
+        command: ReleaseCommand,
+    },
     /// Show capabilities; does not claim the OS is installed.
     Status {
         #[arg(long)]
@@ -28,6 +34,87 @@ enum Commands {
     },
     #[command(external_subcommand)]
     Unavailable(Vec<OsString>),
+}
+
+#[derive(Subcommand)]
+enum ReleaseCommand {
+    /// Verify exact signed bytes using an independently trusted public key.
+    Verify {
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        signature: PathBuf,
+        #[arg(long)]
+        public_key: PathBuf,
+        #[arg(long)]
+        artifact: Option<PathBuf>,
+        #[arg(long)]
+        target: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+fn limited_file(
+    path: &std::path::Path,
+    limit: usize,
+) -> Result<Vec<u8>, sysroot_core::release::Error> {
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take((limit + 1) as u64)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > limit {
+        return Err(sysroot_core::release::Error::SizeLimit);
+    }
+    Ok(bytes)
+}
+
+fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Error>> {
+    let ReleaseCommand::Verify {
+        manifest,
+        signature,
+        public_key,
+        artifact,
+        target,
+        json,
+    } = command;
+    let payload = limited_file(&manifest, sysroot_core::release::MAX_DOCUMENT)?;
+    let signature = limited_file(&signature, 1024)?;
+    let key = limited_file(&public_key, 4096)?;
+    let key = std::str::from_utf8(&key).map_err(|_| sysroot_core::release::Error::InvalidKey)?;
+    let verified = sysroot_core::release::verify_release(&payload, &signature, key, None)?;
+    if target
+        .as_ref()
+        .is_some_and(|target| *target != verified.release().scope.target)
+    {
+        return Err(sysroot_core::release::Error::ScopeMismatch.into());
+    }
+    if let Some(path) = &artifact {
+        sysroot_core::release::verify_artifact(&verified, path)?;
+    }
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "signature_valid": true, "artifact_verified": artifact.is_some(),
+                "channel_freshness_verified": false, "deployment_authorized": false,
+                "key_fingerprint_sha256": verified.key_fingerprint(),
+                "release_sha256": verified.sha256(), "release": verified.release()
+            }))?
+        );
+    } else {
+        println!(
+            "Verified promoted {} release {}.",
+            verified.release().scope.target,
+            verified.release().sequence
+        );
+        println!("Signing key SHA-256: {}", verified.key_fingerprint());
+        if let Some(path) = artifact {
+            println!("Installer checksum and size verified: {}", path.display());
+        }
+        println!("Channel freshness and installed-machine authorization are separate checks.");
+    }
+    Ok(())
 }
 
 #[derive(Subcommand)]
@@ -84,6 +171,12 @@ fn source_plan(repo: PathBuf, host: String, json: bool) -> Result<(), Box<dyn st
 
 fn main() -> ExitCode {
     match Cli::parse().command {
+        Some(Commands::Release { command }) => {
+            if let Err(error) = verify_release(command) {
+                eprintln!("sysroot: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
         None => {
             if let Err(error) = Cli::command().print_help() {
                 eprintln!("sysroot: {error}");
@@ -96,7 +189,7 @@ fn main() -> ExitCode {
                 println!("{}", sysroot_core::STATUS_JSON);
             } else {
                 println!(
-                    "Kedra: source planning available; OS deployment and live-home management unavailable."
+                    "Kedra: source planning, archives and release verification available; OS deployment and live-home management unavailable."
                 );
             }
         }

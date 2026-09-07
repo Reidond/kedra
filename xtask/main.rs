@@ -22,10 +22,16 @@ fn reject_src(path: &Path) -> io::Result<()> {
         let entry = entry?;
         let kind = entry.file_type()?;
         if entry.file_name() == "src" {
-            return Err(problem(format!("first-party src path: {}", entry.path().display())));
+            return Err(problem(format!(
+                "first-party src path: {}",
+                entry.path().display()
+            )));
         }
         if kind.is_symlink() {
-            return Err(problem(format!("symlink in first-party Rust tree: {}", entry.path().display())));
+            return Err(problem(format!(
+                "symlink in first-party Rust tree: {}",
+                entry.path().display()
+            )));
         }
         if kind.is_dir() {
             reject_src(&entry.path())?;
@@ -51,11 +57,15 @@ fn layout(root: &Path) -> io::Result<()> {
             "[lints]\nworkspace = true".to_owned(),
         ] {
             if !manifest.contains(&required) {
-                return Err(problem(format!("{member}/Cargo.toml must contain {required:?}")));
+                return Err(problem(format!(
+                    "{member}/Cargo.toml must contain {required:?}"
+                )));
             }
         }
         if !directory.join(target).is_file() {
-            return Err(problem(format!("missing explicit entry point: {member}/{target}")));
+            return Err(problem(format!(
+                "missing explicit entry point: {member}/{target}"
+            )));
         }
     }
     let helper = fs::read_to_string(root.join("crates/sysroot-helper/Cargo.toml"))?;
@@ -69,7 +79,10 @@ fn layout(root: &Path) -> io::Result<()> {
 fn git(root: &Path, args: &[&str]) -> io::Result<String> {
     let output = Command::new("git").args(args).current_dir(root).output()?;
     if !output.status.success() {
-        return Err(problem(format!("git {args:?} failed: {}", String::from_utf8_lossy(&output.stderr))));
+        return Err(problem(format!(
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     String::from_utf8(output.stdout).map_err(|error| problem(error.to_string()))
 }
@@ -81,14 +94,20 @@ fn skills(root: &Path) -> io::Result<()> {
     }
     let staged = git(root, &["ls-files", "--stage", "vendor/rust-skills"])?;
     if !staged.starts_with(&format!("160000 {PIN} 0\t")) {
-        return Err(problem("recorded Rust-skills gitlink does not match the pin"));
+        return Err(problem(
+            "recorded Rust-skills gitlink does not match the pin",
+        ));
     }
     let upstream = root.join("vendor/rust-skills");
     if !upstream.join("skills/rust-router/SKILL.md").is_file() {
-        return Err(problem("initialize pinned skills: git submodule update --init --recursive"));
+        return Err(problem(
+            "initialize pinned skills: git submodule update --init --recursive",
+        ));
     }
     if git(&upstream, &["rev-parse", "HEAD"])?.trim() != PIN {
-        return Err(problem("initialized Rust-skills checkout differs from the pin"));
+        return Err(problem(
+            "initialized Rust-skills checkout differs from the pin",
+        ));
     }
     let mut names = BTreeSet::new();
     for base in ["skills", "vendor/rust-skills/skills"] {
@@ -98,13 +117,22 @@ fn skills(root: &Path) -> io::Result<()> {
             if !skill.is_file() {
                 continue;
             }
-            let name = entry.file_name().into_string().map_err(|_| problem("invalid skill name"))?;
+            let name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| problem("invalid skill name"))?;
             if !names.insert(name.clone()) {
                 return Err(problem(format!("duplicate skill name: {name}")));
             }
             let text = fs::read_to_string(&skill)?;
-            if !text.starts_with("---\n") || !text.contains("\nname:") || !text.contains("\ndescription:") {
-                return Err(problem(format!("missing skill frontmatter: {}", skill.display())));
+            if !text.starts_with("---\n")
+                || !text.contains("\nname:")
+                || !text.contains("\ndescription:")
+            {
+                return Err(problem(format!(
+                    "missing skill frontmatter: {}",
+                    skill.display()
+                )));
             }
             for agent in [".agents", ".claude"] {
                 let link = root.join(agent).join("skills").join(&name);
@@ -122,19 +150,28 @@ fn skills(root: &Path) -> io::Result<()> {
         let entries = fs::read_dir(root.join(agent).join("skills"))?;
         for entry in entries {
             let name = entry?.file_name();
-            if !names.contains(&name.to_string_lossy().into_owned()) {
-                return Err(problem(format!("unregistered skill link: {}", name.to_string_lossy())));
+            if !names.contains(name.to_string_lossy().as_ref()) {
+                return Err(problem(format!(
+                    "unregistered skill link: {}",
+                    name.to_string_lossy()
+                )));
             }
         }
     }
-    println!("skills: {} canonical directories exposed to both agents", names.len());
+    println!(
+        "skills: {} canonical directories exposed to both agents",
+        names.len()
+    );
     Ok(())
 }
 
 fn cargo(root: &Path, args: &[&str]) -> io::Result<()> {
     println!("+ cargo {}", args.join(" "));
     let executable = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let status = Command::new(executable).args(args).current_dir(root).status()?;
+    let status = Command::new(executable)
+        .args(args)
+        .current_dir(root)
+        .status()?;
     if !status.success() {
         return Err(problem(format!("cargo {args:?} failed with {status}")));
     }
@@ -152,13 +189,29 @@ fn run() -> io::Result<()> {
         [task] if task == "check" => {
             layout(root)?;
             skills(root)?;
-            cargo(root, &["metadata", "--locked", "--no-deps", "--format-version", "1"])?;
+            cargo(
+                root,
+                &["metadata", "--locked", "--no-deps", "--format-version", "1"],
+            )?;
             cargo(root, &["fmt", "--all", "--", "--check"])?;
-            cargo(root, &["clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"])?;
+            cargo(
+                root,
+                &[
+                    "clippy",
+                    "--workspace",
+                    "--all-targets",
+                    "--locked",
+                    "--",
+                    "-D",
+                    "warnings",
+                ],
+            )?;
             cargo(root, &["test", "--workspace", "--locked"])?;
             cargo(root, &["build", "--workspace", "--release", "--locked"])
         }
-        _ => Err(problem("usage: cargo xtask <check|check-layout|check-skills>")),
+        _ => Err(problem(
+            "usage: cargo xtask <check|check-layout|check-skills>",
+        )),
     }
 }
 
@@ -179,8 +232,14 @@ mod tests {
 
     #[test]
     fn nested_src_is_rejected() -> io::Result<()> {
-        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(io::Error::other)?;
-        let directory = env::temp_dir().join(format!("kedra-layout-{}-{}", std::process::id(), stamp.as_nanos()));
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(io::Error::other)?;
+        let directory = env::temp_dir().join(format!(
+            "kedra-layout-{}-{}",
+            std::process::id(),
+            stamp.as_nanos()
+        ));
         fs::create_dir_all(directory.join("module/src"))?;
         let result = reject_src(&directory);
         fs::remove_dir_all(&directory)?;

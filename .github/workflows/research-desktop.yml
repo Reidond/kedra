@@ -81,6 +81,7 @@ jobs:
           cp build/research/r07/Containerfile build/research/r07/check.sh build/research/r07/check.service build/research/r07/test-profile.toml build/research/console.toml output/desktop-test-context/
           cp build/research/r07/agents.py output/desktop-test-context/
           cp build/research/r07/recovery.py output/desktop-test-context/
+          cp build/research/r07/niri-review.py output/desktop-test-context/
           sudo podman build --pull=never --tag localhost/kedra-desktop-test:r07 output/desktop-test-context \
             > output/desktop-evidence/test-image-build.log 2>&1
           python3 - <<'PY'

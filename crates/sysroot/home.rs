@@ -8,6 +8,8 @@ mod activation;
 mod export;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "linux")]
+mod text;
 
 #[derive(Args)]
 pub struct Options {
@@ -20,6 +22,14 @@ pub struct Options {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Review selected lines in an explicitly adopted ordinary configuration file.
+    File {
+        /// Installed baseline/live-home relative path; currently niri is supported.
+        #[arg(long, default_value = ".config/niri/config.kdl")]
+        path: String,
+        #[command(subcommand)]
+        command: TextCommand,
+    },
     /// Adopt only the three supported Noctalia fields from the installed baseline.
     Init,
     /// Capture effective settings and show each field's independent dispositions.
@@ -69,6 +79,42 @@ enum Command {
         output: PathBuf,
     },
     /// Verify and remember the exact source commit containing the selected values.
+    RecordSource {
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+        #[arg(long)]
+        commit: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum TextCommand {
+    /// Adopt the installed niri baseline after checking live custom commands for secrets.
+    Init {
+        /// Acknowledge reviewing this file and finding it safe to display/store selected changes.
+        #[arg(long, required = true)]
+        reviewed_safe: bool,
+    },
+    /// Show changes with stable content-bound IDs, plus selected/local dispositions.
+    Status,
+    /// Pin one displayed change; equal-size replacements are selectable one line at a time.
+    Stage { change: String },
+    /// Remove one pinned change without modifying the live file.
+    Unstage { change: String },
+    /// Keep exactly one displayed change local; later changed content returns to review.
+    KeepLocal { change: String },
+    /// Clear one local-only decision without modifying the live file.
+    ClearLocal { change: String },
+    /// Show only pinned changes that may cross into source.
+    Selection,
+    /// Export a new patch through Git; never replace the checkout/index or live file.
+    Export {
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Record the exact source commit containing the selection, separate from deployment.
     RecordSource {
         #[arg(long, default_value = ".")]
         repo: PathBuf,

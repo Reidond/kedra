@@ -2,6 +2,14 @@
 
 Status: core prototype pass; complete R03 gate blocked.
 
+2026-09-08 current work: ordinary niri text selection/local-only policy and Git
+source export/receipts are prepared (ADR 0019). Actual CLI and native niri
+qualification are pending. Equal-size replacements select by line; other edit
+blocks remain hunks. Live text activation and generic baseline reconciliation
+are not yet implemented. The Noctalia native interruption subset separately
+passes 34230166262 at 3267e03; see R04. Only E2E/manual testing is authorized now;
+the isolated test counts below are historical evidence.
+
 Latest subset, 2026-09-08: [workspace 34192732940](https://github.com/Reidond/kedra/actions/runs/34192732940)
 at `a2c0e63` passes 81 Linux tests plus one doctest, including the actual CLI,
 SQLite, selected Git patch and exact source-commit receipt round trip. Eight

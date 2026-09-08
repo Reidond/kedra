@@ -5,6 +5,19 @@ description: Implement or research writable dotfile capture, Git partial staging
 
 # Writable home is a core feature
 
+Native process-kill recovery, 2026-09-08: R07 34230166262 at 3267e03 kills the
+installed CLI during native publication, then passes abort/resume/keep-current.
+Exact abort refuses a later real Noctalia edit; keep-current preserves it and now
+starts/validates the writer before clearing pending state. Selection and file
+metadata remain intact. Power-loss/full-disk and other interruption phases remain
+open. Default XDG private state initialization also passes. See R04/ADR 0017.
+
+Ordinary niri text review is prepared in ADR 0019, pending CLI/native qualification.
+Never hash the full live text into Git objects: Git 2.55.0 diff-no-index.c supports
+`git diff --no-index reference -` with stdin in memory and exits 0/1. Only explicitly
+selected content may cross into source; init requires reviewing custom commands
+for secrets. This bounded adapter does not yet activate new text baselines.
+
 Current evidence, 2026-09-08: actual R07 desktop run 34223972271 at a5cd96e
 passes native stale-plan refusal and selected-field discard with writer restart,
 selection retention and owner/group/mode/SELinux preservation. Source export and

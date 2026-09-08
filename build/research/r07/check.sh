@@ -112,6 +112,8 @@ as_user sysroot home status | jq -e '.pending_activation == null and (.activatio
 test "$(stat -c '%a' "$review_home/.local/state/sysroot")" = 700
 test "$(stat -c '%a' "$review_home/.local/state/sysroot/home")" = 700
 marker KEDRA_HOME_DEFAULT_STATE_PASS
+as_user python3 /usr/libexec/kedra-research-niri-review.py
+marker KEDRA_R03_NATIVE_NIRI_LINES_PASS
 as_user python3 /usr/libexec/kedra-research-agents.py
 fixture_home=$(getent passwd kedra-test | cut -d: -f6)
 test "$(printf '%s\n' "$environment" | sed -n 's/^SSH_AUTH_SOCK=//p')" = "$fixture_home/.bitwarden-ssh-agent.sock"

@@ -2,6 +2,18 @@
 
 2026-09-08. Full gate: blocked. No workstation home was used.
 
+Native interruption now passes
+[34230166262](https://github.com/Reidond/kedra/actions/runs/34230166262) at `3267e03`.
+The actual installed CLI is killed with SIGKILL on native file publication.
+Public recovery commands successfully abort to the prior value, resume to the
+selected value, and preserve a later real Noctalia edit after exact abort refuses
+it. Every case retains selection and native metadata and returns an active
+Noctalia service. Keep-current restarts/validates the writer before clearing the
+journal and preserves the private checkpoint. The same run passes default private
+state initialization and the complete desktop/doctor/portal/keyring checks.
+Serial evidence is `output/r07-run-34230166262/vm/serial.log`. This is process
+termination evidence, not a power-loss/full-disk or every-phase interruption pass.
+
 Native discard/session subset now passes
 [34223972271](https://github.com/Reidond/kedra/actions/runs/34223972271) at `a5cd96e`.
 The actual sysroot CLI rejects a stale plan, stops the real Noctalia writer,
@@ -18,7 +30,7 @@ with exactly its observed directive; user overrides still refuse.
 
 The owner removed unit/model/mock/doctests and repository self-checks on
 2026-09-08. The isolated results below are historical. Ongoing qualification uses
-actual CLI/native VM workflows and manual testing only. Native interruption,
+actual CLI/native VM workflows and manual testing only. Other interruption phases,
 broader baseline transitions and generic files remain open.
 
 [Linux workspace 34217852366](https://github.com/Reidond/kedra/actions/runs/34217852366)

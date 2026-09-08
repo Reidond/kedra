@@ -6,6 +6,7 @@ COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
 COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
 COPY agents.py /usr/libexec/kedra-research-agents.py
 COPY recovery.py /usr/libexec/kedra-research-recovery.py
+COPY niri-review.py /usr/libexec/kedra-research-niri-review.py
 RUN chmod 0755 /usr/libexec/kedra-research-r07 && \
     printf '\noutput "Virtual-1" {\n    mode "1280x768"\n    scale 1\n}\n' >> /etc/skel/.config/niri/config.kdl && \
     niri validate --config /etc/skel/.config/niri/config.kdl && \

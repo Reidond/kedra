@@ -31,7 +31,7 @@ impl From<Key> for noctalia::Key {
 
 /// Pin a regular inode without opening a device or following a path symlink.
 /// Raw unprojected bytes never enter the review store or diagnostics.
-fn read_regular(path: &Path, owner: u32, limit: usize) -> Result<Vec<u8>> {
+pub(super) fn read_regular(path: &Path, owner: u32, limit: usize) -> Result<Vec<u8>> {
     sysroot_helper::trusted_file::read(path, owner, limit)
 }
 
@@ -289,6 +289,13 @@ pub(super) fn run(options: Options) -> Result<()> {
     } else {
         let mut store = Store::open(&path)?;
         let _coordination = store.coordinate()?;
+        if let Command::File {
+            path: managed,
+            command,
+        } = &options.command
+        {
+            return super::text::run(&mut store, &path, &instance, managed, command);
+        }
         if super::activation::linux::handles(&options.command) {
             return super::activation::linux::run(&mut store, &instance, &options.command);
         }

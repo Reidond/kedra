@@ -74,7 +74,7 @@ impl Prepared {
 fn text(bytes: Vec<u8>) -> Result<String> {
     String::from_utf8(bytes).map_err(|_| Error::Refused("source output must be UTF-8"))
 }
-fn checkout(repo: &Path) -> Result<PathBuf> {
+pub(super) fn checkout(repo: &Path) -> Result<PathBuf> {
     let root = text(source::git(repo, &["rev-parse", "--show-toplevel"])?)?;
     let root = PathBuf::from(root.trim_end_matches(['\r', '\n']));
     let origin = text(source::git(
@@ -190,9 +190,9 @@ fn selected_content(original: &str, state: &State) -> Result<String> {
 }
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
-struct Scratch(PathBuf);
+pub(super) struct Scratch(pub(super) PathBuf);
 impl Scratch {
-    fn new(parent: &Path) -> Result<Self> {
+    pub(super) fn new(parent: &Path) -> Result<Self> {
         let path = parent.join(format!(
             "export-{}-{}-{}",
             std::process::id(),
@@ -221,7 +221,12 @@ impl Drop for Scratch {
     }
 }
 
-fn git(repo: &Path, args: &[&str], input: Option<&[u8]>, index: &Path) -> Result<Vec<u8>> {
+pub(super) fn git(
+    repo: &Path,
+    args: &[&str],
+    input: Option<&[u8]>,
+    index: &Path,
+) -> Result<Vec<u8>> {
     let mut command = Command::new("git");
     for (name, _) in std::env::vars_os() {
         if name.to_string_lossy().starts_with("GIT_") {

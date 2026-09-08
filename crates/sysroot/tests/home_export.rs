@@ -210,3 +210,252 @@ fn offline_cli_exports_pinned_values_and_records_only_a_real_source_commit() {
     );
     assert_eq!(f.git(&["show", ":unrelated"]), "existing staged edit\n");
 }
+
+#[test]
+fn ordinary_text_cli_keeps_adjacent_lines_independent_through_git_publication() {
+    let f = Fixture::new();
+    let path = "home/.config/niri/config.kdl";
+    let base = "layout {\n    gaps 12\n    width 2\n    animation 200\n}\n";
+    f.git(&["init", "--template=", "-b", "fixture"]);
+    f.git(&[
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/Reidond/kedra.git",
+    ]);
+    f.write("hosts/desktop/host.toml", "id='desktop'\narchitecture='x86_64'\nimage='ghcr.io/reidond/kedra-desktop'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n");
+    f.write("packages/common.list", "niri\n");
+    f.write("packages/remove.list", "# none\n");
+    f.write("hosts/desktop/packages.list", "# none\n");
+    f.write(path, base);
+    f.write("unrelated", "original\n");
+    f.git(&["add", "."]);
+    f.git(&["commit", "-m", "generated niri source baseline"]);
+    let initial = f.git(&["rev-parse", "HEAD"]).trim().to_owned();
+    let owner = rustix::process::geteuid().as_raw();
+    let machine = fs::read("/etc/machine-id").unwrap();
+    let instance: String = Sha256::digest([machine, owner.to_le_bytes().to_vec()].concat())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    // Generated offline installed-state fixture. All assertions below use the
+    // actual public CLI, ordinary file edits and real source Git operations.
+    let state = serde_json::json!({"schema_version":1,"instance":&instance[..32],
+        "baseline":{"target":"desktop","source_path":path,"source_revision":initial,"contents":base},
+        "reference":base,"selected":[],"ignored":[],"published":[]});
+    drop(
+        Store::create(
+            &f.store(),
+            &[("niri-text", &serde_json::to_vec(&state).unwrap())],
+        )
+        .unwrap(),
+    );
+    let native = f.0.join(".config/niri/config.kdl");
+    fs::create_dir_all(native.parent().unwrap()).unwrap();
+    fs::write(
+        &native,
+        base.replace("gaps 12", "gaps 14")
+            .replace("width 2", "width 3")
+            .replace("animation 200", "animation 150"),
+    )
+    .unwrap();
+    let displayed = f.success(&["file", "status"]);
+    let id = |text: &str| {
+        displayed["changes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["change"]["after"] == text)
+            .unwrap()["change"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let selected = id("    width 3\n");
+    let local = id("    gaps 14\n");
+    f.success(&["file", "stage", &selected]);
+    f.success(&["file", "keep-local", &local]);
+    assert!(!f.cli(&["file", "stage", &local]).status.success());
+    let later = base
+        .replace("gaps 12", "gaps 14")
+        .replace("width 2", "width 4")
+        .replace("animation 200", "animation 160");
+    fs::write(&native, &later).unwrap();
+    assert_eq!(
+        f.success(&["file", "selection"])["selection"][0]["after"],
+        "    width 3\n"
+    );
+    assert!(
+        !f.cli(&["file", "stage", &selected]).status.success(),
+        "stale live selection must refuse"
+    );
+    f.write("unrelated", "staged\n");
+    f.git(&["add", "unrelated"]);
+    f.write("unrelated", "unstaged\n");
+    let index = fs::read(f.repo().join(".git/index")).unwrap();
+    let patch = f.0.join("niri.patch");
+    f.success(&[
+        "file",
+        "export",
+        "--repo",
+        f.repo().to_str().unwrap(),
+        "--output",
+        patch.to_str().unwrap(),
+    ]);
+    assert_eq!(fs::read(f.repo().join(".git/index")).unwrap(), index);
+    assert_eq!(fs::read_to_string(&native).unwrap(), later);
+    assert_eq!(
+        fs::read_to_string(f.repo().join("unrelated")).unwrap(),
+        "unstaged\n"
+    );
+    let published_patch = fs::read_to_string(&patch).unwrap();
+    assert!(
+        !published_patch.contains("gaps 14")
+            && !published_patch.contains("width 4")
+            && !published_patch.contains("animation 160")
+    );
+    f.git(&["apply", "--3way", patch.to_str().unwrap()]);
+    assert!(
+        !f.cli(&[
+            "file",
+            "record-source",
+            "--repo",
+            f.repo().to_str().unwrap(),
+            "--commit",
+            &initial
+        ])
+        .status
+        .success()
+    );
+    f.git(&[
+        "commit",
+        "-m",
+        "publish only the selected niri line",
+        "--",
+        path,
+    ]);
+    let committed = f.git(&["rev-parse", "HEAD"]).trim().to_owned();
+    let recorded = f.success(&[
+        "file",
+        "record-source",
+        "--repo",
+        f.repo().to_str().unwrap(),
+        "--commit",
+        &committed,
+    ]);
+    assert_eq!(recorded["publication_count"], 1);
+    assert_eq!(recorded["selection"], serde_json::json!([]));
+    assert_eq!(recorded["source"]["deployment_performed"], false);
+    let next = f.success(&["file", "status"]);
+    assert!(
+        next["changes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["change"]["after"] == "    gaps 14\n" && r["local_only"] == true)
+    );
+    assert!(
+        next["changes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["change"]["before"] == "    width 3\n"
+                && r["change"]["after"] == "    width 4\n"
+                && r["visible_change"] == true)
+    );
+    assert_eq!(f.git(&["show", ":unrelated"]), "staged\n");
+    assert_eq!(
+        f.git(&["show", &format!("HEAD:{path}")]),
+        base.replace("width 2", "width 3")
+    );
+    // Continue the same user workflow with a separate insertion, then deletion.
+    let public = base.replace("width 2", "width 3");
+    let appended = format!("{public}// selected note\n");
+    fs::write(&native, appended.replace("gaps 12", "gaps 14")).unwrap();
+    let rows = f.success(&["file", "status"]);
+    let insertion = rows["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["change"]["after"] == "// selected note\n")
+        .unwrap()["change"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    f.success(&["file", "stage", &insertion]);
+    let insert_patch = f.0.join("insert.patch");
+    f.success(&[
+        "file",
+        "export",
+        "--repo",
+        f.repo().to_str().unwrap(),
+        "--output",
+        insert_patch.to_str().unwrap(),
+    ]);
+    f.git(&["apply", "--3way", insert_patch.to_str().unwrap()]);
+    f.git(&["commit", "-m", "selected insertion", "--", path]);
+    let inserted = f.git(&["rev-parse", "HEAD"]).trim().to_owned();
+    f.success(&[
+        "file",
+        "record-source",
+        "--repo",
+        f.repo().to_str().unwrap(),
+        "--commit",
+        &inserted,
+    ]);
+    assert_eq!(f.git(&["show", &format!("HEAD:{path}")]), appended);
+    fs::write(
+        &native,
+        appended
+            .replace("gaps 12", "gaps 14")
+            .replace("    animation 200\n", ""),
+    )
+    .unwrap();
+    let rows = f.success(&["file", "status"]);
+    let deletion = rows["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["change"]["before"] == "    animation 200\n" && r["change"]["after"] == "")
+        .unwrap()["change"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    f.success(&["file", "stage", &deletion]);
+    let delete_patch = f.0.join("delete.patch");
+    f.success(&[
+        "file",
+        "export",
+        "--repo",
+        f.repo().to_str().unwrap(),
+        "--output",
+        delete_patch.to_str().unwrap(),
+    ]);
+    f.git(&["apply", "--3way", delete_patch.to_str().unwrap()]);
+    f.git(&["commit", "-m", "selected deletion", "--", path]);
+    let deleted = f.git(&["rev-parse", "HEAD"]).trim().to_owned();
+    let recorded = f.success(&[
+        "file",
+        "record-source",
+        "--repo",
+        f.repo().to_str().unwrap(),
+        "--commit",
+        &deleted,
+    ]);
+    assert_eq!(recorded["publication_count"], 3);
+    assert_eq!(recorded["accepted_baseline"]["source_revision"], initial);
+    assert_eq!(
+        f.git(&["show", &format!("HEAD:{path}")]),
+        appended.replace("    animation 200\n", "")
+    );
+    // The command refuses a real symlink substitution instead of capturing it.
+    let outside = f.0.join("unadopted");
+    fs::write(&outside, "unadopted generated content\n").unwrap();
+    fs::remove_file(&native).unwrap();
+    std::os::unix::fs::symlink(&outside, &native).unwrap();
+    assert!(!f.cli(&["file", "status"]).status.success());
+    assert_eq!(
+        fs::read_to_string(outside).unwrap(),
+        "unadopted generated content\n"
+    );
+}

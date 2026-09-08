@@ -29,6 +29,7 @@ jobs:
           target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
           cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
           cp build/research/inputs.json output/installer-evidence/
+          cp installer/inputs.json output/installer-evidence/installer-inputs.json
       - name: Prepare runner
         run: |
           sudo apt-get update
@@ -42,6 +43,12 @@ jobs:
             podman --version
             skopeo --version
           } > output/installer-evidence/environment.txt
+      - name: Verify pinned installer-builder interface
+        run: |
+          builder=$(jq -er .builder installer/inputs.json)
+          sudo podman run --rm "$builder" --version > output/installer-evidence/builder-version.txt
+          sudo podman run --rm "$builder" build --help > output/installer-evidence/builder-help.txt
+          grep -q -- '--installer-payload-ref' output/installer-evidence/builder-help.txt
       - name: Build desktop and separate installer environment
         run: |
           set -euo pipefail
@@ -57,13 +64,12 @@ jobs:
       - name: Build bootc-installer ISO with separate payload
         run: |
           set -euo pipefail
-          builder=$(jq -er .builder build/research/inputs.json)
-          sudo podman run --rm "$builder" --help > output/installer-evidence/builder-help.txt
+          builder=$(jq -er .builder installer/inputs.json)
           sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
             -v "$PWD/output/installer-image:/output" \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            "$builder" --type bootc-installer --rootfs ext4 --use-librepo=True \
-            --bootc-installer-payload-ref localhost/kedra-desktop:installer-research \
+            "$builder" build --type bootc-installer --rootfs ext4 --use-librepo=True \
+            --installer-payload-ref localhost/kedra-desktop:installer-research \
             localhost/kedra-anaconda:research 2>&1 | tee output/installer-evidence/iso-build.log
           sudo chown -R "$(id -u):$(id -g)" output/installer-image
           find output/installer-image -type f -printf '%P %s bytes\n' > output/installer-evidence/artifact-sizes.txt

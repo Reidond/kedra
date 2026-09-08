@@ -62,6 +62,16 @@ so later graphical tests use a separate marker port. No workstation OS was insta
 
 ## Remaining acceptance cases
 
+Installer attempt [34171335800](https://github.com/Reidond/kedra/actions/runs/34171335800)
+at `0a5991a` built the desktop and separate Anaconda environment, then failed on
+the documented `--bootc-installer-payload-ref` spelling. Inspection of current
+osbuild source shows that spelling belongs to the image-builder CLI; its
+bootc-image-builder compatibility interface exposes `--installer-payload-ref`.
+The installer experiment now pins the current official GHCR v82.0.0 builder in
+installer/inputs.json and checks its build help before expensive assembly. The
+earlier Quay builder remains pinned for the already-tested QCOW2/signature cases.
+No installer execution or disk-choice success is claimed from the failed attempt.
+
 - Minimal QCOW2 build and UEFI boot: pass (run 34165475139).
 - Interactive multi-disk installer, encryption and account creation: not-run.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).

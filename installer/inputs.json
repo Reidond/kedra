@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "resolved_on": "2026-09-08",
+  "builder_tag": "ghcr.io/osbuild/bootc-image-builder:v82.0.0",
+  "builder_index": "sha256:027bf9d6c53d4ed98a0b46a5864d8acae6e2cd589023dfd20d6b1cb8332969a0",
+  "builder": "ghcr.io/osbuild/bootc-image-builder@sha256:8fb5e749d0f64d0f0366e24de0b3f473305a88cc7d326b88f181b36658ff5c53",
+  "architecture": "amd64"
+}

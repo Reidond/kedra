@@ -55,6 +55,14 @@ permission to install those skills into the OS or force an OS release per doc ed
 
 ## Installer research
 
+Measured 2026-09-08: the legacy Quay builder at a686afe passed QCOW2 tests but
+rejected the README's `--bootc-installer-payload-ref` option. The current v82.0.0
+bootc-image-builder compatibility source uses `--installer-payload-ref`; the
+prefixed spelling belongs to image-builder. Check `build --help` first. The
+current official container is ghcr.io/osbuild/bootc-image-builder (installer pin
+in installer/inputs.json). Keep older test evidence attached to its actual pin.
+Source: osbuild/image-builder v82.0.0 cmd/image-builder/bib_cmd.go and R02 report.
+
 Upstream moved bootc-image-builder into osbuild/image-builder. Evaluate a pinned
 bootc-installer route with separate Anaconda environment and signed OS payload.
 Do not bake installation tooling into the everyday desktop unnecessarily. Prove

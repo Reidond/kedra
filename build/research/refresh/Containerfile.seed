@@ -1,0 +1,4 @@
+ARG TOOL_IMAGE
+FROM ${TOOL_IMAGE}
+# The inherited fixture is part of a fixed base, outside the requested list.
+RUN python3 /opt/kedra-refresh/materialize.py seed

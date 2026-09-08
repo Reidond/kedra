@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "status": "not-run",
+  "scope": "RPM fixture only; section A subset",
+  "actions_run": null,
+  "cases": [
+    {"case": "baseline", "status": "not-run", "expected": "baseline"},
+    {"case": "requested-update", "status": "not-run", "expected": "changed"},
+    {"case": "transitive-update", "status": "not-run", "expected": "changed"},
+    {"case": "inherited-update", "status": "not-run", "expected": "changed"},
+    {"case": "metadata-only", "status": "not-run", "expected": "equivalent within fixture scope"},
+    {"case": "same-nevra-new-bytes", "status": "not-run", "expected": "changed"},
+    {"case": "repeat-fixed-inputs", "status": "not-run", "expected": "new native execution; equivalent within fixture scope"},
+    {"case": "required-repo-unavailable", "status": "not-run", "expected": "native refusal; no equivalence or freshness"},
+    {"case": "invalid-signature", "status": "not-run", "expected": "native refusal; no equivalence or freshness"},
+    {"case": "unsatisfiable-newest", "status": "not-run", "expected": "native refusal; no equivalence or freshness"}
+  ],
+  "remaining_section_a": [
+    "base identity change",
+    "timestamp normalization",
+    "mirror inconsistency",
+    "lower EVR, vendor change or required package loss",
+    "version holds and expiry",
+    "direct package removal",
+    "probe/build metadata race",
+    "non-RPM pin policy",
+    "docs-only versus config/mode/helper input changes",
+    "base signature failure",
+    "unsatisfiable newest transitive candidate"
+  ],
+  "section_b": "not-run by this experiment",
+  "section_c": "not-run by this experiment"
+}

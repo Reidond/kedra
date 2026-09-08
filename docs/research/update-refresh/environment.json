@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "record_kind": "prepared-experiment",
+  "prepared_on": "2026-09-09",
+  "status": "not-run",
+  "inspected_base_revision": "0626e6de0b0e17d52bf8cd59b41d5bf97d074b9d",
+  "branch": "codex/usable-system",
+  "workflow": ".github/workflows/research-refresh.yml",
+  "entrypoint": "python3 build/research/refresh/run.py",
+  "fedora_base": "quay.io/fedora/fedora-bootc@sha256:d4b9c5e156ab0a119962aad27c5394409094cc24348846a35c78acd8e9847a4d",
+  "architecture": "x86_64",
+  "runner": "ubuntu-24.04",
+  "actual_tool_versions": null,
+  "actual_fixture_image_id": null,
+  "actions_run": null,
+  "evidence_artifact": null,
+  "scope": "Native signed synthetic RPM snapshots and disposable container materialization only",
+  "private_material": "Disposable GnuPG keyring in RUNNER_TEMP only; never in a build context or artifact",
+  "production_signing": false,
+  "publication_or_freshness_renewal": false,
+  "schedule": false
+}

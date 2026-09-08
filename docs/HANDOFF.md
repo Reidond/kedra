@@ -7,8 +7,9 @@ First candidate 34250485539 failed compressed layer identity during ISO assembly
 the native digest-preserving correction passes signed R01 round-trip and VM
 regression 34253906774. Replacement candidate 34255228394 passes its public build,
 GHCR/storage guard and separately owner-approved isolated signing of bb4f2b68.
-Independent anonymous manifest/signature verification passes. Its installer job
-is running; main remains fixed at c660c58 during qualification. Later work stays
+Independent anonymous manifest/signature verification, complete ISO construction
+and offline signed-payload/Anaconda startup pass. The complete media is downloading
+for a fresh local installation; main remains fixed at c660c58 during qualification. Later work stays
 on the development branch. Read AGENTS.md, the current
 worklog snapshot and latest entries, then the relevant source/research evidence.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 trap 'status=$?; echo "KEDRA_R01_FAIL line=$LINENO status=$status"; systemctl poweroff --no-block; exit "$status"' ERR
 state=/var/lib/kedra-research
 mkdir -p "$state"

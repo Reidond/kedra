@@ -79,6 +79,12 @@ def signed(value, key='allowed'):
     data = json.loads(bundle.read_text())['messageSignature']
     if data['messageDigest']['algorithm'] != 'SHA2_256' or base64.b64decode(data['messageDigest']['digest']) != hashlib.sha256(payload.encode()).digest():
         raise RuntimeError('Unexpected native Cosign blob algorithm or digest')
+    if 'image_digest' in value and value['approval'] == 'promoted' and value['scope']['target'] == 'desktop' and key == 'allowed':
+        signature_path = private / f'signature-{counter}.txt'
+        signature_path.write_text(data['signature'])
+        subprocess.run([str(pathlib.Path('target/release/sysroot').resolve()), 'release', 'verify',
+                        '--manifest', str(path), '--signature', str(signature_path),
+                        '--public-key', str(context / 'public/release.pub')], stdout=subprocess.DEVNULL, check=True)
     return {'payload': payload, 'signature': data['signature']}
 
 def release(variant, sequence, **changes):
@@ -87,7 +93,7 @@ def release(variant, sequence, **changes):
              'workflow': '.github/workflows/release.yml', 'run_id': int(os.environ['GITHUB_RUN_ID']),
              'run_attempt': int(os.environ['GITHUB_RUN_ATTEMPT'])},
              'image_digest': (root / f'{variant}.digest').read_text().strip(),
-             'home_manifest_sha256': source_hash, 'installer': {'filename': f'kedra-fixture-{variant}.iso',
+             'home_manifest_sha256': source_hash, 'installer': {'filename': f'kedra-{changes.get("scope", scope)["target"]}-44-fixture-{variant.lower()}.iso',
              'size_bytes': 7, 'sha256': hashlib.sha256(b'fixture').hexdigest()},
              'approval': 'promoted', 'minimum_protocol': 1}
     value.update(changes)

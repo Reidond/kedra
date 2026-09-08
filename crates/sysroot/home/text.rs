@@ -446,12 +446,24 @@ fn installed() -> Result<Baseline> {
     })
 }
 fn live() -> Result<String> {
-    let home =
-        PathBuf::from(std::env::var_os("HOME").ok_or("HOME is unavailable")?).canonicalize()?;
+    let requested_home = PathBuf::from(std::env::var_os("HOME").ok_or("HOME is unavailable")?);
+    if !requested_home.is_absolute() {
+        return Err("HOME must be absolute".into());
+    }
+    let home = requested_home.canonicalize()?;
     if let Some(value) = std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty())
-        && PathBuf::from(value) != home.join(".config")
+        && Path::new(&value) != home.join(".config")
+        && Path::new(&value) != requested_home.join(".config")
     {
         return Err("niri text review supports the default home profile only".into());
+    }
+    if let Some(value) = std::env::var_os("NIRI_CONFIG").filter(|v| !v.is_empty())
+        && Path::new(&value) != home.join(FILE)
+        && Path::new(&value) != requested_home.join(FILE)
+    {
+        return Err(
+            "NIRI_CONFIG selects a different file; it is not adopted by this adapter".into(),
+        );
     }
     content(&linux::read_regular(
         &home.join(FILE),

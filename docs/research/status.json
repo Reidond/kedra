@@ -1,36 +1,91 @@
 {
   "schema_version": 1,
   "packets": [
-    {"id":"R01","status":"blocked","topic":"Image signing and bootc enforcement","prototype_status":"pass","report":"R01-signatures/REPORT.md","run_url":"https://github.com/Reidond/kedra/actions/runs/34167524353","note":"Strict Sigstore registry/local-store import, initial installed enforcement, negative cases, signed B boot and rollback/inherited enforcement passed. Full promotion/target authority, rotation and interactive installer cases remain open."},
-    {"id":"R02","status":"blocked","topic":"Installer and Actions feasibility","report":"R02-installer/REPORT.md","run_url":"https://github.com/Reidond/kedra/actions/runs/34165475139","prototype_status":"pass","note":"Corrected minimal image lint/build, QCOW2 build and UEFI guest test passed at cfbfc05 with enforcing SELinux. Initial harness failure retained in report. Interactive installer, encryption, signature handoff and physical installation remain not-run."},
     {
-      "id":"R03",
-      "status":"blocked",
-      "topic":"Home line review and local-only policy",
-      "prototype_status":"pass",
-      "report":"R03-home-review/REPORT.md",
-      "results":"R03-home-review/results.json",
-      "run_url":"https://github.com/Reidond/kedra/actions/runs/34164331109",
-      "verified_source":"e492258871f6353a0c6548a0ec5d5e318d92bdd3",
-      "note":"Published synthetic Git prototype passes Windows local and Linux Actions checks, including 12 R03 regression tests for partial staging, stable selected snapshots, local-only exclusion and explicit conflicts. Full R03 remains blocked on Noctalia/app-owned projection, durable disposition transitions and broader path/edit safety. Real adoption and R04 activation are unavailable."
+      "id": "R01",
+      "status": "blocked",
+      "topic": "Image signing and bootc enforcement",
+      "prototype_status": "pass",
+      "report": "R01-signatures/REPORT.md",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34167524353",
+      "note": "Strict Sigstore registry/local-store import, initial installed enforcement, negative cases, signed B boot and rollback/inherited enforcement passed. Full promotion/target authority, rotation and interactive installer cases remain open."
     },
-    {"id":"R04","status":"not-run","topic":"Activation, writers, rollback"},
-    {"id":"R05","status":"not-run","topic":"Agent packaging and independence"},
-    {"id":"R06","status":"not-run","topic":"Bitwarden and credential bootstrap"},
-    {"id":"R07","status":"blocked","topic":"Desktop session and hardware","prototype_status":"pass","report":"R07-desktop/REPORT.md","run_url":"https://github.com/Reidond/kedra/actions/runs/34169415857","note":"Fedora package/configuration build and graphical VM password login, niri/Noctalia IPC, services and unlocked synthetic keyring passed. Visual refinements pending. Physical hardware/audio, screen sharing and owner credentials untested."},
-    {"id":"R08","status":"blocked","topic":"Release authority, privacy, lifecycle","report":"R08-release-protocol/REPORT.md","note":"Pure release/checkpoint/replay verification and OpenSSL interoperability pass locally. Production signer isolation, persistent helper state, promotion races, Cosign blob interoperability and full rotation drill remain untested."},
-    {"id":"R09","status":"blocked","topic":"Multi-machine isolation and provenance","note":"Committed-source plan implemented; six synthetic Git tests pass locally on Windows/Rust 1.98.1 for provenance, host overrides, untouched dirty source and invalid inputs. ADR 0005 records scope. Two-target images, enrollment, source export and independent updates/rollback remain not-run; new-source Linux CI pending."},
-    {"id":"R10","status":"not-run","topic":"Privileged protocol and persistent state"},
     {
-      "id":"R11",
-      "status":"blocked",
-      "topic":"Rust workspace and skill integration",
-      "bootstrap_status":"pass",
-      "report":"R11-rust-workspace/REPORT.md",
-      "local_followup":"R11-rust-workspace/plugins.md",
-      "discovery_followup":"R11-rust-workspace/discovery-20260907.md",
-      "run_url":"https://github.com/Reidond/kedra/actions/runs/34138882781",
-      "note":"Historical bootstrap and local standard Cargo checks passed. Codex 0.153.4 marketplace and empty-profile skills/list probes at root/crate discover no Kedra plugin skills; canonical manual reads work. Claude authoring validation passed; interactive Claude/Codex loaded-plugin and editor checks remain not-run. Distribution review remains blocked. These gaps do not block independent R03 research."
+      "id": "R02",
+      "status": "blocked",
+      "topic": "Installer and Actions feasibility",
+      "report": "R02-installer/REPORT.md",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34165475139",
+      "prototype_status": "pass",
+      "note": "Minimal QCOW2/UEFI passes. Generic graphical ISO build 34176407860 at 76dc82a passes boot-config inspection; interactive two-disk/encryption/account/signature handoff tests pending."
+    },
+    {
+      "id": "R03",
+      "status": "blocked",
+      "topic": "Home line review and local-only policy",
+      "prototype_status": "pass",
+      "report": "R03-home-review/REPORT.md",
+      "results": "R03-home-review/results.json",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34179189211",
+      "verified_source": "d74c4c0c8899ca67960ceff90a42c3750713a9f8",
+      "note": "Synthetic line review and Noctalia disposition/projection models pass; native Noctalia export/IPC projection passes run 34179189185. Home filesystem persistence/source integration and coordinated R04 activation remain unavailable."
+    },
+    {
+      "id": "R04",
+      "status": "not-run",
+      "topic": "Activation, writers, rollback"
+    },
+    {
+      "id": "R05",
+      "status": "not-run",
+      "topic": "Agent packaging and independence"
+    },
+    {
+      "id": "R06",
+      "status": "not-run",
+      "topic": "Bitwarden and credential bootstrap"
+    },
+    {
+      "id": "R07",
+      "status": "blocked",
+      "topic": "Desktop session and hardware",
+      "prototype_status": "pass",
+      "report": "R07-desktop/REPORT.md",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34179189185",
+      "note": "Graphical login, services, keyring and native Noctalia projection pass at d74c4c0. Inspected virtual scanout remains cramped. Physical display/audio/suspend, screen sharing and owner credentials unqualified."
+    },
+    {
+      "id": "R08",
+      "status": "blocked",
+      "topic": "Release authority, privacy, lifecycle",
+      "report": "R08-release-protocol/REPORT.md",
+      "note": "Release/checkpoint/replay verification and OpenSSL CLI interoperability pass on Windows and Linux. Production signer, helper authorization, promotion races, Cosign blobs and rotation drill remain open."
+    },
+    {
+      "id": "R09",
+      "status": "blocked",
+      "topic": "Multi-machine isolation and provenance",
+      "note": "Committed-source plan/archive and nine synthetic Git tests pass on Windows and Linux, including provenance, overrides, dirty-source preservation and bounded privacy refusals. Two-target enrollment/export/updates/rollback remain not-run."
+    },
+    {
+      "id": "R10",
+      "status": "blocked",
+      "topic": "Privileged protocol and persistent state",
+      "prototype_status": "pass",
+      "report": "R10-state/REPORT.md",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34179189211",
+      "note": "Eight Linux private-storage tests pass at d74c4c0. Helper authorization, fixed installed trust paths, live-file activation, disk-full faults and offline recovery remain open."
+    },
+    {
+      "id": "R11",
+      "status": "blocked",
+      "topic": "Rust workspace and skill integration",
+      "bootstrap_status": "pass",
+      "report": "R11-rust-workspace/REPORT.md",
+      "local_followup": "R11-rust-workspace/plugins.md",
+      "discovery_followup": "R11-rust-workspace/discovery-20260907.md",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34138882781",
+      "note": "Historical bootstrap and local standard Cargo checks passed. Codex 0.153.4 marketplace and empty-profile skills/list probes at root/crate discover no Kedra plugin skills; canonical manual reads work. Claude authoring validation passed; interactive Claude/Codex loaded-plugin and editor checks remain not-run. Distribution review remains blocked. These gaps do not block independent R03 research."
     }
   ]
 }

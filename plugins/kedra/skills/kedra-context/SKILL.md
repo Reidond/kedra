@@ -15,8 +15,9 @@ post-boot health are separate states. Deterministic tooling must work without AI
 
 Read AGENTS.md, docs/HANDOFF.md, docs/SESSION.md, PLAN.md, the relevant R01-R11
 packet in RESEARCH.md, and actual code/CI/research status. Check the branch,
-remote and dirty state. Never assume plans are implemented. At bootstrap only
-help/version/status work; all operational commands deliberately refuse execution.
+remote and dirty state. Never assume plans are implemented. Source plan/archive
+and offline release verification now work; deployment, home adoption and helper
+operations still refuse. Read current source/status rather than bootstrap claims.
 
 ## Keep these decisions
 

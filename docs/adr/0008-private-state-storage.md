@@ -1,6 +1,7 @@
 # ADR 0008: private SQLite state and a separate I/O boundary
 
-Date: 2026-09-08. Status: implementation prepared; Linux tests pending.
+Date: 2026-09-08. Status: implemented storage subset; Linux tests pass in
+[run 34179189211](https://github.com/Reidond/kedra/actions/runs/34179189211).
 
 R03 now has a serialized disposition model and R08 has replay state. Both require
 durable compare-and-replace operations and recovery records. Use SQLite

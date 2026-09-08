@@ -12,13 +12,13 @@ Last updated: 2026-09-08 (Europe/Kiev); R03 checks ran on 2026-09-07.
 | Area | Verified status / next boundary |
 |---|---|
 | Phase | Implementation underway: minimal VM, strict signed-update/rollback and graphical desktop prototypes pass. No promoted owner installer yet. |
-| Implemented | Three-package flat Rust workspace; help/version/capability status; committed-source planning with host overrides and content provenance; operational refusals; standard Cargo CI; synthetic R03 example. No real-home manager or deployment implementation. |
+| Implemented | Three-package flat Rust workspace; committed-source plan/archive; signed release/checkpoint verification; synthetic line and Noctalia disposition models; private Linux SQLite storage. Helper and real-home/deployment operations remain unavailable. |
 | Repository knowledge | One Codex/Claude plugin with 12 Kedra and 18 selected upstream skills in plugins/kedra/skills. Ordinary files; no submodule, symlinks or duplicate discovery copies. No personal installation. |
-| Latest verified check | Published R03 source e492258871f6353a0c6548a0ec5d5e318d92bdd3 passed [Actions run 34164331109](https://github.com/Reidond/kedra/actions/runs/34164331109): Linux fmt/Clippy/19 tests plus 1 doctest/release build. Matching source previously passed local Windows checks. This evidence follow-up does not claim its own future CI result. |
+| Latest verified check | Source d74c4c0c8899ca67960ceff90a42c3750713a9f8 passed [Actions 34179189211](https://github.com/Reidond/kedra/actions/runs/34179189211): Linux fmt/Clippy/56 tests plus 1 doctest/release build/OpenSSL interoperability. [Desktop run 34179189185](https://github.com/Reidond/kedra/actions/runs/34179189185) passes login, services, keyring and native Noctalia projection. |
 | R11 | Canonical skill files readable; Codex marketplace and fresh-profile root/crate skills/list found no Kedra entries. Claude authoring validation passed. Loaded-plugin model/editor checks not-run; distribution review blocked. |
-| R03 | Core synthetic review prototype passed 12 tests; full gate remains blocked on Noctalia/app-owned projection, durable disposition transitions and wider path/edit safety. See docs/research/R03-home-review/REPORT.md. |
+| R03 | Synthetic line review and Noctalia projection/disposition models pass; native Noctalia 5.0.1 export/IPC projection passes. Durable live-file/source integration and wider path/edit safety remain open. See docs/research/R03-home-review/REPORT.md and noctalia.md. |
 | Other R01-R10 | R01 strict signature/update/rollback prototype passes, including initial and post-rollback policy. R02 minimal VM passes in Actions and locally. R07 graphical login/session/keyring prototype passes. R08 verification has local tests; R09 source/archive tests pass. Full installer, promotion, activation, owner authentication and physical hardware gates remain open. |
-| Current task | Owner requested full implementation through usable installation, including VM testing if needed. Active first slice: R01/R02 disposable Actions image and VM proof, followed by gated management implementation. |
+| Current task | Owner requested full implementation through usable installation, including VM testing. Generic interactive ISO built at 76dc82a (run 34176407860); local two-disk encryption/account/install test is next. No promoted owner media exists. |
 | Machine effects | QEMU 8.2.2 and OVMF installed in existing Ubuntu WSL2 under the owner's VM-test authorization. No real-home enrollment, vault/profile changes, disk formatting or workstation OS installation. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
@@ -32,16 +32,12 @@ reports remain authoritative for what was tested.
 
 ### Next concrete actions
 
-Read docs/HANDOFF.md and docs/UPDATES.md. The update track starts with a disposable
-CI RPM-refresh proof (slice 1), covering unchanged-base dependency updates, stale
-cache, no-change and required-repo failure. Connect to signed-image/installer gates
-only after those proofs. R03 home and remaining R11 discovery work can proceed
-independently. Do not enable production cron or enroll a real machine/home yet.
-
-For R03, next add a versioned synthetic Noctalia effective-settings projection
-and explicit I/S/P transitions across N. Continue independent work by reading
-canonical skills when native discovery is unavailable. Published R03 implementation
-now has Windows and Linux evidence; real-home and activation gates stay closed.
+Complete the generic ISO download/checksum, then test deliberate disk choice,
+encryption, account creation and first boot using two disposable VM disks. Join
+the interactive installer to R01's strict signed-origin policy before promotion.
+Implement the narrow helper protocol and home filesystem coordination on the
+tested pure models/storage; do not enroll the workstation. RPM refresh/no-change,
+agent packaging, owner credential setup and physical qualification remain open.
 
 ## Work entries
 
@@ -322,3 +318,5 @@ now has Windows and Linux evidence; real-home and activation gates stay closed.
 - Privilege-boundary refactor: moved Git/source archive implementation and its tests into the ordinary-user sysroot package. Shared core now has no ambient filesystem opens or process execution; artifact verification consumes a caller-provided stream. Three packages remain. pass — local fmt/Clippy/48 tests plus one doctest/release build; public CLI behavior unchanged. This prepares the helper boundary without enabling privileged operations.
 - Persistent-state slice prepared: the existing helper package now has a flat Linux-only library target for owner/link/type/inode-checked private SQLite stores, bounded/schema/checksum validation, CAS revisions and retained history. Added generated-directory concurrency/corruption/process-interruption tests. Windows compile/fmt/Clippy pass but do not execute Linux storage; Actions validation is pending. The helper binary still refuses operations. No new package, real state enrollment or home activation.
 - Linux storage check 34179085588 at aa752c9 reached Clippy and found that rusqlite 0.40.2 limit setters return fallible results. Added error propagation for all three; no lint or safety guard was weakened. Storage runtime cases remain pending the corrected Linux run.
+- Verified follow-up: exact d74c4c0 passes Linux run 34179189211, including eight storage cases (56 workspace tests plus one doctest) and OpenSSL interoperability. Desktop run 34179189185 passes login/session/keyring and native Noctalia export/IPC projection. The inspected settings screenshot still has a cramped virtual scanout; display sizing remains open. Updated research/status handoff to separate tested subsets from unavailable management operations.
+- Installer download: generic ISO run 34176407860 at 76dc82a produced 2,540,959,744 bytes, SHA-256 8734723fb87db17a129d4293858a0638164ee4db898990453fadd03eed788205. Initial artifact transfer truncated; scoped HTTP range resume is in progress. Interactive disk/encryption/account/first-boot cases remain not-run.

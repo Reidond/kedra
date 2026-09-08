@@ -1,122 +1,91 @@
-# Continue Kedra from this bootstrap
+# Continue Kedra implementation
 
-## Objective
+## Objective and current scope
 
-Build a personal, agent-ready Fedora 44 bootc system managed by a small Rust
-`sysroot` CLI. The owner describes a change, an official coding agent edits the
-repo, GitHub Actions builds/tests/signs an image and ISO, and the machine deploys
-the exact approved digest while preserving writable-home changes. This handoff
-is intended to replace having to reconstruct the original planning conversation.
+Build a personal Fedora 44 bootc desktop managed by Rust `sysroot`. The owner
+requested full implementation through a usable, understandable installer and
+explicitly authorized disposable VM testing. Public releases may contain reviewed
+project files only. Work is on `codex/usable-system`; main is unchanged.
 
-## What exists now
+Read AGENTS.md, worklog.md, PLAN.md, RESEARCH.md and the canonical Kedra context
+skill before resuming. Inspect Git state and exact-source Actions evidence.
+The worklog current-status table and packet reports distinguish tested subsets
+from full acceptance. Never infer implementation from a plan or old work entry.
 
-A flat-source Cargo workspace, read-only bootstrap CLI, non-operational helper,
-standard Cargo CI, per-target design inputs, R01-R11 specifications, the session
-contract, twelve Kedra skills, and eighteen selected upstream Rust skills with
-one shared Codex/Claude plugin (ADR 0003). The check workflow has no signing secrets,
-package publication, workstation access, or OS installation step.
+## Implemented and tested
 
-Help/version/status and `sysroot source plan --host desktop [--json]` are CLI
-capabilities. The source plan resolves committed inputs and provenance without
-touching index/worktree files (ADR 0005). `sysroot home`, `update`,
-`deploy`, `rollback`, `setup`, `doctor`, `context`, `codex`, and `claude` refuse
-operation. Source placeholders are deliberate boundaries, not hidden TODO
-implementations to trust. `host.toml` and package lists are design inputs; no
-production assembler consumes them yet. Read the actual latest CI result.
+The three-package flat Rust workspace provides source planning/archives from
+committed Git blobs with target overlays/provenance, release signature/checkpoint
+verification, synthetic line review and Noctalia disposition models, and Linux
+private SQLite storage. The shared core performs no filesystem/process I/O.
+Source/Git operations belong to the ordinary-user CLI. The helper has a storage
+library but its binary still refuses privileged operations.
 
-Active implementation request: owner asked to finish a usable, understandable,
-installable system and authorized VM installation/testing as needed. Work is on
-`codex/usable-system`. Read the current worklog entry and
-[R02 report](research/R02-installer/REPORT.md): the corrected minimal image/QCOW2
-and UEFI guest check passed at cfbfc05. The disposable R01 signed-update/rollback
-experiment is prepared next. QEMU/OVMF are installed in existing Ubuntu WSL2 for
-local disposable tests. No production image, owner home adoption or physical
-installation is authorized by those research results.
+Source `d74c4c0c8899ca67960ceff90a42c3750713a9f8` passed Linux
+[check 34179189211](https://github.com/Reidond/kedra/actions/runs/34179189211):
+formatting, Clippy, 56 tests plus one doctest, release build and independent
+OpenSSL interoperability. Eight storage tests cover corruption, links/types/modes,
+concurrency and process interruption. This does not prove live-file transactions.
 
-[The update/refresh plan](UPDATES.md) now details periodic Fedora input refresh,
-no-change/freshness checkpoints, release approval and notify-only client defaults.
-[ADR 0002](adr/0002-updates-and-fedora-refresh.md) and
-[the supplemental test cases](research/update-refresh/EXPERIMENTS.md) scope its
-implementation. No cron, client timer, signing environment or deployment was
-enabled by writing that plan. Both first-party/upstream skills remain checkout-only,
-never an OS/global skill library. Maintain root worklog.md as AGENTS.md requires.
+R01 disposable strict Sigstore policy, negative cases, signed A-to-B boot and
+rollback pass, including inherited enforcement on initial and rolled-back A.
+R02 minimal QCOW2 boots with enforcing SELinux in Actions and local WSL2/KVM.
+R07 [run 34179189185](https://github.com/Reidond/kedra/actions/runs/34179189185)
+passes graphical login, niri/Noctalia IPC, services, unlocked synthetic keyring
+and native Noctalia 5.0.1 settings projection. Virtual display sizing remains
+cramped; physical display/audio/suspend and owner credentials are unqualified.
 
-## First work session
+The plain Containerfile consumes a reviewed source archive, installs Fedora
+packages, and seeds ordinary writable defaults through /etc/skel for new users.
+This is not enrollment or management of an existing home. Automatic bootc
+fetch/apply is masked. Bundled coding agents and Bitwarden are not packaged yet.
 
-Latest local follow-up: [R03 synthetic review](research/R03-home-review/REPORT.md)
-and [ADR 0004](adr/0004-synthetic-home-review.md) prove the four core review/export
-behaviors with 12 tests in a Cargo example. Run
-`cargo run -p sysroot-core --example r03_home --locked`; it accepts no home paths.
-The complete R03 gate remains blocked on structured projection and durable policy
-transitions; R04 activation is not-run. Next R03 work is a narrow Noctalia
-effective-settings fixture and explicit I/S/P transitions across N.
+## Next concrete work
 
-[Available-environment discovery](research/R11-rust-workspace/discovery-20260907.md)
-found no auto-loaded Kedra skills in Codex 0.153.4 at root or crate cwd. Read the
-canonical skill files directly to continue. Claude manifest checks passed;
-interactive plugin/editor checks remain not-run. These gaps do not block
-independent synthetic research and do not authorize global installation.
+The separate generic Anaconda ISO build
+[34176407860](https://github.com/Reidond/kedra/actions/runs/34176407860) at
+`76dc82a` passes with explicit graphical/rescue entries, native bootc interactive
+defaults and no preset partition commands. The 2,540,959,744-byte ISO SHA-256 is
+`8734723fb87db17a129d4293858a0638164ee4db898990453fadd03eed788205`.
+It is unsigned localhost-origin research media. The earlier legacy ISO was
+rejected for unsuitable text/partition/origin defaults and was never booted.
 
-1. Read AGENTS.md, worklog.md, the context and Rust-workspace skills, PLAN.md, RESEARCH.md,
-   and the latest reports/status. Inspect Git state and the exact source revision.
-2. Skills arrive as ordinary tracked files; no submodule or symlink setup is
-   needed. Use existing personal Codex/Claude, not an unimplemented launcher.
-3. Use standard Cargo formatting, Clippy, tests and release-build commands from
-   AGENTS.md. The custom xtask runner has been removed.
-4. Consult the R11 discovery follow-up; complete remaining real-agent/editor tests
-   when the corresponding environment is available, independently of R03 work.
-   Manifest validation does not prove discovery, optional tool availability,
-   model compliance, or profile isolation. Keep those cases not-run until tested.
-5. Start one independent research track: R01/R02 signed-image and installer proof;
-   R03 synthetic home line-selection/local-only semantics; or R05 official-agent
-   packaging/coexistence. Do not build the whole product in one speculative PR.
+1. Finish the generic media transfer/checksum and test two disposable VM disks:
+   deliberate target selection, encryption, owner account, first boot and an
+   unchanged sentinel disk. Never attach host disks. Check the upstream-mentioned
+   remount-service concern. Record actual results under R02.
+2. Join interactive installation to the strict signed image origin/policy proven
+   in R01. Configure release authority, target-bound promotion and recovery only
+   after the relevant evidence. No production signing keys exist yet.
+3. Implement the narrow helper protocol and fixed installed trust/state paths.
+   Verification output from the unprivileged CLI does not authorize deployment.
+4. Connect the tested home models to private persistence and coordinated live-file
+   activation. Preserve selected snapshots, visible edits, exact local-only policy
+   and publication receipts. Test crashes/concurrent writers before real adoption.
+5. Package private agent executables behind sysroot, prove personal runtime/profile
+   independence, and integrate Bitwarden SSH without exporting keys or broad vault
+   sessions. Owner GitHub API/registry/model authentication is separate from SSH.
+6. Complete RPM refresh/no-change/failure cases, two-target independence, offline
+   recovery, owner installation guidance and remaining desktop qualification.
 
-There are no production release keys, configured protected signing environments,
-qualified disk layouts, or validated desktop/XPS hardware. Do not invent them.
-Register missing external prerequisites as blockers and continue independent
-safe experiments rather than installing over the current workstation.
+The current workstation must not be enrolled, formatted or switched. QEMU 8.2.2,
+OVMF 2024.02 and graphical test dependencies are installed in the existing Ubuntu
+WSL2 environment under the user's VM authorization. Research fixtures contain
+no owner passwords, vault data or production keys.
 
-## Suggested initial Codex assignment
+## Continuation rules
 
-> Read AGENTS.md, docs/HANDOFF.md, PLAN.md, RESEARCH.md and the relevant repository
-> skills. Inspect current checks and research evidence. Complete the remaining
-> R11 bootstrap/discovery validation, then implement a disposable R03 prototype
-> using synthetic homes and Git. Prove line staging, unchanged staged content
-> during later app writes, local-only hunks excluded from export, and conflict
-> handling. Do not enroll a real home or implement production deployment.
-> Record reproducible evidence, exact versions, statuses, and an ADR; update the
-> relevant skills and worklog.md with what the experiment actually established.
+Use standard Cargo checks; no custom runner or first-party src directories.
+Maintain worklog.md at milestones and handoff. Research status.json and reports
+are authoritative for case results; a green container build is not an install or
+hardware pass. Existing R11 native plugin discovery limitations do not block
+reading canonical checkout skills. Never install these skills globally or in the
+OS. Read topic skills on demand and update durable findings with source/version,
+failure behavior and gate impact.
 
-Alternatively assign the refresh track:
-
-> Read docs/UPDATES.md, ADR 0002, kedra-github-actions and kedra-release-signing.
-> Implement only slice 1: a disposable Actions RPM-refresh experiment using fixture
-> repositories and the exact Fedora tools. Prove base/source-fixed dependency
-> updates, cache invalidation, genuine no-change and required-repository failures.
-> No production keys, promotion, permanent schedule, host DNF or real-home changes.
-> Record evidence under the owning R02/R07/R08 packets and update skills/worklog.
-
-Connect that experiment to R01/R02's signed image/installer flow only when the
-corresponding trust and VM resources/gates are ready.
-
-## Non-negotiable acceptance story
-
-Install A in a VM. Establish recovery access, Bitwarden SSH, separate GitHub API
-and model login. Install a personal coding-agent version. Keep ordinary commands
-personal and management commands bundled by default. Make three edits in one
-managed file: publish one, leave one visible/uncommitted, keep one local-only.
-Include a GUI-written Noctalia override. Ask an agent to add a program, publish
-only approved content, follow the exact CI run, and stage B. After authorized
-reboot prove the running digest, feature, and preserved local edits. Test invalid
-signatures, wrong target, conflicts, concurrent writers, interrupted activation,
-and rollback without deleting newer personal data. Repeat target updates
-independently. Recover offline without the agent or Bitwarden GUI.
-
-## Knowledge maintenance
-
-The short skills are entry points; full plans, evidence, ADRs and source links
-are supporting context. Update both when behavior changes. Avoid duplicated
-conflicting specifications: preserve source provenance and link to canonical
-records. Carry forward user requirements even when generic upstream guidance
-suggests different defaults. A researched implementation change needs an ADR;
-reversing a settled user requirement needs the user's decision.
+The acceptance story remains: install A, establish recovery and separate
+credentials, use bundled and personal agents independently, preserve three
+home-edit dispositions and GUI settings, publish approved content, stage and boot
+signed B, verify health, reject bad releases, survive interruption, and roll back
+without losing newer personal data. Repeat target updates independently. No final
+owner installer or complete management workflow is claimed yet.

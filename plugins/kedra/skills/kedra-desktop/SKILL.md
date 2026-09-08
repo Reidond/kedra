@@ -38,6 +38,10 @@ Earlier display/GPU context is not a live hardware probe.
 Current v5 docs describe curated TOML and separate GUI-generated overrides. Older
 v4 Quickshell/JSON commands are not interchangeable. Check the installed major
 version first. Read references/noctalia.md for the proposed narrow projection.
+Noctalia 5.0.1 native full-export/IPC projection passes R07 run 34179189185 at
+d74c4c0 (2026-09-08). The safe three-field model rejects unqualified versions and
+missing/malformed selected fields before persistence; see R03 noctalia.md/ADR 0007.
+The full export remains transient. This does not implement coordinated live writes.
 Do not decide a Git config update succeeded while a writable override still wins.
 Review/export only selected safe settings, not the entire state tree.
 

@@ -1,7 +1,7 @@
 # Noctalia projection and disposition model
 
-Date: 2026-09-08 (Europe/Kiev). Local model tests pass; native VM projection is
-pending. This supplements the earlier Git-line prototype and does not open real
+Date: 2026-09-08 (Europe/Kiev). Local model and native VM projection tests pass.
+This supplements the earlier Git-line prototype and does not open real
 home adoption or activation.
 
 Implemented crates/sysroot-core/noctalia.rs, ten tests and the path-free
@@ -29,12 +29,15 @@ precede a synthetic next-baseline transition. No home path is read or written.
 | Unrelated baseline change and owned field | pass |
 | Conflicts and stale acceptance preserve state | pass |
 | Canonical reconstruction and corrupt/cross-instance refusal | pass |
-| Actual Noctalia 5.0.1 export/IPC projection in VM | not-run |
+| Actual Noctalia 5.0.1 export/IPC projection in VM | pass: run 34179189185 |
 | Filesystem persistence, source export, activation and recovery | not-run |
 
 Windows Rust/Cargo 1.98.1 formatting, Clippy, all 48 workspace tests plus one
-doctest, release build and the synthetic example passed. Current-change Linux and
-native VM evidence follow publication. The projection helper enters only the
+doctest, release build and the synthetic example passed. Linux run 34179189211
+and [native VM run 34179189185](https://github.com/Reidond/kedra/actions/runs/34179189185)
+pass at `d74c4c0`; the latter records `KEDRA_R03_NATIVE_PROJECTION_PASS` after
+qualified full export, theme IPC change and safe projection. Raw exports are
+not recorded. The projection helper enters only the
 disposable R07 test derivative, never the production desktop payload.
 
 Only safe values are persisted by the model. It does not claim to parse every

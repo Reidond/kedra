@@ -45,6 +45,13 @@ recovery backups and recomputable data. Test interrupted journal writes, full di
 missing checkpoints, stale locks/concurrent invocations and rollback after newer
 personal edits. Never treat unreadable state as an empty baseline to overwrite.
 
+The Linux private-store subset uses rustix 1.1.4 and rusqlite 0.40.2 with bundled
+SQLite (ADR 0008). Exact source d74c4c0 passes eight storage tests in Actions
+34179189211 on 2026-09-08: bad schemas/checksums/links/types/modes/inodes fail,
+CAS prevents stale writes, and process exit preserves old or committed state.
+This is R10 storage evidence, not helper authorization or R04 live-file atomicity.
+Bundled SQLite updates require Cargo/source refresh, independently of Fedora RPMs.
+
 Distinguish staged, rebooted and healthy. Installed post-boot code—not an AI
 process that must stay alive—checks results. Keep a usable administrative TTY and
 boot-menu recovery path without GitHub, an agent subscription or Bitwarden GUI.

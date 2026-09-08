@@ -1,7 +1,13 @@
 # R07: Fedora desktop candidate
 
 Status: **pass** for desktop package resolution/configuration/build, 2026-09-08
-(Europe/Kiev). Graphical runtime is not-run; not a qualified desktop release.
+(Europe/Kiev). Graphical login/session subset passes; not a qualified desktop release.
+
+Latest [run 34179189185](https://github.com/Reidond/kedra/actions/runs/34179189185)
+at `d74c4c0` passes graphical login, services, keyring and native Noctalia 5.0.1
+export/IPC projection. The startup help overlay is gone. Inspected screenshots
+still show a cramped virtual scanout within the requested display; explicit
+guest output sizing remains open. These tests do not qualify physical displays.
 
 [Corrected run 34167524359](https://github.com/Reidond/kedra/actions/runs/34167524359)
 at `14be822` passed the image build, niri validator, Noctalia validator and bootc
@@ -56,10 +62,9 @@ accounts created later by an installer. It does not update an existing home or
 establish home adoption. The files remain ordinary writable files after account
 creation. No repository skills, personal profiles or credentials enter the payload.
 
-All tests remain not-run until recorded: RPM resolution; config validators;
-graphical VM login; niri/Noctalia IPC; portals/file chooser/screen sharing; audio;
-lock/idle; Secret Service/keyring authentication; physical devices/suspend.
-The package build is the first step and cannot establish the later runtime cases.
+Remaining runtime cases: portal file chooser/screen sharing, actual audio,
+lock/idle, physical devices/suspend and owner credentials. Service availability
+and synthetic keyring success do not establish these cases.
 
 Sources reviewed 2026-09-08:
 [Fedora Noctalia](https://packages.fedoraproject.org/pkgs/noctalia/noctalia/)

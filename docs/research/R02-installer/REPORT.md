@@ -85,10 +85,18 @@ disk choice, encryption/account setup and the documented remount-service concern
 still require VM evidence. The ISO size also requires a deliberate release-asset
 splitting/reassembly design before public promotion.
 
+Generic ISO [run 34176407860](https://github.com/Reidond/kedra/actions/runs/34176407860)
+at `76dc82a` passes build and boot-configuration inspection. The 2,540,959,744-byte
+ISO has SHA-256 `8734723fb87db17a129d4293858a0638164ee4db898990453fadd03eed788205`.
+Extracted defaults contain only native bootc source/target references and locked
+root. Graphical/rescue entries contain no preset disk selection or partitioning.
+This is unsigned localhost-origin research media; interactive installation has
+not yet been tested. The older legacy ISO remains rejected and was not booted.
+
 - Minimal QCOW2 build and UEFI boot: pass (run 34165475139).
 - Interactive multi-disk installer, encryption and account creation: not-run.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).
-- Realistic desktop image size and session checks: not-run (R07).
+- Desktop package build and graphical session subset: pass (R07); physical qualification remains open.
 - Secure Boot, physical devices, recovery and installer checksum verification:
   not-run.
 

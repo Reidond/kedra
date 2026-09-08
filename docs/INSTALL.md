@@ -1,10 +1,11 @@
 # Install and understand Kedra
 
-Owner media is not published yet. The signed research installer passed a fresh
-encrypted two-disk VM installation and ISO-free desktop boot. That evidence does
-not make research media an owner release. Production candidate and promotion
-workflows are prepared; the exact owner ISO must pass the same installation
-checks before this guide points to a usable published version.
+Owner media is not published yet. The ISO containing the owner-signed image from
+run 34255228394 passed fresh encrypted two-disk installation, ISO-free desktop
+boot, native health/provenance checks and preservation of the unselected disk.
+The [qualification report](research/R02-installer/owner-34255228394/REPORT.md)
+contains its exact identity and evidence. Release metadata signing and promotion
+are the next boundary before this guide points to a published version.
 
 Kedra is Fedora 44 bootc with niri, Noctalia and the `sysroot` management command.
 System software comes from a signed image built by Actions. Your home files remain

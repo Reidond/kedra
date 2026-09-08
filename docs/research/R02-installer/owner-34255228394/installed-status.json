@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "enrolled": false,
+  "scope": {
+    "target": "desktop",
+    "architecture": "x86_64",
+    "fedora_release": 44,
+    "repository": "ghcr.io/reidond/kedra-desktop"
+  },
+  "host": {
+    "booted": {
+      "digest": "sha256:bb4f2b68996a4fc260972d9654440f62ee078bcf92a0996a8f7e34ea0133118b",
+      "download_only": false
+    },
+    "staged": null,
+    "rollback": null,
+    "rollback_queued": false
+  },
+  "journal": null,
+  "reboot_performed": false,
+  "activation_performed": false,
+  "home_reconciliation_checked": false,
+  "home_reconciliation_required": null
+}

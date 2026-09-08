@@ -1,5 +1,15 @@
 # R08/R10: release verification subset
 
+2026-09-09 owner-media milestone: separately approved candidate 34255228394 at
+accepted `c660c58` passes native signing/registry-storage compatibility, ISO
+construction and all ten exact-media manual installation cases. Installed bootc
+uses the exact owner digest with containerPolicy; source/key identity, doctor,
+mounts and retained sentinel pass. See the
+[candidate record](owner-candidate-34255228394.md) and
+[public installation evidence](../R02-installer/owner-34255228394/REPORT.md).
+Metadata promotion/enrollment, lifecycle renewal and rotation remain open.
+The historical preparation and earlier research results below retain their scope.
+
 2026-09-08 protected-publisher preparation: promote.yml now separates public
 exact-media preparation, no-checkout metadata signing and key-free publication.
 It binds independently reviewed candidate/qualification bytes, successful current

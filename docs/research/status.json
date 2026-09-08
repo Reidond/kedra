@@ -15,9 +15,9 @@
       "status": "blocked",
       "topic": "Installer and Actions feasibility",
       "report": "R02-installer/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34222699188",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34255228394",
       "prototype_status": "pass",
-      "note": "Signed-payload media at d8a76a9 passes offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and sentinel retention. Exact booted digest and containerPolicy enforcement match; installed helper accepts inherited trust and reports unenrolled. Outer ISO/authority remain research-only; production enrollment/promotion and full recovery are open."
+      "note": "Owner media at accepted c660c58 passes all ten v1 manual installation cases: full ISO/source/key hashes, offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and both stopped-sentinel comparisons. Exact owner digest and containerPolicy match; installed helper accepts inherited trust and reports unenrolled. Both QEMU sessions exit 0; all local VMs are stopped. Metadata promotion/enrollment, full recovery and hardware remain open."
     },
     {
       "id": "R03",
@@ -62,15 +62,15 @@
       "topic": "Desktop session and hardware",
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34240940795",
-      "note": "Full graphical session/doctor/portal/keyring/Codex/Bitwarden and native home recovery/current-baseline checks pass through 967fd93. Physical hardware, screen sharing and owner credentials remain unqualified."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34287224389",
+      "note": "Full graphical session/doctor/portal/keyring/Codex/Bitwarden and existing native home recovery/current-baseline checks pass at 8288cc2. Actual owner ISO-free desktop also passes its R02 session scope. New caller-home A/B/A assessment is separately pending R04. Physical hardware, screen sharing and real owner credentials remain unqualified."
     },
     {
       "id": "R08",
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Channel/unpack CLI passes Windows/Linux at f8a2cb8. Dedicated P-256 authority is provisioned in the protected owner-reviewed main-only environment; owner confirms Bitwarden backup/retrieval. First candidate 34250485539 fails compressed layer identity in ISO assembly. Corrected signed native round trip passes R01 34253906774; replacement 34255228394 at accepted main c660c58 passes public build, GHCR/storage guard, separately owner-approved signing, anonymous native verification, complete ISO construction and offline payload verification/Anaconda startup. Complete media download and local installation are pending. Production promotion, interrupted publication recovery, renewal and rotation remain open."
+      "note": "Dedicated P-256 authority and protected owner-reviewed main-only environment are provisioned; owner confirms Bitwarden backup/retrieval. After the first compressed-layer ISO failure, replacement 34255228394 at accepted c660c58 passes owner-approved signing, anonymous native verification, complete ISO construction and all ten exact-media manual installation cases. Candidate/source/key/ISO/booted identities match. Native RPM snapshot experiment 34286322016 passes ten fixture-only cases. Production metadata promotion/enrollment, whole-target equivalence, interrupted publication recovery, renewal and rotation remain open."
     },
     {
       "id": "R09",

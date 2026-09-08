@@ -1,5 +1,15 @@
 # R02: minimal image and VM feasibility
 
+Owner-media follow-up, 2026-09-09: exact ISO from
+[34255228394](https://github.com/Reidond/kedra/actions/runs/34255228394) at accepted
+`c660c58` passes all ten v1 manual installation cases. Complete encrypted
+installation, ISO-free owner desktop, doctor, exact owner image/source/key,
+inherited container policy, correct mounts and both stopped-sentinel comparisons
+pass without repairs. Both QEMU sessions exited 0; all local VMs are stopped.
+See the [public qualification report and native evidence](owner-34255228394/REPORT.md).
+Production metadata promotion/enrollment, recovery and physical hardware remain
+open; this does not mark the full R02 gate complete.
+
 Shared public-trust copy regression, 2026-09-08: signed research ISO
 [34244387167](https://github.com/Reidond/kedra/actions/runs/34244387167) at `cb11646`
 passes build, strict positive/wrong-key pre-copy, labels and diskless offline

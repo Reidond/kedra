@@ -3,8 +3,9 @@
 Date: 2026-09-09. Status: public build, registry/storage compatibility and
 owner-approved isolated signing pass. Independent anonymous manifest access and
 OpenSSL signature verification pass. Native anonymous signed pull, ISO construction
-and offline signature verification before Anaconda startup pass. The media is
-being downloaded for fresh installation; metadata promotion remains not-run.
+and offline signature verification before Anaconda startup pass. The complete
+download/ISO hashes and all ten exact-media manual installation cases pass;
+metadata promotion remains not-run.
 
 | Identity / check | Observed result |
 |---|---|
@@ -22,7 +23,8 @@ being downloaded for fresh installation; metadata promotion remains not-run.
 | Owner image signing | pass — explicit approval and isolated Skopeo job |
 | Public manifest / detached OCI signature | pass — anonymous exact digest and independent OpenSSL verification |
 | Native signed pull / ISO | pass — complete installer job, including offline signature verification and Anaconda startup with no disks |
-| Installation / promotion | not-run |
+| Exact-media installation | pass — encrypted install, ISO-free healthy owner desktop and preserved unselected disk |
+| Metadata promotion | not-run |
 
 The first candidate failed after successful signing because ordinary registry
 publication compressed native OCI layers. This replacement preserves the native
@@ -60,3 +62,13 @@ Public proof is retained under the candidate artifact's local `registry-signatur
 directory. This does not promote metadata or install anything on the workstation.
 Dedicated key recovery remains confirmed by the owner; no vault, SSH key or
 personal profile was accessed.
+
+The resulting ISO is 2,856,306,688 bytes with SHA-256
+`9c1401489d1c47119249ab213c9a187b47db6c5112ebccce567cf0cc4a76d988`;
+candidate.json hashes to
+`322a525bfbfbdbd7aaa7c07fcd7346582e83294315e569866d8bf52243317320`.
+The [manual qualification report](../R02-installer/owner-34255228394/REPORT.md)
+contains the exact native results and reviewed public screenshots. Both clean
+shutdowns and identical stopped-disk comparisons were observed; all local VMs
+are stopped. The immutable candidate descriptor is preserved unchanged, and the
+separate qualification proposal will bind this later evidence to its exact hash.

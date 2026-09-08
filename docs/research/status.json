@@ -26,9 +26,9 @@
       "prototype_status": "pass",
       "report": "R03-home-review/REPORT.md",
       "results": "R03-home-review/results.json",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34192732940",
-      "verified_source": "a2c0e6314351c325021e74c10c0edb5b8da2355b",
-      "note": "Native Noctalia capture/staging/local policies, selected-field source export/receipts and native discard pass. Discard preserves selection and file metadata in R07 34223972271. Generic text/line integration and broader activation/recovery remain open. Ongoing tests are E2E/manual only."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34233086974",
+      "verified_source": "86bb96bcfe3a6703de9665a6e116cee203a64aff",
+      "note": "Noctalia review/export/discard/recovery and ordinary niri line review pass actual CLI/native workflows. CLI 34233086757 covers Git publication/receipts, insert/delete and symlink refusal; native 34233086974 validates real niri edits and retained decisions. Source-reconciliation preview is prepared; native text activation and broader baseline/group behavior remain open. E2E/manual only."
     },
     {
       "id": "R04",

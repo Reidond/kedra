@@ -12,7 +12,10 @@ starts/validates the writer before clearing pending state. Selection and file
 metadata remain intact. Power-loss/full-disk and other interruption phases remain
 open. Default XDG private state initialization also passes. See R04/ADR 0017.
 
-Ordinary niri text review is prepared in ADR 0019, pending CLI/native qualification.
+Ordinary niri text review passes CLI 34233086757 and native 34233086974 at 86bb96b
+(ADR 0019): selected/local lines, later writes, source receipts, insert/delete and
+native config validation. Source-ancestry reconciliation preview is prepared in
+ADR 0020; it does not provide live text activation or advance accepted B.
 Never hash the full live text into Git objects: Git 2.55.0 diff-no-index.c supports
 `git diff --no-index reference -` with stdin in memory and exits 0/1. Only explicitly
 selected content may cross into source; init requires reviewing custom commands

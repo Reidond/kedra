@@ -1,6 +1,7 @@
 # Review niri configuration by line
 
-The actual Linux CLI workflow passes; native desktop qualification is pending.
+The actual Linux CLI workflow and native niri desktop checks pass at `86bb96b`
+(runs 34233086757 and 34233086974).
 This interface supports the ordinary
 `.config/niri/config.kdl` file on an installed Linux Kedra desktop. It does not
 apply or discard live text changes yet. Other files and niri includes remain
@@ -58,6 +59,26 @@ sysroot home file status
 
 Recording clears that selection while preserving later live changes and local
 decisions. It does not advance the accepted image baseline or imply deployment.
+
+Before a source change is built or staged, preview its home reconciliation:
+
+```sh
+sysroot home file plan --repo "$HOME/src/kedra"
+# Or preview an exact retained source version:
+sysroot home file plan --repo "$HOME/src/kedra" --commit FULL_COMMIT_ID
+```
+
+This new preview is pending CLI qualification. It reads committed source and
+complete Git history. It reports the proposed file hash/changes and the selections
+and local decisions that would remain. It keeps source publication separate from
+accepted image state, including intermediate and older source versions. Missing
+history, ambiguous ranges and genuine conflicts refuse. An exact local-only value
+can override an incoming default; a later changed value returns to normal review.
+
+A successful preview does not verify an installed image, run niri validation,
+apply files or advance the accepted baseline. Its plan ID identifies the proposed
+result; text activation is still unavailable. See [ADR 0020](adr/0020-text-reconciliation-preview.md).
+
 Binary/non-UTF-8 files, CRLF, missing final newline, unsafe links/ownership and
 files over 128 KiB or 8192 lines are refused. Preserve an unreadable store for
 recovery; do not reset it. See [ADR 0019](adr/0019-ordinary-text-review.md).

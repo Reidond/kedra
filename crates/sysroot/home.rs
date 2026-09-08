@@ -89,6 +89,14 @@ enum Command {
 
 #[derive(Subcommand)]
 enum TextCommand {
+    /// Preview a committed source baseline without changing live files or accepted state.
+    Plan {
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+        /// Full source commit; defaults to the checkout's committed HEAD.
+        #[arg(long)]
+        commit: Option<String>,
+    },
     /// Adopt the installed niri baseline after checking live custom commands for secrets.
     Init {
         /// Acknowledge reviewing this file and finding it safe to display/store selected changes.

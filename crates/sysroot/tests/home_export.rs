@@ -450,6 +450,82 @@ fn ordinary_text_cli_keeps_adjacent_lines_independent_through_git_publication() 
         f.git(&["show", &format!("HEAD:{path}")]),
         appended.replace("    animation 200\n", "")
     );
+    // Source previews consume real commit ancestry but never advance accepted B.
+    let unchanged_live = fs::read_to_string(&native).unwrap();
+    let preview = f.success(&["file", "plan", "--repo", f.repo().to_str().unwrap()]);
+    assert_eq!(preview["retired_publications"], 3);
+    assert_eq!(preview["pending_publications"], 0);
+    assert_eq!(preview["observed_sha256"], preview["desired_sha256"]);
+    assert_eq!(preview["review_state_changed"], false);
+    assert_eq!(f.success(&["file", "selection"])["publication_count"], 3);
+    assert_eq!(fs::read_to_string(&native).unwrap(), unchanged_live);
+    let future = appended
+        .replace("    animation 200\n", "")
+        .replace("gaps 12", "gaps 18")
+        .replace("width 3", "width 9");
+    f.write(path, &future);
+    f.git(&["add", path]);
+    f.git(&["commit", "-m", "candidate source defaults", "--", path]);
+    let preview = f.success(&["file", "plan", "--repo", f.repo().to_str().unwrap()]);
+    let expected = unchanged_live.replace("width 3", "width 9");
+    let expected_hash: String = Sha256::digest(expected.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    assert_eq!(preview["desired_sha256"], expected_hash);
+    assert_eq!(preview["local_only_after"][0]["before"], "    gaps 18\n");
+    assert_eq!(preview["local_only_after"][0]["after"], "    gaps 14\n");
+    assert_eq!(fs::read_to_string(&native).unwrap(), unchanged_live);
+    fs::write(&native, unchanged_live.replace("gaps 14", "gaps 16")).unwrap();
+    assert!(
+        !f.cli(&["file", "plan", "--repo", f.repo().to_str().unwrap()])
+            .status
+            .success(),
+        "changed local-only content must use conflict review"
+    );
+    fs::write(&native, unchanged_live.replace("width 3", "width 4")).unwrap();
+    let rows = f.success(&["file", "status"]);
+    let width = rows["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["change"]["after"] == "    width 4\n")
+        .unwrap()["change"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    f.success(&["file", "stage", &width]);
+    assert!(
+        !f.cli(&["file", "plan", "--repo", f.repo().to_str().unwrap()])
+            .status
+            .success()
+    );
+    let older = f.success(&[
+        "file",
+        "plan",
+        "--repo",
+        f.repo().to_str().unwrap(),
+        "--commit",
+        &committed,
+    ]);
+    assert_eq!(older["retired_publications"], 1);
+    assert_eq!(older["pending_publications"], 2);
+    assert_eq!(older["selection_after"][0]["after"], "    width 4\n");
+    let rollback = f.success(&[
+        "file",
+        "plan",
+        "--repo",
+        f.repo().to_str().unwrap(),
+        "--commit",
+        &initial,
+    ]);
+    assert_eq!(rollback["retired_publications"], 0);
+    assert_eq!(rollback["pending_publications"], 3);
+    assert_eq!(rollback["selection_after"][0]["after"], "    width 4\n");
+    assert_eq!(
+        f.success(&["file", "selection"])["accepted_baseline"]["source_revision"],
+        initial
+    );
     // The command refuses a real symlink substitution instead of capturing it.
     let outside = f.0.join("unadopted");
     fs::write(&outside, "unadopted generated content\n").unwrap();

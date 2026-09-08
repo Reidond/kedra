@@ -7,7 +7,11 @@ source export/receipts pass the actual Linux CLI workflow in
 [34233086757](https://github.com/Reidond/kedra/actions/runs/34233086757) at `86bb96b`
 (ADR 0019). This covers adjacent line choices, retained selections after later
 file edits, exact-local policy, source/index preservation, exact commit receipts,
-insertion/deletion and symlink refusal. Native niri qualification is pending.
+insertion/deletion and symlink refusal. Native niri
+[34233086974](https://github.com/Reidond/kedra/actions/runs/34233086974) also passes
+actual file edits, validation, pinned line retention and exact-local resurfacing
+at that source, alongside the complete desktop checks. A source-reconciliation
+preview is now prepared for separate qualification (ADR 0020).
 Equal-size replacements select by line; other edit
 blocks remain hunks. Live text activation and generic baseline reconciliation
 are not yet implemented. The Noctalia native interruption subset separately

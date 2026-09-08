@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use sysroot_helper::storage::Store;
 
+mod transition;
+
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const RECORD: &str = "niri-text";
 const FILE: &str = ".config/niri/config.kdl";
@@ -88,7 +90,7 @@ struct Publication {
     source_revision: String,
     reference: String,
 }
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct State {
     schema_version: u32,
@@ -317,12 +319,37 @@ impl Git {
         content(&self.run(&["show", ":managed"], None)?)
     }
     fn merge(&self, current: &str, base: &str, selected: &str) -> Result<String> {
-        for (name, value) in [("current", current), ("base", base), ("selected", selected)] {
-            std::fs::write(self.scratch.0.join(name), value)?;
+        use rustix::fs::{MemfdFlags, SealFlags, fcntl_add_seals, memfd_create};
+        use std::os::fd::AsRawFd;
+        let mut files = Vec::new();
+        let mut paths = Vec::new();
+        for value in [current, base, selected] {
+            let mut file = std::fs::File::from(memfd_create(
+                "kedra-text-merge",
+                MemfdFlags::CLOEXEC | MemfdFlags::ALLOW_SEALING,
+            )?);
+            file.write_all(value.as_bytes())?;
+            fcntl_add_seals(
+                &file,
+                SealFlags::WRITE | SealFlags::GROW | SealFlags::SHRINK | SealFlags::SEAL,
+            )?;
+            paths.push(format!(
+                "/proc/{}/fd/{}",
+                std::process::id(),
+                file.as_raw_fd()
+            ));
+            files.push(file);
         }
         let result = export::git(
             &self.scratch.0,
-            &["merge-file", "--diff3", "-p", "current", "base", "selected"],
+            &[
+                "merge-file",
+                "--diff3",
+                "-p",
+                &paths[0],
+                &paths[1],
+                &paths[2],
+            ],
             None,
             &self.index,
         )
@@ -578,6 +605,9 @@ pub(super) fn run(
             .map_err(|_| "niri text state is malformed; preserve the store")?
     };
     state.validate(instance)?;
+    if let TextCommand::Plan { repo, commit } = command {
+        return transition::preview(&state, parent, repo, commit.as_deref());
+    }
     let before = serde_json::to_vec(&state)?;
     let git = Git::new(parent)?;
     let mut source_result = None;

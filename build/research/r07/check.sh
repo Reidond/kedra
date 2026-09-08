@@ -31,6 +31,20 @@ for attempt in $(seq 1 120); do
     sleep 1
 done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status
+app_version=$(noctalia --version | awk '{print $2}' | sed 's/^v//')
+projection=$(as_user noctalia config export full | /usr/libexec/kedra-research-project-noctalia --project "$app_version")
+printf 'KEDRA_R03_PROJECT_BEFORE %s\n' "$projection"
+original_theme=$(printf '%s' "$projection" | jq -er .theme_mode)
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+for attempt in $(seq 1 20); do
+    projection=$(as_user noctalia config export full | /usr/libexec/kedra-research-project-noctalia --project "$app_version")
+    if test "$(printf '%s' "$projection" | jq -er .theme_mode)" = light; then break; fi
+    sleep 1
+done
+test "$(printf '%s' "$projection" | jq -er .theme_mode)" = light
+printf 'KEDRA_R03_PROJECT_AFTER %s\n' "$projection"
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
+marker KEDRA_R03_NATIVE_PROJECTION_PASS
 as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs
 as_user systemctl --user start xdg-desktop-portal.service
 as_user systemctl --user is-active pipewire.service wireplumber.service xdg-desktop-portal.service

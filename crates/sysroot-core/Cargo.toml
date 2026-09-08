@@ -13,6 +13,10 @@ name = "r03_home"
 path = "examples/r03_home.rs"
 test = true
 
+[[example]]
+name = "r03_noctalia"
+path = "examples/r03_noctalia.rs"
+
 [lints]
 workspace = true
 

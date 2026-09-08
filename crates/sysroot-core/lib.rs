@@ -5,6 +5,8 @@
 //! assert!(!sysroot_core::DEPLOYMENT_AVAILABLE);
 //! ```
 
+/// Narrow Noctalia effective-settings review and disposition transitions.
+pub mod noctalia;
 /// Signed release records, freshness checkpoints and replay validation.
 pub mod release;
 /// Committed source planning and build provenance.

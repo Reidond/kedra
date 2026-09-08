@@ -16,6 +16,11 @@ against a three-byte synthetic artifact. Test keys were deleted.
 tests/release-interop.py reproduces this and adds CLI negative cases on Linux.
 New-revision Linux CI is pending publication.
 
+Publication follow-up: exact source `315389786db7b1519c5590ce9583ba1d972b163c`
+passed [Linux workspace run 34170739316](https://github.com/Reidond/kedra/actions/runs/34170739316),
+including the OpenSSL interoperability script's 16 valid signatures and CLI
+wrong-key/tampered-manifest/corrupt-installer refusals.
+
 | Case | Result |
 |---|---|
 | Exact signed bytes and correct key | pass |

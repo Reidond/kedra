@@ -58,6 +58,14 @@ is not implemented; never use a synthetic merge prototype on a real home.
 
 ## Established synthetic R03 findings
 
+Follow-up 2026-09-08: the pure Noctalia 5.0.1 model projects three safe fields
+from native full-export TOML; unknown/private fields and error excerpts are not
+persisted. It separates pinned S, exact I, app-owned keys and publication chains,
+so an intermediate N can retire only a known published prefix while preserving
+newer live values. Ten local tests pass; native VM projection follows in R07.
+Canonical JSON reconstruction is not filesystem crash durability. Real activation
+and source writes remain gated. See ADR 0007 and R03-home-review/noctalia.md.
+
 On 2026-09-07, Git 2.55.0.windows.1 and Rust 1.98.1 passed the std-only
 `cargo run -p sysroot-core --example r03_home --locked` experiment and 12 tests.
 One selected line from a larger hunk stays fixed in a pinned Git tree after later

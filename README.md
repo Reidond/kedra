@@ -10,15 +10,17 @@ Claude Code. There is no BlueBuild or generic distribution framework.
 
 ## Current status
 
-This is a **research-ready bootstrap**, not an installable OS. The workspace has
+This is **in implementation**, with a desktop candidate booted in a VM, but no
+supported installation release yet. The workspace has
 explicit `main.rs` / `lib.rs` paths, no first-party `src/` directories, one lockfile,
 and a pinned Rust toolchain. The CLI implements help, version, capability status
-and committed source planning. Deployment, home mutation, setup, and agent launch commands
+and committed source planning/archives plus signed-release verification.
+Deployment, home mutation, setup, and agent launch commands
 return an unavailable error. The helper performs no privileged operation.
 
-The check workflow validates Rust only. No signed image, ISO,
-Bitwarden login, agent session, or hardware qualification is implied by a green
-bootstrap check. See [research status](docs/research/status.json) and the
+Workspace checks validate Rust and protocol fixtures. Separate research workflows
+test images, VM boots, signatures and the desktop session. Owner authentication
+and physical hardware qualification remain separate. See [research status](docs/research/status.json) and the
 [Actions runs](https://github.com/Reidond/kedra/actions).
 
 The [R03 synthetic example](docs/research/R03-home-review/REPORT.md) now proves
@@ -27,6 +29,10 @@ and explicit conflicts in disposable Git fixtures. Run
 `cargo run -p sysroot-core --example r03_home --locked`. Its 12 tests are included
 in standard workspace tests. This is research code; real home management and
 activation remain unavailable.
+
+The [Noctalia follow-up](docs/research/R03-home-review/noctalia.md) adds safe
+effective-setting projection and tested selection/local-policy/publication
+transitions. It still performs no real-home activation.
 
 Inspect a target without changing the checkout or machine:
 

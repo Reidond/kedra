@@ -5,8 +5,9 @@ description: Build Kedra CI, target matrices, scheduled Fedora package refresh, 
 
 # CI and installer pipeline
 
-All OS and installer builds run in GitHub Actions. Local Rust tests and synthetic
-home tests are allowed; local OS rebuilding is not the intended workflow.
+All OS and installer builds run in GitHub Actions. Local end-to-end CLI checks
+and manual experiments with generated homes are allowed; local OS rebuilding is
+not the intended workflow.
 check.yml builds/lints Rust and exercises actual CLI home/release workflows.
 It has no signing, GHCR publishing or workstation access. Owner policy forbids
 unit/model/mock/doctests and repository self-scanners.

@@ -19,6 +19,7 @@ parser.add_argument("--persistent-disk", action="store_true")
 parser.add_argument("--cases-disk", type=pathlib.Path)
 parser.add_argument("--network", action="store_true")
 parser.add_argument("--firmware-vars", type=pathlib.Path)
+parser.add_argument("--remembered-login", action="store_true")
 args = parser.parse_args()
 disk = args.disk.resolve(strict=True)
 if not disk.is_file() or disk.suffix != ".qcow2":
@@ -122,8 +123,9 @@ with (work / "qemu.log").open("w") as output:
             if qmp and args.login_marker in text and "login" not in markers:
                 time.sleep(1)
                 qmp.screenshot("login.png")
-                qmp.type_text("kedra-test\n")
-                time.sleep(0.7)
+                if not args.remembered_login:
+                    qmp.type_text("kedra-test\n")
+                    time.sleep(0.7)
                 qmp.type_text(password + "\n")
                 password = ""
                 markers.add("login")

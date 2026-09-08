@@ -101,6 +101,8 @@ sudo chown "$(id -u):$(id -g)" "$root/image" "$(dirname "${disks[0]}")" "${disks
 sudo chgrp "$(id -g)" /dev/kvm
 sudo chmod g+rw /dev/kvm
 for phase in stage-b accept-b rollback-a; do
+    login_options=()
+    if test "$phase" != stage-b; then login_options+=(--remembered-login); fi
     case "$phase" in
         stage-b) success=KEDRA_R04_STAGE_B_PASS ;;
         accept-b) success=KEDRA_R04_ACCEPT_B_ROLLBACK_STAGED_PASS ;;
@@ -109,6 +111,7 @@ for phase in stage-b accept-b rollback-a; do
     xvfb-run -a -s '-screen 0 1280x768x24' env LIBGL_ALWAYS_SOFTWARE=1 \
         python3 build/research/r07/run_vm.py --disk "${disks[0]}" --persistent-disk --network \
         --cases-disk "$root/cases.raw" --firmware-vars "$root/OVMF_VARS.fd" \
+        "${login_options[@]}" \
         --work "$evidence/$phase" --password-file "$private/password" \
         --login-marker KEDRA_R04_LOGIN_READY --failure-marker KEDRA_R04_FAIL --success-marker "$success" \
         | tee "$evidence/$phase.txt"

@@ -1,6 +1,6 @@
 # ADR 0014: Export selected Noctalia fields as Git patches and explicit receipts
 
-Date: 2026-09-08. Status: implemented; Linux CLI qualification pending.
+Date: 2026-09-08. Status: implemented; Linux CLI subset verified.
 
 Extend the private Noctalia review interface with patch generation and source
 receipts. Keep ordinary Git review/commit/push decisions explicit. No private
@@ -33,7 +33,8 @@ Eight local export cases and an exact-revision source case pass: dirty source/in
 retention, comments and unselected content, all-object privacy inspection, host
 routing, conflicts, empty/no-change patches and receipt ordering. The Linux-only
 integration test exercises the actual CLI/SQLite/Git round trip in generated
-directories without enrolling the runner's home. Its first Actions result is pending.
+directories without enrolling the runner's home. Run 34192732940 at a2c0e63 passes
+the actual CLI round trip and all 81 Linux tests plus one doctest.
 
 Sources: [toml_edit DocumentMut](https://docs.rs/toml_edit/0.25.13+spec-1.1.0/toml_edit/struct.DocumentMut.html),
 [Git diff](https://git-scm.com/docs/git-diff), [Git update-index](https://git-scm.com/docs/git-update-index),

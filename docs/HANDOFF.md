@@ -21,11 +21,12 @@ private SQLite storage. The shared core performs no filesystem/process I/O.
 Source/Git operations belong to the ordinary-user CLI. The helper has a storage
 library but its binary still refuses privileged operations. The ordinary-user CLI
 now connects private storage to the three-field Noctalia review model; native
-GUI tests pass. Generic files, source export, discard and activation remain open.
+GUI tests pass. Selected-field source patches and exact commit receipts pass Linux tests. Generic
+files, discard and activation remain open.
 
-Source `3d108e9cf7368a02b3b8d98581c26847dda97a7e` passed Linux
-[check 34188179270](https://github.com/Reidond/kedra/actions/runs/34188179270):
-formatting, Clippy, 71 tests plus one doctest, release build and independent
+Source `a2c0e6314351c325021e74c10c0edb5b8da2355b` passed Linux
+[check 34192732940](https://github.com/Reidond/kedra/actions/runs/34192732940):
+formatting, Clippy, 81 tests plus one doctest, release build and independent
 OpenSSL interoperability. Eight storage tests cover corruption, links/types/modes,
 concurrency and process interruption. Linux agent wrappers also pass native Codex
 0.153.4/0.153.3 runtime/profile checks in [34186921224](https://github.com/Reidond/kedra/actions/runs/34186921224).
@@ -34,7 +35,7 @@ Model turns, authentication and complete discovery remain unqualified.
 R01 disposable strict Sigstore policy, negative cases, signed A-to-B boot and
 rollback pass, including inherited enforcement on initial and rolled-back A.
 R02 minimal QCOW2 boots with enforcing SELinux in Actions and local WSL2/KVM.
-R07 [run 34188179252](https://github.com/Reidond/kedra/actions/runs/34188179252)
+R07 [run 34192732970](https://github.com/Reidond/kedra/actions/runs/34192732970)
 passes graphical login, niri/Noctalia IPC, services, unlocked synthetic keyring
 and native Noctalia 5.0.1 settings projection. The inspected 1280x768 capture now
 fills the VM window with readable controls; physical display/audio/suspend and
@@ -59,8 +60,10 @@ Updated build [34185915639](https://github.com/Reidond/kedra/actions/runs/341859
 at `cfc956d` passes media build/startup and the local offline/disk/admin UI flow.
 Actual installation failed GetBlob import in the 1.6 GiB installer /var/tmp, while
 the encrypted target had 59 GiB free. The VM is stopped and sentinel comparison
-passes. ADR 0013 adds selected-disk scratch binding; the next media build and full
-installation are pending.
+passes. ADR 0013 selected-disk scratch then allowed bootc import/GRUB/finalization
+to complete in media 34190162895, but Anaconda cleanup failed on the now-read-only
+target. A native-equivalent remount correction is building in 34195114452 at
+923a282. Full owner installation/boot remains pending.
 This is unsigned localhost-origin research media, not an owner release.
 
 A diagnostic boot of the older media with a temporary kernel override reached

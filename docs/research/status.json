@@ -15,9 +15,9 @@
       "status": "blocked",
       "topic": "Installer and Actions feasibility",
       "report": "R02-installer/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34185915639",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34190162895",
       "prototype_status": "pass",
-      "note": "Minimal QCOW2/UEFI passes. Fresh generic media passes Anaconda/offline/disk/admin UI cases; actual encrypted installation fails GetBlob ENOSPC in installer /var/tmp despite free destination space. Sentinel comparison passes. ADR 0013 scratch adapter is prepared; full install, first boot and signed origin remain open."
+      "note": "Minimal boot and generic media/UI subsets pass. Selected-disk scratch fixes ENOSPC; bootc import/GRUB/finalization complete, but Anaconda cleanup fails EROFS after the target becomes read-only. A native-equivalent remount fix is building at 923a282; full owner installation/boot and signed origin remain open. Sentinel comparisons pass."
     },
     {
       "id": "R03",
@@ -26,9 +26,9 @@
       "prototype_status": "pass",
       "report": "R03-home-review/REPORT.md",
       "results": "R03-home-review/results.json",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34188179270",
-      "verified_source": "3d108e9cf7368a02b3b8d98581c26847dda97a7e",
-      "note": "Synthetic line and Noctalia models pass. Native desktop run 34188179252 passes private persistent Noctalia capture/staging/exact-local/app-owned commands against GUI writes. Generic file/line/source export/discard and R04 activation remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34192732940",
+      "verified_source": "a2c0e6314351c325021e74c10c0edb5b8da2355b",
+      "note": "Native Noctalia capture/staging/local policies, selected-field Git patch export and exact source receipts pass, including the actual Linux CLI/SQLite/source round trip. Generic text/line integration, discard and R04 activation remain open."
     },
     {
       "id": "R04",
@@ -55,8 +55,8 @@
       "topic": "Desktop session and hardware",
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34188179252",
-      "note": "Graphical login/services/keyring/full-size capture and durable native Noctalia review pass at 3d108e9. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34192732970",
+      "note": "Graphical login/services/keyring/full-size capture and native Noctalia review pass at a2c0e63. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
     },
     {
       "id": "R08",

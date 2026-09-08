@@ -112,8 +112,9 @@ as_user sysroot home status | jq -e '.pending_activation == null and (.activatio
 test "$(stat -c '%a' "$review_home/.local/state/sysroot")" = 700
 test "$(stat -c '%a' "$review_home/.local/state/sysroot/home")" = 700
 marker KEDRA_HOME_DEFAULT_STATE_PASS
-as_user python3 /usr/libexec/kedra-research-niri-review.py
+as_user env NIRI_SOCKET="$niri_socket" python3 /usr/libexec/kedra-research-niri-review.py
 marker KEDRA_R04_NATIVE_NIRI_DISCARD_PASS
+marker KEDRA_R04_NATIVE_NIRI_RECOVERY_PASS
 marker KEDRA_R03_NATIVE_NIRI_LINES_PASS
 as_user python3 /usr/libexec/kedra-research-agents.py
 fixture_home=$(getent passwd kedra-test | cut -d: -f6)

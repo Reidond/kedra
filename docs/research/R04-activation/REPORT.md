@@ -2,6 +2,15 @@
 
 2026-09-08. Full gate: blocked. No workstation home was used.
 
+Niri exact discard and native reload are implemented (ADR 0021), with no accepted
+baseline advance. Workspace 34236682942 at 22a27f5 passes Linux Clippy, actual
+review/publication/reconciliation CLI workflows and release checks. Native
+34236682920 is pending. The preceding 7d14ada stopped on a rustix PID conversion
+method error; the method was corrected without relaxing peer checks. The source
+preview native regression 34235455502 was cancelled when superseded.
+New real CLI interruption scenarios are prepared for niri abort/resume/keep-current;
+they are not yet executed. No unit, mock, model or repository-scanner tests were added.
+
 Native interruption now passes
 [34230166262](https://github.com/Reidond/kedra/actions/runs/34230166262) at `3267e03`.
 The actual installed CLI is killed with SIGKILL on native file publication.

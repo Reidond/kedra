@@ -5,6 +5,16 @@ description: Implement or research writable dotfile capture, Git partial staging
 
 # Writable home is a core feature
 
+Niri 26.04 discard/reload finding, 2026-09-08 (ADR 0021): relative includes use
+the main file's parent. Validate candidates with the same directory context.
+IPC LoadConfigFile can switch the runtime path; argv/environment cannot prove the
+active file. Require explicit managed-file activation. The action acknowledgement
+enqueues asynchronous work, and the initial ConfigLoaded event describes the prior
+load. Subscribe first, consume initial status, request reload, then require a new
+event. Failures retain recovery state. Sources: pinned niri-config/src/lib.rs,
+niri-ipc/src/lib.rs, src/input/mod.rs and src/utils/watcher.rs linked in ADR 0021.
+This impacts R03/R04/R10; implementation is pending native qualification.
+
 Native process-kill recovery, 2026-09-08: R07 34230166262 at 3267e03 kills the
 installed CLI during native publication, then passes abort/resume/keep-current.
 Exact abort refuses a later real Noctalia edit; keep-current preserves it and now

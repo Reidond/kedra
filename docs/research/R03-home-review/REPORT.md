@@ -11,10 +11,12 @@ insertion/deletion and symlink refusal. Native niri
 [34233086974](https://github.com/Reidond/kedra/actions/runs/34233086974) also passes
 actual file edits, validation, pinned line retention and exact-local resurfacing
 at that source, alongside the complete desktop checks. A source-reconciliation
-preview is now prepared for separate qualification (ADR 0020).
+preview passes actual CLI workspace 34235455512 at 3c948aa (ADR 0020): current,
+intermediate and older source, retained future publications, exact-local default
+override, conflicting later edits and unchanged accepted/live state.
 Equal-size replacements select by line; other edit
-blocks remain hunks. Live text activation and generic baseline reconciliation
-are not yet implemented. The Noctalia native interruption subset separately
+blocks remain hunks. Native niri discard/reload is implemented for qualification
+(ADR 0021); full image baseline activation remains unfinished. The Noctalia native interruption subset separately
 passes 34230166262 at 3267e03; see R04. Only E2E/manual testing is authorized now;
 the isolated test counts below are historical evidence.
 

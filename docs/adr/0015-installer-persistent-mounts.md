@@ -24,6 +24,15 @@ not choose disks or replace user files. Three inert native-method cases check
 separate `/home`, separate `/var/home`, nested boot mounts and absence of extra
 mounts. Earlier scratch/network/admin cases remain intact.
 
+The next native test exposed an earlier part of the same lifecycle: native
+`DeployBootcTask._clean_physroot` lazily unmounted and removed `/home` and `/var`
+before deployment, leaving nothing to bind afterward. The guarded adaptation now
+preserves selected mounted children. bootc 1.16.10 accepts such mount boundaries,
+as already exercised by the selected-disk scratch mount. The original unsupported
+custom-mount rejection remains; an additional guard refuses `/` or an unmounted
+physical root before cleanup. Four inert cleanup cases verify retained mounts
+and refusal, for 27 total adapter cases.
+
 The installed fstab also addressed its Btrfs physical-root device as `/`, but the
 booted logical root is an overlay. systemd-remount-fs failed with `overlay: No
 changes allowed in reconfigure`. bootc documents that a legacy physical-root
@@ -34,8 +43,10 @@ and `rootflags=subvol=/root`.
 An installer-only `%post --nochroot --erroronfail` step now normalizes that single
 entry to `/sysroot` and explicitly retains read-only policy. It preserves other
 mounts, comments, identifiers and filesystem options. It operates only on the
-fixed mounted `/mnt/sysroot` physical filesystem, using native `ostree admin
---sysroot=/mnt/sysroot --print-current-dir` to locate the deployment. The result
+fixed mounted `/mnt/sysimage` physical filesystem, using native `ostree admin
+--sysroot=/mnt/sysimage --print-current-dir` to locate the deployment. The live
+mount map confirms that native set_system_root separately binds the deployment
+at `/mnt/sysroot`. The result
 must stay in its default stateroot deployment directory and contain a Kedra/bootc
 payload with a bounded, root-owned
 regular fstab. Missing/duplicate/unsupported root entries fail installation;

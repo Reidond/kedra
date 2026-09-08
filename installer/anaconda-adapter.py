@@ -120,6 +120,31 @@ if updated[patches[2][0]].count(before_mounts) != 1:
     raise SystemExit('Expected one native bootc mount-preparation anchor')
 updated[patches[2][0]] = updated[patches[2][0]].replace(before_mounts, after_mounts)
 
+before_cleanup = '''            # Try to unmount if it's a mount point, use lazy unmount for busy mounts
+            if os.path.ismount(path):
+                # Skip if /boot
+                if path == self._physroot + "/boot":
+                    log.debug("Bootc workaround: skip unmounting /boot")
+                    continue
+                safe_exec_program("umount", ["-l", path])
+'''
+after_cleanup = '''            # Kedra: bootc 1.16.10 accepts mounted children. Preserve the
+            # selected /home and /var filesystems for later native bind setup.
+            if os.path.ismount(path):
+                continue
+'''
+if updated[patches[2][0]].count(before_cleanup) != 1:
+    raise SystemExit('Expected one native physical-root cleanup anchor')
+updated[patches[2][0]] = updated[patches[2][0]].replace(before_cleanup, after_cleanup)
+before_root = '        log.debug("Bootc workaround: prepare clean root partition for bootc install")\n'
+after_root = '''        if not os.path.ismount(self._physroot) or os.path.realpath(self._physroot) == "/":
+            raise PayloadInstallationError("Kedra requires a separate mounted physical root")
+        log.debug("Bootc workaround: prepare clean root partition for bootc install")
+'''
+if updated[patches[2][0]].count(before_root) != 1:
+    raise SystemExit('Expected one native physical-root guard anchor')
+updated[patches[2][0]] = updated[patches[2][0]].replace(before_root, after_root)
+
 def getter(source, name):
     candidates = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.FunctionDef) and node.name == name]
     if len(candidates) != 1:
@@ -235,6 +260,32 @@ for points in [{'/': 'root', '/home': 'home', '/boot': 'boot', '/boot/efi': 'efi
         raise SystemExit('Separate filesystem binding failed')
     if actual and events.index(('fill-var',)) > events.index(('bind', actual[0], False)):
         raise SystemExit('Separate home must be bound after persistent /var')
+clean = getter(updated[patches[2][0]], '_clean_physroot')
+for bad_root, unsupported, mounted in [(False, False, True), (True, False, True), (False, True, True), (False, False, False)]:
+    calls = []
+    points = {'/': 'root', '/boot': 'boot', '/home': 'home', '/var': 'var'}
+    if unsupported:
+        points['/unsupported'] = 'unsupported'
+    clean.__globals__.update(
+        os=SimpleNamespace(path=SimpleNamespace(ismount=lambda p: mounted and p != '/fixture/remove-me',
+            realpath=lambda p: '/' if bad_root else p, join=lambda p, q: p + '/' + q),
+            listdir=lambda p: ['boot', 'home', 'var', 'remove-me']),
+        STORAGE=SimpleNamespace(get_proxy=lambda _: SimpleNamespace(GetMountPoints=lambda: points)),
+        DEVICE_TREE='fixture', PayloadInstallationError=RuntimeError,
+        log=SimpleNamespace(debug=lambda *args: None),
+        safe_exec_program=lambda command, args: calls.append((command, args)), _=lambda value: value,
+    )
+    try:
+        clean(SimpleNamespace(_physroot='/fixture'))
+        if bad_root or unsupported or not mounted:
+            raise SystemExit('Unsafe or unsupported physical-root cleanup accepted')
+    except RuntimeError:
+        if not (bad_root or unsupported or not mounted):
+            raise
+    expected = [] if bad_root or unsupported or not mounted else [('rm', ['-rf', '/fixture/remove-me'])]
+    if calls != expected:
+        raise SystemExit('Native cleanup touched a selected mounted filesystem')
+
 for relative, source in updated.items():
     path = root / relative
     path.write_text(source)

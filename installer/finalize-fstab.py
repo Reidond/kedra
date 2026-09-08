@@ -29,12 +29,12 @@ def deployment_path(physical, reported):
     return root.resolve()
 
 def main():
-    # /mnt/sysroot is the physical filesystem. Anaconda's SetSystemRootTask uses
-    # the native deployment lookup before configuring the actual installed /etc.
-    physical = pathlib.Path('/mnt/sysroot')
+    # Native set_system_root binds the deployment at /mnt/sysroot. The physical
+    # filesystem used by DeployBootcTask remains mounted at /mnt/sysimage.
+    physical = pathlib.Path('/mnt/sysimage')
     if not physical.is_mount() or physical.resolve() == pathlib.Path('/'):
         raise RuntimeError('Expected the mounted installation filesystem')
-    reported = subprocess.check_output(['/usr/bin/ostree', 'admin', '--sysroot=/mnt/sysroot', '--print-current-dir'],
+    reported = subprocess.check_output(['/usr/bin/ostree', 'admin', '--sysroot=/mnt/sysimage', '--print-current-dir'],
                                        timeout=30, text=True)
     root = deployment_path(physical, reported)
     if not (root / 'usr/share/sysroot/source.json').is_file() or not (root / 'usr/bin/bootc').is_file():

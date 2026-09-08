@@ -17,10 +17,12 @@ COPY iso.yaml /usr/lib/image-builder/bootc/iso.yaml
 COPY prepare.sh /tmp/kedra-installer-prepare.sh
 COPY boot-probe.service /usr/lib/systemd/system/kedra-installer-boot-probe.service
 COPY boot-probe.sh /usr/libexec/kedra-installer-boot-probe
+COPY anaconda-adapter.py /tmp/kedra-anaconda-adapter.py
 RUN test -n "$PAYLOAD_IMAGE" && \
     printf 'bootc --source-imgref containers-storage:%s --target-imgref %s\nrootpw --lock\n' \
       "$PAYLOAD_IMAGE" "$PAYLOAD_IMAGE" > /usr/share/anaconda/interactive-defaults.ks && \
     /bin/bash /tmp/kedra-installer-prepare.sh && \
+    python3 /tmp/kedra-anaconda-adapter.py && \
     chmod 0755 /usr/libexec/kedra-installer-boot-probe && \
     systemctl enable kedra-installer-boot-probe.service && \
-    rm /tmp/kedra-installer-prepare.sh
+    rm /tmp/kedra-installer-prepare.sh /tmp/kedra-anaconda-adapter.py

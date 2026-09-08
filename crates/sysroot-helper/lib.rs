@@ -4,6 +4,8 @@
 pub mod management;
 pub mod protocol;
 #[cfg(target_os = "linux")]
+pub mod replace_file;
+#[cfg(target_os = "linux")]
 pub mod storage;
 #[cfg(target_os = "linux")]
 pub mod trusted_file;

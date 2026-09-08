@@ -26,13 +26,14 @@ fn operational_commands_fail_closed() {
 }
 
 #[test]
-fn home_review_does_not_expose_unimplemented_activation() {
+fn home_activation_requires_an_explicit_reviewed_plan() {
     let output = Command::new(env!("CARGO_BIN_EXE_sysroot"))
         .args(["home", "--state", "/generated-only", "apply"])
         .output()
         .expect("run sysroot");
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--plan"));
 }
 
 #[test]

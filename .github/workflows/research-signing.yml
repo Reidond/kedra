@@ -7,6 +7,12 @@ on:
       - .github/workflows/research-signing.yml
       - build/research/r01/**
       - build/research/inputs.json
+      - crates/sysroot-core/**
+      - crates/sysroot-helper/**
+      - crates/sysroot/deployment.rs
+      - crates/sysroot/main.rs
+      - Cargo.toml
+      - Cargo.lock
 permissions:
   contents: read
 concurrency:

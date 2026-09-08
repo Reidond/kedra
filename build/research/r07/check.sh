@@ -84,6 +84,25 @@ for attempt in $(seq 1 30); do
 done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_WRITER_LIFECYCLE_PASS
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+as_user sysroot home --state "$review_state" stage theme.mode >/dev/null
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+activation_plan=$(as_user sysroot home --state "$review_state" plan --discard theme.mode)
+activation_id=$(printf '%s' "$activation_plan" | jq -er .plan_id)
+printf '%s' "$activation_plan" | jq -e '.plan.observed.theme_mode == "auto" and .plan.desired.theme_mode == "light"' >/dev/null
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set dark
+if as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" >/dev/null 2>&1; then
+    echo 'Stale home plan unexpectedly succeeded' >&2
+    false
+fi
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" | jq -e '.operation_completed and .pending == null and .fields[0].live.value == "light" and .fields[0].selected.value == "light"' >/dev/null
+as_user systemctl --user is-active kedra-noctalia.service
+as_user sysroot home --state "$review_state" recover | jq -e '.pending == null and .journal.phase == "completed" and (.native_file_contents_stored | not)' >/dev/null
+test -z "$(find "$review_home/.local/state/noctalia" -maxdepth 1 -name '.sysroot-activation-*' -print -quit)"
+as_user sysroot home --state "$review_state" unstage theme.mode >/dev/null
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
+marker KEDRA_R04_NATIVE_DISCARD_PASS
 as_user python3 /usr/libexec/kedra-research-agents.py
 fixture_home=$(getent passwd kedra-test | cut -d: -f6)
 test "$(printf '%s\n' "$environment" | sed -n 's/^SSH_AUTH_SOCK=//p')" = "$fixture_home/.bitwarden-ssh-agent.sock"

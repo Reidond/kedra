@@ -288,25 +288,46 @@ impl Store {
         expected: Option<u64>,
         bytes: &[u8],
     ) -> Result<Record, Error> {
-        if !name_valid(name) || bytes.len() > MAX_RECORD {
+        self.compare_exchange_batch(&[(name, expected, bytes)])?
+            .pop()
+            .ok_or(Error::InvalidInput)
+    }
+    /// Commit related journal/state records in one SQLite transaction, or none.
+    pub fn compare_exchange_batch(
+        &mut self,
+        changes: &[(&str, Option<u64>, &[u8])],
+    ) -> Result<Vec<Record>, Error> {
+        let mut names = std::collections::BTreeSet::new();
+        if changes.is_empty()
+            || changes.len() > 16
+            || changes.iter().any(|(name, _, bytes)| {
+                !name_valid(name) || bytes.len() > MAX_RECORD || !names.insert(*name)
+            })
+        {
             return Err(Error::InvalidInput);
         }
         self.verify_identity()?;
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let current = get(&transaction, name)?;
-        if current.as_ref().map(|r| r.revision) != expected {
-            return Err(Error::Conflict);
+        let mut originals = Vec::new();
+        for &(name, expected, _) in changes {
+            let current = get(&transaction, name)?;
+            if current.as_ref().map(|r| r.revision) != expected {
+                return Err(Error::Conflict);
+            }
+            originals.push(current);
         }
-        let revision = expected
-            .unwrap_or(0)
-            .checked_add(1)
-            .filter(|v| *v <= i64::MAX as u64)
-            .ok_or(Error::InvalidInput)?;
-        if let Some(current) = current {
-            transaction.execute("INSERT INTO history(name,revision,body,sha256) SELECT name,revision,body,sha256 FROM records WHERE name=?1", [name])?;
-            let changed = transaction.execute(
+        let mut results = Vec::new();
+        for ((name, expected, bytes), current) in changes.iter().copied().zip(originals) {
+            let revision = expected
+                .unwrap_or(0)
+                .checked_add(1)
+                .filter(|v| *v <= i64::MAX as u64)
+                .ok_or(Error::InvalidInput)?;
+            if let Some(current) = current {
+                transaction.execute("INSERT INTO history(name,revision,body,sha256) SELECT name,revision,body,sha256 FROM records WHERE name=?1", [name])?;
+                let changed = transaction.execute(
                 "UPDATE records SET revision=?1,body=?2,sha256=?3 WHERE name=?4 AND revision=?5",
                 params![
                     revision as i64,
@@ -316,20 +337,36 @@ impl Store {
                     current.revision as i64
                 ],
             )?;
-            if changed != 1 {
-                return Err(Error::Conflict);
+                if changed != 1 {
+                    return Err(Error::Conflict);
+                }
+            } else {
+                transaction.execute(
+                    "INSERT INTO records VALUES(?1,?2,?3,?4)",
+                    params![name, revision as i64, bytes, hash(bytes)],
+                )?;
             }
-        } else {
-            transaction.execute(
-                "INSERT INTO records VALUES(?1,?2,?3,?4)",
-                params![name, revision as i64, bytes, hash(bytes)],
-            )?;
+            results.push(Record {
+                revision,
+                bytes: bytes.to_vec(),
+            });
         }
         transaction.commit()?;
-        Ok(Record {
-            revision,
-            bytes: bytes.to_vec(),
-        })
+        Ok(results)
+    }
+    /// Coordinate a multi-step user operation; database CAS remains authoritative.
+    pub fn coordinate(&self) -> Result<File, Error> {
+        self.verify_identity()?;
+        let descriptor = fs::openat(
+            &self.directory,
+            "operation.lock",
+            OFlags::RDWR | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::from_raw_mode(0o600),
+        )?;
+        check(&fs::fstat(&descriptor)?, self.owner, false)?;
+        let file = File::from(descriptor);
+        file.try_lock().map_err(|_| Error::Conflict)?;
+        Ok(file)
     }
     /// Recovery can inspect history, but opening a store never silently uses it.
     pub fn history(&self, name: &str, revision: u64) -> Result<Option<Record>, Error> {

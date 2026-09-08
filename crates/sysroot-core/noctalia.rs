@@ -24,6 +24,7 @@ pub enum Error {
     SourceChanged,
     Conflict(Key),
     StaleTransition,
+    ActivationPending,
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -37,6 +38,7 @@ impl fmt::Display for Error {
             Self::SourceChanged => "source commit does not contain the selected snapshot",
             Self::Conflict(_) => "new baseline conflicts with local or pending decisions; live state is unchanged",
             Self::StaleTransition => "review or live values changed after preparation; prepare again",
+            Self::ActivationPending => "an activation needs recovery before review state can change",
         })
     }
 }
@@ -192,6 +194,8 @@ pub struct State {
     ignored: BTreeMap<Key, Ignored>,
     app_owned: BTreeSet<Key>,
     published: BTreeMap<Key, Vec<Publication>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pending_activation: Option<String>,
 }
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 pub struct Selection {
@@ -253,6 +257,7 @@ impl State {
             ignored: BTreeMap::new(),
             app_owned: BTreeSet::new(),
             published: BTreeMap::new(),
+            pending_activation: None,
         };
         state.validate()?;
         Ok(state)
@@ -275,6 +280,14 @@ impl State {
         }
         if self.app_version != APP_VERSION {
             return Err(Error::UnsupportedVersion);
+        }
+        if self.pending_activation.as_ref().is_some_and(|id| {
+            id.len() != 32
+                || !id
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        }) {
+            return Err(Error::CorruptState);
         }
         self.baseline.validate()?;
         for (&key, chain) in &self.published {
@@ -316,6 +329,58 @@ impl State {
         }
         Ok(())
     }
+    fn ready(&self) -> Result<(), Error> {
+        self.validate()?;
+        if self.pending_activation.is_some() {
+            return Err(Error::ActivationPending);
+        }
+        Ok(())
+    }
+    pub fn pending_activation(&self) -> Option<&str> {
+        self.pending_activation.as_deref()
+    }
+    pub fn live_settings(&self) -> Settings {
+        self.live
+    }
+    /// Older readers reject this additional field instead of ignoring a live journal.
+    pub fn reserve_activation(&mut self, id: &str) -> Result<(), Error> {
+        self.ready()?;
+        if id.len() != 32
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(Error::CorruptState);
+        }
+        self.pending_activation = Some(id.to_owned());
+        Ok(())
+    }
+    /// The I/O layer must commit this release together with its completed journal.
+    pub fn release_activation(&mut self, id: &str) -> Result<(), Error> {
+        self.validate()?;
+        if self.pending_activation.as_deref() != Some(id) {
+            return Err(Error::StaleTransition);
+        }
+        self.pending_activation = None;
+        Ok(())
+    }
+    pub fn discarded_settings(&self, key: Key) -> Result<Settings, Error> {
+        self.ready()?;
+        if self.app_owned.contains(&key) {
+            return Err(Error::PolicyOverlap);
+        }
+        let desired = self
+            .selected
+            .get(&key)
+            .copied()
+            .unwrap_or(self.review_base(key));
+        if desired == self.live.get(key) {
+            return Err(Error::NoChange);
+        }
+        let mut settings = self.live;
+        settings.set(key, desired)?;
+        Ok(settings)
+    }
     /// Canonical internal state rejects duplicate map keys and missing-field resets.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
         self.validate()?;
@@ -347,7 +412,7 @@ impl State {
             .collect())
     }
     pub fn capture(&mut self, live: Settings) -> Result<Vec<Key>, Error> {
-        self.validate()?;
+        self.ready()?;
         let expired: Vec<_> = self
             .ignored
             .iter()
@@ -361,7 +426,7 @@ impl State {
         Ok(expired)
     }
     pub fn stage(&mut self, key: Key) -> Result<(), Error> {
-        self.validate()?;
+        self.ready()?;
         if self.ignored.contains_key(&key) || self.app_owned.contains(&key) {
             return Err(Error::PolicyOverlap);
         }
@@ -372,12 +437,12 @@ impl State {
         Ok(())
     }
     pub fn unstage(&mut self, key: Key) -> Result<(), Error> {
-        self.validate()?;
+        self.ready()?;
         self.selected.remove(&key);
         Ok(())
     }
     pub fn ignore_exact(&mut self, key: Key) -> Result<(), Error> {
-        self.validate()?;
+        self.ready()?;
         if self.selected.contains_key(&key) || self.app_owned.contains(&key) {
             return Err(Error::PolicyOverlap);
         }
@@ -390,7 +455,7 @@ impl State {
         Ok(())
     }
     pub fn own(&mut self, key: Key) -> Result<(), Error> {
-        self.validate()?;
+        self.ready()?;
         if self.selected.contains_key(&key) {
             return Err(Error::PolicyOverlap);
         }
@@ -399,7 +464,7 @@ impl State {
         Ok(())
     }
     pub fn clear_local_policy(&mut self, key: Key) -> Result<(), Error> {
-        self.validate()?;
+        self.ready()?;
         self.ignored.remove(&key);
         self.app_owned.remove(&key);
         Ok(())
@@ -419,7 +484,7 @@ impl State {
     /// Caller must observe this commit in the separate source repository. No push
     /// or deployment is implied; source settings must contain the pinned selection.
     pub fn record_source_commit(&mut self, commit: &str, source: Settings) -> Result<(), Error> {
-        self.validate()?;
+        self.ready()?;
         if !revision(commit) || self.selected.is_empty() {
             return Err(Error::SourceChanged);
         }
@@ -472,7 +537,7 @@ impl State {
     /// Plan without changing accepted baseline or live state. Published prefixes
     /// prevent a later GUI write from conflicting with an intermediate deployment.
     pub fn prepare(&self, baseline: Baseline) -> Result<Transition, Error> {
-        self.validate()?;
+        self.ready()?;
         baseline.validate()?;
         if baseline.target != self.baseline.target
             || baseline.source_path != self.baseline.source_path

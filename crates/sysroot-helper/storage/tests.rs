@@ -1,4 +1,51 @@
 use super::*;
+
+#[test]
+fn related_records_commit_together_and_stale_batches_change_neither() {
+    let fixture = Fixture::new();
+    let mut store = fixture.store();
+    let records = store
+        .compare_exchange_batch(&[
+            ("state", Some(1), b"reserved"),
+            ("activation", None, b"prepared"),
+        ])
+        .unwrap();
+    assert_eq!(
+        records
+            .iter()
+            .map(|record| record.revision)
+            .collect::<Vec<_>>(),
+        vec![2, 1]
+    );
+    assert!(matches!(
+        store.compare_exchange_batch(&[
+            ("state", Some(2), b"accepted"),
+            ("activation", Some(9), b"complete")
+        ]),
+        Err(Error::Conflict)
+    ));
+    assert_eq!(store.read("state").unwrap().unwrap().bytes, b"reserved");
+    assert_eq!(
+        store.read("activation").unwrap().unwrap().bytes,
+        b"prepared"
+    );
+    assert!(store.history("state", 2).unwrap().is_none());
+    assert!(matches!(
+        store.compare_exchange_batch(&[("state", Some(2), b"a"), ("state", Some(2), b"b")]),
+        Err(Error::InvalidInput)
+    ));
+}
+
+#[test]
+fn operation_lock_coordinates_distinct_connections() {
+    let fixture = Fixture::new();
+    let first = fixture.store();
+    let second = Store::open(&fixture.path()).unwrap();
+    let guard = first.coordinate().unwrap();
+    assert!(matches!(second.coordinate(), Err(Error::Conflict)));
+    drop(guard);
+    assert!(second.coordinate().is_ok());
+}
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

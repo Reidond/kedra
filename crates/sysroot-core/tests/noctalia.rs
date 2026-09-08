@@ -1,5 +1,77 @@
 use sysroot_core::noctalia::*;
 
+#[test]
+fn pending_activation_reserves_mutations_and_releases_without_changing_dispositions() {
+    let mut review = state(Settings {
+        theme_mode: Theme::Light,
+        ..base()
+    });
+    review.stage(Key::ThemeMode).unwrap();
+    let before = review.to_bytes().unwrap();
+    let token = "a".repeat(32);
+    review.reserve_activation(&token).unwrap();
+    let mut reopened = State::from_bytes(&review.to_bytes().unwrap(), &"0".repeat(32)).unwrap();
+    assert_eq!(reopened.pending_activation(), Some(token.as_str()));
+    assert_eq!(reopened.capture(base()), Err(Error::ActivationPending));
+    assert_eq!(
+        reopened.unstage(Key::ThemeMode),
+        Err(Error::ActivationPending)
+    );
+    assert_eq!(
+        reopened.own(Key::InputBorders),
+        Err(Error::ActivationPending)
+    );
+    assert_eq!(
+        reopened.release_activation(&"b".repeat(32)),
+        Err(Error::StaleTransition)
+    );
+    reopened.release_activation(&token).unwrap();
+    assert_eq!(reopened.to_bytes().unwrap(), before);
+    assert!(
+        !String::from_utf8(before)
+            .unwrap()
+            .contains("pending_activation")
+    );
+}
+
+#[test]
+fn discard_targets_unstaged_values_and_preserves_other_dispositions() {
+    let mut review = state(Settings {
+        theme_mode: Theme::Light,
+        button_borders: false,
+        input_borders: false,
+    });
+    review.stage(Key::ThemeMode).unwrap();
+    review.ignore_exact(Key::ButtonBorders).unwrap();
+    review
+        .capture(Settings {
+            theme_mode: Theme::Auto,
+            button_borders: false,
+            input_borders: false,
+        })
+        .unwrap();
+    let selected = review.selection().unwrap();
+    let before = review.to_bytes().unwrap();
+    let desired = review.discarded_settings(Key::ThemeMode).unwrap();
+    assert_eq!(
+        desired,
+        Settings {
+            theme_mode: Theme::Light,
+            button_borders: false,
+            input_borders: false
+        }
+    );
+    assert_eq!(review.to_bytes().unwrap(), before);
+    review.capture(desired).unwrap();
+    assert_eq!(review.selection().unwrap(), selected);
+    assert!(row(&review, Key::ButtonBorders).local_only);
+    review.own(Key::InputBorders).unwrap();
+    assert_eq!(
+        review.discarded_settings(Key::InputBorders),
+        Err(Error::PolicyOverlap)
+    );
+}
+
 fn base() -> Settings {
     Settings {
         theme_mode: Theme::Dark,

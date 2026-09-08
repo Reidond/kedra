@@ -9,7 +9,7 @@ use sysroot_core::noctalia::{self, Baseline, Settings, State};
 use sysroot_helper::storage::Store;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-const RECORD: &str = "noctalia";
+pub(super) const RECORD: &str = "noctalia";
 const DESTINATION: &str = "usr/share/sysroot/home/default/.config/noctalia/config.toml";
 
 fn hash(bytes: &[u8]) -> String {
@@ -84,7 +84,7 @@ struct Payload {
     home_baseline: bool,
 }
 
-fn installed_baseline(root: &Path, owner: u32) -> Result<Baseline> {
+pub(super) fn installed_baseline(root: &Path, owner: u32) -> Result<Baseline> {
     let manifest: Manifest = serde_json::from_slice(&read_regular(
         &root.join("usr/share/sysroot/source.json"),
         owner,
@@ -117,7 +117,14 @@ fn installed_baseline(root: &Path, owner: u32) -> Result<Baseline> {
     })
 }
 
-fn output(arguments: &[&str], limit: usize) -> Result<Vec<u8>> {
+pub(super) fn output(arguments: &[&str], limit: usize) -> Result<Vec<u8>> {
+    output_in(arguments, limit, &[])
+}
+pub(super) fn output_in(
+    arguments: &[&str],
+    limit: usize,
+    environment: &[(&str, &str)],
+) -> Result<Vec<u8>> {
     let mut child = Process::new("/usr/bin/timeout")
         .args([
             "--signal=TERM",
@@ -126,6 +133,7 @@ fn output(arguments: &[&str], limit: usize) -> Result<Vec<u8>> {
             "/usr/bin/noctalia",
         ])
         .args(arguments)
+        .envs(environment.iter().copied())
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .stdout(Stdio::piped())
@@ -153,7 +161,7 @@ fn output(arguments: &[&str], limit: usize) -> Result<Vec<u8>> {
     result
 }
 
-fn live() -> Result<Settings> {
+pub(super) fn live() -> Result<Settings> {
     let bytes = output(&["--version"], 256)?;
     let version = std::str::from_utf8(&bytes).map_err(|_| "Noctalia version is malformed")?;
     // Exact native Fedora build output recorded by the passing R07 probe.
@@ -165,7 +173,7 @@ fn live() -> Result<Settings> {
     Ok(noctalia::project(noctalia::APP_VERSION, text)?)
 }
 
-fn load(store: &Store, instance: &str) -> Result<(u64, State)> {
+pub(super) fn load(store: &Store, instance: &str) -> Result<(u64, State)> {
     let record = store
         .read(RECORD)?
         .ok_or("Noctalia review record is missing; do not reset this store")?;
@@ -227,12 +235,19 @@ pub(super) fn run(options: Options) -> Result<()> {
         state
     } else {
         let mut store = Store::open(&path)?;
+        let _coordination = store.coordinate()?;
+        if super::activation::linux::handles(&options.command) {
+            return super::activation::linux::run(&mut store, &instance, &options.command);
+        }
         match &options.command {
             Command::Selection | Command::Status { last_capture: true } => {
                 load(&store, &instance)?.1
             }
             Command::Export { repo, output } => {
                 let (_, state) = load(&store, &instance)?;
+                if state.pending_activation().is_some() {
+                    return Err("home activation is pending; inspect home recover first".into());
+                }
                 let prepared = export::prepare(repo, &path, &state)?;
                 prepared.write_new(output)?;
                 source_result = Some(serde_json::json!({

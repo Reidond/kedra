@@ -3,6 +3,8 @@ use clap::{Args, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[cfg(any(target_os = "linux", test))]
+mod activation;
+#[cfg(any(target_os = "linux", test))]
 mod export;
 #[cfg(target_os = "linux")]
 mod linux;
@@ -38,6 +40,27 @@ enum Command {
     ClearLocal { key: Key },
     /// Show only pinned, publishable field changes as JSON.
     Selection,
+    /// Review reconciliation with the installed image, or discard one live field.
+    Plan {
+        #[arg(long)]
+        discard: Option<Key>,
+    },
+    /// Apply the exact previously reviewed plan to supported native settings.
+    Apply {
+        #[arg(long)]
+        plan: String,
+    },
+    /// Restore one field to its selected/published/baseline value using a plan.
+    Discard {
+        key: Key,
+        #[arg(long)]
+        plan: String,
+    },
+    /// Inspect or explicitly recover an interrupted home activation.
+    Recover {
+        #[arg(value_enum)]
+        action: Option<Recovery>,
+    },
     /// Write a new patch containing only selected settings; preserve the checkout.
     Export {
         #[arg(long, default_value = ".")]
@@ -52,6 +75,13 @@ enum Command {
         #[arg(long)]
         commit: String,
     },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum Recovery {
+    Resume,
+    Abort,
+    KeepCurrent,
 }
 
 #[derive(Clone, Copy, ValueEnum)]

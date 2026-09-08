@@ -9,6 +9,7 @@ import hashlib
 import json
 import pathlib
 import subprocess
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--workdir", type=pathlib.Path, required=True)
@@ -74,6 +75,49 @@ try:
         assert identity['key_fingerprint_sha256'] == expected and not identity['trust_established']
         invalid_key = subprocess.run([str(binary), 'release', 'key', '--public-key', str(private)], capture_output=True)
         assert invalid_key.returncode != 0 and not invalid_key.stdout
+        # Public release tooling checks freshness using independently signed
+        # channel bytes. Only the actual CLI supplies retained state.
+        now = int(time.time())
+        checkpoint = root / 'checkpoint.json'
+        checkpoint_signature = root / 'checkpoint.sig'
+        channel_record = {'schema_version': 1, 'project': 'Kedra', 'scope': release['scope'],
+                          'generation': 1, 'release_sha256': hashlib.sha256(payload.read_bytes()).hexdigest(),
+                          'issued_at': now, 'expires_at': now + 3600, 'last_successful_resolution': now}
+        channel_command = [str(binary), 'release', 'channel', '--manifest', str(payload),
+                           '--signature', str(signature), '--checkpoint', str(checkpoint),
+                           '--checkpoint-signature', str(checkpoint_signature), '--public-key', str(public),
+                           '--target', 'desktop', '--repository', release['scope']['repository'], '--json']
+
+        def channel(record, previous=None, expected=True):
+            checkpoint.write_text(json.dumps(record, separators=(',', ':')), encoding='utf-8')
+            checkpoint_signature.write_bytes(base64.b64encode(openssl('dgst', '-sha256', '-sign', private, checkpoint)))
+            arguments = channel_command + (['--previous-state', str(previous)] if previous else [])
+            result = subprocess.run(arguments, capture_output=True)
+            if expected:
+                if result.returncode != 0:
+                    raise RuntimeError('CLI channel verification failed: ' + result.stderr.decode())
+                value = json.loads(result.stdout)
+                assert value['channel_freshness_verified'] and not value['deployment_authorized']
+                assert value['replay_checked'] == (previous is not None)
+                return value
+            assert result.returncode != 0 and not result.stdout, 'Invalid channel received success output'
+
+        first = channel(channel_record)
+        prior = root / 'prior-channel-state.json'
+        prior.write_text(json.dumps(first['next_trust_state']), encoding='utf-8')
+        prior_bytes = prior.read_bytes()
+        channel(channel_record, prior)
+        channel({**channel_record, 'expires_at': now + 3599}, prior, expected=False)
+        channel({**channel_record, 'issued_at': now - 120, 'expires_at': now - 60,
+                 'last_successful_resolution': now - 120}, expected=False)
+        channel({**channel_record, 'issued_at': now + 3600, 'expires_at': now + 7200}, expected=False)
+        channel({**channel_record, 'release_sha256': 'f' * 64}, expected=False)
+        renewed = channel({**channel_record, 'generation': 2}, prior)
+        newer = root / 'newer-channel-state.json'
+        newer.write_text(json.dumps(renewed['next_trust_state']), encoding='utf-8')
+        channel(channel_record, newer, expected=False)
+        assert prior.read_bytes() == prior_bytes, 'Read-only channel verification changed retained state'
+        print('PASS: CLI signed channel initial/repeat/no-change checks and expiry/future/binding/replay refusal', flush=True)
         verify(signature, key=wrong_public, expected=False)
         altered = root / "altered.json"
         altered.write_bytes(payload.read_bytes() + b" ")

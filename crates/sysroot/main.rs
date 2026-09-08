@@ -57,6 +57,29 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum ReleaseCommand {
+    /// Check signed channel freshness/replay state without enrolling or staging.
+    Channel {
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        signature: PathBuf,
+        #[arg(long)]
+        checkpoint: PathBuf,
+        #[arg(long)]
+        checkpoint_signature: PathBuf,
+        #[arg(long)]
+        public_key: PathBuf,
+        #[arg(long)]
+        target: String,
+        /// Independently expected image repository, without a tag or digest.
+        #[arg(long)]
+        repository: String,
+        /// Previously retained state; caller input never becomes machine authority.
+        #[arg(long)]
+        previous_state: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Identify a P-256 public key; this does not establish trust in its owner.
     Key {
         #[arg(long)]
@@ -115,6 +138,79 @@ fn limited_file(
 }
 
 fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Error>> {
+    if let ReleaseCommand::Channel {
+        manifest,
+        signature,
+        checkpoint,
+        checkpoint_signature,
+        public_key,
+        target,
+        repository,
+        previous_state,
+        json,
+    } = command
+    {
+        use sysroot_core::release::{MAX_DOCUMENT, Scope, TrustState};
+        let scope = Scope {
+            target,
+            architecture: "x86_64".into(),
+            fedora_release: 44,
+            repository,
+        };
+        let payload = limited_file(&manifest, MAX_DOCUMENT)?;
+        let signature = limited_file(&signature, 1024)?;
+        let key = limited_file(&public_key, 4096)?;
+        let key =
+            std::str::from_utf8(&key).map_err(|_| sysroot_core::release::Error::InvalidKey)?;
+        let verified =
+            sysroot_core::release::verify_release(&payload, &signature, key, Some(&scope))?;
+        let payload = limited_file(&checkpoint, MAX_DOCUMENT)?;
+        let signature = limited_file(&checkpoint_signature, 1024)?;
+        let previous: Option<TrustState> = previous_state
+            .map(|path| -> Result<TrustState, Box<dyn std::error::Error>> {
+                Ok(serde_json::from_slice(&limited_file(&path, MAX_DOCUMENT)?)?)
+            })
+            .transpose()?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
+        let update = sysroot_core::release::verify_update(
+            verified,
+            &payload,
+            &signature,
+            key,
+            &scope,
+            previous.as_ref(),
+            now,
+        )?;
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"signature_valid":true,"channel_freshness_verified":true,
+                    "replay_checked":previous.is_some(),"verified_at":now,
+                    "release_sha256":update.release.sha256(),
+                    "key_fingerprint_sha256":update.release.key_fingerprint(),
+                    "image_reference":update.release.release().image_reference(),
+                    "next_trust_state":update.next_trust_state,"deployment_authorized":false})
+            );
+        } else {
+            println!(
+                "Fresh signed channel: {}",
+                update.release.release().image_reference()
+            );
+            println!(
+                "Checkpoint generation: {}",
+                update.next_trust_state.generation
+            );
+            if previous.is_none() {
+                println!("No previous state supplied; earlier accepted history was not checked.");
+            }
+            println!(
+                "Read-only verification; the installed helper independently authorizes staging."
+            );
+        }
+        return Ok(());
+    }
     if let ReleaseCommand::Key { public_key, json } = command {
         let bytes = limited_file(&public_key, 4096)?;
         let key =

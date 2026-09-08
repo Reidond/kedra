@@ -44,9 +44,26 @@ partial file is not verified media. Retry in the same directory after ensuring
 space is available. No wildcard sorting or shell concatenation is required.
 
 Normal updates also need a fresh signed channel checkpoint and the machine's
-independent enrollment/replay state. An old retained release can remain valid
-recovery media even when it is no longer current. Installed staging and trust-state
-persistence are still under development.
+independent enrollment/replay state. Inspect downloaded channel files with:
+
+```sh
+sysroot release channel --manifest release.json --signature release.sig \
+  --checkpoint checkpoint.json --checkpoint-signature checkpoint.sig \
+  --public-key release.pub --target desktop --repository ghcr.io/reidond/kedra-desktop --json
+```
+
+This uses the actual system clock, expected repository/target and seven-day maximum
+checkpoint lifetime. Add `--previous-state prior-state.json` with independently
+retained `next_trust_state` from an earlier successful check to reject a replay.
+Without previous state it cannot detect earlier accepted history. It never writes
+that state or authorizes a deployment; installed `sysroot update` operations load
+their own protected trust and repeat the checks. Caller-supplied public files
+cannot replace machine enrollment or its high-water state.
+
+An old retained release can remain valid recovery media even when its checkpoint
+has expired or it is no longer current. Installed staging/rollback and persistent
+trust state pass the disposable R01 workflow; production authority/promotion are
+still being prepared.
 
 See [ADR 0006](adr/0006-signed-release-records.md) and
 [actual research results](research/R08-release-protocol/REPORT.md).

@@ -1,7 +1,9 @@
 # First owner-trust desktop candidate
 
-Status: public build and owner-approved image signing pass. No installer or
-release metadata is promoted. Date: 2026-09-08.
+Status: public build and owner-approved image signing pass; ISO construction
+fails on signed compression identity. This candidate is not promotable through
+the current offline installer path. No installer/release metadata is promoted.
+Date: 2026-09-08.
 
 | Identity / check | Observed result |
 |---|---|
@@ -16,8 +18,10 @@ release metadata is promoted. Date: 2026-09-08.
 | Protection preflight | pass — existing Reidond reviewer, main-only branch rule, no administrator bypass |
 | bootc container lint | 11 checks pass, 1 skipped, 2 warnings described below |
 | Exact image signature | pass — protected Skopeo signing job after explicit owner approval |
-| Anonymous registry access | pass — unauthenticated token/manifest request returns the exact reviewed digest; full native strict pull remains part of the running installer job |
-| Exact production ISO / fresh installation | not-run |
+| Anonymous registry access | pass — unauthenticated manifest and native strict Skopeo pull preserve the exact reviewed digest/signature |
+| Embedded source/trust checks | pass — installed source, key, policy, discovery and install-policy bytes match |
+| Exact production ISO | fail — osbuild storage copy cannot change signed compressed layer representation |
+| Fresh production installation | not-run |
 | Metadata promotion / channel publication | not-run |
 
 Public build artifact: `desktop-candidate-34250485539-1`; retained locally at
@@ -53,7 +57,35 @@ GHCR request returned bytes whose SHA-256 matches the exact digest. Package API
 metadata requires read:packages scope, which the current CLI token lacks; no token
 scope was broadened and no visibility change was needed for that anonymous access.
 
-The next step is to complete the anonymous strict pull and exact source/public-trust
-checks in the installer job, build the offline
-installer, and qualify that precise ISO in generated encrypted two-disk VM
-storage before requesting metadata promotion.
+The installer job completed anonymous strict pull, source/trust checks and Anaconda
+image construction. The pinned image-builder v82.0.0 then failed in
+org.osbuild.skopeo when copying the signed payload by image ID into media storage
+under the digest-qualified name. containers/image reported that doing so would
+change layer representation, forbidden by the destination digest.
+
+The native pre-publication image was
+`sha256:5a741f51a1d5c519cbfc1c0d3e660af42e17fe156f91a0eb202ace19f14b927f`.
+The original unsigned registry push compressed layers and produced the reviewed
+8ccbdc digest. Native storage exposes decompressed layer blobs for later copies;
+the builder cannot replace those signed manifest descriptors. Earlier R02
+research signed a native storage copy without this registry compression step,
+so its successful installation did not establish this round-trip behavior.
+
+The proposed correction uses `--preserve-digests` on the first public push and
+requires a registry/storage/isolated-storage round trip before requesting image
+signing. A disposable-key R01 case now exercises that exact native path. This
+keeps one signed byte identity; it does not remove signatures, replace the
+expected digest, or weaken policy. Qualification of the correction remains pending.
+The failed candidate and public evidence are retained; a changed candidate needs
+its own concrete signing review and exact-media installation.
+
+Failure evidence: `output/owner-installer-failure-34250485539-1/release-evidence`,
+especially verified-pull.log, payload.digest, installed-* and iso-build.log.
+Independent OpenSSL verification of the public OCI attachment also passed at
+`output/owner-candidate-34250485539/registry-signature`.
+Sources: [containers/image storage layer representation](https://github.com/containers/image/blob/main/storage/storage_src.go),
+[copy immutability checks](https://github.com/containers/image/blob/main/copy/single.go),
+[compression preservation](https://github.com/containers/image/blob/main/copy/compression.go),
+and [Skopeo 1.13.3 copy options](https://github.com/containers/skopeo/blob/v1.13.3/docs/skopeo-copy.1.md),
+inspected 2026-09-08. The exact failing runtime is the pinned v82 builder; source
+inspection is an explanation, not a successful experiment.

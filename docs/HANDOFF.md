@@ -99,8 +99,10 @@ release/promotion is implied. See docs/RELEASES.md.
 
 ## Next actions
 
-1. Inspect current source/CI and finish actual signed graphical A/B/A acceptance. Fix observed failures without
-   weakening runtime signature/path/state validation or adding unit/meta tests.
+1. Inspect current source/CI and qualify the prepared production candidate and
+   protected promotion workflows. Actual signed graphical A/B/A already passes
+   34243567959; shared signed installer regression 34244387167 also passes its
+   build/offline-startup scope. Do not repeat or relabel these as owner-media tests.
 2. Preserve signed-installer evidence; production authority/promotion, recovery
    and an owner installer are still required after the successful research install.
 3. Complete text discard/activation, new-baseline transitions and wider file/group integration.
@@ -110,6 +112,13 @@ release/promotion is implied. See docs/RELEASES.md.
 5. Complete RPM/no-change/failure cases and independent targets. Owner vault/model
    authentication, the pending Claude terms choice and actual hardware require
    their own evidence; do not invent them or guess future XPS hardware.
+
+Prepared promote.yml has public prepare/publish jobs around a protected no-checkout
+Cosign signing job. Exact candidate, installed source, whole ISO and qualification
+are bound to owner review; versioned drafts publish before the single signed-pair
+channel bundle. Actual production execution and interrupted-publication recovery
+remain not-run. See ADR 0023; current main/opt-in and Bitwarden backup status must
+be checked before enabling. Public key files are committed at a6cd08f.
 
 Only generated guest disks are used. QEMU/OVMF are installed in existing Ubuntu
 WSL2 under the owner's authorization. Never attach/format host disks, enroll the

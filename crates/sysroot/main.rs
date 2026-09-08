@@ -9,6 +9,7 @@ mod deployment;
 mod doctor;
 mod home;
 mod installer_artifact;
+mod release_channel;
 mod source;
 
 #[derive(Parser)]
@@ -57,6 +58,8 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum ReleaseCommand {
+    /// Verify a downloaded channel bundle and unpack exact public update files.
+    Unpack(release_channel::Options),
     /// Check signed channel freshness/replay state without enrolling or staging.
     Channel {
         #[arg(long)]
@@ -138,6 +141,9 @@ fn limited_file(
 }
 
 fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Error>> {
+    if let ReleaseCommand::Unpack(options) = command {
+        return release_channel::unpack(options);
+    }
     if let ReleaseCommand::Channel {
         manifest,
         signature,

@@ -70,7 +70,7 @@
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Public release/channel CLI and native signing/bootc pass through 600867d. Owner authorized dedicated P-256 authority, now generated and provisioned as protected GitHub environment secrets with main-only owner review. Bitwarden backup retrieval, production candidate/media execution, metadata publisher/renewal/rotation remain not-run. Unsigned exact-media producer prepared, not positively qualified yet."
+      "note": "Public release/channel CLI passes workspace 34247944518 at a6cd08f; native signing/bootc pass through 600867d. Owner-authorized dedicated P-256 authority is provisioned as protected main-only owner-reviewed GitHub environment secrets. Protected exact-media promotion and single-bundle publication are prepared; channel unpack passes actual Windows CLI/OpenSSL workflows with Linux qualification pending. Bitwarden backup retrieval, production candidate/media/promotion execution, interrupted publication recovery, renewal and rotation remain not-run."
     },
     {
       "id": "R09",

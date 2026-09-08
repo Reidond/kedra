@@ -43,6 +43,15 @@ GitHub may auto-create an unprotected environment. Source: GitHub environment
 API/docs linked there; R08. Actual Skopeo signing remains qualified through
 disposable R01/R02/R04 authority only.
 
+Follow-up 2026-09-08: owner-authorized public authority and protected environment
+are now provisioned; backup retrieval and production execution remain pending.
+The prepared promote.yml shares candidate concurrency and rechecks current source
+plus prior channel hashes. Public jobs prepare/verify media; a no-checkout protected
+job signs exact bytes with pinned Cosign 3.1.3. Versioned drafts precede the single
+channel bundle; partial version publication is retained for explicit inspection,
+not overwritten by a blind retry. R08/ADR 0023 records syntax-only preparation;
+do not mark production isolation, races or recovery passed from code inspection.
+
 Use read-only PR checks with no production secrets. Pin third-party Actions by
 full commit SHA; minimize token permissions and disable persisted checkout
 credentials when unnecessary. Treat PR code, built image contents, logs, workflow

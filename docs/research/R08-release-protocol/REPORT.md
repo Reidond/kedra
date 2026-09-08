@@ -1,5 +1,17 @@
 # R08/R10: release verification subset
 
+2026-09-08 protected-publisher preparation: promote.yml now separates public
+exact-media preparation, no-checkout metadata signing and key-free publication.
+It binds independently reviewed candidate/qualification bytes, successful current
+main build/attempt, dedicated public authority and unchanged prior signed channel.
+The publisher verifies the complete ISO and native signatures again, uploads a
+versioned draft, then publishes a single channel bundle with exact-byte readback.
+Existing tags/drafts refuse blind replacement. See ADR 0023 and build/release/README.md.
+Python AST, YAML and Bash syntax pass; pinned native Cosign 3.1.3 help supports the
+selected bundle signing interface. Workspace 34247944518 at a6cd08f passes the
+existing native channel/OpenSSL and actual CLI checks. Actual production execution,
+publication interruption/races, renewal, expired recovery and rotation are not-run.
+
 Owner-authorized authority setup, 2026-09-08: a separate encrypted P-256 key is
 generated, with public fingerprint
 `a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e`.

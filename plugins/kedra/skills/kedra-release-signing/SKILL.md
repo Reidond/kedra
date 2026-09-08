@@ -89,3 +89,13 @@ actions-security; docs/UPDATES.md. The prepared release.yml candidate workflow i
 disabled and unqualified with production authority. Its exact public-input and
 environment requirements are in build/release/authority/README.md. No public key
 file or fingerprint from a research fixture may fill the production slots.
+
+Prepared 2026-09-08 (ADR 0023): promote.yml binds real exact-media qualification
+to current-main candidate/source and the dedicated public authority. The protected
+Cosign 3.1.3 job executes no checkout/artifacts; a key-free publisher repeats native
+verification, publishes complete versioned assets, then one signed-pair channel
+bundle. Its runtime refuses stale/changed channel state and existing version tags.
+Syntax is checked; actual production publication/races/recovery are not-run.
+Owner authority/environment are provisioned separately (R08); backup retrieval,
+renewal/expired recovery and rotation remain open. Do not confuse preparation with
+qualification. Source: build/release/README.md and the exact R08/worklog evidence.

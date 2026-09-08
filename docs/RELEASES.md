@@ -44,7 +44,24 @@ partial file is not verified media. Retry in the same directory after ensuring
 space is available. No wildcard sorting or shell concatenation is required.
 
 Normal updates also need a fresh signed channel checkpoint and the machine's
-independent enrollment/replay state. Inspect downloaded channel files with:
+independent enrollment/replay state. The production publisher will provide one
+`channel.json` asset on the target-specific `desktop-44-x86_64-channel` release.
+After downloading it, verify and unpack it into a **new** directory:
+
+```sh
+sysroot release unpack --bundle channel.json --public-key release.pub --expected-fingerprint INDEPENDENTLY_CONFIRMED_SHA256 --target desktop --repository ghcr.io/reidond/kedra-desktop --output-dir verified-channel
+```
+
+This checks the independently expected public-key fingerprint, both signatures,
+exact release/checkpoint binding, scope and current freshness before creating any
+output. It writes the four original signed files plus `next-trust-state.json`.
+Keep that state independently and provide it as `--previous-state` on subsequent
+unpack operations to detect replay. Existing directories are refused. A disk/write
+failure can leave an incomplete verified directory; inspect it and use a different
+new directory on retry. No installed enrollment/state is changed.
+
+The unpacked files can be passed directly to enrollment/staging, which independently
+verify them through the root helper. Inspect individual downloaded channel files with:
 
 ```sh
 sysroot release channel --manifest release.json --signature release.sig \

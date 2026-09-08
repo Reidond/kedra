@@ -118,6 +118,47 @@ try:
         channel(channel_record, newer, expected=False)
         assert prior.read_bytes() == prior_bytes, 'Read-only channel verification changed retained state'
         print('PASS: CLI signed channel initial/repeat/no-change checks and expiry/future/binding/replay refusal', flush=True)
+        # Exercise downloaded channel -> verified files -> ordinary channel CLI.
+        channel(channel_record)
+        bundle = {'schema_version': 1,
+                  'release': {'payload': payload.read_text(), 'signature': signature.read_text()},
+                  'checkpoint': {'payload': checkpoint.read_text(), 'signature': checkpoint_signature.read_text()}}
+        bundle_path = root / 'channel.json'
+        bundle_path.write_text(json.dumps(bundle), encoding='utf-8')
+        unpacked = root / 'unpacked'
+        unpack = [str(binary), 'release', 'unpack', '--bundle', str(bundle_path),
+                  '--public-key', str(public), '--expected-fingerprint', expected,
+                  '--target', 'desktop', '--repository', release['scope']['repository'],
+                  '--output-dir', str(unpacked), '--json']
+        result = subprocess.run(unpack + ['--previous-state', str(newer)], capture_output=True)
+        assert result.returncode != 0 and not unpacked.exists(), 'Replayed bundle created output'
+        altered_bundle = json.loads(json.dumps(bundle))
+        altered_bundle['release']['payload'] += ' '
+        bundle_path.write_text(json.dumps(altered_bundle), encoding='utf-8')
+        result = subprocess.run(unpack, capture_output=True)
+        assert result.returncode != 0 and not unpacked.exists(), 'Tampered bundle created output'
+        bundle_path.write_text(json.dumps(bundle), encoding='utf-8')
+        wrong_fingerprint = unpack.copy()
+        wrong_fingerprint[wrong_fingerprint.index('--expected-fingerprint') + 1] = '0' * 64
+        result = subprocess.run(wrong_fingerprint, capture_output=True)
+        assert result.returncode != 0 and not unpacked.exists(), 'Wrong authority created output'
+        result = subprocess.run(unpack + ['--previous-state', str(prior)], capture_output=True)
+        if result.returncode:
+            raise RuntimeError('Channel unpack failed: ' + result.stderr.decode())
+        assert json.loads(result.stdout)['replay_checked']
+        for name, original in [('release.json', payload), ('release.sig', signature),
+                               ('checkpoint.json', checkpoint), ('checkpoint.sig', checkpoint_signature)]:
+            assert (unpacked / name).read_bytes() == original.read_bytes(), 'Unpack changed exact signed bytes'
+        unpacked_channel = [str(binary), 'release', 'channel', '--manifest', str(unpacked / 'release.json'),
+                            '--signature', str(unpacked / 'release.sig'), '--checkpoint', str(unpacked / 'checkpoint.json'),
+                            '--checkpoint-signature', str(unpacked / 'checkpoint.sig'), '--public-key', str(public),
+                            '--target', 'desktop', '--repository', release['scope']['repository'],
+                            '--previous-state', str(unpacked / 'next-trust-state.json'), '--json']
+        subprocess.run(unpacked_channel, capture_output=True, check=True)
+        result = subprocess.run(unpack, capture_output=True)
+        assert result.returncode != 0 and (unpacked / 'release.json').read_bytes() == payload.read_bytes(), 'Unpack replaced existing output'
+        assert prior.read_bytes() == prior_bytes, 'Unpack changed caller replay history'
+        print('PASS: CLI channel unpack and downstream verification; replay/tamper/authority/existing-output refusal', flush=True)
         verify(signature, key=wrong_public, expected=False)
         altered = root / "altered.json"
         altered.write_bytes(payload.read_bytes() + b" ")

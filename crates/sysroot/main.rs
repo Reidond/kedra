@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
+mod source;
 
 #[derive(Parser)]
 #[command(
@@ -90,7 +91,7 @@ fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Err
         return Err(sysroot_core::release::Error::ScopeMismatch.into());
     }
     if let Some(path) = &artifact {
-        sysroot_core::release::verify_artifact(&verified, path)?;
+        sysroot_core::release::verify_artifact(&verified, std::fs::File::open(path)?)?;
     }
     if json {
         println!(
@@ -140,7 +141,7 @@ enum SourceCommand {
 }
 
 fn source_plan(repo: PathBuf, host: String, json: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let plan = sysroot_core::source::plan(&repo, &host)?;
+    let plan = source::plan(&repo, &host)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&plan)?);
     } else {
@@ -203,7 +204,7 @@ fn main() -> ExitCode {
         }
         Some(Commands::Source {
             command: SourceCommand::Archive { repo, host, output },
-        }) => match sysroot_core::source::archive(&repo, &host, &output) {
+        }) => match source::archive(&repo, &host, &output) {
             Ok(plan) => println!(
                 "Created {} from {} for {} ({} payload files).",
                 output.display(),

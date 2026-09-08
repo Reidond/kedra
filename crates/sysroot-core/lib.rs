@@ -1,4 +1,4 @@
-//! Source planning and capability information, not a deployment protocol.
+//! Pure release/home models and capability information.
 //!
 //! ```
 //! assert_eq!(sysroot_core::PROJECT, "Kedra");
@@ -9,8 +9,6 @@
 pub mod noctalia;
 /// Signed release records, freshness checkpoints and replay validation.
 pub mod release;
-/// Committed source planning and build provenance.
-pub mod source;
 
 /// Human-facing operating system name.
 pub const PROJECT: &str = "Kedra";

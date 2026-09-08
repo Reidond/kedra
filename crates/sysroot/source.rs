@@ -1,4 +1,4 @@
-//! Read-only image planning from one immutable Git commit, never the live home.
+//! Unprivileged source planning/assembly; never linked into the privileged helper.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};

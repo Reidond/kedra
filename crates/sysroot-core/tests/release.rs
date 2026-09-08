@@ -359,11 +359,11 @@ fn installer_verification_checks_size_and_content() {
     ));
     let release = verified(&fixture(), &key(7));
     std::fs::write(&path, b"abc").unwrap();
-    verify_artifact(&release, &path).unwrap();
+    verify_artifact(&release, std::fs::File::open(&path).unwrap()).unwrap();
     for bad in [b"abd".as_slice(), b"ab", b"abcd"] {
         std::fs::write(&path, bad).unwrap();
         assert!(matches!(
-            verify_artifact(&release, &path),
+            verify_artifact(&release, std::fs::File::open(&path).unwrap()),
             Err(Error::ArtifactMismatch)
         ));
     }

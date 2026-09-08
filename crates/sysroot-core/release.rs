@@ -4,7 +4,6 @@
 //! key/policy is advisory; privileged callers must load independently trusted state.
 use std::fmt;
 use std::io::Read;
-use std::path::Path;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use p256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
@@ -433,8 +432,7 @@ pub fn verify_update(
 }
 
 /// Hash a local installer as an ordinary user; compare both size and exact bytes.
-pub fn verify_artifact(release: &VerifiedRelease, path: &Path) -> Result<(), Error> {
-    let mut file = std::fs::File::open(path)?;
+pub fn verify_artifact(release: &VerifiedRelease, mut file: impl Read) -> Result<(), Error> {
     let expected = &release.release.installer;
     let mut digest = Sha256::new();
     let mut total = 0u64;

@@ -47,6 +47,11 @@ This is not a universal secret detector; deliberate source review remains needed
 
 This slice does not resolve RPMs, classify arbitrary mixed-secret home settings,
 or implement host enrollment/source export.
+
+Privilege-boundary follow-up: Git/archive operations and their integration tests
+live in the sysroot CLI package, not sysroot-core. The core contains pure
+release/home models; installer hashing consumes a caller-provided stream. This
+keeps future helper dependencies free of Git, archive writing and agent execution.
 Real home adoption remains gated by R03/R04. Two-target lifecycle remains R09.
 
 ## Evidence

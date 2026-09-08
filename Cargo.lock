@@ -630,8 +630,12 @@ name = "sysroot"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "serde",
  "serde_json",
+ "sha2",
  "sysroot-core",
+ "tar",
+ "toml",
 ]
 
 [[package]]
@@ -643,7 +647,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "tar",
  "toml",
 ]
 

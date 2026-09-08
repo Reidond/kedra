@@ -1,6 +1,7 @@
 # ADR 0009: explicit agent runtime and version-specific state
 
-Date: 2026-09-08. Status: launcher prepared; Linux and native matrix tests pending.
+Date: 2026-09-08. Status: Linux wrapper tests pass (run 34181692426 at 082f8d4);
+native matrix and distribution qualification pending.
 
 Keep agent execution entirely in the unprivileged CLI. Use absolute private
 bundled paths and explicit personal-runtime selection. Validate the checkout's

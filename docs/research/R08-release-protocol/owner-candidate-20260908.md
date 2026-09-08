@@ -75,7 +75,14 @@ The proposed correction uses `--preserve-digests` on the first public push and
 requires a registry/storage/isolated-storage round trip before requesting image
 signing. A disposable-key R01 case now exercises that exact native path. This
 keeps one signed byte identity; it does not remove signatures, replace the
-expected digest, or weaken policy. Qualification of the correction remains pending.
+expected digest, or weaken policy. Disposable qualification passes run 34253906774
+at 7e846f0 with native Skopeo 1.13.3 and Podman 4.9.3. Signed registry publication,
+strict pull and strict isolated-storage copy retain exactly
+`sha256:32c3b4a92d62e373f2ba36e0e687c32a8be486a983a2edb1800cb37098a9bd44`
+and store the signature. The original negative cases and three update/rollback
+boots also pass. Evidence is in `output/r01-run-34253906774/native-preserved-*`
+and result.txt. This qualifies the copy correction; replacement GHCR production
+publication and the full v82 ISO remain separate checks.
 The failed candidate and public evidence are retained; a changed candidate needs
 its own concrete signing review and exact-media installation.
 

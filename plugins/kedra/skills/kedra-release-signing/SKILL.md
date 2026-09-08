@@ -108,5 +108,7 @@ storage-by-ID to digest-qualified media storage copy refused the signed manifest
 rewrite. Preserve native digest on the first push and qualify the complete
 registry/storage/isolated-storage path before asking for production signatures.
 Do not strip signatures, remove digest binding or weaken policy to repair this.
-The correction's positive qualification is recorded separately when observed.
+The corrected signed registry/strict-pull/isolated-storage round trip passes
+34253906774 at 7e846f0 with Skopeo 1.13.3 and Podman 4.9.3. Replacement production
+GHCR publication and complete ISO construction still need exact-run evidence.
 Source: R08-release-protocol/owner-candidate-20260908.md; gates R01/R02/R08.

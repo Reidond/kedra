@@ -371,6 +371,3 @@ pub(super) fn verify_commit(repo: &Path, commit: &str, state: &State) -> Result<
     candidate.record_source_commit(commit, settings)?;
     Ok(settings)
 }
-
-#[cfg(test)]
-mod tests;

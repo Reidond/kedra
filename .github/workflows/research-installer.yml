@@ -25,9 +25,10 @@ jobs:
       - name: Build source tooling and explicit payload
         run: |
           rustup toolchain install 1.98.1 --profile minimal
-          cargo test --workspace --locked
+          cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
           mkdir -p output/installer-evidence output/desktop-context output/installer-image
+          target/release/sysroot source plan --host desktop --json > output/installer-evidence/source-plan.json
           target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
           cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
           cp build/research/inputs.json output/installer-evidence/
@@ -53,6 +54,17 @@ jobs:
           sudo podman run --rm "$builder" --version > output/installer-evidence/builder-version.txt
           sudo podman run --rm "$builder" build --help > output/installer-evidence/builder-help.txt
           grep -q -- '--bootc-installer-payload-ref' output/installer-evidence/builder-help.txt
+      - name: Prepare disposable signing authority and public image inputs
+        run: |
+          set -euo pipefail
+          private="$RUNNER_TEMP/kedra-r02-private"
+          mkdir -m 0700 "$private"
+          openssl rand -base64 32 > "$private/passphrase"
+          chmod 0600 "$private/passphrase"
+          skopeo generate-sigstore-key --output-prefix "$private/allowed" --passphrase-file "$private/passphrase"
+          skopeo generate-sigstore-key --output-prefix "$private/wrong" --passphrase-file "$private/passphrase"
+          python3 installer/prepare-research-trust.py --public-key "$private/allowed.pub" \
+            --source output/installer-evidence/source-plan.json --output output/signed-context/trust
       - name: Build desktop and separate installer environment
         run: |
           set -euo pipefail
@@ -60,14 +72,46 @@ jobs:
           sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
             --tag localhost/kedra-desktop:installer-research output/desktop-context \
             2>&1 | tee output/installer-evidence/desktop-build.log
+          sudo podman build --pull=never --build-arg PAYLOAD_IMAGE=localhost/kedra-desktop:installer-research \
+            --tag localhost/kedra-desktop:installer-signed --file installer/signed-payload.Containerfile output/signed-context \
+            2>&1 | tee output/installer-evidence/signed-desktop-build.log
+          private="$RUNNER_TEMP/kedra-r02-private"
+          payload_tag="registry.kedra.test:5000/kedra/r02:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo skopeo copy --preserve-digests --sign-by-sigstore-private-key "$private/allowed.private" \
+            --sign-passphrase-file "$private/passphrase" --sign-identity "$payload_tag" \
+            --digestfile output/installer-evidence/signed-payload.digest \
+            containers-storage:localhost/kedra-desktop:installer-signed "containers-storage:$payload_tag" \
+            > output/installer-evidence/sign-local-payload.log 2>&1
+          digest=$(cat output/installer-evidence/signed-payload.digest)
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          payload="registry.kedra.test:5000/kedra/r02@$digest"
+          printf 'KEDRA_INSTALLER_PAYLOAD=%s\n' "$payload" >> "$GITHUB_ENV"
+          jq --arg key "$PWD/output/signed-context/trust/release.pub" '.transports[][][].keyPath=$key' \
+            output/signed-context/trust/policy.json > output/installer-evidence/host-policy.json
+          sudo skopeo --policy "$PWD/output/installer-evidence/host-policy.json" copy --preserve-digests \
+            "containers-storage:$payload" containers-storage:localhost/kedra-installer:verified \
+            > output/installer-evidence/verified-local-copy.log 2>&1
+          jq --arg key "$private/wrong.pub" '.transports[][][].keyPath=$key' \
+            output/signed-context/trust/policy.json > "$private/wrong-policy.json"
+          if sudo skopeo --policy "$private/wrong-policy.json" copy --preserve-digests \
+            "containers-storage:$payload" containers-storage:localhost/kedra-installer:wrong-key \
+            > output/installer-evidence/wrong-key-refusal.log 2>&1; then
+            echo 'Wrong-key local signature check unexpectedly passed' >&2
+            exit 1
+          fi
+          mkdir output/anaconda-context
+          cp installer/{Containerfile,iso.yaml,prepare.sh,boot-probe.service,boot-probe.sh,anaconda-adapter.py,finalize-fstab.py,verify-payload.service,require-verification.conf} output/anaconda-context/
+          cp target/release/sysroot-helper output/anaconda-context/helper
+          cp -a output/signed-context/trust output/anaconda-context/trust
+          cp output/signed-context/trust/{source.json,release.pub,release-policy.json,policy.json} output/installer-evidence/
           sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
-            --build-arg PAYLOAD_IMAGE=localhost/kedra-desktop:installer-research \
+            --build-arg "PAYLOAD_IMAGE=$payload" \
             --build-arg "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" \
-            --tag localhost/kedra-anaconda:research --file installer/Containerfile installer \
+            --tag localhost/kedra-anaconda:research output/anaconda-context \
             2>&1 | tee output/installer-evidence/anaconda-build.log
-          sudo podman image inspect localhost/kedra-desktop:installer-research localhost/kedra-anaconda:research \
+          sudo podman image inspect "$payload" localhost/kedra-anaconda:research \
             > output/installer-evidence/image-inspect.json
-          sudo podman run --rm localhost/kedra-desktop:installer-research \
+          sudo podman run --rm "$payload" \
             grep -x 'SELINUX=enforcing' /etc/selinux/config > output/installer-evidence/desktop-selinux-config.txt
           sudo podman run --rm localhost/kedra-anaconda:research \
             grep -x 'SELINUX=permissive' /etc/selinux/config > output/installer-evidence/installer-selinux-config.txt
@@ -76,6 +120,7 @@ jobs:
           set -euo pipefail
           builder=$(jq -er .builder installer/inputs.json)
           sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
+            -e "KEDRA_INSTALLER_PAYLOAD=$KEDRA_INSTALLER_PAYLOAD" \
             -v "$PWD/output/installer-image:/output" \
             -v "$PWD/output/installer-evidence:/evidence" \
             -v "$PWD/installer:/kedra-installer:ro" \
@@ -119,6 +164,14 @@ jobs:
             --kernel-dir "$PWD/output/installer-inspection/pxeboot" \
             --work "$PWD/output/installer-evidence/smoke" \
             | tee output/installer-evidence/smoke-result.txt
+      - name: Remove disposable private signing material
+        if: always()
+        run: |
+          private="$RUNNER_TEMP/kedra-r02-private"
+          if test -d "$private"; then
+            rm -f -- "$private/allowed.private" "$private/allowed.pub" "$private/wrong.private" "$private/wrong.pub" "$private/passphrase" "$private/wrong-policy.json"
+            rmdir -- "$private"
+          fi
       - name: Preserve evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

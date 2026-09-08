@@ -1,9 +1,4 @@
 //! Pure release/home models and capability information.
-//!
-//! ```
-//! assert_eq!(sysroot_core::PROJECT, "Kedra");
-//! assert!(!sysroot_core::DEPLOYMENT_AVAILABLE);
-//! ```
 
 /// Qualified bootc observations and non-mutating deployment journal transitions.
 pub mod deployment;
@@ -28,29 +23,5 @@ pub fn research_gate(command: &str) -> Option<&'static str> {
         "setup" | "doctor" => Some("R06, R07, R10"),
         "context" => Some("R05, R09, R10"),
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn deployment_is_not_advertised() {
-        assert!(STATUS_JSON.contains("\"deployment_available\":false"));
-    }
-
-    #[test]
-    fn every_operational_command_has_a_gate() {
-        for command in [
-            "update", "deploy", "rollback", "home", "codex", "claude", "setup", "doctor", "context",
-        ] {
-            assert!(research_gate(command).is_some(), "missing gate: {command}");
-        }
-    }
-
-    #[test]
-    fn unknown_command_has_no_gate() {
-        assert_eq!(research_gate("arbitrary-shell"), None);
     }
 }

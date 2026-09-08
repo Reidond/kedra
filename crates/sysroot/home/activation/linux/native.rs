@@ -4,6 +4,20 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 const UNIT: &str = "kedra-noctalia.service";
 const FRAGMENT: &str = "/usr/lib/systemd/user/kedra-noctalia.service";
+const FEDORA_TIMEOUT: &str = "/usr/lib/systemd/user/service.d/10-timeout-abort.conf";
+
+fn vendor_dropin(path: &str, bytes: &[u8]) -> Result<()> {
+    let text = std::str::from_utf8(bytes).map_err(|_| "systemd drop-in is not UTF-8")?;
+    let directives: Vec<_> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
+    if path != FEDORA_TIMEOUT || directives != ["[Service]", "TimeoutStopFailureMode=abort"] {
+        return Err("Noctalia has an unqualified service override".into());
+    }
+    Ok(())
+}
 
 pub(super) struct Native {
     pub directory: PathBuf,
@@ -104,10 +118,19 @@ impl Native {
         )?;
         let fragment = systemctl(&["show", UNIT, "--property=FragmentPath", "--value"])?;
         let dropins = systemctl(&["show", UNIT, "--property=DropInPaths", "--value"])?;
-        if fragment.trim() != FRAGMENT || !dropins.trim().is_empty() {
+        if fragment.trim() != FRAGMENT {
             return Err(
                 "activation requires the installed Noctalia service without user overrides".into(),
             );
+        }
+        for path in dropins.split_whitespace() {
+            if path != FEDORA_TIMEOUT {
+                return Err("Noctalia has an unqualified service override".into());
+            }
+            vendor_dropin(
+                path,
+                &sysroot_helper::trusted_file::read(Path::new(path), 0, 8192)?,
+            )?;
         }
         sysroot_helper::trusted_file::read(Path::new(FRAGMENT), 0, 8192)?;
         // Resolve only the standard bootc /home alias. Nested profile symlinks
@@ -127,6 +150,7 @@ impl Native {
         Ok(())
     }
 }
+
 impl Application for Native {
     fn observe(&self) -> Result<Settings> {
         capture::output(&["config", "validate"], 65536)?;

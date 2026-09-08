@@ -18,7 +18,11 @@ supported safe fields and source provenance. Unknown/private native values stay
 outside the review database and source export.
 
 The Linux bridge supports the default profile and the installed
-kedra-noctalia.service without overrides. It serializes cooperating operations
+kedra-noctalia.service without user overrides. Fedora systemd 259.8 supplies
+/usr/lib/systemd/user/service.d/10-timeout-abort.conf globally; the manually
+inspected file is root-owned, regular and contains only the Service section and
+TimeoutStopFailureMode=abort beyond comments. That exact path/directive is allowed
+after trusted-file checks; other directives and paths still refuse. It serializes cooperating operations
 at both the review store and application directory, stops the managed writer,
 recaptures effective values, and modifies only changed fields with toml_edit.
 Unexpected file types, links, ownership, writable-by-others modes, unsupported
@@ -57,3 +61,7 @@ substitute for R04 tests in generated fixtures and disposable desktops.
 Sources: Noctalia v5.0.1 source (config-overrides.cpp, application-services.cpp),
 [native lifecycle run](https://github.com/Reidond/kedra/actions/runs/34212238491),
 ADRs 0007, 0008 and 0014; tests in the activation and replace_file modules.
+
+The isolated tests cited here are historical evidence at their recorded commits.
+They were removed on 2026-09-08 under the owner's end-to-end/manual-only policy.
+Native desktop tests now provide the ongoing activation qualification.

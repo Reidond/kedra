@@ -34,18 +34,14 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Tests
-        run: cargo test --workspace --locked
+      - name: End-to-end CLI workflows
+        run: cargo test --workspace --test 'e2e_*' --locked
       - name: Release build
         run: cargo build --workspace --release --locked
       - name: Independent OpenSSL signature interoperability
         run: python3 tests/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
-      - name: Ensure checks did not change source or lockfile
-        run: |
-          git diff --exit-code
-          test -z "$(git ls-files --others --exclude-standard)"
       - name: Scope of this result
         if: always()
         run: |
-          echo 'This workflow validates Rust source planning and the synthetic R03 home-review example.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'No real-home activation, OS image, ISO, signatures, authentication or hardware tests run here.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This workflow builds and lints Rust, then exercises the actual CLI agent/export workflows and independent signature interoperability.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Installed-system behavior is covered by the separate disposable VM workflows. Unit and repository self-tests are not used.' >> "$GITHUB_STEP_SUMMARY"

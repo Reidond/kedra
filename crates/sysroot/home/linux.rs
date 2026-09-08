@@ -286,6 +286,3 @@ pub(super) fn run(options: Options) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

@@ -34,7 +34,7 @@ jobs:
       - name: Test temporary keys, local TLS registry and three VM boots
         run: |
           rustup toolchain install 1.98.1 --profile minimal
-          cargo test --workspace --locked
+          cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
           bash build/research/r01/run.sh
       - name: Preserve public research evidence

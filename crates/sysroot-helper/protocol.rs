@@ -16,6 +16,8 @@ pub enum Request {
         checkpoint: SignedDocument,
     },
     Status {},
+    /// Media-only precheck of the fixed embedded payload; accepts no caller paths.
+    VerifyInstaller {},
     Stage {
         release: SignedDocument,
         checkpoint: SignedDocument,

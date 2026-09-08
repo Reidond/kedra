@@ -19,15 +19,23 @@ COPY boot-probe.service /usr/lib/systemd/system/kedra-installer-boot-probe.servi
 COPY boot-probe.sh /usr/libexec/kedra-installer-boot-probe
 COPY anaconda-adapter.py /tmp/kedra-anaconda-adapter.py
 COPY finalize-fstab.py /usr/libexec/kedra-installer-finalize-fstab.py
-COPY test-finalize-fstab.py /tmp/test-finalize-fstab.py
+COPY helper /usr/libexec/sysroot/helper
+COPY trust/release.pub trust/release-policy.json /usr/lib/sysroot/trust/
+COPY trust/source.json /usr/share/sysroot/source.json
+COPY trust/policy.json /etc/containers/policy.json
+COPY trust/registries.yaml /etc/containers/registries.d/kedra.yaml
+COPY trust/install.toml /usr/lib/bootc/install/10-kedra.toml
+COPY trust/research-only /usr/share/sysroot/research-only
+COPY verify-payload.service /usr/lib/systemd/system/kedra-installer-verify.service
+COPY require-verification.conf /usr/lib/systemd/system/anaconda.service.d/20-kedra-verify.conf
 RUN test -n "$PAYLOAD_IMAGE" && \
+    chmod 0755 /usr/libexec/sysroot/helper && \
+    python3 -c 'import os,json,hashlib,pathlib; p=pathlib.Path("/usr/lib/sysroot/trust"); (p/"installer-payload.json").write_text(json.dumps({"schema_version":1,"image":os.environ["PAYLOAD_IMAGE"],"source_manifest_sha256":hashlib.sha256(pathlib.Path("/usr/share/sysroot/source.json").read_bytes()).hexdigest()})+"\n"); (p/"installer-request.json").write_text(json.dumps({"schema_version":1,"request":{"operation":"verify_installer"}})+"\n")' && \
     printf 'bootc --source-imgref containers-storage:%s --target-imgref %s\nrootpw --lock\n' \
       "$PAYLOAD_IMAGE" "$PAYLOAD_IMAGE" > /usr/share/anaconda/interactive-defaults.ks && \
     printf '\n%%post --nochroot --erroronfail\n/usr/bin/python3 /usr/libexec/kedra-installer-finalize-fstab.py\n%%end\n' >> /usr/share/anaconda/interactive-defaults.ks && \
     /bin/bash /tmp/kedra-installer-prepare.sh && \
     python3 /tmp/kedra-anaconda-adapter.py && \
-    cp /usr/libexec/kedra-installer-finalize-fstab.py /tmp/finalize-fstab.py && \
-    python3 /tmp/test-finalize-fstab.py && \
     chmod 0755 /usr/libexec/kedra-installer-boot-probe && \
     systemctl enable kedra-installer-boot-probe.service && \
-    rm /tmp/kedra-installer-prepare.sh /tmp/kedra-anaconda-adapter.py /tmp/finalize-fstab.py /tmp/test-finalize-fstab.py
+    rm /tmp/kedra-installer-prepare.sh /tmp/kedra-anaconda-adapter.py

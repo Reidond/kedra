@@ -322,6 +322,3 @@ pub(in crate::home) fn run(store: &mut Store, instance: &str, command: &Command)
     );
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

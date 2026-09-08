@@ -32,21 +32,18 @@ for attempt in $(seq 1 120); do
     sleep 1
 done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status
-app_version=$(noctalia --version | awk '{print $2}' | sed 's/^v//')
-projection=$(as_user noctalia config export full | /usr/libexec/kedra-research-project-noctalia --project "$app_version")
-printf 'KEDRA_R03_PROJECT_BEFORE %s\n' "$projection"
-original_theme=$(printf '%s' "$projection" | jq -er .theme_mode)
 review_home=$(getent passwd kedra-test | cut -d: -f6)
 review_state="$review_home/kedra-noctalia-review"
 as_user sysroot home --state "$review_state" init
+review=$(as_user sysroot home --state "$review_state" status)
+original_theme=$(printf '%s' "$review" | jq -er '.fields[0].live.value')
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
 for attempt in $(seq 1 20); do
-    projection=$(as_user noctalia config export full | /usr/libexec/kedra-research-project-noctalia --project "$app_version")
-    if test "$(printf '%s' "$projection" | jq -er .theme_mode)" = light; then break; fi
+    review=$(as_user sysroot home --state "$review_state" status)
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light; then break; fi
     sleep 1
 done
-test "$(printf '%s' "$projection" | jq -er .theme_mode)" = light
-printf 'KEDRA_R03_PROJECT_AFTER %s\n' "$projection"
+test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light
 as_user sysroot home --state "$review_state" stage theme.mode
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
 for attempt in $(seq 1 20); do
@@ -76,7 +73,7 @@ if pgrep -u "$uid" -x noctalia >/dev/null; then
     echo 'Noctalia writer remained after the managed service stopped' >&2
     false
 fi
-as_user noctalia config export full | /usr/libexec/kedra-research-project-noctalia --project "$app_version" | jq -e '.theme_mode == "light"' >/dev/null
+as_user sysroot home --state "$review_state" status | jq -e '.fields[0].live.value == "light"' >/dev/null
 as_user systemctl --user start kedra-noctalia.service
 for attempt in $(seq 1 30); do
     if as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status >/dev/null 2>&1; then break; fi
@@ -84,6 +81,7 @@ for attempt in $(seq 1 30); do
 done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_WRITER_LIFECYCLE_PASS
+as_user systemctl --user show kedra-noctalia.service --property=FragmentPath --property=DropInPaths
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
 as_user sysroot home --state "$review_state" stage theme.mode >/dev/null
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto

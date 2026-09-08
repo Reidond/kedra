@@ -1,10 +1,8 @@
 """Narrow, version-guarded Fedora Anaconda 44.30-2.fc44 media adaptations."""
-import ast
 import hashlib
 import pathlib
 import py_compile
 import importlib.util
-from types import SimpleNamespace
 
 if not pathlib.Path('/run/.containerenv').is_file():
     raise SystemExit('Apply only inside the disposable installer image build')
@@ -144,147 +142,6 @@ after_root = '''        if not os.path.ismount(self._physroot) or os.path.realpa
 if updated[patches[2][0]].count(before_root) != 1:
     raise SystemExit('Expected one native physical-root guard anchor')
 updated[patches[2][0]] = updated[patches[2][0]].replace(before_root, after_root)
-
-def getter(source, name):
-    candidates = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.FunctionDef) and node.name == name]
-    if len(candidates) != 1:
-        raise SystemExit('Expected one native property getter')
-    function = candidates[0]
-    function.decorator_list = []
-    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
-    namespace = {}
-    exec(compile(module, '<verified Anaconda property>', 'exec'), namespace)
-    return namespace[name]
-
-network = getter(updated[patches[0][0]], 'network_required')
-for ref, expected in [(None, True), ('', True), ('registry:example.invalid/image', True),
-                      ('oci-archive:/unqualified', True), ('containers-storage:localhost/kedra:fixture', False)]:
-    actual = network(SimpleNamespace(configuration=SimpleNamespace(sourceImgRef=ref)))
-    if actual is not expected:
-        raise SystemExit('Native source network classification failed')
-admin = getter(updated[patches[1][0]], 'check_admin_user_exists')
-for seen, locked, password, users, expected in [
-    (True, True, '', [], False),
-    (True, False, 'synthetic', [], True),
-    (False, True, '', [SimpleNamespace(lock=False, groups=['wheel'])], True),
-    (True, True, '', [SimpleNamespace(lock=False, groups=['wheel'])], True),
-    (True, True, '', [SimpleNamespace(lock=False, groups=[])], False),
-    (True, True, '', [SimpleNamespace(lock=True, groups=['wheel'])], False),
-]:
-    actual = admin(SimpleNamespace(_rootpw_seen=seen, root_account_locked=locked, root_password=password, users=users))
-    if actual is not expected:
-        raise SystemExit('Native accessible-administrator classification failed')
-
-# Exercise the exact injected function with inert mount/process substitutes.
-# These checks never mount anything in the image builder or its host.
-from unittest.mock import patch
-deploy = getter(updated[patches[2][0]], '_kedra_bootc_deploy')
-for failure in [None, 'first-bind', 'second-bind', 'bootc', 'unmount', 'read-only', 'remount']:
-    calls = []
-    scratch = '/synthetic-target/.kedra-install-fixture'
-    arguments = ['install', 'to-filesystem', '--source-imgref=containers-storage:fixture', '/synthetic-target']
-    def execute(command, args):
-        calls.append((command, tuple(args)))
-        if (failure == 'first-bind' and len(calls) == 1
-                or failure == 'second-bind' and len(calls) == 2
-                or failure == 'unmount' and command == 'umount'
-                or failure == 'remount' and command == 'mount' and args[0] == '-o'):
-            raise RuntimeError('synthetic mount failure')
-    def remove(path):
-        calls.append(('rmdir', (path,)))
-        if failure in ['read-only', 'remount'] and sum(command == 'rmdir' for command, _ in calls) == 1:
-            raise OSError(30, 'synthetic read-only target')
-    def lines(command, args):
-        if command != 'bootc' or args != arguments:
-            raise SystemExit('Native bootc arguments changed')
-        calls.append(('bootc', tuple(args)))
-        if failure == 'bootc':
-            raise OSError('synthetic deployment failure')
-        return ['synthetic progress']
-    deploy.__globals__.update(
-        os=SimpleNamespace(path=SimpleNamespace(ismount=lambda p: True, realpath=lambda p: p),
-                           rmdir=remove),
-        safe_exec_program=execute, execReadlines=lines, PayloadInstallationError=RuntimeError,
-    )
-    with patch('tempfile.mkdtemp', return_value=scratch):
-        try:
-            deploy('/synthetic-target', arguments, lambda line: None)
-            if failure not in [None, 'read-only']:
-                raise SystemExit('Expected scratch/deployment failure')
-        except RuntimeError:
-            if failure in [None, 'read-only']:
-                raise
-    expected_cleanup = [('umount', ('/var/tmp',)), ('umount', (scratch,)), ('rmdir', (scratch,))]
-    if failure == 'first-bind':
-        expected_cleanup = [('rmdir', (scratch,))]
-    elif failure == 'second-bind':
-        expected_cleanup = [('umount', (scratch,)), ('rmdir', (scratch,))]
-    elif failure == 'unmount':
-        expected_cleanup = [('umount', ('/var/tmp',))]
-    elif failure in ['read-only', 'remount']:
-        expected_cleanup += [('mount', ('-o', 'remount,rw', '/synthetic-target'))]
-        if failure == 'read-only':
-            expected_cleanup += [('rmdir', (scratch,))]
-    if calls[-len(expected_cleanup):] != expected_cleanup:
-        raise SystemExit('Scratch cleanup order changed')
-for mounted, root_path in [(False, '/synthetic-target'), (True, '/')]:
-    deploy.__globals__['os'].path = SimpleNamespace(ismount=lambda p: mounted, realpath=lambda p: root_path)
-    with patch('tempfile.mkdtemp', side_effect=AssertionError('must reject before creating scratch')):
-        try:
-            deploy(root_path, [], lambda line: None)
-            raise SystemExit('Unsafe scratch root was accepted')
-        except RuntimeError:
-            pass
-
-native_class = next(node for node in ast.parse(updated[patches[2][0]]).body
-                    if isinstance(node, ast.ClassDef) and node.name == 'PrepareBootcMountTargetsTask')
-native_run = next(node for node in native_class.body if isinstance(node, ast.FunctionDef) and node.name == 'run')
-module = ast.fix_missing_locations(ast.Module(body=[native_run], type_ignores=[]))
-for points in [{'/': 'root', '/home': 'home', '/boot': 'boot', '/boot/efi': 'efi'},
-               {'/': 'root', '/var': 'var', '/var/home': 'home', '/proc': 'api', '/srv': 'data'},
-               {'/': 'root'}]:
-    events = []
-    namespace = {'STORAGE': SimpleNamespace(get_proxy=lambda _: SimpleNamespace(GetMountPoints=lambda: points)),
-                 'DEVICE_TREE': 'fixture', 'safe_exec_program': lambda *args: events.append(('remount', args))}
-    exec(compile(module, '<verified bootc mount preparation>', 'exec'), namespace)
-    fixture = SimpleNamespace(_sysroot='/fixture-deploy', _physroot='/fixture-root', _internal_mounts=[],
-        _handle_api_mount_points=lambda: events.append(('api',)),
-        _handle_var_mount_point=lambda points: events.append(('var',)),
-        _fill_var_subdirectories=lambda: events.append(('fill-var',)),
-        _setup_internal_bindmount=lambda mount, recurse: events.append(('bind', mount, recurse)),
-        _handle_boot_if_not_mount_point=lambda: events.append(('boot',)))
-    namespace['run'](fixture)
-    actual = [event[1] for event in events if event[0] == 'bind']
-    expected = [point for point in sorted(points, key=len) if point not in ['/', '/var', '/dev', '/proc', '/run', '/sys']]
-    if actual != expected or any(event[2] is not False for event in events if event[0] == 'bind'):
-        raise SystemExit('Separate filesystem binding failed')
-    if actual and events.index(('fill-var',)) > events.index(('bind', actual[0], False)):
-        raise SystemExit('Separate home must be bound after persistent /var')
-clean = getter(updated[patches[2][0]], '_clean_physroot')
-for bad_root, unsupported, mounted in [(False, False, True), (True, False, True), (False, True, True), (False, False, False)]:
-    calls = []
-    points = {'/': 'root', '/boot': 'boot', '/home': 'home', '/var': 'var'}
-    if unsupported:
-        points['/unsupported'] = 'unsupported'
-    clean.__globals__.update(
-        os=SimpleNamespace(path=SimpleNamespace(ismount=lambda p: mounted and p != '/fixture/remove-me',
-            realpath=lambda p: '/' if bad_root else p, join=lambda p, q: p + '/' + q),
-            listdir=lambda p: ['boot', 'home', 'var', 'remove-me']),
-        STORAGE=SimpleNamespace(get_proxy=lambda _: SimpleNamespace(GetMountPoints=lambda: points)),
-        DEVICE_TREE='fixture', PayloadInstallationError=RuntimeError,
-        log=SimpleNamespace(debug=lambda *args: None),
-        safe_exec_program=lambda command, args: calls.append((command, args)), _=lambda value: value,
-    )
-    try:
-        clean(SimpleNamespace(_physroot='/fixture'))
-        if bad_root or unsupported or not mounted:
-            raise SystemExit('Unsafe or unsupported physical-root cleanup accepted')
-    except RuntimeError:
-        if not (bad_root or unsupported or not mounted):
-            raise
-    expected = [] if bad_root or unsupported or not mounted else [('rm', ['-rf', '/fixture/remove-me'])]
-    if calls != expected:
-        raise SystemExit('Native cleanup touched a selected mounted filesystem')
 
 for relative, source in updated.items():
     path = root / relative

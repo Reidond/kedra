@@ -201,7 +201,7 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
 }
 
 /// Read an exact retained source commit without moving HEAD or the index.
-#[cfg(any(target_os = "linux", test))]
+#[cfg(target_os = "linux")]
 pub(crate) fn plan_revision(repo: &Path, host: &str, revision: &str) -> Result<Plan, Error> {
     if !identifier(host)
         || !matches!(revision.len(), 40 | 64)

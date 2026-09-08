@@ -385,7 +385,3 @@ pub(super) fn run(name: &str, mut options: Options) -> Result<()> {
     rustix::io::fcntl_setfd(&lock, rustix::io::FdFlags::empty())?;
     Err(command(&selected, &options.arguments).exec().into())
 }
-
-#[cfg(test)]
-#[path = "tests.rs"]
-mod tests;

@@ -392,6 +392,3 @@ impl Store {
             .transpose()
     }
 }
-
-#[cfg(test)]
-mod tests;

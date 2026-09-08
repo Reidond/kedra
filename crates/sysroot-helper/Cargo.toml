@@ -5,13 +5,17 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 autobins = false
+autotests = false
 
 [lib]
 path = "lib.rs"
+test = false
+doctest = false
 
 [[bin]]
 name = "sysroot-helper"
 path = "main.rs"
+test = false
 
 [lints]
 workspace = true

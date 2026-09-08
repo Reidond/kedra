@@ -23,7 +23,7 @@ struct Cli {
 enum Commands {
     /// Manage a signed installed release through the independently verifying helper.
     Update(deployment::Options),
-    /// Review the supported Noctalia settings without writing live configuration.
+    /// Review, select and reconcile the supported Noctalia settings.
     Home(home::Options),
     /// Launch an official Codex runtime in the verified Kedra checkout (Linux).
     Codex(agents::Options),

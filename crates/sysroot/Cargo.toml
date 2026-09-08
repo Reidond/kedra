@@ -5,10 +5,20 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 autobins = false
+autotests = false
 
 [[bin]]
 name = "sysroot"
 path = "main.rs"
+test = false
+
+[[test]]
+name = "e2e_agent_exec"
+path = "tests/agent_exec.rs"
+
+[[test]]
+name = "e2e_home_export"
+path = "tests/home_export.rs"
 
 [dependencies]
 sysroot-core.workspace = true

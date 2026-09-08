@@ -27,7 +27,9 @@ with (args.work / 'qemu.log').open('w') as log:
         deadline = time.monotonic() + 180
         while process.poll() is None and time.monotonic() < deadline:
             if events.exists() and 'KEDRA_INSTALLER_ANACONDA_STARTED' in events.read_text(errors='replace'):
-                print('PASS: Anaconda service/log startup with Fedora installer SELinux mode; no disks attached')
+                if 'KEDRA_INSTALLER_SIGNED_PAYLOAD_PASS' not in events.read_text(errors='replace'):
+                    raise RuntimeError('Anaconda started without successful embedded-payload verification')
+                print('PASS: offline signed payload verification and Anaconda startup; no disks attached')
                 break
             time.sleep(1)
         else:

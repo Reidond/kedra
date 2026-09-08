@@ -36,7 +36,7 @@
       "topic": "Activation, writers, rollback",
       "report": "R04-activation/REPORT.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34217852366",
-      "note": "Managed Noctalia stop/persistence/restart passes native R07 34212238491. Linux plan/patch/file replacement/journal recovery tests pass at 4a7d02e; native discard rerun requires an explicitly refreshed Fedora base after upstream manifest HTTP 404. Generic home groups and full process-kill/full-disk fault coverage remain open."
+      "note": "Managed Noctalia lifecycle passes. Historical isolated recovery tests pass at 4a7d02e and are now removed under the owner's E2E/manual-only policy. Native 34218886075 refuses Fedora's global timeout drop-in; an exact manually verified allowance is prepared. Generic home groups, native discard/recovery and full fault coverage remain open."
     },
     {
       "id": "R05",

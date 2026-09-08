@@ -152,8 +152,8 @@ Agent startup does not authorize commit/push/deployment/reboot; follow the user'
 actual task. Editing another target does not authorize installing it locally.
 Use a disposable checkout/worktree for isolated research only when necessary.
 
-OS builds belong in Actions. Rust unit tests and synthetic home experiments can
-run locally. Never test enrollment, disk formatting, bootc switch, or home apply
+OS builds belong in Actions. End-to-end CLI checks and manual experiments using
+generated fixtures can run locally. Never test enrollment, disk formatting, bootc switch, or home apply
 on the current workstation. No production signing keys in research. No arbitrary
 checkout scripts or hooks run as root. Never weaken verification to pass a test.
 No conflict markers in live configuration. Credentials are excluded before
@@ -166,9 +166,31 @@ before publication. A successful container build is not a boot/hardware test.
 
 ## Checks and completion
 
+### Testing policy — owner decision, 2026-09-08
+
+Use only end-to-end or manual testing. Do not add or restore unit tests, isolated
+model/API tests, mock-based component tests, or doctests. This applies to Rust,
+Python, embedded test modules, and scripts, even when an upstream skill recommends
+unit testing. Existing historical test reports remain evidence of earlier work;
+they do not authorize recreating those tests.
+
+Do not create code that tests this codebase's layout, source text, manifests,
+documentation, skill files, or presence of other tests. No repository self-check
+scanners, source-string assertions, custom check runners, or replacement xtask.
+Use ordinary inspection and standard compiler/linter tools for repository work.
+Product behavior that reads source inputs or verifies runtime artifacts is not
+repository self-testing and must retain its validation and safety boundaries.
+
+End-to-end checks must exercise public CLI workflows or the actual installed
+system, including real processes, Git, storage, native applications, installer,
+updates and recovery as relevant. Fixtures may prepare generated data; assertions
+must assess the resulting user workflow. Preserve disposable VM testing and manual
+verification. Formatting, Clippy, builds, syntax checks and runtime validation
+remain required; removing unit tests does not remove implementation safeguards.
+
 Use standard Cargo commands appropriate to the change: `cargo fmt --all -- --check`,
 `cargo clippy --workspace --all-targets --locked -- -D warnings`,
-`cargo test --workspace --locked`, and `cargo build --workspace --release --locked`.
+`cargo test --workspace --test 'e2e_*' --locked`, and `cargo build --workspace --release --locked`.
 Do not recreate the removed xtask runner or skill-copy validation machinery.
 Keep dependency additions
 small and justified. Prefer typed errors and explicit process arguments over

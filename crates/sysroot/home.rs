@@ -2,9 +2,9 @@
 use clap::{Args, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(target_os = "linux")]
 mod activation;
-#[cfg(any(target_os = "linux", test))]
+#[cfg(target_os = "linux")]
 mod export;
 #[cfg(target_os = "linux")]
 mod linux;

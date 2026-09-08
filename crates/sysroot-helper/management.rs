@@ -18,6 +18,7 @@ const KEY: &str = "/usr/lib/sysroot/trust/release.pub";
 const DIRECTORY: &str = "/var/lib/sysroot";
 const STORE: &str = "/var/lib/sysroot/deployment";
 const RECORD: &str = "deployment";
+mod installer;
 
 fn hash(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -332,6 +333,9 @@ pub fn run(request: Request) -> Result<()> {
         return Err("the installed helper requires explicit administrator authorization".into());
     }
     let trust = load_trust()?;
+    if matches!(request, Request::VerifyInstaller {}) {
+        return installer::verify(&trust);
+    }
     let _lock = lock()?;
     if output(&["--version"], 4096)?.as_slice() != b"bootc 1.16.10\n" {
         return Err("installed bootc version has not been qualified for this helper".into());

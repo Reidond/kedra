@@ -1,125 +1,82 @@
 # Continue Kedra implementation
 
-## Objective and current scope
+The owner requested full implementation through a usable, understandable installer,
+with disposable VM testing. Public artifacts may contain reviewed project files
+only. Work is on codex/usable-system; main is unchanged. Read AGENTS.md, the current
+worklog snapshot and latest entries, then the relevant source/research evidence.
 
-Build a personal Fedora 44 bootc desktop managed by Rust `sysroot`. The owner
-requested full implementation through a usable, understandable installer and
-explicitly authorized disposable VM testing. Public releases may contain reviewed
-project files only. Work is on `codex/usable-system`; main is unchanged.
+## Owner testing decision — 2026-09-08
 
-Read AGENTS.md, worklog.md, PLAN.md, RESEARCH.md and the canonical Kedra context
-skill before resuming. Inspect Git state and exact-source Actions evidence.
-The worklog current-status table and packet reports distinguish tested subsets
-from full acceptance. Never infer implementation from a plan or old work entry.
+Use end-to-end or manual testing only. Unit/model/mock tests, doctests, standalone
+Rust synthetic test harnesses and repository self-checking code have been removed.
+Do not recreate scanners for layout, source text, docs, skills or test presence.
+Standard formatting, Clippy and builds remain. The explicit e2e_* Cargo targets
+exercise actual CLI agent/export workflows on Linux; Python/OpenSSL exercises the
+release CLI. Installed behavior is tested in disposable VMs. Older reports retain
+historical unit-test results, not current instructions to run or rebuild them.
 
-## Implemented and tested
+## Verified implementation
 
-The three-package flat Rust workspace provides source planning/archives from
-committed Git blobs with target overlays/provenance, release signature/checkpoint
-verification, synthetic line review and Noctalia disposition models, and Linux
-private SQLite storage. The shared core performs no filesystem/process I/O.
-Source/Git operations belong to the ordinary-user CLI. The helper now has a bounded
-stdin enrollment/stage/rollback/status protocol with independent installed trust
-and journal checks (ADR 0016); Linux/native qualification is pending, and no public
-release authority is configured. The ordinary-user CLI
-now connects private storage to the three-field Noctalia review model; native
-GUI tests pass. Selected-field source patches and exact commit receipts pass Linux tests. Generic
-files, discard and activation remain open.
+The flat three-package Rust workspace supplies committed-source planning/archives,
+release/checkpoint signature and replay verification, private state, Noctalia
+capture/staging/local policy, selected-field source export and source receipts.
+The installed helper has a bounded root protocol with independent trust/scope checks,
+durable stage/rollback records and explicit rollback hold/resume. Production trust
+and promotion are not configured. No workstation enrollment has occurred.
 
-Source `a2c0e6314351c325021e74c10c0edb5b8da2355b` passed Linux
-[check 34192732940](https://github.com/Reidond/kedra/actions/runs/34192732940):
-formatting, Clippy, 81 tests plus one doctest, release build and independent
-OpenSSL interoperability. Eight storage tests cover corruption, links/types/modes,
-concurrency and process interruption. Linux agent wrappers also pass native Codex
-0.153.4/0.153.3 runtime/profile checks in [34186921224](https://github.com/Reidond/kedra/actions/runs/34186921224).
-Model turns, authentication and complete discovery remain unqualified.
+R01 native signed helper run 34218886062 at 41e0d67 passes enrollment, metadata/OCI
+negatives, stage/boot B, retained-A rollback, newer-data/high-water preservation and
+explicit resume. Minimal VM 34218886101 also passes. The refreshed official Fedora
+44 AMD64 base is pinned in build/research/inputs.json; the preceding pin became
+unavailable at Quay. Historical results retain their exact older inputs.
 
-R01 disposable strict Sigstore policy, negative cases, signed A-to-B boot and
-rollback pass, including inherited enforcement on initial and rolled-back A.
-R02 minimal QCOW2 boots with enforcing SELinux in Actions and local WSL2/KVM.
-R07 [run 34192732970](https://github.com/Reidond/kedra/actions/runs/34192732970)
-passes graphical login, niri/Noctalia IPC, services, unlocked synthetic keyring
-and native Noctalia 5.0.1 settings projection. The inspected 1280x768 capture now
-fills the VM window with readable controls; physical display/audio/suspend and
-owner credentials are unqualified.
+R02 ISO 34207121856 at 85ed4ab (2,865,981,440 bytes, SHA-256
+ d74e2a1eb79e8c93f52da82a8626bad43ad65498382941cf8982f07f41174ed3)
+completed fresh encrypted installation on one of two generated 64 GiB disks.
+Without repairs, ISO-free boot authenticates an administrative owner and reaches
+niri/Noctalia. Enforcing SELinux, correct home/read-only-root mounts, no failed
+system/user services and unlocked login keyring pass. The sentinel disk compares
+identically after installation and shutdown. This media still uses an unsigned
+localhost research origin and is not an owner release.
 
-The plain Containerfile consumes a reviewed source archive, installs Fedora
-packages, and seeds ordinary writable defaults through /etc/skel for new users.
-This is not enrollment or management of an existing home. Automatic bootc
-fetch/apply is masked. Private Codex packaging and the actual Fedora runtime pass
-34197344807 at ba011ec. Bitwarden package preparation/session wiring is implemented
-but its Fedora build/runtime test is pending. Claude terms remain unanswered.
+R07 native Noctalia writer lifecycle, private Codex packaging/runtime and logged-out
+Bitwarden plus session/keyring checks pass earlier runs. Owner authentication,
+Claude preinstallation terms and physical hardware remain separate. Repository
+skills stay checkout-local; none are installed into personal profiles or the OS.
 
-## Next concrete work
+## Work now being qualified
 
-The generic Anaconda ISO retains explicit graphical/rescue entries, native bootc
-interactive defaults and no preset disk choice. Early generic media failed
-SELinux startup; corrected labeling reaches enforcing userspace in
-[34180796587](https://github.com/Reidond/kedra/actions/runs/34180796587), but its UI
-still failed. ADR 0010 adopts upstream Lorax's permissive installer environment
-while requiring the separate installed desktop to remain enforcing. ADR 0011
-adapts two version/hash-guarded Anaconda 44.30-2 properties: embedded local payloads
-do not require networking, and a locked root does not satisfy the admin requirement.
-Updated build [34185915639](https://github.com/Reidond/kedra/actions/runs/34185915639)
-at `cfc956d` passes media build/startup and the local offline/disk/admin UI flow.
-Actual installation failed GetBlob import in the 1.6 GiB installer /var/tmp, while
-the encrypted target had 59 GiB free. The VM is stopped and sentinel comparison
-passes. ADR 0013 selected-disk scratch then allowed bootc import/GRUB/finalization
-to complete in media 34190162895, but Anaconda cleanup failed on the now-read-only
-target. That correction passes Anaconda completion in 34195114452 at 923a282;
-installed-disk boot unlocks LUKS and authenticates the owner with enforcing SELinux.
-First-boot health fails because native bootc mount preparation omitted the separate
-home mount before useradd, and fstab addresses the logical root as the physical
-Btrfs root. ADR 0015 implements the separate-mount loop and /sysroot fstab correction.
-Fresh-media validation is pending; repairs to the generated VM are diagnostic only.
-This is unsigned localhost-origin research media, not an owner release.
+Noctalia plan/apply/discard/recover commands are implemented with narrow native
+field edits, writer coordination, checked file replacement and durable recovery.
+Historical Linux checks passed before unit removal. Native desktop 34218886075
+at 41e0d67 stopped at a too-strict rejection of Fedora's global systemd timeout
+drop-in. Manual VM inspection identified its exact root-owned path/directive;
+the correction still rejects user overrides. The next R07 run exercises the real
+sysroot CLI throughout, with no test-only projection binary. See ADR 0017/R04.
 
-A diagnostic boot of the older media with a temporary kernel override reached
-the UI and a deliberate encryption plan on one of two generated disks. Installation
-was never started. The VM is stopped; comparison confirms the unselected sentinel
-disk remains identical. Actual acceptance must use rebuilt media without that
-diagnostic override. See the R02 report and latest worklog entries.
+The next installer build signs a separate research-scoped desktop using disposable
+keys outside all build/artifact contexts. Public trust, exact payload/source
+binding and a path-free helper VerifyInstaller request gate Anaconda startup.
+The diskless smoke must pass offline signature verification. Native copying,
+signature retention, installation and inherited strict origin remain pending.
+No production key or registry publication is involved. See ADR 0018.
 
-1. Verify/download the updated media and test two fresh disposable VM disks:
-   deliberate target selection, encryption, owner account, first boot and an
-   unchanged sentinel disk. Never attach host disks. Check the upstream-mentioned
-   remount-service concern, offline flow and installed SELinux enforcement.
-   Record actual results under R02.
-2. Join interactive installation to the strict signed image origin/policy proven
-   in R01. Configure release authority, target-bound promotion and recovery only
-   after the relevant evidence. No production signing keys exist yet.
-3. Qualify the new helper protocol/fixed trust and state paths in Linux and the
-   native signed R01 VM, including interruption and exact pending replacement.
-   Verification output from the unprivileged CLI does not authorize deployment.
-4. Connect the tested home models to private persistence and coordinated live-file
-   activation. Preserve selected snapshots, visible edits, exact local-only policy
-   and publication receipts. Test crashes/concurrent writers before real adoption.
-5. Package private agent executables behind sysroot, prove personal runtime/profile
-   independence, and integrate Bitwarden SSH without exporting keys or broad vault
-   sessions. Owner GitHub API/registry/model authentication is separate from SSH.
-   A question about the Commercial Terms required for public Claude preinstallation
-   is pending with the owner; do not infer acceptance or enable that package yet.
-6. Complete RPM refresh/no-change/failure cases, two-target independence, offline
-   recovery, owner installation guidance and remaining desktop qualification.
+## Next actions
 
-The current workstation must not be enrolled, formatted or switched. QEMU 8.2.2,
-OVMF 2024.02 and graphical test dependencies are installed in the existing Ubuntu
-WSL2 environment under the user's VM authorization. Research fixtures contain
-no owner passwords, vault data or production keys.
+1. Inspect the latest source/CI for the testing-policy removal, native service
+   correction and signed-installer preparation. Fix observed failures without
+   weakening runtime signature/path/state validation or adding unit/meta tests.
+2. Verify/download the signed research media, test a fresh encrypted two-disk
+   install, inspect inherited signature policy/origin and confirm sentinel retention.
+3. Complete real home activation/recovery behavior and generic file/line integration.
+4. Build and qualify production release authority, immutable signed artifacts,
+   target-bound promotion/freshness, offline recovery and understandable install
+   instructions. Keep production signing keys outside research.
+5. Complete RPM/no-change/failure cases and independent targets. Owner vault/model
+   authentication, the pending Claude terms choice and actual hardware require
+   their own evidence; do not invent them or guess future XPS hardware.
 
-## Continuation rules
-
-Use standard Cargo checks; no custom runner or first-party src directories.
-Maintain worklog.md at milestones and handoff. Research status.json and reports
-are authoritative for case results; a green container build is not an install or
-hardware pass. Existing R11 native plugin discovery limitations do not block
-reading canonical checkout skills. Never install these skills globally or in the
-OS. Read topic skills on demand and update durable findings with source/version,
-failure behavior and gate impact.
-
-The acceptance story remains: install A, establish recovery and separate
-credentials, use bundled and personal agents independently, preserve three
-home-edit dispositions and GUI settings, publish approved content, stage and boot
-signed B, verify health, reject bad releases, survive interruption, and roll back
-without losing newer personal data. Repeat target updates independently. No final
-owner installer or complete management workflow is claimed yet.
+Only generated guest disks are used. QEMU/OVMF are installed in existing Ubuntu
+WSL2 under the owner's authorization. Never attach/format host disks, enroll the
+workstation home, alter owner vault/profile state, or install repository skills
+globally. Maintain worklog.md and exact-source reports at milestones.

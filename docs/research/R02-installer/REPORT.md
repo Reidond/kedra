@@ -8,7 +8,7 @@ at `85ed4ab` passes Anaconda completion and first-boot desktop health on 2026-09
 The fully downloaded ISO is 2,865,981,440 bytes with SHA-256
 `d74e2a1eb79e8c93f52da82a8626bad43ad65498382941cf8982f07f41174ed3`.
 Local QEMU 8.2.2/OVMF boots UEFI/KVM with 8 GiB RAM and two generated 64 GiB disks,
-no network or host disks. The user deliberately selected only vda after verifying
+no network or host disks. Only vda was deliberately selected after verifying
 its KEDRA-INSTALL-ONLY serial, enabled encryption, and created the generated owner
 account with wheel membership and a generated password. No repair or kernel
 override was used on this installation.

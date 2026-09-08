@@ -9,6 +9,7 @@ import urllib.request
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=pathlib.Path, required=True)
 parser.add_argument('--research-tools', action='store_true')
+parser.add_argument('--verification-tools', action='store_true')
 args = parser.parse_args()
 pins = json.loads(pathlib.Path(__file__).with_name('inputs.json').read_text())
 args.output.mkdir(parents=True, exist_ok=False)
@@ -78,6 +79,7 @@ for notice in pins['component_notices']:
     fetch(notice['url'], notices / notice['filename'], notice['sha256'], notice['size'])
 if args.research_tools:
     package(pins['personal_test_codex'], 'personal-codex')
+if args.research_tools or args.verification_tools:
     tool = pins['cosign_test_tool']
     fetch(f'https://github.com/sigstore/cosign/releases/download/v{tool["version"]}/cosign-linux-amd64',
           args.output / 'cosign', tool['sha256'], tool['size'])

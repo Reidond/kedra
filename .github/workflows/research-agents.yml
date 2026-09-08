@@ -37,19 +37,12 @@ jobs:
           cp build/agents/inputs.json output/r05-evidence/
           cp -a "$RUNNER_TEMP/kedra-r05-inputs/notices" output/r05-evidence/
           sha256sum "$RUNNER_TEMP/kedra-r05-inputs/notices/"* > output/r05-evidence/notice-hashes.txt
-      - name: Verify native executable and helper signature bundles
+      - name: Verify signatures and prepare the private image package
         run: |
           set -euo pipefail
           inputs="$RUNNER_TEMP/kedra-r05-inputs"
-          identity='https://github.com/openai/codex/.github/workflows/rust-release.yml@refs/tags/rust-v0.153.4'
-          for binary in codex codex-code-mode-host bwrap; do
-            path="$inputs/codex/bin/$binary"
-            if test "$binary" = bwrap; then path="$inputs/codex/codex-resources/bwrap"; fi
-            "$inputs/cosign" verify-blob --bundle "$inputs/$binary.sigstore" \
-              --certificate-identity "$identity" \
-              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              "$path" 2>&1 | tee "output/r05-evidence/$binary-verification.txt"
-          done
+          python3 build/agents/package.py --inputs "$inputs" \
+            --output "$RUNNER_TEMP/kedra-agents.tar" --evidence output/r05-evidence/image-package.json
       - name: Probe native wrappers without model access
         run: |
           set -euo pipefail

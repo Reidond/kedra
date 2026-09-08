@@ -43,5 +43,5 @@ jobs:
       - name: Scope of this result
         if: always()
         run: |
-          echo 'This workflow builds and lints Rust, then exercises the actual CLI agent/export workflows and independent signature interoperability.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This workflow builds and lints Rust, then exercises the actual CLI export workflow and independent signature interoperability.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Installed-system behavior is covered by the separate disposable VM workflows. Unit and repository self-tests are not used.' >> "$GITHUB_STEP_SUMMARY"

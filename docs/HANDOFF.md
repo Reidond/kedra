@@ -11,7 +11,7 @@ Use end-to-end or manual testing only. Unit/model/mock tests, doctests, standalo
 Rust synthetic test harnesses and repository self-checking code have been removed.
 Do not recreate scanners for layout, source text, docs, skills or test presence.
 Standard formatting, Clippy and builds remain. The explicit e2e_* Cargo targets
-exercise actual CLI agent/export workflows on Linux; Python/OpenSSL exercises the
+exercise the actual CLI home-export workflow on Linux; Python/OpenSSL exercises the
 release CLI. Installed behavior is tested in disposable VMs. Older reports retain
 historical unit-test results, not current instructions to run or rebuild them.
 

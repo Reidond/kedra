@@ -187,13 +187,8 @@ fn offline_cli_exports_pinned_values_and_records_only_a_real_source_commit() {
         "working/index edits are not a commit receipt"
     );
     assert_eq!(
-        Store::open(&f.store())
-            .unwrap()
-            .read("noctalia")
-            .unwrap()
-            .unwrap()
-            .revision,
-        1
+        f.success(&["selection"])["selection"][0]["after"]["value"],
+        "light"
     );
     f.git(&["commit", "-m", "selected field only", "--", SOURCE]);
     let commit = f.git(&["rev-parse", "HEAD"]).trim().to_owned();

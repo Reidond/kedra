@@ -39,4 +39,3 @@ write('policy.json', {'default': [{'type': 'reject'}], 'transports': {
 (args.output / 'registries.yaml').write_text('docker:\n  registry.kedra.test:5000:\n    use-sigstore-attachments: true\n')
 (args.output / 'install.toml').write_text('[install]\nenforce-container-sigpolicy = true\n')
 (args.output / 'research-only').write_text('Disposable R02 signing key and registry scope. Not an owner release.\n')
-

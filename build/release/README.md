@@ -40,10 +40,11 @@ used as a promoted release manifest.
 
 See [authority setup](authority/README.md) for the concrete files, environment,
 secret names, recovery steps and current configuration evidence. The workflow has
-not run with production authority. Main's source and release channels have not
-changed; protection and environment secrets were configured under the owner's
-authorization. The shared installer trust-copy adjustment is
-being qualified through the disposable signed-ISO workflow.
+not yet signed a production image. PR 1 merged as main 3b1bcdf and the explicit
+manual opt-in is enabled. Candidate 34250485539 is building from that source;
+owner-reviewed signing and exact-media qualification remain pending. No release
+channel exists. Shared installer regression 34244387167 passed its signed build
+and offline-startup scope with disposable authority.
 
 The complete release path must preserve these boundaries:
 

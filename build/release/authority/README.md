@@ -10,8 +10,9 @@ GitHub environment `kedra-desktop-signing` contains the encrypted key/passphrase
 as Actions secrets, and the public key/fingerprint as environment variables. It
 requires the Reidond reviewer, permits only main, and disables administrator
 bypass. Main requires the GitHub Actions rust check and disallows force-push or
-deletion, including for administrators. The release opt-in remains unset; no
-production image, installer or channel has been signed/promoted by this setup.
+deletion, including for administrators. After required CI and PR 1 merge, the
+manual release opt-in was enabled and candidate 34250485539 started on main
+3b1bcdf. No production image, installer or channel has yet been signed/promoted.
 The owner confirmed on 2026-09-08 that the recovery files are saved in Bitwarden
 and retrieval is checked. This is owner-reported recovery evidence; the agent did
 not access the Bitwarden vault, recovered private material or any SSH key.
@@ -75,7 +76,7 @@ The build's preflight requires the existing reviewer and main-only branch rule.
 The earlier read-only inspection found no environments and unprotected main at
 `c00374cae862c669460da35471950237216a3d14`. The owner-authorized setup above changed
 those controls and provisioned only environment-scoped signing secrets. Main's
-source revision has not yet changed. No secret contents are present in this
+source later advanced through CI/PR 1 to 3b1bcdf. No secret contents are present in this
 repository or its build contexts.
 
 Sources, checked 2026-09-08:

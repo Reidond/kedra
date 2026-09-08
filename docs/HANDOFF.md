@@ -2,7 +2,10 @@
 
 The owner requested full implementation through a usable, understandable installer,
 with disposable VM testing. Public artifacts may contain reviewed project files
-only. Work is on codex/usable-system; main is unchanged. Read AGENTS.md, the current
+only. Work is on codex/usable-system. PR 1 merged as main 3b1bcdf on 2026-09-08;
+production candidate 34250485539 is building from that exact source. Keep later
+documentation/evidence changes on the development branch while the candidate
+requires unchanged main. Read AGENTS.md, the current
 worklog snapshot and latest entries, then the relevant source/research evidence.
 
 ## Owner testing decision — 2026-09-08
@@ -29,7 +32,8 @@ public authority files and the protected kedra-desktop-signing environment are
 now provisioned. Main requires CI and disallows forced/deleted history. Local
 recovery files are backed up in Bitwarden and retrieval is confirmed by the owner
 (2026-09-08); the agent did not access the vault. Production workflow opt-in remains
-unset; no promoted media exists.
+enabled for the manual workflow; no promoted media exists. Candidate signing must
+still wait at the configured owner-review environment.
 No workstation enrollment has occurred.
 
 R01 native signed helper run 34228725707 at 94678f6 passes older-media enrollment against a newer fresh channel, metadata/OCI

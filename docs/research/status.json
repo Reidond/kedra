@@ -35,9 +35,9 @@
       "status": "blocked",
       "topic": "Activation, writers, rollback",
       "report": "R04-activation/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34230166262",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34237287511",
       "prototype_status": "pass",
-      "note": "Actual CLI/native Noctalia discard and SIGKILL-at-publication abort/resume/keep-current pass at 3267e03, including later-edit abort refusal, metadata/selection retention and active writer recovery. Generic groups, power loss/full disk, other interruption phases and broader image-baseline transitions remain open. E2E/manual only."
+      "note": "Actual native Noctalia and niri discard/recovery pass at 5e238c7. Niri covers stale plans, pinned lines, metadata, relative includes and SIGKILL-at-publication abort/resume/keep-current with later-edit refusal and S/B retention. Installed-baseline acceptance is prepared separately; changed-image transitions, generic groups, power loss/full disk and other phases remain open. E2E/manual only."
     },
     {
       "id": "R05",

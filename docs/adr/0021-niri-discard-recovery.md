@@ -1,6 +1,6 @@
 # ADR 0021: Exact niri discard with explicit file activation
 
-Date: 2026-09-08. Status: implemented; native qualification pending.
+Date: 2026-09-08. Status: implemented; named native discard/recovery subset passes.
 
 The adopted niri file needs ordinary discard without losing pinned publication
 choices or stopping the compositor. A change ID alone is insufficient because
@@ -45,10 +45,13 @@ the operation does not promise an atomic multi-file application group. Native
 file bytes exist only in memory or private atomic-I/O files, never the journal.
 No source-only reconciliation plan authorizes image baseline acceptance.
 
-Evidence: R07 actual CLI/desktop scenarios are prepared for stale-plan refusal,
-pinned-line restoration, unrelated edits, metadata and relative includes.
+Evidence: R07 [34237287511](https://github.com/Reidond/kedra/actions/runs/34237287511)
+at 5e238c7 passes stale-plan refusal, pinned-line restoration, unrelated edits,
+metadata and relative includes. Actual SIGKILL-at-publication recovery passes
+abort/resume/keep-current, including refusal to abort over a later edit, retained
+selection/baseline and expected checkpoint retention. Full desktop/doctor also pass.
 Linux 34236565772 at 7d14ada initially failed the rustix PID method name; corrected
-in the follow-up. Successful native discard/recovery is not yet claimed.
+in the follow-up. Power loss, full disk and other interruption phases remain open.
 
 Primary sources (niri v26.04, inspected 2026-09-08):
 

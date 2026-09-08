@@ -59,11 +59,17 @@ full disk, other interruption phases and baseline transitions remain open.
 Ordinary niri file review/export is implemented. Workspace 34233086757 at 86bb96b
 passes the actual CLI/Git workflow: adjacent selected/local lines, later file
 edits, source/index preservation, receipts, insertion/deletion and symlink refusal.
-Native niri run 34233086974 is pending. `home file init --reviewed-safe` explicitly
+Native niri run 34233086974 passes. `home file init --reviewed-safe` explicitly
 adopts only .config/niri/config.kdl; whole live bytes are compared through Git stdin
 and never saved as Git snapshots. Selected/source/publication state stays separate
-from accepted image B. Text activation/discard and wider path/group integration
-are not yet provided. See TEXT-REVIEW.md and ADR 0019; no unit/meta tests were added.
+from accepted image B. Source reconciliation passes workspace 34235455512 at
+3c948aa. Native discard/reload and actual killed-CLI abort/resume/keep-current pass
+34237287511 at 5e238c7, including pinned decisions, later edits, metadata and
+relative includes. That run also passes the full desktop/doctor checks. Installed-
+baseline activate-plan/apply is prepared for qualification, requiring exact root-
+installed provenance and public source history (ADR 0022). Actual A-to-B baseline
+acceptance and wider path/group integration remain open. See TEXT-REVIEW.md and
+ADRs 0019-0022; no unit/meta tests were added.
 
 Signed-payload ISO 34222699188 at d8a76a9 passes the complete local installation:
 offline signature precheck, deliberate encrypted target choice, owner creation,
@@ -82,7 +88,7 @@ release/promotion is implied. See docs/RELEASES.md.
 
 ## Next actions
 
-1. Inspect current source/CI, including the native niri workflow. Fix observed failures without
+1. Inspect current source/CI and qualify installed niri baseline acceptance. Fix observed failures without
    weakening runtime signature/path/state validation or adding unit/meta tests.
 2. Preserve signed-installer evidence; production authority/promotion, recovery
    and an owner installer are still required after the successful research install.

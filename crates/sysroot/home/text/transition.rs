@@ -98,12 +98,22 @@ fn reanchor(
     Ok(result)
 }
 
-pub(super) fn preview(
+pub(super) struct Prepared {
+    pub id: String,
+    pub observed: String,
+    pub desired: String,
+    pub after: State,
+    pub retired: usize,
+    current_changes: Vec<Change>,
+    proposed_changes: Vec<Change>,
+}
+
+pub(super) fn prepare(
     state: &State,
     parent: &Path,
     repo: &Path,
     commit: Option<&str>,
-) -> Result<()> {
+) -> Result<Prepared> {
     let repo = export::checkout(repo)?;
     let plan = match commit {
         Some(commit) => source::plan_revision(&repo, &state.baseline.target, commit)?,
@@ -218,15 +228,35 @@ pub(super) fn preview(
         &desired_hash,
         &after,
     ))?);
+    let proposed_changes = git.changes(&state.reference, &desired)?;
+    Ok(Prepared {
+        id: plan_id,
+        observed,
+        desired,
+        after,
+        retired,
+        current_changes: observed_changes,
+        proposed_changes,
+    })
+}
+
+pub(super) fn preview(
+    state: &State,
+    parent: &Path,
+    repo: &Path,
+    commit: Option<&str>,
+) -> Result<()> {
+    let prepared = prepare(state, parent, repo, commit)?;
+    let after = &prepared.after;
     println!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
-            "schema_version":1,"plan_id":plan_id,"source_only_preview":true,
+            "schema_version":1,"plan_id":prepared.id,"source_only_preview":true,
             "accepted_baseline_revision":state.baseline.source_revision,
             "candidate_baseline_revision":after.baseline.source_revision,
-            "source_path":after.baseline.source_path,"observed_sha256":live_hash,"desired_sha256":desired_hash,
-            "retired_publications":retired,"pending_publications":after.published.len(),
-            "current_changes":observed_changes,"proposed_changes":git.changes(&state.reference, &desired)?,
+            "source_path":after.baseline.source_path,"observed_sha256":hash(prepared.observed.as_bytes()),"desired_sha256":hash(prepared.desired.as_bytes()),
+            "retired_publications":prepared.retired,"pending_publications":after.published.len(),
+            "current_changes":prepared.current_changes,"proposed_changes":prepared.proposed_changes,
             "selection_after":after.selected,"local_only_after":after.ignored,
             "live_file_changed":false,"review_state_changed":false,"installed_image_checked":false,
             "native_validation_performed":false,"apply_available":false

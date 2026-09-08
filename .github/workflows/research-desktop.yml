@@ -32,6 +32,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Build checked Rust tooling
         run: |
           rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
@@ -82,6 +83,7 @@ jobs:
           cp build/research/r07/agents.py output/desktop-test-context/
           cp build/research/r07/recovery.py output/desktop-test-context/
           cp build/research/r07/niri-review.py output/desktop-test-context/
+          git bundle create output/desktop-test-context/source.bundle HEAD
           sudo podman build --pull=never --tag localhost/kedra-desktop-test:r07 output/desktop-test-context \
             > output/desktop-evidence/test-image-build.log 2>&1
           python3 - <<'PY'

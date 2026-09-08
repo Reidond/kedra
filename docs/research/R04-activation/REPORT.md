@@ -1,15 +1,21 @@
-# R04: Noctalia activation and recovery
+# R04: Native home activation and recovery
 
 2026-09-08. Full gate: blocked. No workstation home was used.
 
-Niri exact discard and native reload are implemented (ADR 0021), with no accepted
-baseline advance. Workspace 34236682942 at 22a27f5 passes Linux Clippy, actual
-review/publication/reconciliation CLI workflows and release checks. Native
-34236682920 is pending. The preceding 7d14ada stopped on a rustix PID conversion
+Niri exact discard and native reload pass at 5e238c7 in
+[34237287511](https://github.com/Reidond/kedra/actions/runs/34237287511), with no
+accepted baseline advance. The actual VM covers stale-plan refusal, pinned-line
+restoration, unrelated edits, owner/group/mode/SELinux preservation and a relative
+include. SIGKILL at file publication passes abort/resume/keep-current, including
+later-edit abort refusal and independent S/B/checkpoint retention. The complete
+desktop and doctor pass. Evidence is
+`output/r07-run-34237287511/r07-desktop-evidence-34237287511-1/vm/serial.log`.
+Workspace 34237287689 also passes actual CLI/release workflows at this source.
+Installed-baseline acceptance is now prepared separately (ADR 0022); actual changed-
+image transitions remain not-run. The preceding 7d14ada stopped on a rustix PID conversion
 method error; the method was corrected without relaxing peer checks. The source
 preview native regression 34235455502 was cancelled when superseded.
-New real CLI interruption scenarios are prepared for niri abort/resume/keep-current;
-they are not yet executed. No unit, mock, model or repository-scanner tests were added.
+No unit, mock, model or repository-scanner tests were added.
 
 Native interruption now passes
 [34230166262](https://github.com/Reidond/kedra/actions/runs/34230166262) at `3267e03`.

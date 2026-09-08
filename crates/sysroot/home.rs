@@ -89,6 +89,21 @@ enum Command {
 
 #[derive(Subcommand)]
 enum TextCommand {
+    /// Plan reconciliation with the currently installed image's exact source baseline.
+    ActivatePlan {
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+    },
+    /// Apply the installed-baseline plan and accept it after native validation/reload.
+    Apply {
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+        #[arg(long)]
+        plan: String,
+        /// Explicitly select the managed file as the session's active configuration.
+        #[arg(long, required = true)]
+        activate_managed_file: bool,
+    },
     /// Preview restoring one live change to its pinned selection or public reference.
     DiscardPlan { change: String },
     /// Apply an exact discard plan and load the managed file into the running niri session.

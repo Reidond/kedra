@@ -147,6 +147,24 @@ try:
     print("KEDRA_R04_NATIVE_NIRI_RECOVERY_PASS", flush=True)
     cli("unstage", selected)
     cli("clear-local", local)
+    # Reconcile against the actual installed image and its exact public Git history.
+    # This bundle is confined to the generated research derivative.
+    repo = pathlib.Path.home() / "kedra-source"
+    subprocess.run(["git", "init", str(repo)], check=True, timeout=20)
+    subprocess.run(["git", "-C", str(repo), "fetch", "--no-tags",
+                    "/usr/share/kedra-research/source.bundle", "HEAD"], check=True, timeout=60)
+    subprocess.run(["git", "-C", str(repo), "checkout", "--detach", "FETCH_HEAD"], check=True, timeout=20)
+    subprocess.run(["git", "-C", str(repo), "remote", "add", "origin",
+                    "https://github.com/Reidond/kedra.git"], check=True, timeout=20)
+    before_accept = native.read_text()
+    plan = cli("activate-plan", "--repo", str(repo))
+    if not plan["installed_image_checked"] or plan["installed_baseline_revision"] != accepted["source_revision"]:
+        raise RuntimeError("activation plan did not bind the actual installed baseline")
+    cli("apply", "--repo", str(repo), "--plan", "0" * 64, "--activate-managed-file", success=False)
+    cli("apply", "--repo", str(repo), "--plan", plan["plan_id"], "--activate-managed-file")
+    if native.read_text() != before_accept or cli("status")["accepted_baseline"] != accepted:
+        raise RuntimeError("accepting the current installed baseline lost a later native edit")
+    print("KEDRA_R04_NIRI_INSTALLED_BASELINE_PASS", flush=True)
 finally:
     native.write_text(original)
     subprocess.run(["niri", "validate"], check=True, timeout=20)

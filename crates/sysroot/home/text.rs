@@ -42,7 +42,7 @@ fn hex(value: &str, length: usize) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 struct Baseline {
     target: String,
@@ -762,7 +762,7 @@ pub(super) fn run(
     if revision.is_none() || before != after {
         store.compare_exchange(RECORD, revision, &after)?;
     }
-    let mut response = serde_json::json!({"schema_version":1,"path":FILE,"accepted_baseline":{"source_revision":state.baseline.source_revision,"source_path":state.baseline.source_path,"target":state.baseline.target},"reference_sha256":hash(state.reference.as_bytes()),"selection":state.selected,"local_only":state.ignored,"publication_count":state.published.len(),"live_file_changed":false,"checkout_changed":false,"activation_available":false});
+    let mut response = serde_json::json!({"schema_version":1,"path":FILE,"accepted_baseline":{"source_revision":state.baseline.source_revision,"source_path":state.baseline.source_path,"target":state.baseline.target},"reference_sha256":hash(state.reference.as_bytes()),"selection":state.selected,"local_only":state.ignored,"publication_count":state.published.len(),"live_file_changed":false,"checkout_changed":false,"installed_baseline_activation_available":true,"discard_available":true});
     if !matches!(
         command,
         TextCommand::Selection | TextCommand::Export { .. } | TextCommand::RecordSource { .. }

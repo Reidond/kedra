@@ -4,9 +4,9 @@ The actual Linux CLI workflow and native niri desktop checks pass at `86bb96b`
 (runs 34233086757 and 34233086974).
 This interface supports the ordinary
 `.config/niri/config.kdl` file on an installed Linux Kedra desktop. It does not
-apply or discard live text changes yet. Other files and niri includes remain
-unmanaged. Use your editor for live changes; niri's normal validation/reload
-behavior applies.
+manage other files or checkpoint niri includes. Native discard and installed
+baseline activation are implemented for qualification below. Ordinary editor
+changes remain writable; niri's normal validation/reload behavior applies.
 
 First review the file for secrets, including values passed to custom commands.
 Do not adopt a file containing credentials. Then, as the desktop user:
@@ -77,9 +77,27 @@ can override an incoming default; a later changed value returns to normal review
 
 A successful preview does not verify an installed image, run niri validation,
 apply files or advance the accepted baseline. Its plan ID identifies the proposed
-result; baseline activation is still unavailable. See [ADR 0020](adr/0020-text-reconciliation-preview.md).
+result; this source-preview ID cannot authorize native activation. See [ADR 0020](adr/0020-text-reconciliation-preview.md).
 
-Discard of one current change is implemented for native qualification:
+After booting a new image, plan acceptance of that installed baseline:
+
+```sh
+sysroot home file activate-plan --repo "$HOME/src/kedra"
+sysroot home file apply --repo "$HOME/src/kedra" --plan PLAN_ID --activate-managed-file
+```
+
+This path requires the installed source commit and complete history in the
+checkout. It checks that the planned target, source path and contents exactly
+match the root-owned installed manifest and baseline file, then validates the
+native candidate. The result shows the retained selection/local decisions and
+pending publications. Apply recomputes that plan, reloads the managed file and
+accepts the new baseline only after validation succeeds. Abort and keep-current
+retain the previous accepted baseline; resume checks the installed baseline again.
+This implementation is pending native qualification, including a real A-to-B
+image transition. It does not stage an OS or turn advisory source preview into
+installed-image authority. See [ADR 0022](adr/0022-installed-text-baseline.md).
+
+Discard of one current change passes native VM 34237287511 at 5e238c7:
 
 ```sh
 sysroot home file discard-plan CHANGE_ID
@@ -106,7 +124,9 @@ validation or reload leaves recovery pending. The journal contains hashes and
 file identities, never the complete live text. Successful validation removes its
 private temporary file; interruption can leave `.sysroot-check-*` files for manual
 review in the niri directory. Included files and concurrent external IPC actions
-are outside this single-file transaction. Native qualification is pending.
+are outside this single-file transaction. Actual process-kill recovery passes
+abort/resume/keep-current in the same native run; other interruption phases,
+power loss and full disk remain unqualified.
 
 Binary/non-UTF-8 files, CRLF, missing final newline, unsafe links/ownership and
 files over 128 KiB or 8192 lines are refused. Preserve an unreadable store for

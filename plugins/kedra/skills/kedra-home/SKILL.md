@@ -13,7 +13,10 @@ enqueues asynchronous work, and the initial ConfigLoaded event describes the pri
 load. Subscribe first, consume initial status, request reload, then require a new
 event. Failures retain recovery state. Sources: pinned niri-config/src/lib.rs,
 niri-ipc/src/lib.rs, src/input/mod.rs and src/utils/watcher.rs linked in ADR 0021.
-This impacts R03/R04/R10; implementation is pending native qualification.
+This impacts R03/R04/R10. Native 34237287511 at 5e238c7 passes discard, relative
+includes, metadata and actual killed-CLI abort/resume/keep-current with a later
+edit. Installed-baseline acceptance is prepared in ADR 0022; an actual changed-
+image transition is not yet qualified.
 
 Native process-kill recovery, 2026-09-08: R07 34230166262 at 3267e03 kills the
 installed CLI during native publication, then passes abort/resume/keep-current.

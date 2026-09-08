@@ -1,5 +1,8 @@
-//! Journaled discard of one exact text change; accepted B and S/I/P stay intact.
-use super::{Git, RECORD, Result, State, TextCommand, content, hash, hex, live, live_path};
+//! Journaled native discard and installed-baseline acceptance.
+use super::{
+    Git, RECORD, Result, State, TextCommand, content, hash, hex, installed, live, live_path,
+    transition,
+};
 use crate::home::Recovery;
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -41,12 +44,16 @@ struct Journal {
     desired_sha256: String,
     receipt: Receipt,
     phase: Phase,
+    /// Only public baseline/provenance and explicit S/I/P; never complete L.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    after: Option<State>,
 }
 struct Plan {
     id: String,
     observed: String,
     desired: String,
     restored: String,
+    after: Option<State>,
 }
 fn state_hash(state: &State) -> Result<String> {
     let mut state = state.clone();
@@ -127,7 +134,42 @@ fn plan(state: &State, parent: &Path, id: &str) -> Result<Plan> {
         observed,
         desired,
         restored,
+        after: None,
     })
+}
+fn installed_plan(state: &State, parent: &Path, repo: &Path) -> Result<Plan> {
+    if state.pending_activation.is_some() {
+        return Err("niri recovery must finish before planning".into());
+    }
+    let baseline = installed()?;
+    let prepared = transition::prepare(state, parent, repo, Some(&baseline.source_revision))?;
+    if prepared.after.baseline != baseline {
+        return Err(
+            "committed source baseline differs from the installed target, path or content".into(),
+        );
+    }
+    let id = hash(&serde_json::to_vec(&(
+        prepared.id,
+        "installed-niri-baseline",
+        "activate-managed-niri-file",
+    ))?);
+    Ok(Plan {
+        id,
+        observed: prepared.observed,
+        desired: prepared.desired,
+        restored: String::new(),
+        after: Some(prepared.after),
+    })
+}
+fn check_installed(after: Option<&State>) -> Result<()> {
+    if let Some(after) = after
+        && after.baseline != installed()?
+    {
+        return Err(
+            "installed niri baseline changed; preserve pending state and review recovery".into(),
+        );
+    }
+    Ok(())
 }
 fn validate(path: &Path) -> Result<()> {
     let status = Command::new("/usr/bin/timeout")
@@ -236,6 +278,12 @@ fn pending(store: &Store, state: &State) -> Result<(u64, Journal)> {
     {
         return Err("niri journal disagrees with reserved review state".into());
     }
+    if let Some(after) = &journal.after {
+        after.validate(&state.instance)?;
+        if after.pending_activation.is_some() {
+            return Err("planned niri state contains a nested reservation".into());
+        }
+    }
     Ok((record.revision, journal))
 }
 fn conclude(
@@ -249,7 +297,11 @@ fn conclude(
     if record.bytes != serde_json::to_vec(state)? {
         return Err("reserved niri state changed".into());
     }
-    let mut after = state.clone();
+    let mut after = if phase == Phase::Completed {
+        journal.after.as_ref().unwrap_or(state).clone()
+    } else {
+        state.clone()
+    };
     after.pending_activation = None;
     journal.phase = phase;
     store.compare_exchange_batch(&[
@@ -263,6 +315,7 @@ fn resume(store: &mut Store, state: &State, directory: &Directory, path: &Path) 
     if journal.phase == Phase::Aborting {
         return Err("abort is pending; use home file recover abort".into());
     }
+    check_installed(journal.after.as_ref())?;
     if journal.phase == Phase::Prepared {
         if !directory.is_published(&journal.receipt)? {
             directory.publish(&journal.receipt)?;
@@ -277,6 +330,7 @@ fn resume(store: &mut Store, state: &State, directory: &Directory, path: &Path) 
     if hash(live()?.as_bytes()) != journal.desired_sha256 {
         return Err("niri file changed during reload; checkpoint retained".into());
     }
+    check_installed(journal.after.as_ref())?;
     journal.phase = Phase::Validated;
     jr = save(store, jr, &journal)?;
     directory.finish_validated(&journal.receipt)?;
@@ -285,8 +339,82 @@ fn resume(store: &mut Store, state: &State, directory: &Directory, path: &Path) 
 pub(super) fn handles(command: &TextCommand) -> bool {
     matches!(
         command,
-        TextCommand::DiscardPlan { .. } | TextCommand::Discard { .. } | TextCommand::Recover { .. }
+        TextCommand::DiscardPlan { .. }
+            | TextCommand::Discard { .. }
+            | TextCommand::Recover { .. }
+            | TextCommand::ActivatePlan { .. }
+            | TextCommand::Apply { .. }
     )
+}
+fn apply(
+    store: &mut Store,
+    state: &State,
+    directory: &Directory,
+    path: &Path,
+    plan: Plan,
+    approved: &str,
+) -> Result<()> {
+    if plan.id != approved {
+        return Err("niri plan is stale; review a new plan".into());
+    }
+    let _ = connect()?;
+    check_installed(plan.after.as_ref())?;
+    directory.validate_bytes(&token()?, plan.desired.as_bytes(), validate)?;
+    if plan.observed == plan.desired {
+        if live()? != plan.observed {
+            return Err("niri file changed after planning; review a new plan".into());
+        }
+        reload(path)?;
+        if live()? != plan.desired {
+            return Err("niri file changed during reload".into());
+        }
+        check_installed(plan.after.as_ref())?;
+        if let Some(after) = plan.after {
+            let record = store.read(RECORD)?.ok_or("niri state disappeared")?;
+            if record.bytes != serde_json::to_vec(state)? {
+                return Err("niri state changed during reload".into());
+            }
+            store.compare_exchange(RECORD, Some(record.revision), &serde_json::to_vec(&after)?)?;
+        }
+    } else {
+        let receipt = directory.prepare(
+            FILE,
+            &token()?,
+            Some(plan.observed.as_bytes()),
+            plan.desired.as_bytes(),
+        )?;
+        let journal = Journal {
+            schema_version: 1,
+            state_sha256: state_hash(state)?,
+            plan_id: plan.id,
+            observed_sha256: hash(plan.observed.as_bytes()),
+            desired_sha256: hash(plan.desired.as_bytes()),
+            receipt,
+            phase: Phase::Prepared,
+            after: plan.after,
+        };
+        let mut reserved = state.clone();
+        reserved.pending_activation = Some(journal.receipt.token.clone());
+        let record = store.read(RECORD)?.ok_or("niri state disappeared")?;
+        if record.bytes != serde_json::to_vec(state)? {
+            directory.abort(&journal.receipt)?;
+            return Err("niri state changed before reservation".into());
+        }
+        let prior = store.read(JOURNAL)?.map(|r| r.revision);
+        if let Err(error) = store.compare_exchange_batch(&[
+            (
+                RECORD,
+                Some(record.revision),
+                &serde_json::to_vec(&reserved)?,
+            ),
+            (JOURNAL, prior, &serde_json::to_vec(&journal)?),
+        ]) {
+            directory.abort(&journal.receipt)?;
+            return Err(error.into());
+        }
+        resume(store, &reserved, directory, path)?;
+    }
+    Ok(())
 }
 pub(super) fn run(
     store: &mut Store,
@@ -311,6 +439,40 @@ pub(super) fn run(
     let directory = Directory::open(path.parent().ok_or("niri parent is missing")?)?;
     let _coordination = directory.coordinate()?;
     match command {
+        TextCommand::ActivatePlan { repo } => {
+            let plan = installed_plan(state, parent, repo)?;
+            directory.validate_bytes(&token()?, plan.desired.as_bytes(), validate)?;
+            let after = plan
+                .after
+                .as_ref()
+                .ok_or("installed plan has no proposed state")?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "plan_id":plan.id,"installed_image_checked":true,"native_validation_performed":true,
+                    "will_activate_managed_file":true,"live_file_changed":false,"review_state_changed":false,
+                    "accepted_baseline_revision":state.baseline.source_revision,"installed_baseline_revision":after.baseline.source_revision,
+                    "observed_sha256":hash(plan.observed.as_bytes()),"desired_sha256":hash(plan.desired.as_bytes()),
+                    "proposed_changes":Git::new(parent)?.changes(&state.reference, &plan.desired)?,
+                    "selection_after":after.selected,"local_only_after":after.ignored,"pending_publications":after.published.len()
+                }))?
+            );
+            return Ok(());
+        }
+        TextCommand::Apply {
+            repo,
+            plan: approved,
+            activate_managed_file: true,
+        } => {
+            apply(
+                store,
+                state,
+                &directory,
+                &path,
+                installed_plan(state, parent, repo)?,
+                approved,
+            )?;
+        }
         TextCommand::DiscardPlan { change } => {
             let plan = plan(state, parent, change)?;
             directory.validate_bytes(&token()?, plan.desired.as_bytes(), validate)?;
@@ -329,49 +491,14 @@ pub(super) fn run(
             plan: approved,
             activate_managed_file: true,
         } => {
-            let plan = plan(state, parent, change)?;
-            if plan.id != *approved {
-                return Err("discard plan is stale; review a new discard-plan".into());
-            }
-            let _ = connect()?;
-            directory.validate_bytes(&token()?, plan.desired.as_bytes(), validate)?;
-            if plan.observed == plan.desired {
-                reload(&path)?;
-                if live()? != plan.desired {
-                    return Err("niri file changed during reload".into());
-                }
-            } else {
-                let receipt = directory.prepare(
-                    FILE,
-                    &token()?,
-                    Some(plan.observed.as_bytes()),
-                    plan.desired.as_bytes(),
-                )?;
-                let journal = Journal {
-                    schema_version: 1,
-                    state_sha256: state_hash(state)?,
-                    plan_id: plan.id,
-                    observed_sha256: hash(plan.observed.as_bytes()),
-                    desired_sha256: hash(plan.desired.as_bytes()),
-                    receipt,
-                    phase: Phase::Prepared,
-                };
-                let mut reserved = state.clone();
-                reserved.pending_activation = Some(journal.receipt.token.clone());
-                let revision = store
-                    .read(RECORD)?
-                    .ok_or("niri state disappeared")?
-                    .revision;
-                let prior = store.read(JOURNAL)?.map(|r| r.revision);
-                if let Err(error) = store.compare_exchange_batch(&[
-                    (RECORD, Some(revision), &serde_json::to_vec(&reserved)?),
-                    (JOURNAL, prior, &serde_json::to_vec(&journal)?),
-                ]) {
-                    directory.abort(&journal.receipt)?;
-                    return Err(error.into());
-                }
-                resume(store, &reserved, &directory, &path)?;
-            }
+            apply(
+                store,
+                state,
+                &directory,
+                &path,
+                plan(state, parent, change)?,
+                approved,
+            )?;
         }
         TextCommand::Recover {
             action: Some(action),
@@ -413,10 +540,14 @@ pub(super) fn run(
             );
         }
     }
+    let after: State =
+        serde_json::from_slice(&store.read(RECORD)?.ok_or("niri state disappeared")?.bytes)?;
+    after.validate(&state.instance)?;
     println!(
         "{}",
         serde_json::to_string_pretty(
-            &serde_json::json!({"completed":true,"managed_file_loaded":true,"accepted_baseline_changed":false,"selection_and_local_policy_preserved":true})
+            &serde_json::json!({"completed":true,"managed_file_loaded":true,"accepted_baseline_changed":after.baseline != state.baseline,
+                "accepted_baseline_revision":after.baseline.source_revision,"selection":after.selected,"local_only":after.ignored,"publication_count":after.published.len()})
         )?
     );
     Ok(())

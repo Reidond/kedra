@@ -51,7 +51,7 @@ impl Fixture {
         std::fs::write(&file, BASE).unwrap();
         let manifest = serde_json::json!({"schema_version": 1, "source_revision": "a".repeat(40),
             "target": {"id": "desktop"}, "files": [{"source_path": "home/.config/noctalia/config.toml",
-            "destination": DESTINATION, "sha256": format!("{:x}", Sha256::digest(BASE)), "home_baseline": true}]});
+            "destination": DESTINATION, "sha256": hash(BASE.as_bytes()), "home_baseline": true}]});
         std::fs::write(
             root.join("usr/share/sysroot/source.json"),
             serde_json::to_vec(&manifest).unwrap(),

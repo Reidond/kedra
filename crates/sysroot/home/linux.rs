@@ -15,6 +15,13 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const RECORD: &str = "noctalia";
 const DESTINATION: &str = "usr/share/sysroot/home/default/.config/noctalia/config.toml";
 
+fn hash(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 impl From<Key> for noctalia::Key {
     fn from(key: Key) -> Self {
         match key {
@@ -143,7 +150,7 @@ fn installed_baseline(root: &Path, owner: u32) -> Result<Baseline> {
     }
     let payload = candidates[0];
     let bytes = read_regular(&root.join(DESTINATION), owner, noctalia::MAX_EXPORT)?;
-    let digest = format!("{:x}", Sha256::digest(&bytes));
+    let digest = hash(&bytes);
     if digest != payload.sha256 {
         return Err("installed Noctalia baseline differs from its source manifest".into());
     }
@@ -255,11 +262,7 @@ pub(super) fn run(options: Options) -> Result<()> {
             "machine identity is not initialized; home review cannot be bound safely".into(),
         );
     }
-    let instance = format!(
-        "{:x}",
-        Sha256::digest([machine, owner.to_le_bytes().to_vec()].concat())
-    )[..32]
-        .to_owned();
+    let instance = hash(&[machine, owner.to_le_bytes().to_vec()].concat())[..32].to_owned();
     let state = if matches!(options.command, Command::Init) {
         let baseline = installed_baseline(Path::new("/"), 0)?;
         let state = State::new(instance.clone(), baseline, live()?)?;

@@ -1,6 +1,19 @@
-# R03: Synthetic writable-home review
+# R03: Writable-home review
 
 Status: core prototype pass; complete R03 gate blocked.
+
+Current subset, 2026-09-08: [workspace 34188179270](https://github.com/Reidond/kedra/actions/runs/34188179270)
+at `3d108e9` passes 71 Linux tests plus one doctest, including six new
+Noctalia persistence/input cases. [Desktop 34188179252](https://github.com/Reidond/kedra/actions/runs/34188179252)
+passes the actual ordinary-user `sysroot home` commands against Noctalia 5.0.1
+GUI writes: initialize from installed provenance, stage light, change live to
+auto, retain the staged light value, keep an exact value local, resurface a later
+value, and set/clear app ownership. `KEDRA_R03_DURABLE_REVIEW_PASS` is recorded.
+No raw full export enters the store. Generic line/file integration, source export,
+discard and coordinated activation remain unfinished. See [the interface](../../HOME-REVIEW.md)
+and [ADR 0012](../../adr/0012-persistent-noctalia-review.md).
+
+The following records preserve the original synthetic line-review experiment.
 Date: 2026-09-07. Agent: Codex.
 Evidence finalized and CLI argument refusal checked: 2026-09-08 Europe/Kiev.
 Source: local changes on main based on 64c84498c898e61ff370d9f9f1ce30cbd3d00613.

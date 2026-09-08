@@ -1,6 +1,6 @@
 # ADR 0012: Persist the qualified Noctalia projection as ordinary-user review state
 
-Date: 2026-09-08. Status: implemented; native qualification pending.
+Date: 2026-09-08. Status: implemented; native review subset verified.
 
 ADR 0007's pure three-field disposition model and ADR 0008's private SQLite
 storage have separate passing evidence. Connect them in the ordinary-user sysroot
@@ -30,8 +30,10 @@ not create needless history revisions.
 
 The initial commands cover initialization, status, selection and local dispositions.
 They do not implement generic text/line review, source export, discard or activation.
-Those remain R03/R04 work. The R07 generated-account experiment will exercise the
-CLI against native GUI writes; local platform checks do not establish that result.
+Those remain R03/R04 work. The R07 generated-account experiment in run 34188179252
+at 3d108e9 passes the CLI against native GUI writes, including durable selection
+and local dispositions. Workspace run 34188179270 passes 71 Linux tests plus one
+doctest. This does not qualify the unfinished source-export or activation operations.
 
 Evidence: docs/research/R03-home-review/REPORT.md, docs/research/R07-desktop/REPORT.md,
 crates/sysroot/home/linux/tests.rs and build/research/r07/check.sh.

@@ -19,20 +19,22 @@ committed Git blobs with target overlays/provenance, release signature/checkpoin
 verification, synthetic line review and Noctalia disposition models, and Linux
 private SQLite storage. The shared core performs no filesystem/process I/O.
 Source/Git operations belong to the ordinary-user CLI. The helper has a storage
-library but its binary still refuses privileged operations.
+library but its binary still refuses privileged operations. The ordinary-user CLI
+now connects private storage to the three-field Noctalia review model; native
+GUI tests pass. Generic files, source export, discard and activation remain open.
 
-Source `afb8a671ac2e15459b0890b6530b6b01a7d7ea9b` passed Linux
-[check 34184975775](https://github.com/Reidond/kedra/actions/runs/34184975775):
-formatting, Clippy, 64 tests plus one doctest, release build and independent
+Source `3d108e9cf7368a02b3b8d98581c26847dda97a7e` passed Linux
+[check 34188179270](https://github.com/Reidond/kedra/actions/runs/34188179270):
+formatting, Clippy, 71 tests plus one doctest, release build and independent
 OpenSSL interoperability. Eight storage tests cover corruption, links/types/modes,
 concurrency and process interruption. Linux agent wrappers also pass native Codex
-0.153.4/0.153.3 runtime/profile checks in [34182776503](https://github.com/Reidond/kedra/actions/runs/34182776503).
+0.153.4/0.153.3 runtime/profile checks in [34186921224](https://github.com/Reidond/kedra/actions/runs/34186921224).
 Model turns, authentication and complete discovery remain unqualified.
 
 R01 disposable strict Sigstore policy, negative cases, signed A-to-B boot and
 rollback pass, including inherited enforcement on initial and rolled-back A.
 R02 minimal QCOW2 boots with enforcing SELinux in Actions and local WSL2/KVM.
-R07 [run 34184975810](https://github.com/Reidond/kedra/actions/runs/34184975810)
+R07 [run 34188179252](https://github.com/Reidond/kedra/actions/runs/34188179252)
 passes graphical login, niri/Noctalia IPC, services, unlocked synthetic keyring
 and native Noctalia 5.0.1 settings projection. The inspected 1280x768 capture now
 fills the VM window with readable controls; physical display/audio/suspend and
@@ -54,7 +56,11 @@ while requiring the separate installed desktop to remain enforcing. ADR 0011
 adapts two version/hash-guarded Anaconda 44.30-2 properties: embedded local payloads
 do not require networking, and a locked root does not satisfy the admin requirement.
 Updated build [34185915639](https://github.com/Reidond/kedra/actions/runs/34185915639)
-at `cfc956d` is in progress. Inspect its actual result before using the media.
+at `cfc956d` passes media build/startup and the local offline/disk/admin UI flow.
+Actual installation failed GetBlob import in the 1.6 GiB installer /var/tmp, while
+the encrypted target had 59 GiB free. The VM is stopped and sentinel comparison
+passes. ADR 0013 adds selected-disk scratch binding; the next media build and full
+installation are pending.
 This is unsigned localhost-origin research media, not an owner release.
 
 A diagnostic boot of the older media with a temporary kernel override reached

@@ -60,6 +60,8 @@ model to private review storage. See docs/HOME-REVIEW.md for implemented scope a
 the R03 report for native qualification. They do not yet export source or activate
 live files. This interface was added on 2026-09-08 against Noctalia 5.0.1; unknown
 versions, damaged state or unsafe file metadata fail without reinitialization.
+Run 34188179270 at 3d108e9 passes the six Linux bridge cases; native desktop run
+34188179252 passes GUI changes with durable staging and local dispositions.
 
 ## Established synthetic R03 findings
 

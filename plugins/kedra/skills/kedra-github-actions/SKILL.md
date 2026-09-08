@@ -59,8 +59,10 @@ Measured 2026-09-08: the legacy Quay builder at a686afe passed QCOW2 tests but
 rejected the README's `--bootc-installer-payload-ref` option. The current v82.0.0
 bootc-image-builder compatibility source uses `--installer-payload-ref`; the
 prefixed spelling belongs to image-builder. Check `build --help` first. The
-current official container is ghcr.io/osbuild/bootc-image-builder (installer pin
-in installer/inputs.json). Keep older test evidence attached to its actual pin.
+selected generic-ISO container is ghcr.io/osbuild/image-builder, pinned separately
+in installer/inputs.json. Its canonical build command supports bootc-generic-iso
+and the prefixed option. Keep older compatibility/QCOW2 evidence attached to its
+actual pin; do not interchange these interfaces.
 Source: osbuild/image-builder v82.0.0 cmd/image-builder/bib_cmd.go and R02 report.
 
 Upstream moved bootc-image-builder into osbuild/image-builder. Evaluate a pinned
@@ -69,6 +71,14 @@ Do not bake installation tooling into the everyday desktop unnecessarily. Prove
 interactive disk selection in a multi-disk VM, encryption/account setup, recovery,
 correct registry origin, target enrollment and the first signed update. Never
 use an unattended first-disk erase default or default credentials.
+
+The local 2026-09-08 R02 installation of ISO run 34185915639 failed GetBlob import
+with ENOSPC in /var/tmp: installer writable capacity was 1.6 GiB despite 59 GiB
+free on the encrypted destination. ADR 0013 adds a hash-guarded, media-only scratch
+bind after deliberate disk approval and native root cleanup. It preserves bootc
+arguments and refuses cleanup failures; actual corrected installation is pending.
+Sources: containers/image storage_src.go/internal/tmpdir and bootc v1.16.10
+require_dir_contains_only_mounts. Do not treat more VM RAM as the installer fix.
 
 Measure the actual runner: disk/memory/privileges, /dev/kvm, architecture and image
 identity. Avoid ubuntu-slim for privileged filesystem image work. Split heavy

@@ -121,7 +121,17 @@ not yet been tested. The older legacy ISO remains rejected and was not booted.
   The old-media diagnostic VM was stopped without starting installation; the
   unselected disk compares identical. New-media transfer is in progress; actual
   acceptance must use a fresh VM without the diagnostic kernel override.
-- Interactive multi-disk installer, encryption and account creation: not-run.
+- Fresh 34185915639 media UEFI/UI: pass without a kernel override. Both disks start
+  unselected; explicit serial inspection identifies vda as KEDRA-INSTALL-ONLY and
+  vdb as KEDRA-KEEP-DATA. Selected only vda and encryption. Offline networking is
+  not blocking. Begin Installation remains disabled without an owner and with a
+  non-admin owner, then enables when wheel membership is restored; root stays locked.
+- Actual installation: fail during bootc GetBlob import with ENOSPC in /var/tmp.
+  The encrypted target is mounted and has 59 GiB free; the separate installer
+  writable filesystem has 1.6 GiB capacity. Owner creation/first boot did not finish.
+  After stopping the VM, the unselected sentinel compares identical. ADR 0013
+  implements selected-disk scratch with exact-source and inert lifecycle checks;
+  corrected-media installation remains pending.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).
 - Desktop package build and graphical session subset: pass (R07); physical qualification remains open.
 - Secure Boot, physical devices, recovery and installer checksum verification:

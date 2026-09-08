@@ -15,9 +15,9 @@
       "status": "blocked",
       "topic": "Installer and Actions feasibility",
       "report": "R02-installer/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34165475139",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34185915639",
       "prototype_status": "pass",
-      "note": "Minimal QCOW2/UEFI passes. Generic media labels and basic userspace passed, but local enforcing-media UI failed. ADR 0010 follows Fedora media-only permissive mode; ADR 0011 guards local-source network/admin fixes. Rebuilt-media installation, installed enforcement, signed origin and sentinel retention are pending."
+      "note": "Minimal QCOW2/UEFI passes. Fresh generic media passes Anaconda/offline/disk/admin UI cases; actual encrypted installation fails GetBlob ENOSPC in installer /var/tmp despite free destination space. Sentinel comparison passes. ADR 0013 scratch adapter is prepared; full install, first boot and signed origin remain open."
     },
     {
       "id": "R03",
@@ -26,9 +26,9 @@
       "prototype_status": "pass",
       "report": "R03-home-review/REPORT.md",
       "results": "R03-home-review/results.json",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34179189211",
-      "verified_source": "d74c4c0c8899ca67960ceff90a42c3750713a9f8",
-      "note": "Synthetic line review and Noctalia disposition/projection models pass; native Noctalia export/IPC projection passes run 34179189185. Home filesystem persistence/source integration and coordinated R04 activation remain unavailable."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34188179270",
+      "verified_source": "3d108e9cf7368a02b3b8d98581c26847dda97a7e",
+      "note": "Synthetic line and Noctalia models pass. Native desktop run 34188179252 passes private persistent Noctalia capture/staging/exact-local/app-owned commands against GUI writes. Generic file/line/source export/discard and R04 activation remain open."
     },
     {
       "id": "R04",
@@ -41,8 +41,8 @@
       "topic": "Agent packaging and independence",
       "prototype_status": "pass",
       "report": "R05-agents/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34182776503",
-      "note": "Linux wrapper tests and native Codex 0.153.4/0.153.3 four-way runtime/profile help/version probes pass, including three Sigstore bundles. Authenticated model use, external discovery, full rollback and public packaging/Claude preinstallation prerequisites remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34186921224",
+      "note": "Linux wrapper cases and four native Codex 0.153.4/0.153.3 runtime/profile probes pass with Sigstore and pinned component notices. Auth/model turns, external discovery, complete distribution and Claude preinstallation agreement remain open; owner terms question is pending."
     },
     {
       "id": "R06",
@@ -55,8 +55,8 @@
       "topic": "Desktop session and hardware",
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34184975810",
-      "note": "Graphical login/services/keyring/native Noctalia projection pass; actual 1280x768 window and guest capture verified at afb8a67. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34188179252",
+      "note": "Graphical login/services/keyring/full-size capture and durable native Noctalia review pass at 3d108e9. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
     },
     {
       "id": "R08",

@@ -25,6 +25,23 @@ patches = [
         '        # any root set from kickstart is fine\n        if self._rootpw_seen:\n            return True\n',
         '        # Kedra: a deliberately locked root is not an accessible admin.\n        if self._rootpw_seen and not self.root_account_locked:\n            return True\n',
     ),
+    (
+        'modules/payloads/payload/rpm_ostree/installation.py',
+        '614ac3f3061d959144e0a2e80919012c7254d44b1fab04daea35b2bef52f3f86',
+        '''        try:
+            self.report_progress(_("Deploying image..."))
+            for line in execReadlines("bootc", bootc_args):
+                self._parse_bootc_output(line)
+        except OSError as e:
+            raise PayloadInstallationError(
+                "bootc installation failed: {}".format(str(e))
+            ) from e
+''',
+        '''        self.report_progress(_("Deploying image..."))
+        # Kedra: large local-store layers must use the selected disk for scratch.
+        _kedra_bootc_deploy(self._physroot, bootc_args, self._parse_bootc_output)
+''',
+    ),
 ]
 updated = {}
 for relative, expected, before, after in patches:
@@ -36,6 +53,40 @@ for relative, expected, before, after in patches:
     if source.count(before) != 1:
         raise SystemExit(f'Anaconda patch anchor is not unique: {relative}')
     updated[relative] = source.replace(before, after)
+
+updated[patches[2][0]] += '''
+
+def _kedra_bootc_deploy(physroot, bootc_args, report):
+    """Use only the already-selected/mounted target for transient image layers.
+
+    Added by Kedra after the native root cleanup and deliberate storage approval.
+    A self-bind keeps the scratch directory acceptable to bootc's empty-root check.
+    The /var/tmp bind handles containers/image's big-file path without relying on
+    TMPDIR or changing any bootc/signature argument. Mount failures are fatal.
+    """
+    import tempfile
+
+    if not os.path.ismount(physroot) or os.path.realpath(physroot) == "/":
+        raise PayloadInstallationError("Kedra scratch requires a separate mounted installation root")
+    scratch = tempfile.mkdtemp(prefix=".kedra-install-", dir=physroot)
+    mounted = []
+    try:
+        safe_exec_program("mount", ["--bind", scratch, scratch])
+        mounted.append(scratch)
+        safe_exec_program("mount", ["--bind", scratch, "/var/tmp"])
+        mounted.append("/var/tmp")
+        try:
+            for line in execReadlines("bootc", bootc_args):
+                report(line)
+        except OSError as error:
+            raise PayloadInstallationError("bootc installation failed: {}".format(error)) from error
+    finally:
+        # Do not force-unmount or recursively erase unexpected state. If a mount
+        # remains busy, leave it intact and report failure for explicit recovery.
+        for mountpoint in reversed(mounted):
+            safe_exec_program("umount", [mountpoint])
+        os.rmdir(scratch)
+'''
 
 def getter(source, name):
     candidates = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.FunctionDef) and node.name == name]
@@ -66,8 +117,60 @@ for seen, locked, password, users, expected in [
     actual = admin(SimpleNamespace(_rootpw_seen=seen, root_account_locked=locked, root_password=password, users=users))
     if actual is not expected:
         raise SystemExit('Native accessible-administrator classification failed')
+
+# Exercise the exact injected function with inert mount/process substitutes.
+# These checks never mount anything in the image builder or its host.
+from unittest.mock import patch
+deploy = getter(updated[patches[2][0]], '_kedra_bootc_deploy')
+for failure in [None, 'first-bind', 'second-bind', 'bootc', 'unmount']:
+    calls = []
+    scratch = '/synthetic-target/.kedra-install-fixture'
+    arguments = ['install', 'to-filesystem', '--source-imgref=containers-storage:fixture', '/synthetic-target']
+    def execute(command, args):
+        calls.append((command, tuple(args)))
+        if (failure == 'first-bind' and len(calls) == 1
+                or failure == 'second-bind' and len(calls) == 2
+                or failure == 'unmount' and command == 'umount'):
+            raise RuntimeError('synthetic mount failure')
+    def lines(command, args):
+        if command != 'bootc' or args != arguments:
+            raise SystemExit('Native bootc arguments changed')
+        calls.append(('bootc', tuple(args)))
+        if failure == 'bootc':
+            raise OSError('synthetic deployment failure')
+        return ['synthetic progress']
+    deploy.__globals__.update(
+        os=SimpleNamespace(path=SimpleNamespace(ismount=lambda p: True, realpath=lambda p: p),
+                           rmdir=lambda p: calls.append(('rmdir', (p,)))),
+        safe_exec_program=execute, execReadlines=lines, PayloadInstallationError=RuntimeError,
+    )
+    with patch('tempfile.mkdtemp', return_value=scratch):
+        try:
+            deploy('/synthetic-target', arguments, lambda line: None)
+            if failure is not None:
+                raise SystemExit('Expected scratch/deployment failure')
+        except RuntimeError:
+            if failure is None:
+                raise
+    expected_cleanup = [('umount', ('/var/tmp',)), ('umount', (scratch,)), ('rmdir', (scratch,))]
+    if failure == 'first-bind':
+        expected_cleanup = [('rmdir', (scratch,))]
+    elif failure == 'second-bind':
+        expected_cleanup = [('umount', (scratch,)), ('rmdir', (scratch,))]
+    elif failure == 'unmount':
+        expected_cleanup = [('umount', ('/var/tmp',))]
+    if calls[-len(expected_cleanup):] != expected_cleanup:
+        raise SystemExit('Scratch cleanup order changed')
+for mounted, root_path in [(False, '/synthetic-target'), (True, '/')]:
+    deploy.__globals__['os'].path = SimpleNamespace(ismount=lambda p: mounted, realpath=lambda p: root_path)
+    with patch('tempfile.mkdtemp', side_effect=AssertionError('must reject before creating scratch')):
+        try:
+            deploy(root_path, [], lambda line: None)
+            raise SystemExit('Unsafe scratch root was accepted')
+        except RuntimeError:
+            pass
 for relative, source in updated.items():
     path = root / relative
     path.write_text(source)
     py_compile.compile(str(path), doraise=True)
-    print(f'Adapted and checked Anaconda property: {relative}')
+    print(f'Adapted and checked Anaconda source: {relative}')

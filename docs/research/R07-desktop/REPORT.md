@@ -3,7 +3,13 @@
 Status: **pass** for desktop package resolution/configuration/build, 2026-09-08
 (Europe/Kiev). Graphical login/session subset passes; not a qualified desktop release.
 
-Latest [run 34184975810](https://github.com/Reidond/kedra/actions/runs/34184975810)
+Latest [run 34188179252](https://github.com/Reidond/kedra/actions/runs/34188179252)
+at `3d108e9` passes the desktop sequence and the new persistent Noctalia review
+CLI/GUI sequence (R03). The existing border defaults are now explicit true/true
+source values. Login, services, keyring and full-size capture continue to pass;
+source export and live activation are not exercised by these commands.
+
+Earlier [run 34184975810](https://github.com/Reidond/kedra/actions/runs/34184975810)
 at `afb8a67` passes the guest 1280x768 mode assertion and actual QEMU window
 geometry. Inspected screenshots fill the frame with readable Noctalia controls;
 the Xvfb/GTK capture-size issue is resolved. Login, services, keyring and native

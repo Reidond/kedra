@@ -5,7 +5,7 @@ The current Linux commands review three effective Noctalia 5.0.1 settings:
 these projected values in a private SQLite directory. Other exported settings,
 credentials and raw application exports do not enter that store.
 
-This implementation is undergoing native R03 qualification. There is no promoted
+The native R03 subset passes desktop run 34188179252 at 3d108e9. There is no promoted
 owner image yet. It does not implement generic file/line review, source export,
 discard or live activation; those remain required before complete home management.
 The running workstation must not be used for its enrollment experiment.

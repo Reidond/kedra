@@ -7,6 +7,7 @@ on:
       - .github/workflows/research-desktop.yml
       - Containerfile
       - build/assemble.sh
+      - build/agents/**
       - build/research/r07/**
       - packages/**
       - home/**
@@ -45,6 +46,7 @@ jobs:
           target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
           cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
           cp build/research/inputs.json output/desktop-evidence/
+          bash build/agents/prepare.sh output/desktop-context "$RUNNER_TEMP/kedra-agent-inputs" output/desktop-evidence/agent-inputs.json
           sha256sum output/desktop-context/* > output/desktop-evidence/build-input-hashes.txt
       - name: Install runner container tools
         run: |
@@ -76,6 +78,7 @@ jobs:
           mkdir -p output/desktop-test-context output/desktop-image output/desktop-evidence/vm
           cp build/research/r07/Containerfile build/research/r07/check.sh build/research/r07/check.service build/research/r07/test-profile.toml build/research/console.toml output/desktop-test-context/
           cp target/release/examples/r03_noctalia output/desktop-test-context/project-noctalia
+          cp build/research/r07/agents.py output/desktop-test-context/
           sudo podman build --pull=never --tag localhost/kedra-desktop-test:r07 output/desktop-test-context \
             > output/desktop-evidence/test-image-build.log 2>&1
           python3 - <<'PY'

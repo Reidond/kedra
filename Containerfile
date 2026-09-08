@@ -5,5 +5,6 @@ FROM ${BASE_IMAGE}
 COPY sysroot /usr/bin/sysroot
 COPY sysroot-helper /usr/libexec/sysroot/helper
 ADD payload.tar /
+ADD agents.tar /
 COPY assemble.sh /tmp/kedra-assemble.sh
 RUN /bin/bash /tmp/kedra-assemble.sh && rm /tmp/kedra-assemble.sh

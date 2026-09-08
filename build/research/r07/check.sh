@@ -69,6 +69,7 @@ as_user sysroot home --state "$review_state" clear-local theme.mode
 marker KEDRA_R03_DURABLE_REVIEW_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R03_NATIVE_PROJECTION_PASS
+as_user python3 /usr/libexec/kedra-research-agents.py
 as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs
 as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs | \
     jq -e '.["Virtual-1"].logical | .width == 1280 and .height == 768 and .scale == 1' >/dev/null

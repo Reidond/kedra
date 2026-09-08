@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/research-installer.yml
       - installer/**
+      - build/agents/**
 permissions:
   contents: read
 concurrency:
@@ -30,6 +31,7 @@ jobs:
           cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
           cp build/research/inputs.json output/installer-evidence/
           cp installer/inputs.json output/installer-evidence/installer-inputs.json
+          bash build/agents/prepare.sh output/desktop-context "$RUNNER_TEMP/kedra-agent-inputs" output/installer-evidence/agent-inputs.json
       - name: Prepare runner
         run: |
           sudo apt-get update

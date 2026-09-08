@@ -1,6 +1,6 @@
 # Production release preparation
 
-The public trust-context producer and a disabled manual candidate workflow are
+The public trust-context producer and an enabled manual candidate workflow are
 implemented. The dedicated public authority and protected GitHub environment
 secrets are now provisioned; the owner confirmed Bitwarden backup and retrieval.
 Production execution and promotion remain unqualified. The public producers do
@@ -40,10 +40,14 @@ used as a promoted release manifest.
 
 See [authority setup](authority/README.md) for the concrete files, environment,
 secret names, recovery steps and current configuration evidence. The workflow has
-not run with production authority. Main's source and release channels have not
-changed; protection and environment secrets were configured under the owner's
-authorization. The shared installer trust-copy adjustment is
-being qualified through the disposable signed-ISO workflow.
+signed production candidate 34250485539 after exact owner review. PR 1 merged as
+main 3b1bcdf and the explicit manual opt-in is enabled. That candidate passed
+anonymous strict pull but failed ISO construction on compressed layer identity;
+it is retained and not promotable. The correction preserves native OCI identity
+on the first push and requires a registry/storage round trip before signing.
+A replacement needs its own owner review and exact-media qualification. No release
+channel exists. Shared installer regression 34244387167 passed its signed build
+and offline-startup scope with disposable authority.
 
 The complete release path must preserve these boundaries:
 

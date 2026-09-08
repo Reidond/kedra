@@ -2,7 +2,12 @@
 
 The owner requested full implementation through a usable, understandable installer,
 with disposable VM testing. Public artifacts may contain reviewed project files
-only. Work is on codex/usable-system; main is unchanged. Read AGENTS.md, the current
+only. Work is on codex/usable-system. PR 1 merged as main 3b1bcdf on 2026-09-08;
+production candidate 34250485539 passed owner-approved signing and anonymous
+strict pull, then failed ISO construction on compressed layer identity. It is
+retained and not promotable. The development branch corrects initial publication
+to preserve native OCI bytes and qualifies the registry/storage round trip before
+requesting a replacement signing review. Read AGENTS.md, the current
 worklog snapshot and latest entries, then the relevant source/research evidence.
 
 ## Owner testing decision — 2026-09-08
@@ -22,14 +27,16 @@ release/checkpoint signature and replay verification, private state, Noctalia
 capture/staging/local policy, selected-field source export and source receipts.
 The installed helper has a bounded root protocol with independent trust/scope checks,
 durable stage/rollback records and explicit rollback hold/resume. Production trust
-and promotion are not configured. A disabled manual release candidate workflow now
+is provisioned; promotion remains unqualified. The manual release candidate workflow
 separates build/sign-image/installer jobs; see build/release/authority/README.md.
 The owner authorized a new dedicated release key and GitHub deployment secrets;
 public authority files and the protected kedra-desktop-signing environment are
 now provisioned. Main requires CI and disallows forced/deleted history. Local
 recovery files are backed up in Bitwarden and retrieval is confirmed by the owner
 (2026-09-08); the agent did not access the vault. Production workflow opt-in remains
-unset; no promoted media exists.
+enabled for the manual workflow; no promoted media exists. Candidate signing must
+wait at the configured owner-review environment for each exact candidate. The
+first candidate's approval does not approve a replacement digest.
 No workstation enrollment has occurred.
 
 R01 native signed helper run 34228725707 at 94678f6 passes older-media enrollment against a newer fresh channel, metadata/OCI

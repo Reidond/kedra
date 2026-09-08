@@ -74,6 +74,26 @@ for variant in A B U W M; do
     sudo skopeo copy "${signing[@]}" --digestfile "$root/$variant.digest" \
         "containers-storage:localhost/kedra-r01:$variant" "docker://$repository:$variant" > "$evidence/push-$variant.log" 2>&1
 done
+# Exercise the exact registry -> storage -> storage path used by an offline ISO.
+# A normal registry push compresses layers and changes the native manifest;
+# signing that form prevents later storage-only copies from changing it back.
+jq --arg key "$root/context/public/release.pub" '.transports[][][].keyPath=$key' "$root/context/policy.json" > "$root/host-policy.json"
+native_digest="sha256:$(sudo skopeo inspect --raw containers-storage:localhost/kedra-r01:A | sha256sum | cut -d ' ' -f 1)"
+sudo skopeo copy --preserve-digests --sign-by-sigstore-private-key "$private/allowed.private" \
+    --sign-passphrase-file "$private/passphrase" --digestfile "$root/native-push.digest" \
+    containers-storage:localhost/kedra-r01:A "docker://$repository:installer-native" \
+    > "$evidence/native-preserved-push.log" 2>&1
+test "$(cat "$root/native-push.digest")" = "$native_digest"
+sudo skopeo --policy "$root/host-policy.json" copy --preserve-digests \
+    "docker://$repository@$native_digest" "containers-storage:$repository@$native_digest" \
+    > "$evidence/native-preserved-pull.log" 2>&1
+native_id=$(sudo podman image inspect "$repository@$native_digest" --format '{{.Id}}')
+sudo skopeo --policy "$root/host-policy.json" copy --preserve-digests \
+    --digestfile "$root/native-storage-copy.digest" "containers-storage:$native_id" \
+    "containers-storage:[overlay@$root/installer-storage+/run/containers/storage]$repository@$native_digest" \
+    > "$evidence/native-preserved-storage-copy.log" 2>&1
+test "$(cat "$root/native-storage-copy.digest")" = "$native_digest"
+printf 'PASS exact signed registry/storage/storage digest %s\n' "$native_digest" > "$evidence/native-preserved-roundtrip.txt"
 # A valid signature in another repository still has no authority for this target.
 sudo skopeo copy --sign-by-sigstore-private-key "$private/allowed.private" --sign-passphrase-file "$private/passphrase" \
     --digestfile "$root/wrong-repository.digest" containers-storage:localhost/kedra-r01:B \
@@ -96,7 +116,6 @@ cp "$root/cases"/helper-*.json "$evidence/"
 cp "$root/context/policy.json" "$root/context/registries.yaml" "$root/context/public/release.pub" "$evidence/"
 # Verify A before copying it into the local builder store; first-boot policy is
 # still a separate installer-handoff gate, not established by this copy alone.
-jq --arg key "$root/context/public/release.pub" '.transports[][][].keyPath=$key' "$root/context/policy.json" > "$root/host-policy.json"
 initial=$(jq -er .initial_a "$root/cases/cases.json")
 sudo skopeo --policy "$root/host-policy.json" copy "docker://$initial" "containers-storage:$initial" > "$evidence/verified-a-copy.log" 2>&1
 sudo podman run --rm "$builder" --version > "$evidence/builder-version.txt"

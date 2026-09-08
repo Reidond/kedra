@@ -101,10 +101,25 @@ jobs:
           trap 'rm -f -- "$auth"' EXIT
           printf '%s' "$GH_TOKEN" | skopeo login --authfile "$auth" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
           destination="ghcr.io/reidond/kedra-desktop-builds:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          sudo skopeo copy --authfile "$auth" --digestfile output/candidate-evidence/candidate.digest \
+          # Keep the native uncompressed OCI representation through the registry.
+          # A later storage -> storage ISO copy cannot alter signed compression.
+          native_digest="sha256:$(sudo skopeo inspect --raw containers-storage:localhost/kedra-desktop:release-candidate | sha256sum | cut -d ' ' -f 1)"
+          sudo skopeo copy --authfile "$auth" --preserve-digests --digestfile output/candidate-evidence/candidate.digest \
             containers-storage:localhost/kedra-desktop:release-candidate "docker://$destination"
           digest=$(cat output/candidate-evidence/candidate.digest)
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          test "$digest" = "$native_digest"
+          # Public build-time compatibility guard before requesting a key-bearing job.
+          sudo skopeo copy --authfile "$auth" --preserve-digests \
+            "docker://ghcr.io/reidond/kedra-desktop-builds@$digest" \
+            containers-storage:localhost/kedra-desktop:registry-roundtrip \
+            > output/candidate-evidence/registry-roundtrip.log 2>&1
+          roundtrip_id=$(sudo podman image inspect localhost/kedra-desktop:registry-roundtrip --format '{{.Id}}')
+          sudo skopeo copy --preserve-digests --digestfile output/candidate-evidence/storage-roundtrip.digest \
+            "containers-storage:$roundtrip_id" \
+            "containers-storage:[overlay@$RUNNER_TEMP/kedra-installer-roundtrip+/run/containers/storage]localhost/kedra-desktop:registry-roundtrip" \
+            > output/candidate-evidence/storage-roundtrip.log 2>&1
+          test "$(cat output/candidate-evidence/storage-roundtrip.digest)" = "$digest"
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
       - name: Preserve public build evidence
         if: always()

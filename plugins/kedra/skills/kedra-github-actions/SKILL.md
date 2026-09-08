@@ -33,18 +33,21 @@ or global/shared agent profiles. CI is permitted to read them as repository sour
 
 ## Job boundaries
 
-Prepared 2026-09-08: release.yml is a manual, disabled main-only candidate path.
+Prepared 2026-09-08: release.yml is a manual main-only candidate path.
 It preflights an existing owner reviewer and main-only deployment rule, then
 separates build, no-checkout image signing and anonymous strict-pull/installer
-jobs. Production execution is not-run; public authority, environment secrets,
-recovery and promotion are not configured. Read build/release/authority/README.md
+jobs. Owner-authorized public authority/environment secrets and backup are
+provisioned, and the manual opt-in is enabled. Read build/release/authority/README.md
 before enabling anything. An environment name does not configure protection;
 GitHub may auto-create an unprotected environment. Source: GitHub environment
-API/docs linked there; R08. Actual Skopeo signing remains qualified through
-disposable R01/R02/R04 authority only.
+API/docs linked there; R08. First production signing and anonymous strict pull
+pass run 34250485539; ISO assembly fails on compressed layer identity. Preserve
+native OCI digest on the first registry push and qualify the later storage copy
+before requesting replacement signing. Exact-media promotion remains not-run.
 
 Follow-up 2026-09-08: owner-authorized public authority and protected environment
-are now provisioned; backup retrieval and production execution remain pending.
+are now provisioned; backup retrieval is confirmed by the owner. The first
+production ISO failure and subsequent correction are recorded in the R08 report.
 The prepared promote.yml shares candidate concurrency and rechecks current source
 plus prior channel hashes. Public jobs prepare/verify media; a no-checkout protected
 job signs exact bytes with pinned Cosign 3.1.3. Versioned drafts precede the single

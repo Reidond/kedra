@@ -86,7 +86,8 @@ Gates: R01 proves compatibility; R08 proves authority/lifecycle; R02 proves the
 installer trust handoff; R10 implements independent validation. Sources:
 docs/SOURCES.md policy, registries, podman-sign, blob-sign, bootc-switch,
 actions-security; docs/UPDATES.md. The prepared release.yml candidate workflow is
-disabled and unqualified with production authority. Its exact public-input and
+manual and enabled; its first owner-approved signature passes but the resulting
+ISO fails compressed layer identity (run 34250485539). Its exact public-input and
 environment requirements are in build/release/authority/README.md. No public key
 file or fingerprint from a research fixture may fill the production slots.
 
@@ -96,6 +97,18 @@ Cosign 3.1.3 job executes no checkout/artifacts; a key-free publisher repeats na
 verification, publishes complete versioned assets, then one signed-pair channel
 bundle. Its runtime refuses stale/changed channel state and existing version tags.
 Syntax is checked; actual production publication/races/recovery are not-run.
-Owner authority/environment are provisioned separately (R08); backup retrieval,
+Owner authority/environment are provisioned separately (R08); the owner confirmed
+Bitwarden backup/retrieval. Exact-media promotion,
 renewal/expired recovery and rotation remain open. Do not confuse preparation with
 qualification. Source: build/release/README.md and the exact R08/worklog evidence.
+
+Measured 2026-09-08: ordinary Skopeo 1.13.3 registry publication compressed the
+native OCI layers. Strict anonymous pull passed, but image-builder v82's later
+storage-by-ID to digest-qualified media storage copy refused the signed manifest
+rewrite. Preserve native digest on the first push and qualify the complete
+registry/storage/isolated-storage path before asking for production signatures.
+Do not strip signatures, remove digest binding or weaken policy to repair this.
+The corrected signed registry/strict-pull/isolated-storage round trip passes
+34253906774 at 7e846f0 with Skopeo 1.13.3 and Podman 4.9.3. Replacement production
+GHCR publication and complete ISO construction still need exact-run evidence.
+Source: R08-release-protocol/owner-candidate-20260908.md; gates R01/R02/R08.

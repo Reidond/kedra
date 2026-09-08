@@ -10,29 +10,36 @@ Claude Code. There is no BlueBuild or generic distribution framework.
 
 ## Current status
 
-This is **in implementation**, with a desktop candidate booted in a VM, but no
-supported installation release yet. The workspace has
-explicit `main.rs` / `lib.rs` paths, no first-party `src/` directories, one lockfile,
-and a pinned Rust toolchain. The CLI implements help, version, capability status
-and committed source planning/archives plus signed-release verification.
-Deployment, home mutation, setup, and agent launch commands
-return an unavailable error. The helper performs no privileged operation.
+Kedra is **in implementation**, with a working signed research installation and
+no promoted owner installer yet. The first protected production candidate is
+being built from accepted main source. Start with the
+[installation guide](docs/INSTALL.md), [current worklog](worklog.md) and
+[exact research evidence](docs/research/status.json).
 
-Workspace checks validate Rust and protocol fixtures. Separate research workflows
-test images, VM boots, signatures and the desktop session. Owner authentication
-and physical hardware qualification remain separate. See [research status](docs/research/status.json) and the
-[Actions runs](https://github.com/Reidond/kedra/actions).
+The implemented CLI plans/archives committed source, verifies signed releases and
+channel bundles, reconstructs verified ISOs, and manages installed signed
+enrollment/staging/rollback through an independently verifying root helper.
+It also provides native Noctalia and niri review, selected publication, local-only
+choices, discard/recovery and accepted-image baseline transitions. Real home
+files remain writable. `sysroot doctor` inspects desktop health.
 
-The [R03 synthetic example](docs/research/R03-home-review/REPORT.md) now proves
-selected line staging, stable snapshots under later writes, local-only exclusion
-and explicit conflicts in disposable Git fixtures. Run
-`cargo run -p sysroot-core --example r03_home --locked`. Its 12 tests are included
-in standard workspace tests. This is research code; real home management and
-activation remain unavailable.
+Actual VM evidence includes fresh encrypted installation with an unselected disk
+preserved, ISO-free owner login, enforcing SELinux, graphical niri/Noctalia,
+signed A/B/A transitions and retained live/selected/local home decisions.
+The private Codex runtime and logged-out Bitwarden work in the qualified desktop;
+owner account authentication and physical hardware are separate gates.
 
-The [Noctalia follow-up](docs/research/R03-home-review/noctalia.md) adds safe
-effective-setting projection and tested selection/local-policy/publication
-transitions. It still performs no real-home activation.
+The owner-approved public release authority and protected GitHub signing
+environment are provisioned, and the owner confirmed Bitwarden backup/retrieval.
+Exact production-media installation and promotion remain pending. A candidate
+signature is not a promoted release. Wider home groups, no-change refresh,
+expired-channel recovery, rotation and independent targets remain unfinished.
+
+The flat Rust workspace uses explicit main.rs/lib.rs paths, a single lockfile and
+pinned toolchain. Checks use standard formatting/Clippy/builds and actual CLI or
+VM workflows. The owner's policy excludes unit/model/mock tests, doctests and
+repository self-scanners. See [AGENTS.md](AGENTS.md) and
+[Actions](https://github.com/Reidond/kedra/actions).
 
 Inspect a target without changing the checkout or machine:
 
@@ -51,16 +58,16 @@ input inspection, not an installation command. See
 deterministic build input archive from the same committed snapshot and refuses
 an existing output. The plain Containerfile consumes that archive in Actions.
 The desktop package/configuration candidate is tracked in
-[R07](docs/research/R07-desktop/REPORT.md); runtime qualification is still pending.
+[R07](docs/research/R07-desktop/REPORT.md), including exact runtime qualification.
 
 `sysroot release verify` checks signed release records and optional installer
 checksums offline. Its scope and key requirements are described in
 [release verification](docs/RELEASES.md). No production release has been promoted.
 
-The [R02 experiment](docs/research/R02-installer/REPORT.md) builds a minimal
-Fedora 44 image and QCOW2 in Actions. The corrected UEFI boot test passes with
-enforcing SELinux. This is a disposable test disk; there is no owner installation
-image yet. Signed-update/rollback research is the next dependency.
+The [R02 report](docs/research/R02-installer/REPORT.md) records interactive
+signed-payload ISO installation; [R01](docs/research/R01-signatures/REPORT.md)
+records real signed update/rollback. Research authority/media do not establish
+owner production qualification.
 
 ## Continue in Codex or Claude
 
@@ -81,7 +88,7 @@ if it is missing, then select it for the check:
 
 ```sh
 rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
-cargo +1.98.1 test --workspace --locked
+cargo +1.98.1 test --workspace --test 'e2e_*' --locked
 ```
 
 The command-line selection takes precedence over `RUSTUP_TOOLCHAIN` and directory
@@ -89,13 +96,15 @@ overrides without changing your global default. See
 [Rustup's override precedence](https://rust-lang.github.io/rustup/overrides.html).
 In PowerShell, remove the override for the current shell with
 `Remove-Item Env:RUSTUP_TOOLCHAIN -ErrorAction SilentlyContinue`, then check
-`rustup show active-toolchain`. If it selects 1.98.1, plain `cargo test --workspace --locked`
+`rustup show active-toolchain`. If it selects 1.98.1, plain `cargo test --workspace --test 'e2e_*' --locked`
 works too. A shell prompt's version label does not establish Cargo's selection.
 
 Start with [AGENTS.md](AGENTS.md), [the handoff](docs/HANDOFF.md), and the
 [kedra-context skill](plugins/kedra/skills/kedra-context/SKILL.md). Claude reads the same
-instructions through `CLAUDE.md`. Use your independently installed coding CLI
-now; the future `sysroot codex` / `sysroot claude` launchers are not implemented.
+instructions through `CLAUDE.md`. On a qualified installed desktop, `sysroot codex`
+opens the verified checkout with its private bundled runtime. Personal coding CLIs
+remain independent. The Claude launcher is implemented but its runtime is not
+packaged pending the owner's preinstallation terms choice.
 
 ## Design and knowledge
 

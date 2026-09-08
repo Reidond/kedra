@@ -3,7 +3,12 @@
 Status: **pass** for desktop package resolution/configuration/build, 2026-09-08
 (Europe/Kiev). Graphical login/session subset passes; not a qualified desktop release.
 
-Latest [run 34188179252](https://github.com/Reidond/kedra/actions/runs/34188179252)
+Latest [run 34192732970](https://github.com/Reidond/kedra/actions/runs/34192732970)
+at `a2c0e63` passes the existing graphical/native-review sequence after adding
+source-export commands. The separate Linux CLI/source round trip passes workspace
+run 34192732940; no live activation or physical-hardware result is implied.
+
+Earlier [run 34188179252](https://github.com/Reidond/kedra/actions/runs/34188179252)
 at `3d108e9` passes the desktop sequence and the new persistent Noctalia review
 CLI/GUI sequence (R03). The existing border defaults are now explicit true/true
 source values. Login, services, keyring and full-size capture continue to pass;

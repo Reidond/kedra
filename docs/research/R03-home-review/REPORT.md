@@ -2,7 +2,15 @@
 
 Status: core prototype pass; complete R03 gate blocked.
 
-Current subset, 2026-09-08: [workspace 34188179270](https://github.com/Reidond/kedra/actions/runs/34188179270)
+Latest subset, 2026-09-08: [workspace 34192732940](https://github.com/Reidond/kedra/actions/runs/34192732940)
+at `a2c0e63` passes 81 Linux tests plus one doctest, including the actual CLI,
+SQLite, selected Git patch and exact source-commit receipt round trip. Eight
+export cases and the retained-revision case also pass on Windows. Native desktop
+[34192732970](https://github.com/Reidond/kedra/actions/runs/34192732970) continues
+to pass GUI review. Selected-field source export/receipts are implemented; generic
+text/line integration, discard and coordinated activation remain open. See ADR 0014.
+
+Earlier native review subset: [workspace 34188179270](https://github.com/Reidond/kedra/actions/runs/34188179270)
 at `3d108e9` passes 71 Linux tests plus one doctest, including six new
 Noctalia persistence/input cases. [Desktop 34188179252](https://github.com/Reidond/kedra/actions/runs/34188179252)
 passes the actual ordinary-user `sysroot home` commands against Noctalia 5.0.1

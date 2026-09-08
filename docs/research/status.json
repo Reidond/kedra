@@ -15,9 +15,9 @@
       "status": "blocked",
       "topic": "Installer and Actions feasibility",
       "report": "R02-installer/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34207121856",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34222699188",
       "prototype_status": "pass",
-      "note": "Fresh encrypted installation, administrative owner creation, ISO-free boot, niri/Noctalia desktop, enforcing SELinux, correct home/root mounts, zero failed units, unlocked keyring and unchanged sentinel disk pass at 85ed4ab. The unsigned localhost research origin is not a promoted owner installer; signed origin and full recovery remain open."
+      "note": "Signed-payload media at d8a76a9 passes offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and sentinel retention. Exact booted digest and containerPolicy enforcement match; installed helper accepts inherited trust and reports unenrolled. Outer ISO/authority remain research-only; production enrollment/promotion and full recovery are open."
     },
     {
       "id": "R03",

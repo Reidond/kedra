@@ -24,7 +24,7 @@ The installed helper has a bounded root protocol with independent trust/scope ch
 durable stage/rollback records and explicit rollback hold/resume. Production trust
 and promotion are not configured. No workstation enrollment has occurred.
 
-R01 native signed helper run 34218886062 at 41e0d67 passes enrollment, metadata/OCI
+R01 native signed helper run 34226367288 at 71916b9 passes older-media enrollment against a newer fresh channel, metadata/OCI
 negatives, stage/boot B, retained-A rollback, newer-data/high-water preservation and
 explicit resume. Minimal VM 34218886101 also passes. The refreshed official Fedora
 44 AMD64 base is pinned in build/research/inputs.json; the preceding pin became
@@ -48,26 +48,35 @@ skills stay checkout-local; none are installed into personal profiles or the OS.
 
 Noctalia plan/apply/discard/recover commands are implemented with narrow native
 field edits, writer coordination, checked file replacement and durable recovery.
-Historical Linux checks passed before unit removal. Native desktop 34218886075
-at 41e0d67 stopped at a too-strict rejection of Fedora's global systemd timeout
-drop-in. Manual VM inspection identified its exact root-owned path/directive;
-the correction still rejects user overrides. The next R07 run exercises the real
-sysroot CLI throughout, with no test-only projection binary. See ADR 0017/R04.
+Actual desktop 34223972271 at a5cd96e passes stale-plan refusal, discard, metadata
+and selection retention and installed doctor. Later 34226367519 passes discard,
+Codex and Bitwarden but times out at bus checks after audio output. New 94678f6
+adds bounded portal/keyring calls and markers, inherited error traps and a required
+portal response in doctor. R07 34228725414 is pending. Broader crash/recovery and
+baseline-transition cases remain open; no unit/meta harnesses were added.
 
-The next installer build signs a separate research-scoped desktop using disposable
-keys outside all build/artifact contexts. Public trust, exact payload/source
-binding and a path-free helper VerifyInstaller request gate Anaconda startup.
-The diskless smoke must pass offline signature verification. Native copying,
-signature retention, installation and inherited strict origin remain pending.
-No production key or registry publication is involved. See ADR 0018.
+Signed-payload ISO 34222699188 at d8a76a9 passes the complete local installation:
+offline signature precheck, deliberate encrypted target choice, owner creation,
+ISO-free desktop boot, enforcing SELinux, native portal/keyring/mount health,
+exact booted digest and inherited containerPolicy. The installed helper accepts
+trust/scope/policy and reports unenrolled. Both clean shutdowns return QEMU exit 0
+and the unselected disk compares identical. All local VMs are stopped. See R02
+and ADR 0018 for exact hashes. The outer ISO and authority remain research-only.
+
+Release assemble at 94678f6 verifies signed metadata then streams ordered download
+parts into private temporary output. It checks full size/hash before publishing
+the signed filename without replacing existing output. Actual Windows and Linux
+CLI/OpenSSL E2E pass (workspace 34228725596); the actual 2.86 GB R02 ISO also passes
+Windows two-part reconstruction with separate disposable authority. No owner
+release/promotion is implied. See docs/RELEASES.md.
 
 ## Next actions
 
-1. Inspect the latest source/CI for the testing-policy removal, native service
-   correction and signed-installer preparation. Fix observed failures without
+1. Inspect current source/CI, including the bounded native bus checks and signed
+   helper regression. Fix observed failures without
    weakening runtime signature/path/state validation or adding unit/meta tests.
-2. Verify/download the signed research media, test a fresh encrypted two-disk
-   install, inspect inherited signature policy/origin and confirm sentinel retention.
+2. Preserve signed-installer evidence; production authority/promotion, recovery
+   and an owner installer are still required after the successful research install.
 3. Complete real home activation/recovery behavior and generic file/line integration.
 4. Build and qualify production release authority, immutable signed artifacts,
    target-bound promotion/freshness, offline recovery and understandable install

@@ -72,7 +72,7 @@ command = [
     "-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
     "-drive", f"if=pflash,format=raw,file={work / 'OVMF_VARS.fd'}",
     "-drive", f"file={disk},if=virtio,format=qcow2,snapshot=on",
-    "-vga", "none", "-device", "virtio-vga-gl,xres=1280,yres=800", "-display", "gtk,gl=on", "-full-screen",
+    "-vga", "none", "-device", "virtio-vga-gl,xres=1280,yres=768", "-display", "gtk,gl=on", "-full-screen",
     "-audiodev", "none,id=audio0", "-device", "ich9-intel-hda", "-device", "hda-duplex,audiodev=audio0",
     "-serial", f"file:{log}", "-serial", f"file:{events}", "-monitor", "none", "-nic", "none",
     "-qmp", f"unix:{qmp_path},server=on,wait=off",
@@ -82,6 +82,18 @@ with (work / "qemu.log").open("w") as output:
     qmp = None
     markers = set()
     try:
+        # Xvfb has no window manager to honor GTK's fullscreen request. Resize
+        # only this generated QEMU window so captures match the guest mode.
+        windows = subprocess.check_output([
+            "xdotool", "search", "--sync", "--all", "--onlyvisible", "--pid", str(process.pid), "--name", ".*",
+        ], timeout=15).decode().splitlines()
+        if len(windows) != 1 or not windows[0].isdigit():
+            raise RuntimeError("Expected one owned QEMU display window")
+        subprocess.run(["xdotool", "windowsize", windows[0], "1280", "768"], check=True, timeout=10)
+        subprocess.run(["xdotool", "windowmove", windows[0], "0", "0"], check=True, timeout=10)
+        (work / "window-geometry.log").write_bytes(subprocess.check_output([
+            "xdotool", "getwindowgeometry", windows[0],
+        ], timeout=10))
         deadline = time.monotonic() + 480
         while time.monotonic() < deadline and process.poll() is None:
             if qmp is None and qmp_path.exists():

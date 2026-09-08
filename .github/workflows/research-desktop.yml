@@ -49,7 +49,7 @@ jobs:
       - name: Install runner container tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils imagemagick
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils imagemagick xdotool
       - name: Build and validate Fedora desktop candidate
         run: |
           set -euo pipefail
@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           mapfile -t disks < <(find "$PWD/output/desktop-image" -name '*.qcow2' -type f)
           test "${#disks[@]}" -eq 1
-          sudo xvfb-run -a -s '-screen 0 1280x800x24' env LIBGL_ALWAYS_SOFTWARE=1 \
+          sudo xvfb-run -a -s '-screen 0 1280x768x24' env LIBGL_ALWAYS_SOFTWARE=1 \
             python3 build/research/r07/run_vm.py --disk "${disks[0]}" \
             --work "$PWD/output/desktop-evidence/vm" --password-file "$RUNNER_TEMP/kedra-r07-private/password" \
             | tee output/desktop-evidence/vm-result.txt

@@ -34,9 +34,12 @@ and `rootflags=subvol=/root`.
 An installer-only `%post --nochroot --erroronfail` step now normalizes that single
 entry to `/sysroot` and explicitly retains read-only policy. It preserves other
 mounts, comments, identifiers and filesystem options. It operates only on the
-fixed mounted `/mnt/sysroot` with a Kedra/bootc payload and a bounded, root-owned
+fixed mounted `/mnt/sysroot` physical filesystem, using native `ostree admin
+--sysroot=/mnt/sysroot --print-current-dir` to locate the deployment. The result
+must stay in its default stateroot deployment directory and contain a Kedra/bootc
+payload with a bounded, root-owned
 regular fstab. Missing/duplicate/unsupported root entries fail installation;
-seven pure text cases cover transformation, idempotence and refusal. No installed
+seven pure text and five path cases cover transformation, idempotence and refusal. No installed
 service masks the failure or weakens root protection.
 
 Local diagnostic copying of this generated owner's hidden home into its selected

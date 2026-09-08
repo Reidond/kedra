@@ -3,6 +3,7 @@ import os
 import pathlib
 import re
 import stat
+import subprocess
 
 def normalize(source):
     lines = source.splitlines(keepends=True)
@@ -20,11 +21,22 @@ def normalize(source):
     lines[index] = match[1] + '/sysroot' + match[3] + match[4] + match[5] + ','.join(options) + match[7] + match[8]
     return ''.join(lines)
 
+def deployment_path(physical, reported):
+    root = pathlib.Path(reported.strip())
+    parent = physical.resolve() / 'ostree/deploy/default/deploy'
+    if not root.is_absolute() or root.resolve().parent != parent or not re.fullmatch(r'[0-9a-f]{64}\.[0-9]+', root.name):
+        raise RuntimeError('Unexpected native deployment path')
+    return root.resolve()
+
 def main():
-    # Fixed Anaconda deployment bind; no caller-controlled target or device names.
-    root = pathlib.Path('/mnt/sysroot')
-    if not root.is_mount() or root.resolve() == pathlib.Path('/'):
-        raise RuntimeError('Expected the mounted installer deployment')
+    # /mnt/sysroot is the physical filesystem. Anaconda's SetSystemRootTask uses
+    # the native deployment lookup before configuring the actual installed /etc.
+    physical = pathlib.Path('/mnt/sysroot')
+    if not physical.is_mount() or physical.resolve() == pathlib.Path('/'):
+        raise RuntimeError('Expected the mounted installation filesystem')
+    reported = subprocess.check_output(['/usr/bin/ostree', 'admin', '--sysroot=/mnt/sysroot', '--print-current-dir'],
+                                       timeout=30, text=True)
+    root = deployment_path(physical, reported)
     if not (root / 'usr/share/sysroot/source.json').is_file() or not (root / 'usr/bin/bootc').is_file():
         raise RuntimeError('Expected an installed Kedra bootc payload')
     path = root / 'etc/fstab'

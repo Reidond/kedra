@@ -2,6 +2,7 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG PAYLOAD_IMAGE
+ARG SOURCE_DATE_EPOCH
 RUN dnf -y --best --refresh --repo=fedora --repo=updates \
       '--setopt=*.skip_if_unavailable=False' '--setopt=*.gpgcheck=True' \
       install anaconda anaconda-install-img-deps anaconda-dracut \

@@ -63,6 +63,13 @@ home activation under new software. Manual rollback changes the OS deployment,
 not all persistent data or application migrations. Automatic health rollback is
 a later tested feature. Recovery must work offline without an AI service.
 
+For the separate Anaconda media, follow pinned Lorax's SELINUX=permissive and
+SELINUXTYPE=targeted environment (ADR 0010, 2026-09-08). An enforcing basic.target
+probe passed at da140ff but local UEFI testing found denied Anaconda/getty_t shell
+operations. This is media-only; R07 and actual installed-OS checks retain enforcing
+SELinux, and R01/R08 signature verification must never become permissive. Keep
+labels, require Anaconda startup, and record installed enforcement after install.
+
 Tests: install A/update B/rollback A, /etc local drift, persistent home retention,
 interrupted staging, candidate-versus-running digest, and old journal readers.
 Also run docs/research/update-refresh/EXPERIMENTS.md client cases. Gates:

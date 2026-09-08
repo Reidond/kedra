@@ -10,4 +10,4 @@ for attempt in $(seq 1 150); do
     fi
     sleep 1
 done
-exit 1
+false # Trigger the diagnostic trap on timeout.

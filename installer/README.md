@@ -28,7 +28,8 @@ retains the original manifest, appends the standard `org.osbuild.selinux` stage
 using the installer's own file contexts, then exports through native osbuild with
 the same cache. The preliminary unlabeled ISO is not exported. The adjustment
 fails if the expected pipeline changes or upstream adds labeling. It does not
-disable enforcement or modify the installed payload's verification rules.
+modify the installed payload's verification rules. The media policy is described
+separately below and in ADR 0010.
 
 The workflow checks the packaged systemd label and boots the unchanged ISO stage2
 using its extracted kernel/initramfs with an explicit research probe and no disks.

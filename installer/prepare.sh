@@ -4,6 +4,9 @@
 set -euo pipefail
 test -f /run/.containerenv
 test -f /usr/share/anaconda/interactive-defaults.ks
+test -n "${SOURCE_DATE_EPOCH:-}"
+stamp=$(date --utc --date="@$SOURCE_DATE_EPOCH" +%Y%m%d%H%M)
+printf '[Main]\nProduct=Kedra\nVersion=44\nBugURL=https://github.com/Reidond/kedra/issues\nIsFinal=False\nUUID=%s.x86_64\n[Compose]\nBuilder=image-builder-v82\n' "$stamp" > /.buildstamp
 # Anaconda owns its console/rescue session. These accounts exist only on media.
 if ! getent passwd install >/dev/null; then
     printf 'install:x:0:0:Anaconda:/root:/usr/libexec/anaconda/run-anaconda\n' >> /etc/passwd

@@ -107,6 +107,12 @@ not yet been tested. The older legacy ISO remains rejected and was not booted.
   `85753341b9070938590d9e9c9a70bd7f67d44e4ba685e0be5627eb390566b74e`.
   This smoke uses the ISO's extracted kernel/initramfs and unchanged stage2;
   corrected-media UEFI/UI/disk/encryption/account installation remains pending.
+  The local UEFI follow-up reaches userspace but still fails before the UI:
+  Anaconda's direct rescue shell runs as getty_t and cannot access systemctl or
+  getenforce. No disks were selected. ADR 0010 records upstream Lorax's separate
+  permissive installer policy and media-only install-user account. New media
+  follows that contract while the desktop payload stays enforcing; a stronger
+  Anaconda service/log smoke and actual installed enforcement are required.
 - Interactive multi-disk installer, encryption and account creation: not-run.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).
 - Desktop package build and graphical session subset: pass (R07); physical qualification remains open.

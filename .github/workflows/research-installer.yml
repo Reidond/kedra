@@ -58,6 +58,7 @@ jobs:
             2>&1 | tee output/installer-evidence/desktop-build.log
           sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
             --build-arg PAYLOAD_IMAGE=localhost/kedra-desktop:installer-research \
+            --build-arg "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" \
             --tag localhost/kedra-anaconda:research --file installer/Containerfile installer \
             2>&1 | tee output/installer-evidence/anaconda-build.log
           sudo podman image inspect localhost/kedra-desktop:installer-research localhost/kedra-anaconda:research \

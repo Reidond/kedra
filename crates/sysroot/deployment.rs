@@ -26,7 +26,15 @@ struct FreshRelease {
 #[derive(Subcommand)]
 enum Operation {
     /// Enroll only the exact running signed release; never overwrite enrollment.
-    Enroll(FreshRelease),
+    Enroll {
+        #[command(flatten)]
+        latest: FreshRelease,
+        /// Signed record for the running ISO when the current channel is newer.
+        #[arg(long, requires = "installed_signature")]
+        installed_manifest: Option<PathBuf>,
+        #[arg(long, requires = "installed_manifest")]
+        installed_signature: Option<PathBuf>,
+    },
     /// Observe native bootc and reconcile an existing deployment journal.
     Status,
     /// Verify a fresh promoted release and stage its exact image, without rebooting.
@@ -68,10 +76,22 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
             })
         }
         let request = match options.command {
-            Operation::Enroll(value) => Request::Enroll {
-                release: document(value.release.manifest, value.release.signature)?,
-                checkpoint: document(value.checkpoint, value.checkpoint_signature)?,
-            },
+            Operation::Enroll {
+                latest: value,
+                installed_manifest,
+                installed_signature,
+            } => {
+                let installed_release = match (installed_manifest, installed_signature) {
+                    (None, None) => None,
+                    (Some(manifest), Some(signature)) => Some(document(manifest, signature)?),
+                    _ => return Err("both installed release files are required".into()),
+                };
+                Request::Enroll {
+                    release: document(value.release.manifest, value.release.signature)?,
+                    checkpoint: document(value.checkpoint, value.checkpoint_signature)?,
+                    installed_release,
+                }
+            }
             Operation::Status => Request::Status {},
             Operation::Stage {
                 release: value,

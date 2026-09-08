@@ -28,15 +28,16 @@
       "results": "R03-home-review/results.json",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34192732940",
       "verified_source": "a2c0e6314351c325021e74c10c0edb5b8da2355b",
-      "note": "Native Noctalia capture/staging/local policies, selected-field Git patch export and exact source receipts pass, including the actual Linux CLI/SQLite/source round trip. Generic text/line integration, discard and R04 activation remain open."
+      "note": "Native Noctalia capture/staging/local policies, selected-field source export/receipts and native discard pass. Discard preserves selection and file metadata in R07 34223972271. Generic text/line integration and broader activation/recovery remain open. Ongoing tests are E2E/manual only."
     },
     {
       "id": "R04",
       "status": "blocked",
       "topic": "Activation, writers, rollback",
       "report": "R04-activation/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34217852366",
-      "note": "Managed Noctalia lifecycle passes. Historical isolated recovery tests pass at 4a7d02e and are now removed under the owner's E2E/manual-only policy. Native 34218886075 refuses Fedora's global timeout drop-in; an exact manually verified allowance is prepared. Generic home groups, native discard/recovery and full fault coverage remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34223972271",
+      "prototype_status": "pass",
+      "note": "Actual CLI/native Noctalia stale-plan refusal, discard, writer lifecycle, selection and owner/group/mode/SELinux preservation pass at a5cd96e. Historical isolated tests were removed under the E2E/manual-only policy. Generic groups, interruption/full-disk and broader image-baseline transitions remain open."
     },
     {
       "id": "R05",
@@ -61,8 +62,8 @@
       "topic": "Desktop session and hardware",
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34212238491",
-      "note": "Graphical login/services/keyring, native Noctalia review/writer lifecycle, private Codex and logged-out Bitwarden pass at 3ce1c1a. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34223972271",
+      "note": "Graphical login/services/keyring, actual CLI Noctalia review/discard, installed doctor, private Codex and logged-out Bitwarden pass at a5cd96e. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
     },
     {
       "id": "R08",

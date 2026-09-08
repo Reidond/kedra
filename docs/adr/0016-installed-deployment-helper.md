@@ -56,3 +56,17 @@ The shared trusted reader retains the previous Noctalia inode guards and tests.
 Windows checks do not compile the Linux-only execution path. Linux workspace
 34203674917 and native signed-VM 34208979891 now pass. Production authority,
 interactive installer handoff and additional crash/fault cases remain open.
+
+## Enrollment when the ISO is older than the channel
+
+Follow-up 2026-09-08: enrollment can receive an optional separate signed record
+for the running installed release. The ordinary CLI exposes paired
+--installed-manifest/--installed-signature options; no caller key/path reaches
+the helper. The usual manifest/signature/checkpoint arguments describe the current
+channel. The helper independently verifies both records under installed trust,
+requires the actual running digest and source manifest to match the installed
+record, refuses an installed sequence above the current channel or an equivocal
+same sequence, and initializes the high-water mark from the fresh channel.
+Existing enrollment without the extra record retains its original behavior.
+The root helper reports home reconciliation as not evaluated; it does not infer
+private home state from an OS receipt. Native R01 qualification is pending.

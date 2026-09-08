@@ -70,8 +70,12 @@ case "$variant:$phase" in
         bootc status --json | jq -er .status.booted.image.imageDigest > "$state/a.digest"
         initial=$(jq -er .initial_a "$state/cases.json")
         test "$(cat "$state/a.digest")" = "${initial##*@}"
+        if /usr/libexec/sysroot/helper < "$state/helper-enroll-mismatch.json"; then
+            echo 'Enrollment accepted a different running release'; false
+        fi
         helper enroll
-        test "$(helper status | jq -r .journal.high_water.highest_release_sequence)" = 1
+        test "$(helper status | jq -r .journal.high_water.highest_release_sequence)" = 2
+        echo KEDRA_R10_OLDER_ISO_ENROLLMENT_PASS
         if runuser -u nobody -- /usr/libexec/sysroot/helper < "$state/helper-status.json"; then
             echo 'Unprivileged helper invocation was accepted'; false
         fi
@@ -99,7 +103,7 @@ case "$variant:$phase" in
         helper_reject pending
         helper_reject replay-a
         helper stage-b
-        test "$(jq -r .journal.high_water.highest_release_sequence "$state/helper-response.json")" = 5
+        test "$(jq -r .journal.high_water.highest_release_sequence "$state/helper-response.json")" = 6
         bootc status --json | tee "$state/staged.json"
         test "$(jq -er .status.staged.image.image.image "$state/staged.json")" = "$reference"
         test "$(jq -er .status.booted.image.imageDigest "$state/staged.json")" = "$(cat "$state/a.digest")"
@@ -125,7 +129,7 @@ case "$variant:$phase" in
         printf 'newer personal data after update\n' > "$state/personal-data"
         helper rollback-a
         test "$(jq -r .journal.rollback_hold "$state/helper-response.json")" = true
-        test "$(jq -r .journal.high_water.highest_release_sequence "$state/helper-response.json")" = 5
+        test "$(jq -r .journal.high_water.highest_release_sequence "$state/helper-response.json")" = 6
         echo KEDRA_R10_HELPER_ROLLBACK_PASS
         bootc status --json
         printf rollback-a > "$state/phase"
@@ -138,7 +142,7 @@ case "$variant:$phase" in
         helper status
         test "$(jq -r .journal.operation.phase "$state/helper-response.json")" = booted
         test "$(jq -r .journal.rollback_hold "$state/helper-response.json")" = true
-        test "$(jq -r .journal.high_water.highest_release_sequence "$state/helper-response.json")" = 5
+        test "$(jq -r .journal.high_water.highest_release_sequence "$state/helper-response.json")" = 6
         helper_reject stage-b
         helper_reject replay-a
         echo KEDRA_R10_HELPER_HOLD_AND_REPLAY_PASS

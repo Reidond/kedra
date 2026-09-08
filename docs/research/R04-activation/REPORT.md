@@ -2,6 +2,25 @@
 
 2026-09-08. Full gate: blocked. No workstation home was used.
 
+Native discard/session subset now passes
+[34223972271](https://github.com/Reidond/kedra/actions/runs/34223972271) at `a5cd96e`.
+The actual sysroot CLI rejects a stale plan, stops the real Noctalia writer,
+discards only the unselected field value, preserves selection and native
+owner/group/mode/SELinux label, restarts the application and records completion
+with no remaining checkpoint. The installed doctor command also passes in that
+desktop session. No test-only projection executable is used.
+
+The preceding native 34222698950 at d8a76a9 refused a metadata mismatch before
+publication. Candidate files now explicitly preserve group and SELinux label
+through their owned descriptor, then retain the final equality check. The earlier
+Fedora global timeout drop-in is accepted only at its verified root-owned path
+with exactly its observed directive; user overrides still refuse.
+
+The owner removed unit/model/mock/doctests and repository self-checks on
+2026-09-08. The isolated results below are historical. Ongoing qualification uses
+actual CLI/native VM workflows and manual testing only. Native interruption,
+broader baseline transitions and generic files remain open.
+
 [Linux workspace 34217852366](https://github.com/Reidond/kedra/actions/runs/34217852366)
 at `4a7d02e` passes formatting, Clippy, 106 tests plus one doctest, release build
 and independent OpenSSL interoperability. The new subset covers:
@@ -36,7 +55,7 @@ condition before tests. The corrected guard preserves every ownership/label chec
 See [ADR 0017](../../adr/0017-noctalia-activation.md) for the state machine,
 privacy boundary and recovery behavior.
 
-Open: native mutation/read-back, actual process-kill/full-disk fault matrix,
+Open: actual process-kill/full-disk fault matrix,
 baseline transitions across OS updates/rollback, broader application groups and
 generic file/line integration. Generated filesystem tests and managed-writer
 qualification do not prove a complete home manager or protection against arbitrary

@@ -298,7 +298,8 @@ struct Response<'a> {
     journal: Option<PublicJournal<'a>>,
     reboot_performed: bool,
     activation_performed: bool,
-    home_reconciliation_required: bool,
+    home_reconciliation_checked: bool,
+    home_reconciliation_required: Option<bool>,
 }
 #[derive(Serialize)]
 struct PublicJournal<'a> {
@@ -321,7 +322,8 @@ fn respond(trust: &Trust, host: &Host, journal: Option<&Journal>) -> Result<()> 
             }),
             reboot_performed: false,
             activation_performed: false,
-            home_reconciliation_required: true
+            home_reconciliation_checked: false,
+            home_reconciliation_required: None
         })?
     );
     Ok(())
@@ -344,16 +346,22 @@ pub fn run(request: Request) -> Result<()> {
     if let Request::Enroll {
         release,
         checkpoint,
+        installed_release,
     } = request
     {
         let update = fresh(&release, &checkpoint, &trust, None)?;
+        let installed_document = installed_release.as_ref().unwrap_or(&release);
+        let installed = verify(installed_document, &trust)?;
         if before.staged.is_some()
             || before.rollback_queued
-            || before.booted.digest != update.release.release().image_digest
-            || trust.source_revision != update.release.release().source_revision
-            || trust.source_manifest_hash != update.release.release().home_manifest_sha256
+            || before.booted.digest != installed.release().image_digest
+            || trust.source_revision != installed.release().source_revision
+            || trust.source_manifest_hash != installed.release().home_manifest_sha256
+            || installed.release().sequence > update.release.release().sequence
+            || (installed.release().sequence == update.release.release().sequence
+                && installed.sha256() != update.release.sha256())
         {
-            return Err("enrollment requires the exact running promoted release and installed source manifest".into());
+            return Err("enrollment requires the exact running promoted release, its source manifest, and an equal or newer current channel".into());
         }
         let journal = Journal {
             schema_version: 1,
@@ -364,8 +372,8 @@ pub fn run(request: Request) -> Result<()> {
             operation: None,
         };
         let bytes = serde_json::to_vec(&journal)?;
-        let receipt = serde_json::to_vec(&release)?;
-        let receipt_name = format!("release.{}", update.release.sha256());
+        let receipt = serde_json::to_vec(installed_document)?;
+        let receipt_name = format!("release.{}", installed.sha256());
         Store::create(
             Path::new(STORE),
             &[(RECORD, &bytes), (&receipt_name, &receipt)],

@@ -8,8 +8,8 @@ credentials and raw application exports do not enter that store.
 The native R03 subset passes desktop run 34192732970 at a2c0e63. There is no promoted
 owner image yet. Selected-field patch export and source receipts are now implemented
 with the actual Linux CLI/SQLite/source round trip passing run 34192732940.
-The narrow plan/apply/discard/recovery bridge passes Linux synthetic tests in
-34217852366 at 4a7d02e; native mutation is still being qualified. Generic file/line
+The narrow discard path passes the actual desktop/CLI workflow in 34223972271
+at a5cd96e, including stale-plan refusal and native metadata preservation. Generic file/line
 review remains required before complete home management.
 The running workstation must not be used for its enrollment experiment.
 
@@ -92,8 +92,9 @@ does not guess ancestry or change branches.
 
 ## Review activation and discard
 
-These commands currently require qualification in a disposable Kedra desktop.
-They support the default Noctalia profile and the installed managed service.
+These commands support the default Noctalia profile and the installed managed
+service. Native discard is qualified; the broader interruption and image-baseline
+transition cases remain under qualification before a complete owner home workflow.
 
 ```sh
 sysroot home --state "$HOME/.local/state/kedra-home-review" plan

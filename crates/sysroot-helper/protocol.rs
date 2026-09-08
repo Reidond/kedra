@@ -14,6 +14,8 @@ pub enum Request {
     Enroll {
         release: SignedDocument,
         checkpoint: SignedDocument,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        installed_release: Option<SignedDocument>,
     },
     Status {},
     /// Media-only precheck of the fixed embedded payload; accepts no caller paths.

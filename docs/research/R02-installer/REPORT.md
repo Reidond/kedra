@@ -1,5 +1,14 @@
 # R02: minimal image and VM feasibility
 
+Shared public-trust copy regression, 2026-09-08: signed research ISO
+[34244387167](https://github.com/Reidond/kedra/actions/runs/34244387167) at `cb11646`
+passes build, strict positive/wrong-key pre-copy, labels and diskless offline
+payload verification/Anaconda startup. The ISO is 2,856,273,920 bytes, SHA-256
+`e7832794d1bc625397d6a883eb4b90ba1c62a262136e18d250a7b55b21845229`.
+Public evidence is `output/r02-evidence-34244387167`. This validates the shared
+installer's named public trust copying and optional research marker; it does not
+repeat the earlier full local encrypted installation or qualify owner media.
+
 Status: **pass** for the minimal image/QCOW2/UEFI guest experiment; full R02
 installation gate remains **blocked**. Updated 2026-09-08 (Europe/Kiev).
 

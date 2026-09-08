@@ -1,8 +1,10 @@
 # Production release preparation
 
 The public trust-context producer and a disabled manual candidate workflow are
-implemented. Production signing authority and promotion are not configured.
-Nothing in this folder creates a private key, enrolls a machine or promotes a release.
+implemented. The dedicated public authority and protected GitHub environment
+secrets are now provisioned; Bitwarden backup retrieval is still unverified.
+Production execution and promotion remain unqualified. Nothing in this folder
+creates a private key, enrolls a machine or promotes a release.
 
 For the independently reviewed desktop public key:
 
@@ -37,8 +39,9 @@ used as a promoted release manifest.
 
 See [authority setup](authority/README.md) for the concrete files, environment,
 secret names, recovery steps and current configuration evidence. The workflow has
-not run with production authority. Main, GitHub protections, secrets and release
-channels have not been changed. The shared installer trust-copy adjustment is
+not run with production authority. Main's source and release channels have not
+changed; protection and environment secrets were configured under the owner's
+authorization. The shared installer trust-copy adjustment is
 being qualified through the disposable signed-ISO workflow.
 
 The complete release path must preserve these boundaries:
@@ -59,8 +62,32 @@ The complete release path must preserve these boundaries:
 Current manual evidence uses a disposable public key whose private key was
 removed by the CLI/OpenSSL workflow. The local producer accepts the matching
 fingerprint and refuses a different fingerprint without creating output. This
-qualifies public-input preparation only; it does not establish production key
-storage, CI secret provisioning, a signer or promoted media.
+qualifies that earlier public-input preparation only. Later authority/keypair
+and environment provisioning are documented separately; no promoted media exists.
+
+`prepare-release.py` prepares exact **unsigned** release/checkpoint bytes after
+review of candidate.json, the installed source.json, the complete ISO and a bound
+qualification report. It verifies the reviewed candidate hash, source/ISO hashes,
+scope/key, all required manual/E2E installation cases and an actual CLI-verified
+previous channel. It advances sequence/generation and rejects older/repeated build
+run/attempts. Initial preparation requires explicit `--bootstrap`. The output
+signing-request.json binds the expected previous release/checkpoint hashes; the
+eventual protected publisher must compare those to current channel state under
+the target lock before signing/publication. This local producer cannot inspect
+GitHub ordering or establish that someone actually performed a reported test.
+
+Qualification JSON has schema_version=1, candidate_sha256, method (`manual-vm` or
+`end-to-end-vm`), evidence (public report/run references), and checks. Every named
+check must be `pass`: encrypted_install, unselected_disk_preserved, iso_free_boot,
+owner_desktop_login, selinux_enforcing, exact_booted_image, container_policy,
+home_writable, root_read_only and doctor. Review that evidence before submitting
+it. Do not relabel research authority/identity as an owner candidate.
+
+The conservative initial producer requires candidate RPM resolution within 36
+hours and a still-fresh previous channel. Expired-channel recovery, no-change
+renewal and rotation are not implemented by it. It makes no signing/publishing
+request itself and refuses existing output. The `approval=promoted` value in the
+unsigned bytes is a proposed signing payload, not an actual promoted release.
 
 See [release verification](../../docs/RELEASES.md), [ADR 0018](../../docs/adr/0018-installer-payload-verification.md)
 and the [R01](../../docs/research/R01-signatures/REPORT.md)/[R08](../../docs/research/R08-release-protocol/REPORT.md)

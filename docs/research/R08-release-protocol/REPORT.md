@@ -1,5 +1,18 @@
 # R08/R10: release verification subset
 
+Owner-authorized authority setup, 2026-09-08: a separate encrypted P-256 key is
+generated, with public fingerprint
+`a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e`.
+Official pinned Skopeo/Cosign containers generate/use it without network; an
+independent OpenSSL check verifies a public setup confirmation. Its encrypted key
+and passphrase are GitHub Actions environment secrets in kedra-desktop-signing,
+restricted to main and the owner reviewer with no admin bypass. Main requires
+the Actions rust check and rejects forced/deleted history. Public authority files
+are prepared for source. No production key enters the disposable research jobs.
+Owner Bitwarden backup retrieval, production candidate execution, exact media
+qualification, metadata publication/renewal and rotation remain not-run.
+See build/release/authority/README.md for exact tool digests and configuration.
+
 2026-09-08 follow-up: workspace 34242602461 at `3d29689` passes the real CLI's
 P-256 fingerprint against independent OpenSSL SPKI DER hashing, private-key
 input refusal and the existing signature/ISO-assembly workflows. Installed
@@ -8,7 +21,7 @@ Cosign/Skopeo/bootc interoperability also passes R01 34242602458.
 The prepared `.github/workflows/release.yml` separates build, image signing and
 installer jobs. It is main-only/manual, requires an opt-in variable plus existing
 owner-review/main-only environment controls, and has no public authority files
-yet. The signing job has no checkout/artifact execution; the installer job must
+at that preparation point. The signing job has no checkout/artifact execution; the installer job must
 anonymously verify the exact digest, installed source and public-policy files.
 Its output remains a candidate pending exact-media installation and promotion.
 Syntax checks pass; production execution, recovery/key provisioning, signer

@@ -24,6 +24,7 @@ jobs:
     outputs:
       digest: ${{ steps.publish.outputs.digest }}
       fingerprint: ${{ steps.trust.outputs.fingerprint }}
+      resolved_at: ${{ steps.image.outputs.resolved_at }}
     steps:
       - name: Require existing owner-reviewed signing protection
         env:
@@ -31,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           gh api repos/Reidond/kedra/environments/kedra-desktop-signing --jq '.' > "$RUNNER_TEMP/signing-environment.json"
-          jq -e '.deployment_branch_policy.custom_branch_policies == true and
+          jq -e '.can_admins_bypass == false and .deployment_branch_policy.custom_branch_policies == true and
             any(.protection_rules[]; .type == "required_reviewers" and
               (.reviewers | length) == 1 and .reviewers[0].type == "User" and
               (.reviewers[0].reviewer.login | ascii_downcase) == "reidond")' "$RUNNER_TEMP/signing-environment.json" >/dev/null
@@ -72,12 +73,14 @@ jobs:
           cp installer/inputs.json output/candidate-evidence/installer-inputs.json
           sha256sum output/desktop-context/* > output/candidate-evidence/build-input-hashes.txt
       - name: Build exact public-trust candidate
+        id: image
         run: |
           set -euo pipefail
           base=$(jq -er .base build/research/inputs.json)
           sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
             --tag localhost/kedra-desktop:release-base output/desktop-context \
             2>&1 | tee output/candidate-evidence/desktop-build.log
+          printf 'resolved_at=%s\n' "$(date +%s)" >> "$GITHUB_OUTPUT"
           sudo podman build --pull=never --build-arg CANDIDATE_IMAGE=localhost/kedra-desktop:release-base \
             --file build/release/Containerfile --tag localhost/kedra-desktop:release-candidate output/release-context \
             2>&1 | tee output/candidate-evidence/trust-build.log
@@ -183,6 +186,7 @@ jobs:
         env:
           KEDRA_CANDIDATE_DIGEST: ${{ needs.sign-image.outputs.digest }}
           KEDRA_PUBLIC_FINGERPRINT: ${{ needs.build.outputs.fingerprint }}
+          KEDRA_RESOLVED_AT: ${{ needs.build.outputs.resolved_at }}
         run: bash build/release/installer.sh
       - name: Preserve installer candidate and public evidence
         if: always()

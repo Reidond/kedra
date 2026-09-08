@@ -1,11 +1,33 @@
 # Desktop release authority
 
-No production authority is provisioned. This directory deliberately contains no
-`desktop.pub` or `desktop.sha256`; a research key must never fill those slots.
-The manual release workflow also requires the repository opt-in variable and an
-existing protected signing environment before it starts building.
+The owner authorized GitHub deployment secrets and a separate Bitwarden recovery
+backup on 2026-09-08. `desktop.pub` and `desktop.sha256` now identify the newly
+generated dedicated key:
 
-After the owner authorizes a dedicated OS-release key and its recovery location:
+`a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e`
+
+GitHub environment `kedra-desktop-signing` contains the encrypted key/passphrase
+as Actions secrets, and the public key/fingerprint as environment variables. It
+requires the Reidond reviewer, permits only main, and disables administrator
+bypass. Main requires the GitHub Actions rust check and disallows force-push or
+deletion, including for administrators. The release opt-in remains unset; no
+production image, installer or channel has been signed/promoted by this setup.
+The protected local recovery files are ready for the owner's Bitwarden backup;
+backup retrieval remains not-run. No Bitwarden vault or SSH key was accessed.
+
+Skopeo 1.22.2 generated the encrypted key using the official AMD64 container
+`quay.io/skopeo/stable@sha256:227e130acec26a8f8d6aba1c48d30d6adaf8bc927f268fbca381b3dea9cb4257`.
+Cosign 3.1.3 at
+`ghcr.io/sigstore/cosign/cosign@sha256:6ca1127dc1e9ff19f3f2bfa214936813a86fbbf52919652eda49d393c888ad3c`
+signed a public setup confirmation; independent OpenSSL 3.6.1 verification
+passed. Both tools ran with no network, a read-only container filesystem and
+dropped capabilities through the already-installed Docker Desktop runtime. No
+host tool was installed or OS built locally. The private key file is in Skopeo's
+ENCRYPTED COSIGN PRIVATE KEY format, consumed successfully by Cosign. This is
+production keypair consistency evidence, not a research-image signature or a
+Bitwarden recovery drill.
+
+The setup/recovery procedure is:
 
 1. On an owner-controlled machine, use Skopeo's `generate-sigstore-key` with a
    private passphrase file and a private output directory outside every checkout.
@@ -49,9 +71,11 @@ steps. Do not treat the opt-in variable or an environment name as protection:
 GitHub can automatically create an unprotected environment from a workflow name.
 The build's preflight requires the existing reviewer and main-only branch rule.
 
-Read-only configuration inspection on 2026-09-08 found no environments and an
-unprotected main at `c00374cae862c669460da35471950237216a3d14`. No GitHub setting,
-secret, key or recovery location was changed during this preparation.
+The earlier read-only inspection found no environments and unprotected main at
+`c00374cae862c669460da35471950237216a3d14`. The owner-authorized setup above changed
+those controls and provisioned only environment-scoped signing secrets. Main's
+source revision has not yet changed. No secret contents are present in this
+repository or its build contexts.
 
 Sources, checked 2026-09-08:
 [GitHub environment protection](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments),

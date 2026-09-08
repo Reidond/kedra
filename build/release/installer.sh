@@ -6,6 +6,7 @@ test "${GITHUB_REPOSITORY:-}" = Reidond/kedra
 test "${GITHUB_REF:-}" = refs/heads/main
 [[ "${KEDRA_CANDIDATE_DIGEST:-}" =~ ^sha256:[a-f0-9]{64}$ ]]
 [[ "${KEDRA_PUBLIC_FINGERPRINT:-}" =~ ^[a-f0-9]{64}$ ]]
+[[ "${KEDRA_RESOLVED_AT:-}" =~ ^[0-9]{1,12}$ ]]
 test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 evidence="$PWD/output/release-evidence"
 media="$PWD/output/release-installer"
@@ -93,6 +94,7 @@ record = {'schema_version': 1, 'project': 'Kedra',
     'build': {'repository': 'Reidond/kedra', 'workflow': '.github/workflows/release.yml',
               'run_id': int(os.environ['GITHUB_RUN_ID']), 'run_attempt': int(os.environ['GITHUB_RUN_ATTEMPT'])},
     'image_digest': os.environ['KEDRA_CANDIDATE_DIGEST'],
+    'last_successful_resolution': int(os.environ['KEDRA_RESOLVED_AT']),
     'home_manifest_sha256': hashlib.sha256(source).hexdigest(),
     'installer': {'filename': iso.name, 'size_bytes': iso.stat().st_size, 'sha256': digest},
     'parts': [p.name for p in sorted(iso.parent.glob(iso.name + '.part*'))],

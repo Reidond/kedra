@@ -2,6 +2,31 @@
 
 2026-09-08. Full gate: blocked. No workstation home was used.
 
+Actual signed graphical A/B/A passes
+[34243567959](https://github.com/Reidond/kedra/actions/runs/34243567959) at `f45b55a`.
+The distinct image digests are A
+`sha256:c6260c5408917d76a8773233736103e3b5c3e6c72bf194813b8d8019ffb1b719`
+and B `sha256:ce494cbe010cbce6b35f7999564ecd977f25cede4e4440c611b24038098fab48`.
+Public fixture source A is `f45b55a28025d42d5f84ba06563b0e2ee7c9aea9`, selected
+publication P is `b235ed44af04d316f1ff1dbe8bcb5d9d1285852f`, and actual B is
+`cc56cbcbd8aa863e7e43310bc8c70bd01d2a3b4e`.
+
+On A, the ordinary CLI prepares independent live/selected/local/published state
+and stages signed B (39.677 seconds). On booted B, activate-plan/apply retires P,
+accepts B, preserves the later width=5 edit and pinned width=4 selection, reanchors
+local gaps=14 against incoming gaps=18, and adds the B cursor default; native
+acceptance passes at 16.819 seconds. After real retained-A OS rollback, the CLI
+refuses the conflicting home plan without changing live data or accepted B.
+Explicit unstage/keep-local resolves that conflict, then A activation preserves
+both local choices and removes the unchanged B-only cursor default. Acceptance
+passes at 17.084 seconds; high-water sequence 2 and rollback hold remain intact.
+All three boots retain enforcing SELinux/containerPolicy and a real graphical
+session. Evidence is `output/r04-run-34243567959`, with per-boot serial logs.
+
+This qualifies the named niri image-transition/rollback subset using disposable
+authority and generated public source commits. It does not qualify older binary
+schemas, power loss/full disk, arbitrary file groups, owner authority or hardware.
+
 Current installed niri baseline acceptance passes
 [34238949306](https://github.com/Reidond/kedra/actions/runs/34238949306) at `9802b49`.
 The actual CLI resolves the installed source/history, refuses a stale plan, accepts
@@ -17,8 +42,7 @@ with enforcing SELinux/containerPolicy, but its test login fails before home
 acceptance: the greeter remembers kedra-test, while the driver types that username
 again into the password field. `accept-b/login.png` shows the remembered prompt.
 The driver now has an explicit repeated-login option used only after the first
-boot. Corrected run 34243567959 at `f45b55a` is in progress. B home acceptance and
-retained-A home rollback remain not-run, not passed by successful staging.
+boot. Corrected run 34243567959 at `f45b55a` passes the full named sequence above.
 
 Niri exact discard and native reload pass at 5e238c7 in
 [34237287511](https://github.com/Reidond/kedra/actions/runs/34237287511), with no

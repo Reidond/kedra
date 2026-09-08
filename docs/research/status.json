@@ -28,16 +28,16 @@
       "results": "R03-home-review/results.json",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34238949306",
       "verified_source": "9802b4941877d8f5e70374b69f8825fbe1fd3b2b",
-      "note": "Actual Noctalia/niri review/export/discard/recovery and source reconciliation pass. Current installed niri baseline acceptance passes 34238949306 at 9802b49. Changed-image acceptance and wider groups remain open; E2E/manual only."
+      "note": "Actual Noctalia/niri review/export/discard/recovery and source reconciliation pass. Signed graphical A/B/A native niri acceptance passes 34243567959 at f45b55a. Wider groups and other failure phases remain open; E2E/manual only."
     },
     {
       "id": "R04",
       "status": "blocked",
       "topic": "Activation, writers, rollback",
       "report": "R04-activation/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34238949306",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34243567959",
       "prototype_status": "pass",
-      "note": "Current installed-baseline acceptance and native discard/relative includes/process-kill recovery pass at 9802b49. Actual A/B/A 34240940931 stages/boots B but fixture remembered-login failure stops before home acceptance; corrected 34243567959 pending. Groups, power loss/full disk and other phases remain open."
+      "note": "Actual signed graphical A/B/A passes at f45b55a: B native baseline acceptance preserves independent L/S/I/P, rollback detects/refuses the home conflict, explicit CLI resolution accepts A, and replay high-water/hold/policy survive. Process-kill recovery also passes earlier R07. Wider groups, old schemas, power loss/full disk remain open."
     },
     {
       "id": "R05",
@@ -70,7 +70,7 @@
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Actual CLI/OpenSSL fingerprint/signature/assembly and installed Cosign/bootc pass through 3d29689. Disabled manual production candidate workflow prepared with isolated signer and exact anonymous pull/installer. No authority files, protected environment, recovery material, secrets or promotion configured; production execution/rotation/races not-run."
+      "note": "Public release/channel CLI and native signing/bootc pass through 600867d. Owner authorized dedicated P-256 authority, now generated and provisioned as protected GitHub environment secrets with main-only owner review. Bitwarden backup retrieval, production candidate/media execution, metadata publisher/renewal/rotation remain not-run. Unsigned exact-media producer prepared, not positively qualified yet."
     },
     {
       "id": "R09",

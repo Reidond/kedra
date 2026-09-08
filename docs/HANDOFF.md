@@ -24,7 +24,11 @@ The installed helper has a bounded root protocol with independent trust/scope ch
 durable stage/rollback records and explicit rollback hold/resume. Production trust
 and promotion are not configured. A disabled manual release candidate workflow now
 separates build/sign-image/installer jobs; see build/release/authority/README.md.
-No public authority files, keys, environments or secrets have been provisioned.
+The owner authorized a new dedicated release key and GitHub deployment secrets;
+public authority files and the protected kedra-desktop-signing environment are
+now provisioned. Main requires CI and disallows forced/deleted history. Local
+recovery files are ready for the owner's Bitwarden backup, whose retrieval is
+not yet verified. Production workflow opt-in remains unset; no promoted media exists.
 No workstation enrollment has occurred.
 
 R01 native signed helper run 34228725707 at 94678f6 passes older-media enrollment against a newer fresh channel, metadata/OCI
@@ -71,9 +75,11 @@ from accepted image B. Source reconciliation passes workspace 34235455512 at
 relative includes. That run also passes the full desktop/doctor checks. Installed-
 baseline activate-plan/apply passes 34238949306 at 9802b49, requiring exact root-
 installed provenance and public source history (ADR 0022). Actual A/B/A run
-34240940931 stages and boots B but fails before acceptance because the fixture
-driver mishandles the remembered login. Corrected f45b55a run 34243567959 is pending.
-Changed-image acceptance and wider path/group integration remain open. See TEXT-REVIEW.md and
+34240940931 initially failed the fixture's remembered-login handling. Corrected
+f45b55a run 34243567959 passes actual signed B acceptance and retained-A rollback
+with explicit conflict resolution, preserved live/selected/local/publication
+state, replay high-water and rollback hold. Wider path/group integration,
+old-binary schemas and additional interruption phases remain open. See TEXT-REVIEW.md and
 ADRs 0019-0022; no unit/meta tests were added.
 
 Signed-payload ISO 34222699188 at d8a76a9 passes the complete local installation:

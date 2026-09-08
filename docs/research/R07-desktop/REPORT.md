@@ -3,7 +3,13 @@
 Status: **pass** for desktop package resolution/configuration/build, 2026-09-08
 (Europe/Kiev). Graphical login/session subset passes; not a qualified desktop release.
 
-Latest [run 34179189185](https://github.com/Reidond/kedra/actions/runs/34179189185)
+Latest [run 34184975810](https://github.com/Reidond/kedra/actions/runs/34184975810)
+at `afb8a67` passes the guest 1280x768 mode assertion and actual QEMU window
+geometry. Inspected screenshots fill the frame with readable Noctalia controls;
+the Xvfb/GTK capture-size issue is resolved. Login, services, keyring and native
+projection still pass. This remains a graphical VM subset, not physical qualification.
+
+Earlier [run 34179189185](https://github.com/Reidond/kedra/actions/runs/34179189185)
 at `d74c4c0` passes graphical login, services, keyring and native Noctalia 5.0.1
 export/IPC projection. The startup help overlay is gone. Inspected screenshots
 still show a cramped virtual scanout within the requested display; explicit

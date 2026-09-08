@@ -67,6 +67,8 @@ impl Fixture {
     fn cli(&self, args: &[&str]) -> Output {
         Command::new(env!("CARGO_BIN_EXE_sysroot"))
             .env("HOME", &self.0)
+            .env("XDG_CONFIG_HOME", self.0.join(".config"))
+            .env_remove("NIRI_CONFIG")
             .args(["home", "--state"])
             .arg(self.store())
             .args(args)

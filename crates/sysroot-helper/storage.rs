@@ -220,13 +220,13 @@ impl Store {
         store.connection.set_limit(
             rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH,
             (MAX_RECORD + 8192) as i32,
-        );
+        )?;
         store
             .connection
-            .set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_SQL_LENGTH, 16_384);
+            .set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_SQL_LENGTH, 16_384)?;
         store
             .connection
-            .set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_ATTACHED, 0);
+            .set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_ATTACHED, 0)?;
         store
             .connection
             .execute_batch("PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=ON;")?;

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
+mod agents;
 mod source;
 
 #[derive(Parser)]
@@ -18,6 +19,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Launch an official Codex runtime in the verified Kedra checkout (Linux).
+    Codex(agents::Options),
+    /// Launch an official Claude runtime in the verified Kedra checkout (Linux).
+    Claude(agents::Options),
     /// Verify a signed release record and, optionally, a downloaded installer.
     Release {
         #[command(subcommand)]
@@ -172,6 +177,18 @@ fn source_plan(repo: PathBuf, host: String, json: bool) -> Result<(), Box<dyn st
 
 fn main() -> ExitCode {
     match Cli::parse().command {
+        Some(Commands::Codex(options)) => {
+            if let Err(error) = agents::run("codex", options) {
+                eprintln!("sysroot: {error}");
+                return ExitCode::from(78);
+            }
+        }
+        Some(Commands::Claude(options)) => {
+            if let Err(error) = agents::run("claude", options) {
+                eprintln!("sysroot: {error}");
+                return ExitCode::from(78);
+            }
+        }
         Some(Commands::Release { command }) => {
             if let Err(error) = verify_release(command) {
                 eprintln!("sysroot: {error}");

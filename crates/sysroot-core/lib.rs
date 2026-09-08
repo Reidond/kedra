@@ -15,7 +15,7 @@ pub const PROJECT: &str = "Kedra";
 /// Bootstrap never claims operational OS management.
 pub const DEPLOYMENT_AVAILABLE: bool = false;
 /// Capability output; installed deployment status remains a separate future schema.
-pub const STATUS_JSON: &str = r#"{"schema_version":1,"project":"Kedra","stage":"development","source_planning_available":true,"source_archive_available":true,"release_verification_available":true,"deployment_available":false,"home_management_available":false,"agent_launchers_available":false}"#;
+pub const STATUS_JSON: &str = r#"{"schema_version":1,"project":"Kedra","stage":"development","source_planning_available":true,"source_archive_available":true,"release_verification_available":true,"deployment_available":false,"home_management_available":false,"agent_launchers_available":true,"agent_launchers_platform":"linux","bundled_agents_qualified":false}"#;
 
 /// Return the blocking research packet for a future command.
 pub fn research_gate(command: &str) -> Option<&'static str> {

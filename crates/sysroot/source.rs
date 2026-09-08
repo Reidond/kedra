@@ -69,7 +69,7 @@ struct Entry {
     path: String,
 }
 
-fn git(repo: &Path, args: &[&str]) -> Result<Vec<u8>, Error> {
+pub(crate) fn git(repo: &Path, args: &[&str]) -> Result<Vec<u8>, Error> {
     let mut command = Command::new("git");
     for (name, _) in std::env::vars_os() {
         if name.to_string_lossy().starts_with("GIT_") {

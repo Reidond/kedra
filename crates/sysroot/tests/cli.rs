@@ -14,9 +14,7 @@ fn status_distinguishes_source_planning_from_deployment() {
 
 #[test]
 fn operational_commands_fail_closed() {
-    for command in [
-        "update", "deploy", "rollback", "home", "codex", "claude", "setup",
-    ] {
+    for command in ["update", "deploy", "rollback", "home", "setup"] {
         let output = Command::new(env!("CARGO_BIN_EXE_sysroot"))
             .arg(command)
             .output()

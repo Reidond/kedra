@@ -1,6 +1,6 @@
 # ADR 0016: installed deployment protocol and durable native-state reconciliation
 
-Date: 2026-09-08. Status: implementation prepared; Linux/native privilege tests pending.
+Date: 2026-09-08. Status: Linux and native signed-VM subset passes; production authority pending.
 
 The ordinary CLI sends a bounded versioned JSON envelope through explicit sudo
 authorization to `/usr/libexec/sysroot/helper`. The helper accepts no command-line
@@ -53,5 +53,6 @@ cases. Protocol tests caught Serde's treatment of an internally tagged unit
 variant: a unit Status variant ignored extra fields despite deny_unknown_fields.
 Using an empty struct variant makes arbitrary verified/key/path fields fail.
 The shared trusted reader retains the previous Noctalia inode guards and tests.
-Windows checks do not compile the Linux-only execution path; Actions and native
-R01 helper tests are required before advertising usable deployment.
+Windows checks do not compile the Linux-only execution path. Linux workspace
+34203674917 and native signed-VM 34208979891 now pass. Production authority,
+interactive installer handoff and additional crash/fault cases remain open.

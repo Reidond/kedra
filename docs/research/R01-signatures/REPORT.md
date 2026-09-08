@@ -3,6 +3,15 @@
 Status: **blocked** at full installation-policy/authority gates, 2026-09-08
 (Europe/Kiev); the first strict transport/update/rollback subset passed.
 
+The installed-helper extension passes
+[34208979891](https://github.com/Reidond/kedra/actions/runs/34208979891) at `bb53ce7`.
+Cosign 3.1.3 signs exact release/checkpoint bytes with the disposable Skopeo key;
+the Rust helper independently verifies them, stages B with native enforcement,
+recognizes B after boot, queues signed retained A, preserves replay high-water and
+the rollback hold, and resumes explicitly. Metadata and native image negative
+cases pass. This adds R08/R10 integration evidence without production signing
+authority or interactive installer trust handoff. See the R10 report and ADR 0016.
+
 The stronger [run 34167524353](https://github.com/Reidond/kedra/actions/runs/34167524353)
 at `14be822` also passed. Initial A, booted B and rolled-back A all reported
 containerPolicy; unsigned switches without the explicit enforcement flag were

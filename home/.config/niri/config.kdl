@@ -20,7 +20,7 @@ layout {
     }
 }
 
-spawn-at-startup "noctalia"
+spawn-at-startup "systemctl" "--user" "start" "kedra-noctalia.service"
 
 hotkey-overlay {
     skip-at-startup

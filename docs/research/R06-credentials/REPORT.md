@@ -29,10 +29,9 @@ and license files travel in the image. See [packaging details](../../../build/bi
 
 Prepared integration defaults new graphical, systemd-user and TTY login sessions
 to the documented `$HOME/.bitwarden-ssh-agent.sock`, preserving a nonempty explicit
-alternative. These files do not enable or unlock the SSH agent. A generated R07
-account test will assert socket environment propagation, start the logged-out
-native app with its sandbox and capture its window. Syntax checks pass; actual
-package execution, image build and this new native test are **not-run**.
+alternative. These files do not enable or unlock the SSH agent. The generated R07
+account test now passes socket propagation and logged-out native startup, with
+the captured window verified in the run identified above.
 
 Locked/unlocked/relocked/restarted signing, selected public-key identity, owner
 GitHub API/model authentication and refresh remain **not-run**. The existing R07

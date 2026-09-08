@@ -20,6 +20,7 @@ for attempt in $(seq 1 180); do
     sleep 1
 done
 as_user systemctl --user is-active niri.service
+as_user systemctl --user is-active kedra-noctalia.service
 pgrep -u "$uid" -x noctalia >/dev/null
 environment=$(as_user systemctl --user show-environment)
 niri_socket=$(printf '%s\n' "$environment" | sed -n 's/^NIRI_SOCKET=//p')
@@ -69,6 +70,20 @@ as_user sysroot home --state "$review_state" clear-local theme.mode
 marker KEDRA_R03_DURABLE_REVIEW_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R03_NATIVE_PROJECTION_PASS
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+as_user systemctl --user stop kedra-noctalia.service
+if pgrep -u "$uid" -x noctalia >/dev/null; then
+    echo 'Noctalia writer remained after the managed service stopped' >&2
+    false
+fi
+as_user noctalia config export full | /usr/libexec/kedra-research-project-noctalia --project "$app_version" | jq -e '.theme_mode == "light"' >/dev/null
+as_user systemctl --user start kedra-noctalia.service
+for attempt in $(seq 1 30); do
+    if as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status >/dev/null 2>&1; then break; fi
+    sleep 1
+done
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
+marker KEDRA_R04_WRITER_LIFECYCLE_PASS
 as_user python3 /usr/libexec/kedra-research-agents.py
 fixture_home=$(getent passwd kedra-test | cut -d: -f6)
 test "$(printf '%s\n' "$environment" | sed -n 's/^SSH_AUTH_SOCK=//p')" = "$fixture_home/.bitwarden-ssh-agent.sock"

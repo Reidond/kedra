@@ -68,6 +68,12 @@ try:
         if binary:
             verify(signature)
     if binary:
+        identity = subprocess.run([str(binary), 'release', 'key', '--public-key', str(public), '--json'], capture_output=True, check=True)
+        identity = json.loads(identity.stdout)
+        expected = hashlib.sha256(openssl('pkey', '-pubin', '-in', public, '-outform', 'DER')).hexdigest()
+        assert identity['key_fingerprint_sha256'] == expected and not identity['trust_established']
+        invalid_key = subprocess.run([str(binary), 'release', 'key', '--public-key', str(private)], capture_output=True)
+        assert invalid_key.returncode != 0 and not invalid_key.stdout
         verify(signature, key=wrong_public, expected=False)
         altered = root / "altered.json"
         altered.write_bytes(payload.read_bytes() + b" ")

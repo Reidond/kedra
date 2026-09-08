@@ -481,3 +481,11 @@ targets and physical qualification remain open.
 - Checks / evidence: pass — Python and shell syntax; existing native 9802b49 current-baseline acceptance. not-run — new signed graphical transition workflow. No local OS build, private state fixture mutation, unit/model/mock tests or source scanners.
 - Remaining / blockers: Actual A/B/A home semantics and signed graphical boot must execute. Generated metadata uses fixture installer descriptors; this does not build/promote owner media. Production authority, wider groups and other failure phases remain open.
 - Next: Publish the reviewed workflow, execute all three real guest boots, fix any observed failure without weakening verification, then record exact image/source and retained-state evidence.
+
+### WL-20260908-13 — 2026-09-08 — Public release-key and trust-context preparation
+- Agent / state: Codex; in-progress.
+- Scope / base: codex/usable-system, inspected 967fd93; production preparation without creating or provisioning a production key.
+- Completed: Added release key to validate P-256 SPKI format and report the DER SHA-256 without claiming trust. Added a desktop public-trust producer requiring a separately reviewed fingerprint and actual committed source scope, plus a trust-only image derivative that preserves the original source manifest. Updated installed help/home capabilities. The production signer/workflow is still absent.
+- Checks / evidence: pass — local Rust formatting/Clippy/release build; actual Windows CLI with OpenSSL 3.6.1 verifies the new fingerprint against independent DER hashing and refuses private-key input. Existing release signature/artifact/assembly workflows pass. Actual public-trust generation accepts the fixture public key and refuses a different expected fingerprint before creating output. Evidence is output/release-key-windows-20260908; disposable private keys were removed by the E2E workflow.
+- Remaining / blockers: Linux qualification of the new key CLI remains pending. No production key, recovery copy, GitHub secret, signer workflow or promoted release was created. Public fixture output is not production authority. Signed graphical A/B/A 34240940931 remains in progress.
+- Next: Qualify the new CLI, finish the running signed home transition, and prepare the complete reviewable release/signing setup before any authority provisioning.

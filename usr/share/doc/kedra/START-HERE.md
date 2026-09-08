@@ -35,8 +35,10 @@ Those commands inspect committed build inputs and do not modify your machine.
 `sysroot doctor` checks the installed desktop session without changing it or
 requesting administrator access. Use `sysroot doctor --json` for structured output.
 Managed updates require configured release trust and enrollment. Home review and
-reconciliation currently support three Noctalia fields; complete file management
-and a promoted owner installer are still being prepared.
+reconciliation support three Noctalia fields and explicit niri line/hunk review,
+discard and installed-baseline acceptance. Use `sysroot home file --help` for the
+niri workflow and review the file for secrets before adopting it. Wider file
+groups and a promoted owner installer are still being prepared.
 Do not run image-building scripts as a workstation package installer.
 
 For recovery without a graphical session, use Ctrl+Alt+F2 and log in on the text

@@ -1,0 +1,8 @@
+# Public trust derivative. The base contains the actual unchanged source manifest.
+ARG CANDIDATE_IMAGE
+FROM ${CANDIDATE_IMAGE}
+COPY trust/release.pub trust/release-policy.json /usr/lib/sysroot/trust/
+COPY trust/policy.json /etc/containers/policy.json
+COPY trust/registries.yaml /etc/containers/registries.d/kedra.yaml
+COPY trust/install.toml /usr/lib/bootc/install/10-kedra.toml
+RUN bootc container lint

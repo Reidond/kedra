@@ -8,6 +8,14 @@ signing-key fingerprint. Obtain the public key through a trusted project channel
 and compare its fingerprint independently of the download being checked.
 
 ```sh
+sysroot release key --public-key release.pub
+```
+
+This validates the public-key format and prints its SHA-256 fingerprint. It does
+not establish who owns the key or trust a download by itself. Keep the independently
+confirmed fingerprint with your recovery instructions.
+
+```sh
 sysroot release verify --manifest release.json --signature release.sig \
   --public-key release.pub --target desktop --artifact kedra-desktop-44-BUILD.iso
 ```

@@ -30,7 +30,7 @@ enum Commands {
     },
     /// Manage a signed installed release through the independently verifying helper.
     Update(deployment::Options),
-    /// Review, select and reconcile the supported Noctalia settings.
+    /// Review, select and reconcile supported Noctalia settings and niri text.
     Home(home::Options),
     /// Launch an official Codex runtime in the verified Kedra checkout (Linux).
     Codex(agents::Options),
@@ -57,6 +57,13 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum ReleaseCommand {
+    /// Identify a P-256 public key; this does not establish trust in its owner.
+    Key {
+        #[arg(long)]
+        public_key: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
     /// Assemble downloaded parts in the given order and verify the complete ISO.
     Assemble {
         #[arg(long)]
@@ -108,6 +115,22 @@ fn limited_file(
 }
 
 fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Error>> {
+    if let ReleaseCommand::Key { public_key, json } = command {
+        let bytes = limited_file(&public_key, 4096)?;
+        let key =
+            std::str::from_utf8(&bytes).map_err(|_| sysroot_core::release::Error::InvalidKey)?;
+        let fingerprint = sysroot_core::release::public_key_fingerprint(key)?;
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"algorithm":"ecdsa-p256-sha256","key_fingerprint_sha256":fingerprint,"trust_established":false})
+            );
+        } else {
+            println!("P-256 public key SHA-256: {fingerprint}");
+            println!("Compare this fingerprint through an independently trusted channel.");
+        }
+        return Ok(());
+    }
     if let ReleaseCommand::Assemble {
         manifest,
         signature,

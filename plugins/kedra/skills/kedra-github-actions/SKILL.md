@@ -7,8 +7,9 @@ description: Build Kedra CI, target matrices, scheduled Fedora package refresh, 
 
 All OS and installer builds run in GitHub Actions. Local Rust tests and synthetic
 home tests are allowed; local OS rebuilding is not the intended workflow.
-Bootstrap check.yml only validates Rust and skill wiring. It is not a release
-pipeline and has no signing, GHCR publishing or workstation access.
+check.yml builds/lints Rust and exercises actual CLI home/release workflows.
+It has no signing, GHCR publishing or workstation access. Owner policy forbids
+unit/model/mock/doctests and repository self-scanners.
 
 ## Scheduled Fedora refresh
 
@@ -31,6 +32,16 @@ These skills are checkout-only. Do not copy them into image payloads, home basel
 or global/shared agent profiles. CI is permitted to read them as repository source.
 
 ## Job boundaries
+
+Prepared 2026-09-08: release.yml is a manual, disabled main-only candidate path.
+It preflights an existing owner reviewer and main-only deployment rule, then
+separates build, no-checkout image signing and anonymous strict-pull/installer
+jobs. Production execution is not-run; public authority, environment secrets,
+recovery and promotion are not configured. Read build/release/authority/README.md
+before enabling anything. An environment name does not configure protection;
+GitHub may auto-create an unprotected environment. Source: GitHub environment
+API/docs linked there; R08. Actual Skopeo signing remains qualified through
+disposable R01/R02/R04 authority only.
 
 Use read-only PR checks with no production secrets. Pin third-party Actions by
 full commit SHA; minimize token permissions and disable persisted checkout

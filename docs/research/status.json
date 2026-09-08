@@ -7,8 +7,8 @@
       "topic": "Image signing and bootc enforcement",
       "prototype_status": "pass",
       "report": "R01-signatures/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34228725707",
-      "note": "Actual older-media enrollment against a newer fresh channel, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold preservation and explicit resume pass at 94678f6. Signed-origin research installation also passes R02. Production authority, promotion and rotation remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34242602458",
+      "note": "Actual signed helper regression at 3d29689 passes older-media enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold and explicit resume. Signed-origin research installation passes R02. Production authority, promotion and rotation remain open."
     },
     {
       "id": "R02",
@@ -26,18 +26,18 @@
       "prototype_status": "pass",
       "report": "R03-home-review/REPORT.md",
       "results": "R03-home-review/results.json",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34233086974",
-      "verified_source": "86bb96bcfe3a6703de9665a6e116cee203a64aff",
-      "note": "Noctalia review/export/discard/recovery and ordinary niri line review pass actual CLI/native workflows. Source-reconciliation preview passes CLI 34235455512 at 3c948aa with actual commit ancestry and independent retained decisions. Native niri discard/reload is implemented for qualification; broader baseline/group behavior remains open. E2E/manual only."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34238949306",
+      "verified_source": "9802b4941877d8f5e70374b69f8825fbe1fd3b2b",
+      "note": "Actual Noctalia/niri review/export/discard/recovery and source reconciliation pass. Current installed niri baseline acceptance passes 34238949306 at 9802b49. Changed-image acceptance and wider groups remain open; E2E/manual only."
     },
     {
       "id": "R04",
       "status": "blocked",
       "topic": "Activation, writers, rollback",
       "report": "R04-activation/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34237287511",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34238949306",
       "prototype_status": "pass",
-      "note": "Actual native Noctalia and niri discard/recovery pass at 5e238c7. Niri covers stale plans, pinned lines, metadata, relative includes and SIGKILL-at-publication abort/resume/keep-current with later-edit refusal and S/B retention. Installed-baseline acceptance is prepared separately; changed-image transitions, generic groups, power loss/full disk and other phases remain open. E2E/manual only."
+      "note": "Current installed-baseline acceptance and native discard/relative includes/process-kill recovery pass at 9802b49. Actual A/B/A 34240940931 stages/boots B but fixture remembered-login failure stops before home acceptance; corrected 34243567959 pending. Groups, power loss/full disk and other phases remain open."
     },
     {
       "id": "R05",
@@ -62,15 +62,15 @@
       "topic": "Desktop session and hardware",
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34230166262",
-      "note": "Graphical login/services/keyring, bounded portal response, installed doctor, Noctalia review/discard/interrupted recovery, default state, private Codex and logged-out Bitwarden pass at 3267e03. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34240940795",
+      "note": "Full graphical session/doctor/portal/keyring/Codex/Bitwarden and native home recovery/current-baseline checks pass through 967fd93. Physical hardware, screen sharing and owner credentials remain unqualified."
     },
     {
       "id": "R08",
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Release/checkpoint/replay verification and OpenSSL interoperability pass. Actual Cosign blobs and independent installed helper verification pass R01 34208979891. Production signer, promotion races and rotation drill remain open."
+      "note": "Actual CLI/OpenSSL fingerprint/signature/assembly and installed Cosign/bootc pass through 3d29689. Disabled manual production candidate workflow prepared with isolated signer and exact anonymous pull/installer. No authority files, protected environment, recovery material, secrets or promotion configured; production execution/rotation/races not-run."
     },
     {
       "id": "R09",

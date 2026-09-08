@@ -3,6 +3,12 @@
 Status: **blocked** at full installation-policy/authority gates, 2026-09-08
 (Europe/Kiev); the first strict transport/update/rollback subset passed.
 
+Latest regression [34242602458](https://github.com/Reidond/kedra/actions/runs/34242602458)
+at `3d29689` passes older-media enrollment, metadata/native signature refusals,
+signed B staging/boot, retained A rollback, replay/hold preservation and explicit
+resume. Downloaded public serial evidence is `output/r01-run-34242602458`.
+Production authority and rotation are still unqualified.
+
 Follow-up [34226367288](https://github.com/Reidond/kedra/actions/runs/34226367288)
 at `71916b9` passes older-media enrollment: the running signed A release is
 verified separately from a fresh channel naming newer B. Enrollment caches A's

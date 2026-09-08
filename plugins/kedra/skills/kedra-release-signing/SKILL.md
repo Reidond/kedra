@@ -85,4 +85,7 @@ older releases and recovery credentials. GC must preserve needed signed digests.
 Gates: R01 proves compatibility; R08 proves authority/lifecycle; R02 proves the
 installer trust handoff; R10 implements independent validation. Sources:
 docs/SOURCES.md policy, registries, podman-sign, blob-sign, bootc-switch,
-actions-security; docs/UPDATES.md. No production signing workflow exists in bootstrap.
+actions-security; docs/UPDATES.md. The prepared release.yml candidate workflow is
+disabled and unqualified with production authority. Its exact public-input and
+environment requirements are in build/release/authority/README.md. No public key
+file or fingerprint from a research fixture may fill the production slots.

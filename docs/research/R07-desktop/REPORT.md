@@ -3,6 +3,15 @@
 Status: **pass** for desktop package resolution/configuration/build, 2026-09-08
 (Europe/Kiev). Graphical login/session subset passes; not a qualified desktop release.
 
+Follow-ups through [34238949306](https://github.com/Reidond/kedra/actions/runs/34238949306)
+at `9802b49` pass native Noctalia/niri discard and process-interruption recovery,
+current installed niri baseline acceptance, default private state, bounded
+portal/Secret Service calls, doctor, private Codex, logged-out Bitwarden and the
+full session. Driver-default regression 34240940795 at `967fd93` also passes.
+The exact-source 3d29689 desktop run was cancelled by the later f45b55a driver
+push; it supplies no new pass. Physical hardware and owner authentication remain
+unqualified. R04 separately exercises persistent graphical A/B/A boots.
+
 Latest [run 34192732970](https://github.com/Reidond/kedra/actions/runs/34192732970)
 at `a2c0e63` passes the existing graphical/native-review sequence after adding
 source-export commands. The separate Linux CLI/source round trip passes workspace

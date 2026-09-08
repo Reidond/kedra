@@ -1,8 +1,8 @@
 # Production release preparation
 
-The public trust-context producer is implemented. Production signing authority,
-the release workflow and promotion are not configured yet. Nothing in this folder
-creates a private key, enrolls a machine or promotes a release.
+The public trust-context producer and a disabled manual candidate workflow are
+implemented. Production signing authority and promotion are not configured.
+Nothing in this folder creates a private key, enrolls a machine or promotes a release.
 
 For the independently reviewed desktop public key:
 
@@ -25,7 +25,23 @@ untrusted download does not establish authority. A dedicated OS-release private
 key and its recovery copy must be separate from the owner's Bitwarden SSH key.
 Research keys and generated fixture fingerprints are never production authority.
 
-The remaining release path must preserve these boundaries:
+The prepared [release workflow](../../.github/workflows/release.yml) builds only
+from current main after explicit opt-in and an existing protected signing
+environment. It builds public trust into the final candidate, pushes the unsigned
+build to a separate repository, and signs its exact digest in a job without a
+checkout or candidate execution. A separate job anonymously verifies the signed
+GHCR image and its installed source/public key before building an offline-checking
+installer. It records the exact ISO hash/size and download parts in candidate.json.
+That descriptor deliberately records fresh_install_qualified=false and cannot be
+used as a promoted release manifest.
+
+See [authority setup](authority/README.md) for the concrete files, environment,
+secret names, recovery steps and current configuration evidence. The workflow has
+not run with production authority. Main, GitHub protections, secrets and release
+channels have not been changed. The shared installer trust-copy adjustment is
+being qualified through the disposable signed-ISO workflow.
+
+The complete release path must preserve these boundaries:
 
 1. Build reviewed committed payloads in Actions with public trust only. Capture
    exact image/source/package/tool digests and validate the desktop.

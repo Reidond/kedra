@@ -2,6 +2,24 @@
 
 2026-09-08. Full gate: blocked. No workstation home was used.
 
+Current installed niri baseline acceptance passes
+[34238949306](https://github.com/Reidond/kedra/actions/runs/34238949306) at `9802b49`.
+The actual CLI resolves the installed source/history, refuses a stale plan, accepts
+the installed baseline and preserves the later native file. The full
+discard/recovery/doctor/session sequence also passes. The baseline marker appears
+at 30.434 seconds and the session pass at 79.033 seconds in the retained serial log.
+The unchanged fresh-login driver path passes 34240940795 at `967fd93`.
+
+Actual signed A/B/A [34240940931](https://github.com/Reidond/kedra/actions/runs/34240940931)
+at `967fd93` builds and signs distinct A and B graphical images, enrolls A,
+establishes real selected/local/published/live user choices and stages B. B boots
+with enforcing SELinux/containerPolicy, but its test login fails before home
+acceptance: the greeter remembers kedra-test, while the driver types that username
+again into the password field. `accept-b/login.png` shows the remembered prompt.
+The driver now has an explicit repeated-login option used only after the first
+boot. Corrected run 34243567959 at `f45b55a` is in progress. B home acceptance and
+retained-A home rollback remain not-run, not passed by successful staging.
+
 Niri exact discard and native reload pass at 5e238c7 in
 [34237287511](https://github.com/Reidond/kedra/actions/runs/34237287511), with no
 accepted baseline advance. The actual VM covers stale-plan refusal, pinned-line
@@ -11,8 +29,8 @@ later-edit abort refusal and independent S/B/checkpoint retention. The complete
 desktop and doctor pass. Evidence is
 `output/r07-run-34237287511/r07-desktop-evidence-34237287511-1/vm/serial.log`.
 Workspace 34237287689 also passes actual CLI/release workflows at this source.
-Installed-baseline acceptance is now prepared separately (ADR 0022); actual changed-
-image transitions remain not-run. The preceding 7d14ada stopped on a rustix PID conversion
+Installed-baseline acceptance is qualified separately above (ADR 0022); actual changed-
+image home acceptance remains not-run. The preceding 7d14ada stopped on a rustix PID conversion
 method error; the method was corrected without relaxing peer checks. The source
 preview native regression 34235455502 was cancelled when superseded.
 No unit, mock, model or repository-scanner tests were added.

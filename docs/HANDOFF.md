@@ -22,7 +22,10 @@ release/checkpoint signature and replay verification, private state, Noctalia
 capture/staging/local policy, selected-field source export and source receipts.
 The installed helper has a bounded root protocol with independent trust/scope checks,
 durable stage/rollback records and explicit rollback hold/resume. Production trust
-and promotion are not configured. No workstation enrollment has occurred.
+and promotion are not configured. A disabled manual release candidate workflow now
+separates build/sign-image/installer jobs; see build/release/authority/README.md.
+No public authority files, keys, environments or secrets have been provisioned.
+No workstation enrollment has occurred.
 
 R01 native signed helper run 34228725707 at 94678f6 passes older-media enrollment against a newer fresh channel, metadata/OCI
 negatives, stage/boot B, retained-A rollback, newer-data/high-water preservation and
@@ -66,9 +69,11 @@ from accepted image B. Source reconciliation passes workspace 34235455512 at
 3c948aa. Native discard/reload and actual killed-CLI abort/resume/keep-current pass
 34237287511 at 5e238c7, including pinned decisions, later edits, metadata and
 relative includes. That run also passes the full desktop/doctor checks. Installed-
-baseline activate-plan/apply is prepared for qualification, requiring exact root-
-installed provenance and public source history (ADR 0022). Actual A-to-B baseline
-acceptance and wider path/group integration remain open. See TEXT-REVIEW.md and
+baseline activate-plan/apply passes 34238949306 at 9802b49, requiring exact root-
+installed provenance and public source history (ADR 0022). Actual A/B/A run
+34240940931 stages and boots B but fails before acceptance because the fixture
+driver mishandles the remembered login. Corrected f45b55a run 34243567959 is pending.
+Changed-image acceptance and wider path/group integration remain open. See TEXT-REVIEW.md and
 ADRs 0019-0022; no unit/meta tests were added.
 
 Signed-payload ISO 34222699188 at d8a76a9 passes the complete local installation:
@@ -88,7 +93,7 @@ release/promotion is implied. See docs/RELEASES.md.
 
 ## Next actions
 
-1. Inspect current source/CI and qualify installed niri baseline acceptance. Fix observed failures without
+1. Inspect current source/CI and finish actual signed graphical A/B/A acceptance. Fix observed failures without
    weakening runtime signature/path/state validation or adding unit/meta tests.
 2. Preserve signed-installer evidence; production authority/promotion, recovery
    and an owner installer are still required after the successful research install.

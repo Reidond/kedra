@@ -6,8 +6,9 @@ these projected values in a private SQLite directory. Other exported settings,
 credentials and raw application exports do not enter that store.
 
 The native R03 subset passes desktop run 34188179252 at 3d108e9. There is no promoted
-owner image yet. It does not implement generic file/line review, source export,
-discard or live activation; those remain required before complete home management.
+owner image yet. Selected-field patch export and source receipts are now implemented
+with local tests; updated native CLI checks are pending. Generic file/line review,
+discard and live activation remain required before complete home management.
 The running workstation must not be used for its enrollment experiment.
 
 On a qualifying installed Kedra desktop, run as the ordinary desktop user:
@@ -34,8 +35,8 @@ persistent policy for that field. `clear-local` removes either local policy.
 Selection and local ownership cannot overlap.
 
 Each command prints JSON with baseline/live values, selection and local policy.
-`selection` emits only the pinned publishable field changes. It does not write
-the source checkout, create a public commit or claim deployment. Effective capture
+`selection` emits only the pinned publishable field changes and accepted source
+provenance. It and `status --last-capture` work without invoking Noctalia. Effective capture
 uses Noctalia's native full-export command with bounded output and a timeout; only
 the supported typed fields survive parsing. Raw parser failures are not printed.
 
@@ -45,3 +46,44 @@ Unknown schemas, damaged state, unsafe ownership and links fail; they never mean
 an empty baseline. The existing store should be preserved for recovery. This
 private state is not a security boundary against another unrestricted process
 running as the same user, and it cannot authorize OS deployment.
+
+## Export selected settings to source
+
+From the reviewed state, create a new patch file:
+
+```sh
+sysroot home --state "$HOME/.local/state/kedra-home-review" export \
+  --repo "$HOME/src/kedra" --output "$HOME/noctalia-selected.patch"
+git -C "$HOME/src/kedra" apply --check "$HOME/noctalia-selected.patch"
+```
+
+The export uses committed source, checks the target and shared/host provenance,
+and preserves comments and unselected values. It refuses a different source value
+on the selected field or missing accepted/previously-recorded source ancestry.
+Patch generation leaves HEAD, the real index and working files unchanged. Git may
+store a new blob containing public source plus the selected typed values; it never
+receives the private review history or raw live export. The patch output is newly
+created with private permissions and is never overwritten. A failed write is not
+a usable patch.
+
+Review the patch and existing source edits. Apply it through normal Git review;
+`git apply --3way` can use the recorded blob identities and may require explicit
+conflict resolution. Commit only the intended paths reported by the export, taking
+care to preserve unrelated staged changes. After that commit exists, record it:
+
+```sh
+sysroot home --state "$HOME/.local/state/kedra-home-review" record-source \
+  --repo "$HOME/src/kedra" --commit "$(git -C "$HOME/src/kedra" rev-parse HEAD)"
+```
+
+The receipt checks the exact retained commit, target/provenance, selected values,
+and source ancestry before clearing selection. It leaves newer live values and
+local policy in place, and reports the committed values as pending deployment.
+A working-file or index change alone is insufficient. It does not create or push
+a commit, prove registry publication, or advance the accepted image baseline.
+
+When an export reports `already_in_source: true`, the selected values already match
+the committed source and the patch is empty. Record the matching source commit
+instead of creating a duplicate edit. A shallow or rewritten checkout that lacks
+the recorded history needs an explicit fetch/merge or rebind review; the command
+does not guess ancestry or change branches.

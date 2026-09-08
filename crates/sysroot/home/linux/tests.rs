@@ -86,14 +86,30 @@ fn pinned_selection_survives_reopen_and_subsequent_app_writes() {
     drop(store);
     let mut store = Store::open(&f.state()).unwrap();
     observed.theme_mode = Theme::Auto;
-    let captured = change(&mut store, INSTANCE, observed, &Command::Status).unwrap();
+    let captured = change(
+        &mut store,
+        INSTANCE,
+        observed,
+        &Command::Status {
+            last_capture: false,
+        },
+    )
+    .unwrap();
     assert_eq!(
         captured.selection().unwrap()[0].after,
         Value::Theme(Theme::Light)
     );
     assert_eq!(captured.rows().unwrap()[0].live, Value::Theme(Theme::Auto));
     assert_eq!(store.read(RECORD).unwrap().unwrap().revision, 3);
-    change(&mut store, INSTANCE, observed, &Command::Status).unwrap();
+    change(
+        &mut store,
+        INSTANCE,
+        observed,
+        &Command::Status {
+            last_capture: false,
+        },
+    )
+    .unwrap();
     assert_eq!(
         store.read(RECORD).unwrap().unwrap().revision,
         3,
@@ -128,7 +144,15 @@ fn local_policy_is_durable_and_failed_dispositions_do_not_commit_capture() {
     drop(store);
     let mut store = Store::open(&f.state()).unwrap();
     observed.theme_mode = Theme::Auto;
-    let state = change(&mut store, INSTANCE, observed, &Command::Status).unwrap();
+    let state = change(
+        &mut store,
+        INSTANCE,
+        observed,
+        &Command::Status {
+            last_capture: false,
+        },
+    )
+    .unwrap();
     assert!(state.rows().unwrap()[0].visible_change);
     change(
         &mut store,
@@ -138,7 +162,15 @@ fn local_policy_is_durable_and_failed_dispositions_do_not_commit_capture() {
     )
     .unwrap();
     observed.theme_mode = Theme::Light;
-    let state = change(&mut store, INSTANCE, observed, &Command::Status).unwrap();
+    let state = change(
+        &mut store,
+        INSTANCE,
+        observed,
+        &Command::Status {
+            last_capture: false,
+        },
+    )
+    .unwrap();
     assert!(state.rows().unwrap()[0].app_owned);
     assert!(state.selection().unwrap().is_empty());
 }
@@ -149,7 +181,15 @@ fn full_export_private_fields_never_enter_database_or_history() {
     let mut store = f.store();
     let raw = format!("{BASE}\n[private]\ncredential='{PRIVATE}'\n");
     let observed = noctalia::project(noctalia::APP_VERSION, &raw).unwrap();
-    change(&mut store, INSTANCE, observed, &Command::Status).unwrap();
+    change(
+        &mut store,
+        INSTANCE,
+        observed,
+        &Command::Status {
+            last_capture: false,
+        },
+    )
+    .unwrap();
     for entry in std::fs::read_dir(f.state()).unwrap() {
         let bytes = std::fs::read(entry.unwrap().path()).unwrap();
         assert!(

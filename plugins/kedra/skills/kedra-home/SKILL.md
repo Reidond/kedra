@@ -57,11 +57,16 @@ git-merge, git-faq, overlayfs, inotify, bootc-fs, noctalia. Full home management
 activation remain unavailable; never use a synthetic merge prototype on a real home.
 The Linux `sysroot home --state PATH` commands now connect the three-field Noctalia
 model to private review storage. See docs/HOME-REVIEW.md for implemented scope and
-the R03 report for native qualification. They do not yet export source or activate
-live files. This interface was added on 2026-09-08 against Noctalia 5.0.1; unknown
+the R03 report for native qualification. Selected-field patch export and exact
+source receipts now use temporary Git indexes and toml_edit 0.25.13 in the user
+CLI (ADR 0014); native export qualification is pending. Live activation remains
+unavailable. This interface was added on 2026-09-08 against Noctalia 5.0.1; unknown
 versions, damaged state or unsafe file metadata fail without reinitialization.
 Run 34188179270 at 3d108e9 passes the six Linux bridge cases; native desktop run
 34188179252 passes GUI changes with durable staging and local dispositions.
+Export must retain accepted/previous source ancestry, host/shared provenance and
+the pinned S value. Refuse a conflicting source value, never copy L wholesale or
+reset the real index. Receipt of a local commit is not a push, promotion or deploy.
 
 ## Established synthetic R03 findings
 

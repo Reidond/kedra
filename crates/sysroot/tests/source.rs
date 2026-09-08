@@ -296,3 +296,28 @@ fn credential_paths_and_key_material_are_rejected_before_archiving() {
         assert!(!output.exists());
     }
 }
+
+#[test]
+fn exact_revision_plans_preserve_newer_head_index_and_worktree() {
+    let f = Fixture::new();
+    f.write("etc/example.conf", "old baseline\n");
+    f.commit();
+    let old = source::plan(&f.0, "desktop").unwrap();
+    f.write("etc/example.conf", "new baseline\n");
+    f.commit();
+    let head = f.git(&["rev-parse", "HEAD"]);
+    f.write("etc/example.conf", "unstaged source\n");
+    let index = fs::read(f.0.join(".git/index")).unwrap();
+    let retained = source::plan_revision(&f.0, "desktop", &old.source_revision).unwrap();
+    assert_eq!(retained.files[0].sha256, old.files[0].sha256);
+    assert_eq!(retained.input_scope, "exact committed revision only");
+    assert_eq!(f.git(&["rev-parse", "HEAD"]), head);
+    assert_eq!(fs::read(f.0.join(".git/index")).unwrap(), index);
+    assert_eq!(
+        fs::read_to_string(f.0.join("etc/example.conf")).unwrap(),
+        "unstaged source\n"
+    );
+    for value in ["HEAD", "--help", "../main", "a"] {
+        assert!(source::plan_revision(&f.0, "desktop", value).is_err());
+    }
+}

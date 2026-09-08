@@ -1,4 +1,4 @@
-use super::{Command, Key, Options};
+use super::{Command, Key, Options, export};
 use rustix::fs::{self, FileType, Mode, OFlags, ResolveFlags};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -233,8 +233,10 @@ fn change(
         Command::KeepLocal { key } => state.ignore_exact((*key).into())?,
         Command::AppOwn { key } => state.own((*key).into())?,
         Command::ClearLocal { key } => state.clear_local_policy((*key).into())?,
-        Command::Status | Command::Selection => (),
-        Command::Init => return Err("existing review store must not be reinitialized".into()),
+        Command::Status {
+            last_capture: false,
+        } => (),
+        _ => return Err("this operation does not capture live settings".into()),
     }
     let bytes = state.to_bytes()?;
     if bytes != before {
@@ -263,6 +265,7 @@ pub(super) fn run(options: Options) -> Result<()> {
         );
     }
     let instance = hash(&[machine, owner.to_le_bytes().to_vec()].concat())[..32].to_owned();
+    let mut source_result = None;
     let state = if matches!(options.command, Command::Init) {
         let baseline = installed_baseline(Path::new("/"), 0)?;
         let state = State::new(instance.clone(), baseline, live()?)?;
@@ -270,13 +273,46 @@ pub(super) fn run(options: Options) -> Result<()> {
         state
     } else {
         let mut store = Store::open(&path)?;
-        change(&mut store, &instance, live()?, &options.command)?
+        match &options.command {
+            Command::Selection | Command::Status { last_capture: true } => {
+                load(&store, &instance)?.1
+            }
+            Command::Export { repo, output } => {
+                let (_, state) = load(&store, &instance)?;
+                let prepared = export::prepare(repo, &path, &state)?;
+                prepared.write_new(output)?;
+                source_result = Some(serde_json::json!({
+                    "patch_file": output, "base_revision": prepared.source_revision,
+                    "source_path": prepared.source_path, "patch_sha256": hash(&prepared.patch),
+                    "patch_bytes": prepared.patch.len(), "already_in_source": prepared.patch.is_empty(),
+                    "source_objects_may_be_added": !prepared.patch.is_empty(), "commit_created": false
+                }));
+                state
+            }
+            Command::RecordSource { repo, commit } => {
+                let (revision, mut state) = load(&store, &instance)?;
+                let settings = export::verify_commit(repo, commit, &state)?;
+                state.record_source_commit(commit, settings)?;
+                store.compare_exchange(RECORD, Some(revision), &state.to_bytes()?)?;
+                source_result = Some(serde_json::json!({
+                    "recorded_commit": commit, "commit_created": false,
+                    "registry_publication_verified": false, "deployment_performed": false
+                }));
+                state
+            }
+            _ => change(&mut store, &instance, live()?, &options.command)?,
+        }
     };
-    let response = if matches!(options.command, Command::Selection) {
-        serde_json::json!({"application": "noctalia", "selection": state.selection()?, "activation_performed": false, "source_written": false})
+    let mut response = if matches!(options.command, Command::Selection | Command::Export { .. }) {
+        serde_json::json!({"schema_version": 1, "application": "noctalia", "accepted_baseline": state.accepted_baseline(),
+            "selection": state.selection()?, "activation_performed": false, "checkout_changed": false})
     } else {
-        serde_json::json!({"application": "noctalia", "fields": state.rows()?, "activation_performed": false, "source_written": false})
+        serde_json::json!({"schema_version": 1, "application": "noctalia", "accepted_baseline": state.accepted_baseline(),
+            "fields": state.rows()?, "activation_performed": false, "checkout_changed": false})
     };
+    if let Some(result) = source_result {
+        response["source"] = result;
+    }
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }

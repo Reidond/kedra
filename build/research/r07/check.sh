@@ -54,7 +54,7 @@ for attempt in $(seq 1 20); do
     sleep 1
 done
 printf '%s' "$review" | jq -e '.fields[0].live.value == "auto" and .fields[0].selected.value == "light"'
-as_user sysroot home --state "$review_state" selection | jq -e '.selection[0].after.value == "light" and .activation_performed == false and .source_written == false'
+as_user sysroot home --state "$review_state" selection | jq -e '.selection[0].after.value == "light" and .activation_performed == false and .checkout_changed == false'
 as_user sysroot home --state "$review_state" unstage theme.mode
 as_user sysroot home --state "$review_state" keep-local theme.mode | jq -e '.fields[0].local_only and (.fields[0].visible_change | not)'
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light

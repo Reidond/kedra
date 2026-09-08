@@ -225,6 +225,23 @@ impl Transition {
 }
 
 impl State {
+    /// Accepted image/source provenance; selection and publication do not advance it.
+    pub fn accepted_baseline(&self) -> &Baseline {
+        &self.baseline
+    }
+
+    /// Source history that must remain present before exporting or recording more edits.
+    pub fn source_anchors(&self) -> Result<Vec<&str>, Error> {
+        self.validate()?;
+        let mut anchors = vec![self.baseline.source_revision.as_str()];
+        for chain in self.published.values() {
+            if let Some(publication) = chain.last() {
+                anchors.push(publication.source_revision.as_str());
+            }
+        }
+        Ok(anchors)
+    }
+
     pub fn new(instance: String, baseline: Baseline, live: Settings) -> Result<Self, Error> {
         let state = Self {
             schema_version: 1,

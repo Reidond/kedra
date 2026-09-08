@@ -197,6 +197,38 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
     }
     let revision_bytes = git(repo, &["rev-parse", "--verify", "HEAD^{commit}"])?;
     let revision = text(&revision_bytes)?.trim().to_owned();
+    plan_committed(repo, host, revision, "committed HEAD only")
+}
+
+/// Read an exact retained source commit without moving HEAD or the index.
+#[cfg(any(target_os = "linux", test))]
+pub(crate) fn plan_revision(repo: &Path, host: &str, revision: &str) -> Result<Plan, Error> {
+    if !identifier(host)
+        || !matches!(revision.len(), 40 | 64)
+        || !revision
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        return Err(invalid(
+            "an explicit target and full lowercase commit ID are required",
+        ));
+    }
+    let resolved = git(
+        repo,
+        &["rev-parse", "--verify", &format!("{revision}^{{commit}}")],
+    )?;
+    if text(&resolved)?.trim() != revision {
+        return Err(invalid("source revision must identify the commit itself"));
+    }
+    plan_committed(repo, host, revision.into(), "exact committed revision only")
+}
+
+fn plan_committed(
+    repo: &Path,
+    host: &str,
+    revision: String,
+    input_scope: &'static str,
+) -> Result<Plan, Error> {
     let tree = entries(repo, &revision)?;
     let target_path = format!("hosts/{host}/host.toml");
     let entry = tree
@@ -321,7 +353,7 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
     Ok(Plan {
         schema_version: 1,
         source_revision: revision,
-        input_scope: "committed HEAD only",
+        input_scope,
         target,
         packages: packages.into_iter().collect(),
         remove_packages: remove.into_iter().collect(),

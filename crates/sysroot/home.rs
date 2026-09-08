@@ -2,6 +2,8 @@
 use clap::{Args, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+#[cfg(any(target_os = "linux", test))]
+mod export;
 #[cfg(target_os = "linux")]
 mod linux;
 
@@ -19,7 +21,11 @@ enum Command {
     /// Adopt only the three supported Noctalia fields from the installed baseline.
     Init,
     /// Capture effective settings and show each field's independent dispositions.
-    Status,
+    Status {
+        /// Show the last captured values without invoking Noctalia.
+        #[arg(long)]
+        last_capture: bool,
+    },
     /// Pin the current value for later source export; later app writes stay unselected.
     Stage { key: Key },
     /// Remove a selected value without changing the live setting.
@@ -32,6 +38,20 @@ enum Command {
     ClearLocal { key: Key },
     /// Show only pinned, publishable field changes as JSON.
     Selection,
+    /// Write a new patch containing only selected settings; preserve the checkout.
+    Export {
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Verify and remember the exact source commit containing the selected values.
+    RecordSource {
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+        #[arg(long)]
+        commit: String,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]

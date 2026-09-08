@@ -70,6 +70,20 @@ marker KEDRA_R03_DURABLE_REVIEW_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R03_NATIVE_PROJECTION_PASS
 as_user python3 /usr/libexec/kedra-research-agents.py
+fixture_home=$(getent passwd kedra-test | cut -d: -f6)
+test "$(printf '%s\n' "$environment" | sed -n 's/^SSH_AUTH_SOCK=//p')" = "$fixture_home/.bitwarden-ssh-agent.sock"
+test "$(as_user bash --login -c 'printf %s "$SSH_AUTH_SOCK"')" = "$fixture_home/.bitwarden-ssh-agent.sock"
+as_user systemd-run --user --unit=kedra-bitwarden-research --collect --service-type=exec /usr/bin/bitwarden
+for attempt in $(seq 1 60); do
+    if as_user env NIRI_SOCKET="$niri_socket" niri msg --json windows | jq -e 'any(.[]; (.app_id // "" | ascii_downcase) == "bitwarden")' >/dev/null; then break; fi
+    sleep 1
+done
+as_user env NIRI_SOCKET="$niri_socket" niri msg --json windows | jq -e 'any(.[]; (.app_id // "" | ascii_downcase) == "bitwarden")' >/dev/null
+as_user systemctl --user is-active kedra-bitwarden-research.service
+marker KEDRA_R06_LOGGED_OUT_READY
+sleep 15
+as_user systemctl --user stop kedra-bitwarden-research.service
+marker KEDRA_R06_LOGGED_OUT_PASS
 as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs
 as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs | \
     jq -e '.["Virtual-1"].logical | .width == 1280 and .height == 768 and .scale == 1' >/dev/null

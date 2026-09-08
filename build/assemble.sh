@@ -18,6 +18,14 @@ dnf check
 rm -rf /var/lib/dnf /var/cache/swcatalog /var/cache/ldconfig
 rm -f /var/log/dnf5.log /var/log/dnf5.log.1
 chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper
+chmod 0755 /usr/libexec/kedra-session
+test -x /usr/bin/bitwarden
+test -x /usr/lib/bitwarden/bitwarden-app
+runtime_dependencies=$(ldd /usr/lib/bitwarden/bitwarden-app /usr/lib/bitwarden/desktop_proxy /usr/lib/bitwarden/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi/desktop_napi.linux-x64-gnu.node)
+if printf '%s\n' "$runtime_dependencies" | grep 'not found'; then
+    echo 'Bitwarden runtime dependency missing' >&2
+    exit 1
+fi
 getent passwd greetd
 systemctl enable greetd.service NetworkManager.service bluetooth.service
 systemctl set-default graphical.target

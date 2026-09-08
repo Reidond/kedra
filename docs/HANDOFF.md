@@ -44,7 +44,9 @@ owner credentials are unqualified.
 The plain Containerfile consumes a reviewed source archive, installs Fedora
 packages, and seeds ordinary writable defaults through /etc/skel for new users.
 This is not enrollment or management of an existing home. Automatic bootc
-fetch/apply is masked. Bundled coding agents and Bitwarden are not packaged yet.
+fetch/apply is masked. Private Codex packaging and the actual Fedora runtime pass
+34197344807 at ba011ec. Bitwarden package preparation/session wiring is implemented
+but its Fedora build/runtime test is pending. Claude terms remain unanswered.
 
 ## Next concrete work
 
@@ -62,8 +64,12 @@ Actual installation failed GetBlob import in the 1.6 GiB installer /var/tmp, whi
 the encrypted target had 59 GiB free. The VM is stopped and sentinel comparison
 passes. ADR 0013 selected-disk scratch then allowed bootc import/GRUB/finalization
 to complete in media 34190162895, but Anaconda cleanup failed on the now-read-only
-target. A native-equivalent remount correction is building in 34195114452 at
-923a282. Full owner installation/boot remains pending.
+target. That correction passes Anaconda completion in 34195114452 at 923a282;
+installed-disk boot unlocks LUKS and authenticates the owner with enforcing SELinux.
+First-boot health fails because native bootc mount preparation omitted the separate
+home mount before useradd, and fstab addresses the logical root as the physical
+Btrfs root. ADR 0015 implements the separate-mount loop and /sysroot fstab correction.
+Fresh-media validation is pending; repairs to the generated VM are diagnostic only.
 This is unsigned localhost-origin research media, not an owner release.
 
 A diagnostic boot of the older media with a temporary kernel override reached

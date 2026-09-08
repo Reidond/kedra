@@ -1,0 +1,5 @@
+#!/bin/sh
+# Preserve an explicit personal SSH agent; default new sessions to Bitwarden.
+: "${SSH_AUTH_SOCK:=$HOME/.bitwarden-ssh-agent.sock}"
+export SSH_AUTH_SOCK
+exec /usr/bin/niri-session

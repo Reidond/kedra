@@ -7,6 +7,7 @@ on:
       - .github/workflows/research-installer.yml
       - installer/**
       - build/agents/**
+      - build/bitwarden/**
 permissions:
   contents: read
 concurrency:
@@ -35,7 +36,8 @@ jobs:
       - name: Prepare runner
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo xorriso squashfs-tools attr qemu-system-x86
+          sudo apt-get install -y --no-install-recommends podman skopeo xorriso squashfs-tools attr qemu-system-x86 rpm cpio
+          python3 build/bitwarden/prepare.py --context output/desktop-context --evidence output/installer-evidence/bitwarden-inputs.json
           {
             date --utc --iso-8601=seconds
             git rev-parse HEAD

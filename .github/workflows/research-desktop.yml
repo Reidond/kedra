@@ -8,6 +8,7 @@ on:
       - Containerfile
       - build/assemble.sh
       - build/agents/**
+      - build/bitwarden/**
       - build/research/r07/**
       - packages/**
       - home/**
@@ -51,7 +52,9 @@ jobs:
       - name: Install runner container tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils imagemagick xdotool
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils imagemagick xdotool rpm cpio
+          python3 build/bitwarden/prepare.py --context output/desktop-context --evidence output/desktop-evidence/bitwarden-inputs.json
+          sha256sum output/desktop-context/* > output/desktop-evidence/build-input-hashes.txt
       - name: Build and validate Fedora desktop candidate
         run: |
           set -euo pipefail

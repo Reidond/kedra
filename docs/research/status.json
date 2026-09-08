@@ -15,9 +15,9 @@
       "status": "blocked",
       "topic": "Installer and Actions feasibility",
       "report": "R02-installer/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34190162895",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34195114452",
       "prototype_status": "pass",
-      "note": "Minimal boot and generic media/UI subsets pass. Selected-disk scratch fixes ENOSPC; bootc import/GRUB/finalization complete, but Anaconda cleanup fails EROFS after the target becomes read-only. A native-equivalent remount fix is building at 923a282; full owner installation/boot and signed origin remain open. Sentinel comparisons pass."
+      "note": "Encrypted Anaconda installation/owner creation and sentinel retention pass at 923a282. Installed boot unlocks/authenticates with enforcing SELinux, but home mount and logical-root remount defects fail health. ADR 0015 corrections await rebuilt-media validation; signed origin remains open."
     },
     {
       "id": "R03",
@@ -41,13 +41,15 @@
       "topic": "Agent packaging and independence",
       "prototype_status": "pass",
       "report": "R05-agents/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34186921224",
-      "note": "Linux wrapper cases and four native Codex 0.153.4/0.153.3 runtime/profile probes pass with Sigstore and pinned component notices. Auth/model turns, external discovery, complete distribution and Claude preinstallation agreement remain open; owner terms question is pending."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34197344807",
+      "note": "Private Codex package verification and actual Fedora image runtime/helpers/profile-retention pass at ba011ec, alongside the earlier native personal/bundled matrix. Auth/model turns, external discovery and Claude preinstallation agreement remain open; owner terms question is pending."
     },
     {
       "id": "R06",
       "status": "not-run",
-      "topic": "Bitwarden and credential bootstrap"
+      "topic": "Bitwarden and credential bootstrap",
+      "report": "R06-credentials/REPORT.md",
+      "note": "Pinned native Bitwarden package/layout and source inspected; image preparation and session defaults are prepared. Generated native systemd/shell environment checks pass; Fedora runtime and authenticated states remain not-run."
     },
     {
       "id": "R07",

@@ -32,3 +32,15 @@ playerctl
 firefox
 nautilus
 seahorse
+# Native Bitwarden/Electron runtime dependencies; qualified in the VM.
+libnotify
+libXScrnSaver
+libXtst
+nss
+alsa-lib
+atk
+at-spi2-atk
+cups-libs
+libdrm
+gtk3
+mesa-libgbm

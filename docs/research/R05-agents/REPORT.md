@@ -2,6 +2,14 @@
 
 Date: 2026-09-08. Launcher Linux tests: pass. Full gate blocked.
 
+Private Codex image packaging passes [34195980696](https://github.com/Reidond/kedra/actions/runs/34195980696)
+at `9aa59ad`. The actual enforcing Fedora desktop VM passes
+[34197344807](https://github.com/Reidond/kedra/actions/runs/34197344807) at `ba011ec`:
+`sysroot codex` resolves the installed private 0.153.4 runtime, version/help/login-help
+and bundled helpers run, and seeded personal profile content survives. Native
+runtime files, pinned corresponding source and reviewed notices are now included
+in the image. This does not prove authenticated model turns or close Claude terms.
+
 [Run 34181692426](https://github.com/Reidond/kedra/actions/runs/34181692426)
 at `082f8d44ebd23f542975135dd2900b21d76fe3af` passes fmt/Clippy, 64 workspace
 tests plus one doctest, release build and OpenSSL interoperability. This includes

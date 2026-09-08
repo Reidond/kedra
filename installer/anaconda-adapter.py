@@ -98,6 +98,28 @@ def _kedra_bootc_deploy(physroot, bootc_args, report):
             os.rmdir(scratch)
 '''
 
+# The bootc task currently omits the separate mounts which its OSTree sibling
+# binds after /var. Without these, useradd writes behind a later /home mount.
+before_mounts = '''        # Create /var subdirectories (roothome and home) after bind mount
+        self._fill_var_subdirectories()
+
+        # Make sure /boot is accessible during %post scripts
+'''
+after_mounts = '''        # Create /var subdirectories (roothome and home) after bind mount
+        self._fill_var_subdirectories()
+
+        # Kedra: preserve selected separate filesystems while creating accounts.
+        for mount in sorted(mount_points, key=len):
+            if mount in ('/', '/var', '/dev', '/proc', '/run', '/sys'):
+                continue
+            self._setup_internal_bindmount(mount, recurse=False)
+
+        # Make sure /boot is accessible during %post scripts
+'''
+if updated[patches[2][0]].count(before_mounts) != 1:
+    raise SystemExit('Expected one native bootc mount-preparation anchor')
+updated[patches[2][0]] = updated[patches[2][0]].replace(before_mounts, after_mounts)
+
 def getter(source, name):
     candidates = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.FunctionDef) and node.name == name]
     if len(candidates) != 1:
@@ -188,6 +210,31 @@ for mounted, root_path in [(False, '/synthetic-target'), (True, '/')]:
             raise SystemExit('Unsafe scratch root was accepted')
         except RuntimeError:
             pass
+
+native_class = next(node for node in ast.parse(updated[patches[2][0]]).body
+                    if isinstance(node, ast.ClassDef) and node.name == 'PrepareBootcMountTargetsTask')
+native_run = next(node for node in native_class.body if isinstance(node, ast.FunctionDef) and node.name == 'run')
+module = ast.fix_missing_locations(ast.Module(body=[native_run], type_ignores=[]))
+for points in [{'/': 'root', '/home': 'home', '/boot': 'boot', '/boot/efi': 'efi'},
+               {'/': 'root', '/var': 'var', '/var/home': 'home', '/proc': 'api', '/srv': 'data'},
+               {'/': 'root'}]:
+    events = []
+    namespace = {'STORAGE': SimpleNamespace(get_proxy=lambda _: SimpleNamespace(GetMountPoints=lambda: points)),
+                 'DEVICE_TREE': 'fixture', 'safe_exec_program': lambda *args: events.append(('remount', args))}
+    exec(compile(module, '<verified bootc mount preparation>', 'exec'), namespace)
+    fixture = SimpleNamespace(_sysroot='/fixture-deploy', _physroot='/fixture-root', _internal_mounts=[],
+        _handle_api_mount_points=lambda: events.append(('api',)),
+        _handle_var_mount_point=lambda points: events.append(('var',)),
+        _fill_var_subdirectories=lambda: events.append(('fill-var',)),
+        _setup_internal_bindmount=lambda mount, recurse: events.append(('bind', mount, recurse)),
+        _handle_boot_if_not_mount_point=lambda: events.append(('boot',)))
+    namespace['run'](fixture)
+    actual = [event[1] for event in events if event[0] == 'bind']
+    expected = [point for point in sorted(points, key=len) if point not in ['/', '/var', '/dev', '/proc', '/run', '/sys']]
+    if actual != expected or any(event[2] is not False for event in events if event[0] == 'bind'):
+        raise SystemExit('Separate filesystem binding failed')
+    if actual and events.index(('fill-var',)) > events.index(('bind', actual[0], False)):
+        raise SystemExit('Separate home must be bound after persistent /var')
 for relative, source in updated.items():
     path = root / relative
     path.write_text(source)

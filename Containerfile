@@ -6,5 +6,6 @@ COPY sysroot /usr/bin/sysroot
 COPY sysroot-helper /usr/libexec/sysroot/helper
 ADD payload.tar /
 ADD agents.tar /
+ADD bitwarden.tar /
 COPY assemble.sh /tmp/kedra-assemble.sh
 RUN /bin/bash /tmp/kedra-assemble.sh && rm /tmp/kedra-assemble.sh

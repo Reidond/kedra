@@ -3,6 +3,24 @@
 Status: **pass** for the minimal image/QCOW2/UEFI guest experiment; full R02
 installation gate remains **blocked**. Updated 2026-09-08 (Europe/Kiev).
 
+Latest interactive result: cleanup-fixed media
+[34195114452](https://github.com/Reidond/kedra/actions/runs/34195114452) at `923a282`
+completed encrypted installation and owner creation in a fresh two-disk local VM.
+Its verified ISO SHA-256 is
+`24161c57cac073137bc4730684a106815fc8d654b65483c52e46c88b89fa0e91`
+(2,552,686,592 bytes). Sentinel comparison passes. Boot without the ISO unlocks
+LUKS and authenticates the owner with enforcing SELinux, but **fails health**:
+the owner home is hidden behind its separate subvolume, and systemd-remount-fs
+tries to remount the logical overlay root from a physical-root fstab entry.
+The native mount omission and proposed corrections are recorded in
+[ADR 0015](../../adr/0015-installer-persistent-mounts.md). Rebuilt-media acceptance
+is pending; diagnostic repair does not turn this run into a healthy-install pass.
+
+The companion Codex-containing ISO build
+[34197344823](https://github.com/Reidond/kedra/actions/runs/34197344823) at `ba011ec`
+passes assembly/startup but has the same uncorrected installation issues and has
+not been installed. Codex itself passes the separate Fedora runtime VM.
+
 [Corrected run 34165475139](https://github.com/Reidond/kedra/actions/runs/34165475139)
 passed at `cfbfc05405f13d16dbbe5a604bc116b0763a421a`. The guest emitted
 `KEDRA_R02_BOOT_PASS` after reading bootc state, checking root and persistent /var

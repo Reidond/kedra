@@ -19,6 +19,15 @@ manager's environment, not magically every process; prove session propagation.
 A Bitwarden Flatpak would have different packaging/sandbox details; native RPM is
 the initial research candidate, not a tested installed outcome.
 
+Desktop 2026.8.0 inspection (2026-09-08, R06): the official native RPM puts
+regular application files in /opt/Bitwarden and its launcher resolves its own
+path. Build preparation relocates unchanged runtime files to /usr/lib/bitwarden
+for bootc, retaining notices/source. Never run its conditional setuid/AppArmor
+RPM scripts on the workstation. The generated enforcing Fedora VM must prove
+native sandbox startup and socket propagation; syntax/layout checks alone do
+not pass authentication. See build/bitwarden/README.md and the R06 report for
+exact source/digest and pending runtime evidence.
+
 Select the intended GitHub identity with a public-key file and SSH IdentityAgent,
 IdentityFile and IdentitiesOnly. The private half stays with Bitwarden. This
 selection is not a sandbox preventing an unrestricted same-user agent from other

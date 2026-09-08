@@ -112,7 +112,7 @@ with (work / "qemu.log").open("w") as output:
                 password = ""
                 markers.add("login")
                 print("Submitted disposable account login", flush=True)
-            for marker, name in [("KEDRA_R07_SESSION_READY", "desktop.png"), ("KEDRA_R07_SETTINGS_READY", "settings.png")]:
+            for marker, name in [("KEDRA_R06_LOGGED_OUT_READY", "bitwarden.png"), ("KEDRA_R07_SESSION_READY", "desktop.png"), ("KEDRA_R07_SETTINGS_READY", "settings.png")]:
                 if qmp and marker in text and marker not in markers:
                     time.sleep(2)
                     qmp.screenshot(name)

@@ -32,6 +32,10 @@ disable enforcement or modify the installed payload's verification rules.
 
 The workflow checks the packaged systemd label and boots the unchanged ISO stage2
 using its extracted kernel/initramfs with an explicit research probe and no disks.
-That is an enforcing-userspace smoke test; UEFI, Anaconda UI and installation
-still require their separate VM cases. The probe runs only with the research
+The initial enforcing-userspace probe passed but a local UEFI run exposed denied
+Anaconda service/rescue-shell operations. The media now follows Fedora Lorax's
+permissive SELinux environment; the separate installed desktop stays enforcing.
+The revised smoke requires Anaconda service/log startup. UEFI, UI and installed
+enforcement still require separate VM cases. See ADR 0010 for the source and
+failure evidence. The probe runs only with the research
 kernel flag and never enters the installed desktop payload.

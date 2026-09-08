@@ -62,6 +62,10 @@ jobs:
             2>&1 | tee output/installer-evidence/anaconda-build.log
           sudo podman image inspect localhost/kedra-desktop:installer-research localhost/kedra-anaconda:research \
             > output/installer-evidence/image-inspect.json
+          sudo podman run --rm localhost/kedra-desktop:installer-research \
+            grep -x 'SELINUX=enforcing' /etc/selinux/config > output/installer-evidence/desktop-selinux-config.txt
+          sudo podman run --rm localhost/kedra-anaconda:research \
+            grep -x 'SELINUX=permissive' /etc/selinux/config > output/installer-evidence/installer-selinux-config.txt
       - name: Build generic interactive ISO with separate payload
         run: |
           set -euo pipefail
@@ -92,7 +96,7 @@ jobs:
           # A bootc-installer must be reviewed for interactive storage/account flow.
           # No unattended first-disk erase profile is supplied by this repository.
           echo 'Research media only: installer configuration and multi-disk VM behavior remain unqualified.' >> "$GITHUB_STEP_SUMMARY"
-      - name: Check installer labels and enforcing userspace boot
+      - name: Check installer labels and Anaconda startup
         run: |
           set -euo pipefail
           mapfile -t images < <(find "$PWD/output/installer-image" -type f -name '*.iso')

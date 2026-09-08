@@ -10,6 +10,13 @@ if ! getent passwd install >/dev/null; then
     printf 'install::14438:0:99999:7:::\n' >> /etc/shadow
 fi
 passwd -d root
+# Match Fedora Lorax's separate installer environment. This file is not copied
+# into the desktop payload; installed-system enforcement is checked separately.
+printf 'SELINUX=permissive\nSELINUXTYPE=targeted\n' > /etc/selinux/config
+if ! getent passwd install-user >/dev/null; then
+    useradd --uid 1001 --no-create-home --home-dir /tmp/install-user --shell /usr/bin/bash install-user
+    passwd -d install-user
+fi
 install -m 0755 /usr/share/anaconda/list-harddrives-stub /usr/bin/list-harddrives
 if test -d /etc/yum.repos.d; then mv /etc/yum.repos.d /etc/anaconda.repos.d; fi
 systemctl set-default anaconda.target

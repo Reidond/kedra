@@ -26,12 +26,12 @@ with (args.work / 'qemu.log').open('w') as log:
     try:
         deadline = time.monotonic() + 180
         while process.poll() is None and time.monotonic() < deadline:
-            if events.exists() and 'KEDRA_INSTALLER_ENFORCING_BOOT_PASS' in events.read_text(errors='replace'):
-                print('PASS: installer userspace boot with enforcing SELinux; no disks attached')
+            if events.exists() and 'KEDRA_INSTALLER_ANACONDA_STARTED' in events.read_text(errors='replace'):
+                print('PASS: Anaconda service/log startup with Fedora installer SELinux mode; no disks attached')
                 break
             time.sleep(1)
         else:
-            raise SystemExit('Installer enforcing-userspace boot did not pass')
+            raise SystemExit('Anaconda startup smoke did not pass')
     finally:
         if process.poll() is None:
             process.terminate()

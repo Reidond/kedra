@@ -4,8 +4,8 @@ ConditionKernelCommandLine=kedra.research=1
 After=basic.target
 
 [Service]
-Type=oneshot
-ExecStart=/bin/bash -ec 'test "$(getenforce)" = Enforcing; printf "KEDRA_INSTALLER_ENFORCING_BOOT_PASS\\n" > /dev/ttyS1'
+Type=simple
+ExecStart=/usr/libexec/kedra-installer-boot-probe
 
 [Install]
 WantedBy=anaconda.target

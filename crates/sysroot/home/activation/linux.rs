@@ -70,6 +70,33 @@ fn pending(store: &Store, instance: &str) -> Result<(u64, State, u64, Journal, S
     }
     Ok((revision, state, record.revision, journal, before))
 }
+
+/// Validate pending reservation consistency without opening native files or apps.
+pub(in crate::home) fn assessment_pending(
+    store: &Store,
+    instance: &str,
+    state: &State,
+) -> Result<bool> {
+    if state.pending_activation().is_some() {
+        pending(store, instance)?;
+        return Ok(true);
+    }
+    if let Some(record) = store.read(JOURNAL)? {
+        let journal: Journal =
+            serde_json::from_slice(&record.bytes).map_err(|_| "activation journal is malformed")?;
+        let before = State::from_bytes(journal.before.as_bytes(), instance)?;
+        if journal.schema_version != 1
+            || journal.plan != Plan::new(&before, journal.plan.action.clone())?
+            || !matches!(
+                journal.phase,
+                Phase::Completed | Phase::Aborted | Phase::KeptCurrent
+            )
+        {
+            return Err("activation journal has no matching reservation".into());
+        }
+    }
+    Ok(false)
+}
 fn conclude(
     store: &mut Store,
     revision: u64,

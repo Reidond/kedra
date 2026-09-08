@@ -180,6 +180,53 @@ impl State {
     }
 }
 
+/// Inspect only accepted public provenance and durable reservations, never L/S/I/P.
+pub(super) fn assessment(
+    store: Option<&Store>,
+    instance: &str,
+) -> Result<super::assessment::Group> {
+    let baseline = installed()?;
+    let installed_state = State {
+        schema_version: 1,
+        instance: instance.to_owned(),
+        reference: baseline.contents.clone(),
+        baseline,
+        selected: Vec::new(),
+        ignored: Vec::new(),
+        published: Vec::new(),
+        pending_activation: None,
+    };
+    installed_state.validate(instance)?;
+    let state = store
+        .map(|store| store.read(RECORD))
+        .transpose()?
+        .flatten()
+        .map(|record| {
+            let state: State = serde_json::from_slice(&record.bytes)
+                .map_err(|_| "niri text state is malformed; preserve the store")?;
+            state.validate(instance)?;
+            Ok::<_, Box<dyn std::error::Error>>(state)
+        })
+        .transpose()?;
+    let pending = match store {
+        Some(store) => activation::assessment_pending(store, state.as_ref())?,
+        None => false,
+    };
+    let baseline = &installed_state.baseline;
+    Ok(super::assessment::Group::new(
+        state
+            .as_ref()
+            .map(|state| state.baseline.source_revision.as_str()),
+        &baseline.source_revision,
+        state
+            .as_ref()
+            .is_some_and(|state| state.baseline == *baseline),
+        pending,
+        "sysroot home file activate-plan --repo <kedra-checkout>",
+        "sysroot home file recover",
+    ))
+}
+
 /// Every temporary Git object stays in a private scratch repository. Only the
 /// approved result is subsequently hashed into the public source repository.
 struct Git {

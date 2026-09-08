@@ -128,3 +128,56 @@ effective settings, recovery remains pending for review. Keep-current leaves any
 private checkpoint for inspection. After validated cleanup the old
 checkpoint may be gone, so use resume or keep-current. Never delete/reset the
 review store to work around an error. See [R04 evidence](research/R04-activation/REPORT.md).
+
+## Check the caller's accepted baseline after an OS change
+
+The opt-in command below adds a `caller_home` summary after the installed update
+helper succeeds. Run it as the ordinary user whose home is being checked; root
+assessment is refused. The unchanged `sysroot update status` command reports only
+deployment state.
+
+```sh
+sysroot update status --home
+sysroot update status --home --home-state /absolute/private/review-store
+```
+
+`caller_home` applies only to the invoking UID and selected store. It does not
+assess other users, source checkouts, live configuration or application health.
+Noctalia and niri are reported separately:
+
+| Status | Meaning and next step |
+|---|---|
+| `not_adopted` | The store is genuinely absent, or niri has no adoption record. Nothing is initialized. Adopt separately only after the required review. |
+| `accepted_baseline_matches_installed` | The validated accepted baseline equals the installed public baseline, including provenance and supported content. Live edits may still exist. |
+| `reconciliation_required` | The accepted baseline differs from the installed one. Review `sysroot home plan` for Noctalia or `sysroot home file activate-plan --repo /path/to/kedra` for niri, then explicitly apply an accepted plan. |
+| `recovery_required` | A validated pending reservation and journal require explicit recovery. Inspect `sysroot home recover` or `sysroot home file recover` before choosing an action. |
+| `unavailable` | State, profile or installed provenance is unsafe, busy, unreadable, corrupt or incompatible. Preserve the store, close competing operations and inspect the relevant home command's diagnostic. Never reset state to obtain a clean status. |
+
+The overall status gives unavailable state precedence, then pending recovery,
+then reconciliation. Read each group's status when one group is unadopted or
+unavailable. Accepted and installed revisions are included only after validation;
+selected values, local-only values, live contents and raw home journals are omitted.
+With a custom store, insert the same `--state /absolute/private/review-store` after
+`sysroot home` in the suggested next command. Suggestions never run automatically.
+Application-profile overrides are refused, including a nondefault `XDG_STATE_HOME`
+that would also redirect Noctalia's native state. Use `--home-state` to select a
+different review store while keeping the qualified application profile.
+
+This assessment performs no logical review-state or live-file change. Opening an
+existing SQLite store can touch its sidecars and the coordination lock, so the
+storage bytes are not promised to stay identical. It does not capture settings,
+prepare a plan, validate or reload an application, initialize missing state, or
+repair a journal. A helper failure returns an error without a combined successful
+status. Its existing deployment fields and privilege checks remain independent of
+`caller_home`; a match is not an OS health or home activation claim.
+Recovery status validates the stored journal and reservation relationship without
+opening native checkpoints. The explicit recovery command checks whether those
+checkpoints and the current native file still permit a chosen recovery action.
+
+The new assessment's Linux/native qualification is pending. The R04 signed A/B/A
+fixture exercises the actual public CLI for absence, preserved independent home
+decisions, B mismatch/explicit acceptance, rollback mismatch, real process-kill
+recovery and unavailable stores/profiles. Its generated guest has a root-owned,
+`visudo`-checked grant limited to the installed helper with no arguments; that
+unattended fixture is not evidence of interactive password authentication and
+the grant is never part of the production or shared image.

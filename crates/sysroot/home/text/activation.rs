@@ -173,7 +173,7 @@ fn connect() -> Result<BufReader<UnixStream>> {
     let stream = UnixStream::connect(socket)?;
     let peer = rustix::net::sockopt::socket_peercred(&stream)?;
     if peer.uid != rustix::process::geteuid()
-        || std::fs::read_link(format!("/proc/{}/exe", peer.pid.as_raw()))?
+        || std::fs::read_link(format!("/proc/{}/exe", peer.pid.as_raw_pid()))?
             != Path::new("/usr/bin/niri")
     {
         return Err("NIRI_SOCKET does not belong to this user's installed niri process".into());

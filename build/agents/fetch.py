@@ -53,6 +53,29 @@ package(pins['codex'], 'codex')
 record = pins['codex']
 fetch(f'https://codeload.github.com/openai/codex/tar.gz/{record["source_revision"]}',
       args.output / 'codex-corresponding-source.tar.gz', record['source_sha256'], record['source_size'])
+# Keep upstream notices beside the unmodified package, including the vendored
+# bubblewrap license. Its complete source/build files remain in the archive.
+notices = args.output / 'notices'
+notices.mkdir()
+with tarfile.open(args.output / 'codex-corresponding-source.tar.gz') as source:
+    prefix = f'codex-{record["source_revision"]}/'
+    for relative, name in [
+        ('LICENSE', 'codex-LICENSE'), ('NOTICE', 'codex-NOTICE'),
+        ('codex-rs/vendor/bubblewrap/COPYING', 'bubblewrap-COPYING'),
+        ('codex-rs/shell-escalation/patches/zsh-exec-wrapper.patch', 'codex-zsh-exec-wrapper.patch'),
+    ]:
+        member = source.getmember(prefix + relative)
+        if not member.isfile() or member.size > 1024 * 1024:
+            raise RuntimeError('Expected bounded upstream notice/source file')
+        stream = source.extractfile(member)
+        if stream is None:
+            raise RuntimeError('Missing upstream notice/source bytes')
+        with stream:
+            (notices / name).write_bytes(stream.read())
+for notice in pins['component_notices']:
+    if pathlib.PurePosixPath(notice['filename']).name != notice['filename']:
+        raise RuntimeError('Notice name must be a basename')
+    fetch(notice['url'], notices / notice['filename'], notice['sha256'], notice['size'])
 if args.research_tools:
     package(pins['personal_test_codex'], 'personal-codex')
     tool = pins['cosign_test_tool']

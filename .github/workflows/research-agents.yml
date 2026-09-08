@@ -35,6 +35,8 @@ jobs:
           mkdir -p output/r05-evidence
           python3 build/agents/fetch.py --output "$RUNNER_TEMP/kedra-r05-inputs" --research-tools
           cp build/agents/inputs.json output/r05-evidence/
+          cp -a "$RUNNER_TEMP/kedra-r05-inputs/notices" output/r05-evidence/
+          sha256sum "$RUNNER_TEMP/kedra-r05-inputs/notices/"* > output/r05-evidence/notice-hashes.txt
       - name: Verify native executable and helper signature bundles
         run: |
           set -euo pipefail

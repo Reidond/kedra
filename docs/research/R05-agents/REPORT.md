@@ -67,6 +67,16 @@ long-lived child behavior, credential identities, redistribution prerequisites,
 and repository-only skill discovery. A cooperative lock does not coordinate
 arbitrary editors or provide a same-user security sandbox.
 
+Component review follow-up (2026-09-08): the pinned native package reports
+ripgrep 15.2.0 at `e89fff89ac` with PCRE2 10.45 and zsh 5.9.0.3-test. Its pinned
+source identifies the zsh base `77045ef899e53b9598bebc5a41db93a548a40ca6` and the
+exec-wrapper patch. Fetching now retains Codex LICENSE/NOTICE, bubblewrap COPYING,
+that patch, and hash-pinned zsh, ripgrep and PCRE2 notices. The complete pinned
+Codex source archive includes the vendored bubblewrap source and build inputs.
+This is a component-notice collection, not a claim that all transitive source and
+distribution prerequisites are closed. Claude preinstallation still requires
+the owner's agreement to the published Commercial Terms; no agreement is inferred.
+
 Sources retrieved 2026-09-08:
 [Codex release](https://github.com/openai/codex/releases/tag/rust-v0.153.4),
 [pinned login storage](https://github.com/openai/codex/blob/rust-v0.153.4/codex-rs/login/src/auth/storage.rs),

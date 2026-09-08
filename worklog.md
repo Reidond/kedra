@@ -438,3 +438,4 @@ targets and physical qualification remain open.
 - Checks / evidence: pass — local formatting, Windows Clippy, Python/shell syntax and manual Git 2.55.0.windows.1 stdin diff. not-run — Linux compilation/new actual CLI/native niri workflows until CI. No workstation file was adopted or changed.
 - Remaining / blockers: New text workflow must qualify; only the fixed niri path is admitted. Live text apply/discard, new-baseline reconciliation, multi-file groups and production owner release setup remain open.
 - Next: Publish for exact-source Linux CLI and native niri qualification; correct observed failures, then continue safe text activation and production release integration.
+- Linux finding: cd03e3b workspace 34232144142 and desktop 34232144164 stop at an E0277 reference-depth error in text-state comparison. Corrected the comparison; actual text workflows remain not-run until the rerun. No validation rule was relaxed.

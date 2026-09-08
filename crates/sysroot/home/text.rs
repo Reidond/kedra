@@ -152,7 +152,7 @@ impl State {
                 || change.end() > lines.len()
                 || lines[change.at..change.end()].concat() != change.before
                 || change.before == change.after
-                || *change
+                || **change
                     != Change::new(
                         &self.reference,
                         change.at,

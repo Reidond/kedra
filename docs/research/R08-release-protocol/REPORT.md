@@ -21,8 +21,9 @@ and passphrase are GitHub Actions environment secrets in kedra-desktop-signing,
 restricted to main and the owner reviewer with no admin bypass. Main requires
 the Actions rust check and rejects forced/deleted history. Public authority files
 are prepared for source. No production key enters the disposable research jobs.
-Owner Bitwarden backup retrieval, production candidate execution, exact media
-qualification, metadata publication/renewal and rotation remain not-run.
+The owner confirmed Bitwarden backup and retrieval on 2026-09-08; the agent did not
+access recovered private material or the vault. Production candidate execution,
+exact media qualification, metadata publication/renewal and rotation remain not-run.
 See build/release/authority/README.md for exact tool digests and configuration.
 
 2026-09-08 follow-up: workspace 34242602461 at `3d29689` passes the real CLI's

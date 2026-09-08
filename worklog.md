@@ -19,7 +19,7 @@ Last updated: 2026-09-08 (Europe/Kiev).
 | R11 | Canonical skill files readable; Codex marketplace and fresh-profile root/crate skills/list found no Kedra entries. Claude authoring validation passed. Loaded-plugin model/editor checks not-run; distribution review blocked. |
 | R03 | Native Noctalia and niri review/discard/recovery pass. Niri publication, source receipts, insertion/deletion, source-ancestry reconciliation and actual signed A/B/A baseline acceptance pass. Wider groups and additional failure phases remain open. See docs/research/R03-home-review/REPORT.md. |
 | Other R01-R10 | R01 strict signing/update/rollback and older-media enrollment pass. R02 signed research installation passes locally; R07 graphical session and native home recovery pass. R08 signature/assembly CLI interoperability passes. Owner release authority/promotion, full home baseline transitions, authentication and physical hardware gates remain open. |
-| Current task | Owner requested full implementation through usable installation. Actual signed graphical A/B/A passes. Isolated production build/sign/installer jobs and unsigned promotion preparation are implemented for qualification. Owner-authorized key/environment secrets are provisioned; Bitwarden backup retrieval, exact production-media qualification and metadata publication/renewal remain active. |
+| Current task | Owner requested full implementation through usable installation. Actual signed graphical A/B/A passes. Isolated production build/sign/installer and protected promotion jobs are prepared for qualification. Owner-authorized key/environment secrets are provisioned; owner confirmed Bitwarden backup and retrieval. Exact production-media qualification and metadata publication/renewal remain active. |
 | Machine effects | QEMU/OVMF and graphical dependencies are installed in existing Ubuntu WSL2; user belongs to kvm. Existing Docker Desktop ran pinned offline key tools. New release recovery files use protected owner/SYSTEM ACLs outside the checkout. No workstation home enrollment, vault/profile changes, host-disk formatting or workstation OS installation. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
@@ -34,7 +34,7 @@ reports remain authoritative for what was tested.
 ### Next concrete actions
 
 Qualify the protected production candidate/promotion path;
-retain the owner's separate Bitwarden backup/retrieval step. Preserve the
+retain the owner's confirmed Bitwarden recovery backup. Preserve the
 successful signed research installation evidence; it does not establish owner
 release authority. RPM refresh/no-change, owner credential setup, independent
 targets and physical qualification remain open.
@@ -538,3 +538,4 @@ targets and physical qualification remain open.
 - Remaining / blockers: No promoted owner installer/channel. Owner Bitwarden backup retrieval, exact owner-media installation, channel-fetch ergonomics, no-change renewal, expired recovery, rotation and independent targets remain unfinished. Main/opt-in remain unchanged.
 - Next: Finish publication review, expose verified channel consumption, then publish eligible main source and qualify the protected candidate/installer path under the owner's existing authorization and environment review.
 - Channel consumption milestone: added release unpack with independently expected public fingerprint, strict bounded signed-pair decoding, fresh scope/binding/replay verification and exclusive new-directory output. It preserves exact signed bytes for existing enrollment/stage commands and does not mutate machine trust. Added the pending owner-install guide and actual command documentation. Local pinned formatting/Clippy/release build pass; Windows CLI with OpenSSL 3.6.1 passes unpack/downstream verification, replay/tamper/wrong-authority/existing-output refusals plus existing channel/signature/assembly workflows (output/release-unpack-windows-20260908). The first Windows Clippy run caught a cfg-specific unused mutable directory builder; explicit nonrecursive creation fixes it without weakening lints. Linux qualification remains pending CI.
+- Owner recovery confirmation: the owner reports the dedicated release-key files are saved in Bitwarden and retrieval checked (2026-09-08). This closes the owner backup/retrieval step on that explicit report; the agent did not access the vault, recovered private material or SSH keys. Public preparation/unpack source is committed at f8a2cb8; Linux check 34249793986, signed helper 34249793918 and desktop 34249794121 are pending.

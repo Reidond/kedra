@@ -2,7 +2,7 @@
 
 The public trust-context producer and a disabled manual candidate workflow are
 implemented. The dedicated public authority and protected GitHub environment
-secrets are now provisioned; Bitwarden backup retrieval is still unverified.
+secrets are now provisioned; the owner confirmed Bitwarden backup and retrieval.
 Production execution and promotion remain unqualified. The public producers do
 not create private keys or enroll machines. The main-only promotion workflow can
 publish a release after exact-media qualification and protected owner approval.

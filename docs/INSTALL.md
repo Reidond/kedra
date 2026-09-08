@@ -106,7 +106,8 @@ baseline requires a current plan and explicit conflict resolution. Wider home
 groups are not implemented. Repository skills remain checkout-local and personal
 agent settings, MCP, skills and credentials remain independent.
 
-Bitwarden recovery-key backup, personal authentication, physical hardware, expired
-channel recovery, no-change refresh and signing-key rotation still require their
-own completed steps/evidence. Current status is in [worklog.md](../worklog.md) and
+The owner confirmed Bitwarden release-key backup and retrieval on 2026-09-08.
+Personal authentication, physical hardware, expired channel recovery, no-change
+refresh and signing-key rotation still require their own completed steps/evidence.
+Current status is in [worklog.md](../worklog.md) and
 the [research reports](research/status.json).

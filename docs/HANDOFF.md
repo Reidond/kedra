@@ -27,8 +27,9 @@ separates build/sign-image/installer jobs; see build/release/authority/README.md
 The owner authorized a new dedicated release key and GitHub deployment secrets;
 public authority files and the protected kedra-desktop-signing environment are
 now provisioned. Main requires CI and disallows forced/deleted history. Local
-recovery files are ready for the owner's Bitwarden backup, whose retrieval is
-not yet verified. Production workflow opt-in remains unset; no promoted media exists.
+recovery files are backed up in Bitwarden and retrieval is confirmed by the owner
+(2026-09-08); the agent did not access the vault. Production workflow opt-in remains
+unset; no promoted media exists.
 No workstation enrollment has occurred.
 
 R01 native signed helper run 34228725707 at 94678f6 passes older-media enrollment against a newer fresh channel, metadata/OCI

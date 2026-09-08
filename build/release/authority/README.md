@@ -12,8 +12,9 @@ requires the Reidond reviewer, permits only main, and disables administrator
 bypass. Main requires the GitHub Actions rust check and disallows force-push or
 deletion, including for administrators. The release opt-in remains unset; no
 production image, installer or channel has been signed/promoted by this setup.
-The protected local recovery files are ready for the owner's Bitwarden backup;
-backup retrieval remains not-run. No Bitwarden vault or SSH key was accessed.
+The owner confirmed on 2026-09-08 that the recovery files are saved in Bitwarden
+and retrieval is checked. This is owner-reported recovery evidence; the agent did
+not access the Bitwarden vault, recovered private material or any SSH key.
 
 Skopeo 1.22.2 generated the encrypted key using the official AMD64 container
 `quay.io/skopeo/stable@sha256:227e130acec26a8f8d6aba1c48d30d6adaf8bc927f268fbca381b3dea9cb4257`.

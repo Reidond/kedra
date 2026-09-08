@@ -63,3 +63,34 @@ Review distribution terms and notices before baking non-RPM binaries into public
 images. Avoid custom OAuth/token synchronization. Sources: docs/SOURCES.md
 codex-config, codex-auth, codex-skills, claude-env, claude-auth, claude-skills,
 claude-distribution. Use kedra-bitwarden for credential boundaries.
+
+## Repository skill discovery — Codex 0.153.4
+
+Audited 2026-09-09 against pinned source
+`3d2ee51ca2d5db578f328aa75e20aa22c0197c9a`. Native Windows version and
+top-level/plugin/marketplace/app-server help pass with a disposable CODEX_HOME;
+no installation, registration or model turn was performed. R11's earlier empty
+listing is explained by the runtime's loading boundary: CLI plugin listing uses
+configured marketplace roots, while standalone repository discovery scans
+`.agents/skills`, not `plugins/kedra/skills`. An `AVAILABLE` marketplace entry
+does not load the plugin; its loader requires an active cache installation.
+
+Continue by reading canonical files through the checkout's AGENTS.md routing.
+Do not copy or link the skill tree into discovery folders, register it in a
+personal/management profile, or globally install it as an incidental remedy.
+The inspected native CLI has no `--plugin-dir`/`--skills-dir` option;
+`skills.config` only enables/disables discovered skills and is not a root mapping.
+
+The documented App Server `skills/extraRoots/set` endpoint can replace additional
+roots without persistence and exists in the retained 0.153.4 schema. That is a
+host integration mechanism, not a demonstrated native CLI route. It supplies
+standalone user-scope roots to the whole process; using it in a shared process
+could expose Kedra skills to unrelated checkouts. A custom client/daemon is
+outside the current launcher task. Do not claim loaded-plugin/model qualification
+from help, schema availability or direct file access. Extra-root execution and
+actual root/crate model use remain not-run under R11.
+
+Evidence and exact source links: [R11 discovery audit](../../../../docs/research/R11-rust-workspace/REPORT.md#repository-only-codex-discovery-audit--2026-09-09),
+[pinned CLI root selection](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/cli/src/plugin_cmd.rs#L261),
+[pinned skill roots](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/ext/skills/src/host_roots.rs#L28),
+[official App Server reference](https://learn.chatgpt.com/docs/app-server).

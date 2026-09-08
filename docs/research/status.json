@@ -70,7 +70,7 @@
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Channel/unpack CLI passes Windows/Linux at f8a2cb8. Dedicated P-256 authority is provisioned in the protected owner-reviewed main-only environment; owner confirms Bitwarden backup/retrieval. First candidate 34250485539 fails compressed layer identity in ISO assembly. Corrected signed native round trip passes R01 34253906774; replacement 34255228394 at accepted main c660c58 passes public build, GHCR/storage guard, separately owner-approved signing and independent anonymous manifest/OpenSSL verification. Installer execution is in progress. Production installation/promotion, interrupted publication recovery, renewal and rotation remain open."
+      "note": "Channel/unpack CLI passes Windows/Linux at f8a2cb8. Dedicated P-256 authority is provisioned in the protected owner-reviewed main-only environment; owner confirms Bitwarden backup/retrieval. First candidate 34250485539 fails compressed layer identity in ISO assembly. Corrected signed native round trip passes R01 34253906774; replacement 34255228394 at accepted main c660c58 passes public build, GHCR/storage guard, separately owner-approved signing, anonymous native verification, complete ISO construction and offline payload verification/Anaconda startup. Complete media download and local installation are pending. Production promotion, interrupted publication recovery, renewal and rotation remain open."
     },
     {
       "id": "R09",
@@ -96,7 +96,7 @@
       "local_followup": "R11-rust-workspace/plugins.md",
       "discovery_followup": "R11-rust-workspace/discovery-20260907.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34138882781",
-      "note": "Historical bootstrap and local standard Cargo checks passed. Codex 0.153.4 marketplace and empty-profile skills/list probes at root/crate discover no Kedra plugin skills; canonical manual reads work. Claude authoring validation passed; interactive Claude/Codex loaded-plugin and editor checks remain not-run. Distribution review remains blocked. These gaps do not block independent R03 research."
+      "note": "Historical bootstrap and local standard Cargo checks passed. Codex 0.153.4 marketplace and empty-profile skills/list probes at root/crate discover no Kedra plugin skills; canonical manual reads work. A pinned-source/native-help audit explains the configured-marketplace, installed-plugin and .agents/skills loading boundary. No direct CLI extra-root route was established; the documented App Server endpoint and loaded-model workflow remain not-run. Keep AGENTS-directed canonical-file reading without copies/profile registration. Claude authoring validation passed; interactive/editor/distribution checks remain open."
     }
   ]
 }

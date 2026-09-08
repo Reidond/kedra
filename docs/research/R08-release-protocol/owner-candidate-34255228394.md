@@ -2,8 +2,9 @@
 
 Date: 2026-09-09. Status: public build, registry/storage compatibility and
 owner-approved isolated signing pass. Independent anonymous manifest access and
-OpenSSL signature verification pass. ISO construction is running; fresh
-installation and metadata promotion remain not-run.
+OpenSSL signature verification pass. Native anonymous signed pull, ISO construction
+and offline signature verification before Anaconda startup pass. The media is
+being downloaded for fresh installation; metadata promotion remains not-run.
 
 | Identity / check | Observed result |
 |---|---|
@@ -20,7 +21,7 @@ installation and metadata promotion remain not-run.
 | bootc lint | 11 pass, 1 skipped, 2 retained warnings |
 | Owner image signing | pass — explicit approval and isolated Skopeo job |
 | Public manifest / detached OCI signature | pass — anonymous exact digest and independent OpenSSL verification |
-| Native signed pull / ISO | in-progress in installer job |
+| Native signed pull / ISO | pass — complete installer job, including offline signature verification and Anaconda startup with no disks |
 | Installation / promotion | not-run |
 
 The first candidate failed after successful signing because ordinary registry
@@ -34,7 +35,7 @@ The corresponding disposable signed copy experiment passes R01 run
 [34253906774](https://github.com/Reidond/kedra/actions/runs/34253906774) at 7e846f0,
 including strict signature pull/storage copy, negative cases and three real
 update/rollback VM boots. That evidence qualifies the copy correction; this
-production candidate still requires its own signature and complete v82 ISO test.
+production candidate's own signature and complete v82 ISO test now also pass.
 
 Public artifact `desktop-candidate-34255228394-1` is downloaded to
 `output/owner-candidate-34255228394`. Source revision/hash, public-key fingerprint,

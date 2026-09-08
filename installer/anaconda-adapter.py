@@ -3,12 +3,15 @@ import ast
 import hashlib
 import pathlib
 import py_compile
-import sysconfig
+import importlib.util
 from types import SimpleNamespace
 
 if not pathlib.Path('/run/.containerenv').is_file():
     raise SystemExit('Apply only inside the disposable installer image build')
-root = pathlib.Path(sysconfig.get_path('platlib')) / 'pyanaconda'
+spec = importlib.util.find_spec('pyanaconda')
+if spec is None or not spec.submodule_search_locations or len(spec.submodule_search_locations) != 1:
+    raise SystemExit('Expected one installed Anaconda package')
+root = pathlib.Path(spec.submodule_search_locations[0])
 patches = [
     (
         'modules/payloads/source/bootc/bootc.py',
@@ -56,6 +59,7 @@ for seen, locked, password, users, expected in [
     (True, True, '', [], False),
     (True, False, 'synthetic', [], True),
     (False, True, '', [SimpleNamespace(lock=False, groups=['wheel'])], True),
+    (True, True, '', [SimpleNamespace(lock=False, groups=['wheel'])], True),
     (True, True, '', [SimpleNamespace(lock=False, groups=[])], False),
     (True, True, '', [SimpleNamespace(lock=True, groups=['wheel'])], False),
 ]:

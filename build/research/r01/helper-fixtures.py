@@ -74,7 +74,7 @@ def signed(value, key='allowed'):
     path, bundle = private / f'payload-{counter}.json', private / f'bundle-{counter}.json'
     path.write_text(payload)
     subprocess.run([str(cosign), 'sign-blob', '--yes', '--key', str(private / f'{key}.private'),
-                    '--tlog-upload=false', '--bundle', str(bundle), str(path)],
+                    '--use-signing-config=false', '--tlog-upload=false', '--bundle', str(bundle), str(path)],
                    env=signing_environment, stdout=subprocess.DEVNULL, check=True)
     data = json.loads(bundle.read_text())['messageSignature']
     if data['messageDigest']['algorithm'] != 'SHA2_256' or base64.b64decode(data['messageDigest']['digest']) != hashlib.sha256(payload.encode()).digest():

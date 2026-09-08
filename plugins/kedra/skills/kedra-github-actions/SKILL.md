@@ -7,8 +7,9 @@ description: Build Kedra CI, target matrices, scheduled Fedora package refresh, 
 
 All OS and installer builds run in GitHub Actions. Local Rust tests and synthetic
 home tests are allowed; local OS rebuilding is not the intended workflow.
-Bootstrap check.yml only validates Rust and skill wiring. It is not a release
-pipeline and has no signing, GHCR publishing or workstation access.
+check.yml builds/lints Rust and exercises actual CLI home/release workflows.
+It has no signing, GHCR publishing or workstation access. Owner policy forbids
+unit/model/mock/doctests and repository self-scanners.
 
 ## Scheduled Fedora refresh
 
@@ -31,6 +32,25 @@ These skills are checkout-only. Do not copy them into image payloads, home basel
 or global/shared agent profiles. CI is permitted to read them as repository source.
 
 ## Job boundaries
+
+Prepared 2026-09-08: release.yml is a manual, disabled main-only candidate path.
+It preflights an existing owner reviewer and main-only deployment rule, then
+separates build, no-checkout image signing and anonymous strict-pull/installer
+jobs. Production execution is not-run; public authority, environment secrets,
+recovery and promotion are not configured. Read build/release/authority/README.md
+before enabling anything. An environment name does not configure protection;
+GitHub may auto-create an unprotected environment. Source: GitHub environment
+API/docs linked there; R08. Actual Skopeo signing remains qualified through
+disposable R01/R02/R04 authority only.
+
+Follow-up 2026-09-08: owner-authorized public authority and protected environment
+are now provisioned; backup retrieval and production execution remain pending.
+The prepared promote.yml shares candidate concurrency and rechecks current source
+plus prior channel hashes. Public jobs prepare/verify media; a no-checkout protected
+job signs exact bytes with pinned Cosign 3.1.3. Versioned drafts precede the single
+channel bundle; partial version publication is retained for explicit inspection,
+not overwritten by a blind retry. R08/ADR 0023 records syntax-only preparation;
+do not mark production isolation, races or recovery passed from code inspection.
 
 Use read-only PR checks with no production secrets. Pin third-party Actions by
 full commit SHA; minimize token permissions and disable persisted checkout
@@ -55,12 +75,30 @@ permission to install those skills into the OS or force an OS release per doc ed
 
 ## Installer research
 
+Measured 2026-09-08: the legacy Quay builder at a686afe passed QCOW2 tests but
+rejected the README's `--bootc-installer-payload-ref` option. The current v82.0.0
+bootc-image-builder compatibility source uses `--installer-payload-ref`; the
+prefixed spelling belongs to image-builder. Check `build --help` first. The
+selected generic-ISO container is ghcr.io/osbuild/image-builder, pinned separately
+in installer/inputs.json. Its canonical build command supports bootc-generic-iso
+and the prefixed option. Keep older compatibility/QCOW2 evidence attached to its
+actual pin; do not interchange these interfaces.
+Source: osbuild/image-builder v82.0.0 cmd/image-builder/bib_cmd.go and R02 report.
+
 Upstream moved bootc-image-builder into osbuild/image-builder. Evaluate a pinned
 bootc-installer route with separate Anaconda environment and signed OS payload.
 Do not bake installation tooling into the everyday desktop unnecessarily. Prove
 interactive disk selection in a multi-disk VM, encryption/account setup, recovery,
 correct registry origin, target enrollment and the first signed update. Never
 use an unattended first-disk erase default or default credentials.
+
+The local 2026-09-08 R02 installation of ISO run 34185915639 failed GetBlob import
+with ENOSPC in /var/tmp: installer writable capacity was 1.6 GiB despite 59 GiB
+free on the encrypted destination. ADR 0013 adds a hash-guarded, media-only scratch
+bind after deliberate disk approval and native root cleanup. It preserves bootc
+arguments and refuses cleanup failures; actual corrected installation is pending.
+Sources: containers/image storage_src.go/internal/tmpdir and bootc v1.16.10
+require_dir_contains_only_mounts. Do not treat more VM RAM as the installer fix.
 
 Measure the actual runner: disk/memory/privileges, /dev/kvm, architecture and image
 identity. Avoid ubuntu-slim for privileged filesystem image work. Split heavy

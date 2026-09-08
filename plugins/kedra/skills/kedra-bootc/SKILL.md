@@ -32,6 +32,13 @@ checkout-only; do not ship this collection as system/global agent skills.
 
 Resolve and record base digest, RPM inventory and external artifacts. Never
 claim exact rebuildability from a source commit against changing repositories.
+On 2026-09-08 Quay stopped serving pinned Fedora 44 digest 70b8fe469fe1...
+(registry HTTP 404; R07 34217852336 and R01 34217852250 failed before their VM
+tests). The official 44 tag resolved to AMD64 d4b9c5e156ab..., version
+44.20260908.0, verified against exact manifest/config bytes. A pin prevents
+silent substitution but does not guarantee upstream retention. Record any
+replacement as a new build input and requalify it; retain promoted Kedra digests
+independently. See build/research/inputs.json and the R04 report for this rerun.
 Run bootc container lint in image validation, but do not treat it as a boot test.
 All candidate references must be final registry digests, not local image IDs.
 
@@ -62,6 +69,24 @@ post-boot checks finalize deterministic state. Keep preflight separate from actu
 home activation under new software. Manual rollback changes the OS deployment,
 not all persistent data or application migrations. Automatic health rollback is
 a later tested feature. Recovery must work offline without an AI service.
+
+For the separate Anaconda media, follow pinned Lorax's SELINUX=permissive and
+SELINUXTYPE=targeted environment (ADR 0010, 2026-09-08). An enforcing basic.target
+probe passed at da140ff but local UEFI testing found denied Anaconda/getty_t shell
+operations. This is media-only; R07 and actual installed-OS checks retain enforcing
+SELinux, and R01/R08 signature verification must never become permissive. Keep
+labels, require Anaconda startup, and record installed enforcement after install.
+
+Anaconda 44.30-2 bootc first-boot findings (2026-09-08, R02/ADR 0015): its native
+PrepareBootcMountTargetsTask omitted the separate home bind after /var, so useradd
+created the owner directory behind the home subvolume later mounted at boot.
+Preserve all selected non-API mounts with native bind/cleanup tracking before
+account creation. Installed fstab must address the physical root as /sysroot,
+not the logical overlay /; otherwise systemd-remount-fs fails. The fixed installer
+normalizer retains ro and all other mounts. Existing bootc-generated root/rootflags
+kargs remain authoritative. Source-hash drift or unsupported fstab input fails
+installation. See the R02 report for fresh-media results; a diagnostic repair
+does not qualify installation. Primary guidance: https://bootc.dev/bootc/bootc-install.html#finding-and-configuring-the-physical-root-filesystem.
 
 Tests: install A/update B/rollback A, /etc local drift, persistent home retention,
 interrupted staging, candidate-versus-running digest, and old journal readers.

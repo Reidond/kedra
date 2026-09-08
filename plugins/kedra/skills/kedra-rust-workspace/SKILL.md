@@ -32,14 +32,20 @@ TOCTOU safety, merge correctness, crash recovery or signature enforcement.
 
 ## Tooling and checks
 
+Owner decision, 2026-09-08: use only end-to-end or manual testing. No unit/model/
+mock tests, doctests or code that checks repository layout/source/skills/tests.
+The AGENTS.md testing policy overrides upstream skill examples. Standard Cargo
+build/lint tools and actual CLI/VM workflows remain required.
+
 rust-toolchain.toml pins the bootstrap toolchain; Cargo.lock pins crate resolution.
-The initial code uses only std. Changing pins requires review and CI, not a
+The source planner adds Clap, Serde/JSON, TOML, SHA-2 and tar; ADR 0005 records why.
+The helper and synthetic R03 example remain std-only. Changing pins requires review and CI, not a
 moving `stable` update during agent startup. Use standard Cargo commands:
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
+cargo test --workspace --test 'e2e_*' --locked
 cargo build --workspace --release --locked
 ```
 
@@ -74,9 +80,10 @@ rust-skills, codex-skills, claude-skills; ADR 0001.
 
 ## Local findings, 2026-09-07
 
-The R03 prototype is an explicit `r03_home` example target in sysroot-core with
-`test = true`. Standard workspace tests execute its 12 synthetic Git tests; no
-new crate, dependency, custom check runner or production library API is needed.
+The earlier R03 prototype and its synthetic unit cases were removed under
+the owner's 2026-09-08 testing decision. Native VM checks now use the actual
+sysroot CLI instead of a test-only projection binary. Do not recreate these
+harnesses or add a custom check runner.
 Git 2.55.0.windows.1 rejected a Rust canonical Windows verbatim path passed as
 GIT_CONFIG_GLOBAL (exit 128); the fixture converts generated Git config/index
 arguments to ordinary slash paths. Keep filesystem and subprocess path handling

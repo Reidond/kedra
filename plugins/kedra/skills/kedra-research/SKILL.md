@@ -29,7 +29,7 @@ package/CLI versions. Keep documented fact, candidate design and measured result
 separate. A valid URL is not proof that the Fedora version supports an option.
 
 Use synthetic homes, disposable keys/namespaces and VMs. OS/ISO builds belong in
-Actions; local unit tests can work offline. Never install experimental images over
+Actions; local end-to-end CLI checks can work offline. Never install experimental images over
 the workstation, enroll real dotfiles, or use production vault/signing secrets.
 Declare missing capabilities as blockers and continue safe independent work.
 

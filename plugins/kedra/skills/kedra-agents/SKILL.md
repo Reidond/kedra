@@ -9,7 +9,9 @@ Bundled official CLIs are OS-management tools under
 /usr/libexec/sysroot/agents/, invoked by absolute path through sysroot. They must
 not install /usr/bin/codex or /usr/bin/claude, add aliases or shadow personal PATH
 commands. Ordinary codex/claude belong to the user's independently updated setup.
-The bootstrap does not yet launch either CLI.
+The Linux launcher prototype now selects these paths (with bin/NAME below each
+agent directory); image packaging and complete R05 qualification remain pending.
+See docs/AGENT-LAUNCHERS.md and docs/research/R05-agents/REPORT.md for actual scope.
 
 ## Intended interfaces (not upstream flags)
 
@@ -35,6 +37,13 @@ change real HOME to fake separation. Test external skill discovery, keyring acco
 names, MCP/hooks, credentials, child environments and shared paths against pinned
 versions. Separate personal-runtime management state from bundled-runtime state
 when schema versions can differ. Official login flows remain intact.
+
+Codex 0.153.4 performs helper-path setup before parsing help/version. Version
+discovery must use a disposable config directory while preserving HOME; it is
+not necessarily a read-only operation with the caller's normal CODEX_HOME.
+R05 run 34182176074 exposed the side effect; corrected run 34182776503 at 43873cb
+(2026-09-08) passes native 0.153.4/0.153.3 runtime/scope probes and three Sigstore
+checks. Model turns, keyring login and external discovery remain separate gates.
 
 Bundle updates through images; personal versions update through their own tools.
 Disable bundled Claude updates only in that invocation and prevent leakage into

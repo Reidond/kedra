@@ -1,0 +1,3 @@
+# Disposable test account only; normal accounts keep Noctalia's first-run wizard.
+[shell]
+setup_wizard_enabled = false

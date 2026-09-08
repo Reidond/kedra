@@ -1,0 +1,11 @@
+[Unit]
+Description=Explicit disposable installer boot probe
+ConditionKernelCommandLine=kedra.research=1
+After=basic.target
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/kedra-installer-boot-probe
+
+[Install]
+WantedBy=anaconda.target

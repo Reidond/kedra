@@ -1,0 +1,14 @@
+# Test-only observer layered over the desktop; never promote this derivative.
+FROM localhost/kedra-desktop:research
+COPY check.sh /usr/libexec/kedra-research-r07
+COPY check.service /usr/lib/systemd/system/kedra-research-r07.service
+COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
+COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
+COPY agents.py /usr/libexec/kedra-research-agents.py
+COPY recovery.py /usr/libexec/kedra-research-recovery.py
+COPY niri-review.py /usr/libexec/kedra-research-niri-review.py
+COPY source.bundle /usr/share/kedra-research/source.bundle
+RUN chmod 0755 /usr/libexec/kedra-research-r07 && \
+    printf '\noutput "Virtual-1" {\n    mode "1280x768"\n    scale 1\n}\n' >> /etc/skel/.config/niri/config.kdl && \
+    niri validate --config /etc/skel/.config/niri/config.kdl && \
+    systemctl enable kedra-research-r07.service && bootc container lint

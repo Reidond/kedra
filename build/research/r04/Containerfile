@@ -1,0 +1,24 @@
+# Disposable signed graphical transition fixture; never publish as an owner image.
+FROM localhost/kedra-r04-desktop:base
+ARG VARIANT
+COPY release.pub release-policy.json /usr/lib/sysroot/trust/
+COPY source.json /usr/share/sysroot/source.json
+COPY policy.json /etc/containers/policy.json
+COPY registries.yaml /etc/containers/registries.d/kedra-research.yaml
+COPY tls.crt /etc/containers/certs.d/registry.kedra.test:5000/ca.crt
+COPY install.toml /usr/lib/bootc/install/90-kedra-research.toml
+COPY config.kdl /usr/share/sysroot/home/default/.config/niri/config.kdl
+COPY config.kdl /etc/skel/.config/niri/config.kdl
+COPY check.sh /usr/libexec/kedra-research-r04
+COPY home.py /usr/libexec/kedra-research-r04-home.py
+COPY check.service /usr/lib/systemd/system/kedra-research-r04.service
+COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
+COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
+COPY source.bundle fixture.json /usr/share/kedra-research/
+RUN printf '%s\n' "$VARIANT" > /usr/share/kedra-research/variant && \
+    printf 'Disposable R04 authority and source fixtures.\n' > /usr/share/sysroot/research-only && \
+    printf '\noutput "Virtual-1" {\n mode "1280x768"\n scale 1\n}\n' >> /etc/skel/.config/niri/config.kdl && \
+    chmod 0755 /usr/libexec/kedra-research-r04 && \
+    niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl && \
+    niri validate --config /etc/skel/.config/niri/config.kdl && \
+    systemctl enable kedra-research-r04.service && bootc container lint

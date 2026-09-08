@@ -1,0 +1,12 @@
+[Unit]
+Description=Noctalia desktop shell for the Kedra session
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/noctalia
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15
+Slice=app.slice

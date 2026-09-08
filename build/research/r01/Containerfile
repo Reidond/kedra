@@ -1,0 +1,21 @@
+# Disposable signature-enforcement fixture. Only generated PUBLIC trust is copied.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG VARIANT
+COPY public/ /usr/share/kedra-research/
+COPY public/release.pub /usr/lib/sysroot/trust/release.pub
+COPY release-policy.json /usr/lib/sysroot/trust/release-policy.json
+COPY source.json /usr/share/sysroot/source.json
+COPY helper /usr/libexec/sysroot/helper
+COPY policy.json /etc/containers/policy.json
+COPY registries.yaml /etc/containers/registries.d/kedra-research.yaml
+COPY tls.crt /etc/containers/certs.d/registry.kedra.test:5000/ca.crt
+COPY check.sh /usr/libexec/kedra-research-r01
+COPY check.service /usr/lib/systemd/system/kedra-research-r01.service
+COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
+COPY install.toml /usr/lib/bootc/install/90-kedra-research.toml
+RUN printf '%s\n' "$VARIANT" > /usr/share/kedra-research/variant && \
+    chmod 0755 /usr/libexec/kedra-research-r01 /usr/libexec/sysroot/helper && \
+    systemctl enable kedra-research-r01.service && \
+    systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service && \
+    bootc container lint

@@ -10,15 +10,17 @@ Claude Code. There is no BlueBuild or generic distribution framework.
 
 ## Current status
 
-This is a **research-ready bootstrap**, not an installable OS. The workspace has
+This is **in implementation**, with a desktop candidate booted in a VM, but no
+supported installation release yet. The workspace has
 explicit `main.rs` / `lib.rs` paths, no first-party `src/` directories, one lockfile,
-and a pinned Rust toolchain. The CLI implements help, version, and honest
-bootstrap status. Deployment, home mutation, setup, and agent launch commands
+and a pinned Rust toolchain. The CLI implements help, version, capability status
+and committed source planning/archives plus signed-release verification.
+Deployment, home mutation, setup, and agent launch commands
 return an unavailable error. The helper performs no privileged operation.
 
-The check workflow validates Rust only. No signed image, ISO,
-Bitwarden login, agent session, or hardware qualification is implied by a green
-bootstrap check. See [research status](docs/research/status.json) and the
+Workspace checks validate Rust and protocol fixtures. Separate research workflows
+test images, VM boots, signatures and the desktop session. Owner authentication
+and physical hardware qualification remain separate. See [research status](docs/research/status.json) and the
 [Actions runs](https://github.com/Reidond/kedra/actions).
 
 The [R03 synthetic example](docs/research/R03-home-review/REPORT.md) now proves
@@ -28,12 +30,44 @@ and explicit conflicts in disposable Git fixtures. Run
 in standard workspace tests. This is research code; real home management and
 activation remain unavailable.
 
+The [Noctalia follow-up](docs/research/R03-home-review/noctalia.md) adds safe
+effective-setting projection and tested selection/local-policy/publication
+transitions. It still performs no real-home activation.
+
+Inspect a target without changing the checkout or machine:
+
+```sh
+cargo run --locked -p sysroot -- source plan --host desktop
+cargo run --locked -p sysroot -- source plan --host desktop --json
+```
+
+The plan reads committed HEAD only. It lists package intent, source paths,
+content hashes and host overrides; staged, unstaged and untracked edits stay
+untouched and are excluded. It refuses the disabled XPS target. This is build
+input inspection, not an installation command. See
+[ADR 0005](docs/adr/0005-committed-source-planning.md).
+
+`sysroot source archive --host desktop --output payload.tar` writes a new,
+deterministic build input archive from the same committed snapshot and refuses
+an existing output. The plain Containerfile consumes that archive in Actions.
+The desktop package/configuration candidate is tracked in
+[R07](docs/research/R07-desktop/REPORT.md); runtime qualification is still pending.
+
+`sysroot release verify` checks signed release records and optional installer
+checksums offline. Its scope and key requirements are described in
+[release verification](docs/RELEASES.md). No production release has been promoted.
+
+The [R02 experiment](docs/research/R02-installer/REPORT.md) builds a minimal
+Fedora 44 image and QCOW2 in Actions. The corrected UEFI boot test passes with
+enforcing SELinux. This is a disposable test disk; there is no owner installation
+image yet. Signed-update/rollback research is the next dependency.
+
 ## Continue in Codex or Claude
 
 ```bash
 git clone https://github.com/Reidond/kedra.git
 cd kedra
-cargo test --workspace --locked
+cargo test --workspace --test 'e2e_*' --locked
 cargo run --locked -p sysroot -- status --json
 ```
 

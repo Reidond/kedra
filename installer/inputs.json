@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "resolved_on": "2026-09-08",
+  "builder_tag": "ghcr.io/osbuild/image-builder:v82.0.0",
+  "builder_index": "sha256:a09b2958073f8cca4e4a47a7103eb56d1fe163dc956c956d34c6a42495667d47",
+  "builder": "ghcr.io/osbuild/image-builder@sha256:79938061444a4e1c131221a421ab47f416fb90cc62fdb220cb654c1dbf114820",
+  "architecture": "amd64"
+}

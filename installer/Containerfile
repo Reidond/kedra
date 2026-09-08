@@ -1,0 +1,44 @@
+# Separate Anaconda environment. The installed desktop is a distinct OCI payload.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG PAYLOAD_IMAGE
+ARG SOURCE_DATE_EPOCH
+RUN dnf -y --best --refresh --repo=fedora --repo=updates \
+      '--setopt=*.skip_if_unavailable=False' '--setopt=*.gpgcheck=True' \
+      install anaconda anaconda-install-img-deps anaconda-dracut \
+      dracut-config-generic dracut-network net-tools squashfs-tools \
+      grub2-efi-x64-cdboot grub2-pc-modules xorrisofs isomd5sum \
+      python-unversioned-command plymouth default-fonts-core-sans \
+      default-fonts-other-sans google-noto-sans-cjk-fonts && \
+    dnf clean all && \
+    mkdir -p /boot/efi /var/mnt && \
+    cp -ra /usr/lib/efi/*/*/EFI /boot/efi
+COPY iso.yaml /usr/lib/image-builder/bootc/iso.yaml
+COPY prepare.sh /tmp/kedra-installer-prepare.sh
+COPY boot-probe.service /usr/lib/systemd/system/kedra-installer-boot-probe.service
+COPY boot-probe.sh /usr/libexec/kedra-installer-boot-probe
+COPY anaconda-adapter.py /tmp/kedra-anaconda-adapter.py
+COPY finalize-fstab.py /usr/libexec/kedra-installer-finalize-fstab.py
+COPY helper /usr/libexec/sysroot/helper
+COPY trust/ /tmp/kedra-installer-trust/
+COPY verify-payload.service /usr/lib/systemd/system/kedra-installer-verify.service
+COPY require-verification.conf /usr/lib/systemd/system/anaconda.service.d/20-kedra-verify.conf
+RUN test -n "$PAYLOAD_IMAGE" && \
+    mkdir -p /usr/lib/sysroot/trust /usr/share/sysroot /etc/containers/registries.d /usr/lib/bootc/install && \
+    cp /tmp/kedra-installer-trust/release.pub /tmp/kedra-installer-trust/release-policy.json /usr/lib/sysroot/trust/ && \
+    cp /tmp/kedra-installer-trust/source.json /usr/share/sysroot/source.json && \
+    cp /tmp/kedra-installer-trust/policy.json /etc/containers/policy.json && \
+    cp /tmp/kedra-installer-trust/registries.yaml /etc/containers/registries.d/kedra.yaml && \
+    cp /tmp/kedra-installer-trust/install.toml /usr/lib/bootc/install/10-kedra.toml && \
+    if test -f /tmp/kedra-installer-trust/research-only; then cp /tmp/kedra-installer-trust/research-only /usr/share/sysroot/research-only; fi && \
+    rm -rf /tmp/kedra-installer-trust && \
+    chmod 0755 /usr/libexec/sysroot/helper && \
+    python3 -c 'import os,json,hashlib,pathlib; p=pathlib.Path("/usr/lib/sysroot/trust"); (p/"installer-payload.json").write_text(json.dumps({"schema_version":1,"image":os.environ["PAYLOAD_IMAGE"],"source_manifest_sha256":hashlib.sha256(pathlib.Path("/usr/share/sysroot/source.json").read_bytes()).hexdigest()})+"\n"); (p/"installer-request.json").write_text(json.dumps({"schema_version":1,"request":{"operation":"verify_installer"}})+"\n")' && \
+    printf 'bootc --source-imgref containers-storage:%s --target-imgref %s\nrootpw --lock\n' \
+      "$PAYLOAD_IMAGE" "$PAYLOAD_IMAGE" > /usr/share/anaconda/interactive-defaults.ks && \
+    printf '\n%%post --nochroot --erroronfail\n/usr/bin/python3 /usr/libexec/kedra-installer-finalize-fstab.py\n%%end\n' >> /usr/share/anaconda/interactive-defaults.ks && \
+    /bin/bash /tmp/kedra-installer-prepare.sh && \
+    python3 /tmp/kedra-anaconda-adapter.py && \
+    chmod 0755 /usr/libexec/kedra-installer-boot-probe && \
+    systemctl enable kedra-installer-boot-probe.service && \
+    rm /tmp/kedra-installer-prepare.sh /tmp/kedra-anaconda-adapter.py

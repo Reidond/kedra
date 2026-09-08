@@ -66,6 +66,15 @@ update-refresh experiment cases for no-change, failed-check, replay and race tes
 
 ## Prove before production
 
+Measured 2026-09-08: Fedora bootc 1.16.10 with Skopeo 1.22.2 passed the local TLS
+registry/VM experiment (Actions 34167524353). The pinned builder imports a local
+containers-storage image ID: it needs a strict sigstoreSigned storage rule with
+the trusted key and exactRepository, in addition to the docker scope. Default
+reject is retained. `/usr/lib/bootc/install/*.toml` with `[install]
+`enforce-container-sigpolicy = true` preserves inherited enforcement on initial
+install and rollback. Without it, initial/rolled-back A lacked the signature
+setting. See R01-signatures/REPORT.md; production authority/rotation remain gated.
+
 Read references/threat-matrix.md. Use disposable keys and VM images A/B. Exercise
 unsigned, wrong key/repository/target/architecture, tampered metadata, absent
 attachments, unapproved candidate, stale replay, and race cases. Check running
@@ -76,4 +85,17 @@ older releases and recovery credentials. GC must preserve needed signed digests.
 Gates: R01 proves compatibility; R08 proves authority/lifecycle; R02 proves the
 installer trust handoff; R10 implements independent validation. Sources:
 docs/SOURCES.md policy, registries, podman-sign, blob-sign, bootc-switch,
-actions-security; docs/UPDATES.md. No production signing workflow exists in bootstrap.
+actions-security; docs/UPDATES.md. The prepared release.yml candidate workflow is
+disabled and unqualified with production authority. Its exact public-input and
+environment requirements are in build/release/authority/README.md. No public key
+file or fingerprint from a research fixture may fill the production slots.
+
+Prepared 2026-09-08 (ADR 0023): promote.yml binds real exact-media qualification
+to current-main candidate/source and the dedicated public authority. The protected
+Cosign 3.1.3 job executes no checkout/artifacts; a key-free publisher repeats native
+verification, publishes complete versioned assets, then one signed-pair channel
+bundle. Its runtime refuses stale/changed channel state and existing version tags.
+Syntax is checked; actual production publication/races/recovery are not-run.
+Owner authority/environment are provisioned separately (R08); backup retrieval,
+renewal/expired recovery and rotation remain open. Do not confuse preparation with
+qualification. Source: build/release/README.md and the exact R08/worklog evidence.

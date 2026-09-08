@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify the embedded Kedra payload before installation
+After=local-fs.target anaconda-pre.service
+Before=anaconda.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/sysroot/helper
+StandardInput=file:/usr/lib/sysroot/trust/installer-request.json
+RemainAfterExit=yes
+TimeoutStartSec=330

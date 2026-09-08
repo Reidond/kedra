@@ -5,10 +5,27 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 autobins = false
+autotests = false
+
+[lib]
+path = "lib.rs"
+test = false
+doctest = false
 
 [[bin]]
 name = "sysroot-helper"
 path = "main.rs"
+test = false
 
 [lints]
 workspace = true
+
+[dependencies]
+sysroot-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix.workspace = true
+rusqlite.workspace = true
+sha2.workspace = true

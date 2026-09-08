@@ -10,6 +10,18 @@ publish = false
 
 [workspace.dependencies]
 sysroot-core = { path = "crates/sysroot-core" }
+sysroot-helper = { path = "crates/sysroot-helper" }
+clap = { version = "4.6.6", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.11"
+tar = { version = "0.4.46", default-features = false }
+base64 = { version = "0.23.1", default-features = false, features = ["std"] }
+p256 = { version = "0.14.0", default-features = false, features = ["ecdsa", "pem", "std"] }
+rustix = { version = "1.1.4", features = ["fs", "process", "net"] }
+rusqlite = { version = "0.40.2", default-features = false, features = ["bundled", "limits"] }
+toml = { version = "1.1.5", default-features = false, features = ["parse", "serde", "std"] }
+toml_edit = { version = "0.25.13", default-features = false, features = ["parse", "display"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

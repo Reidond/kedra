@@ -1,6 +1,52 @@
-# R03: Synthetic writable-home review
+# R03: Writable-home review
 
 Status: core prototype pass; complete R03 gate blocked.
+
+Follow-up: native niri discard and killed-CLI recovery pass 34237287511 at
+`5e238c7`; current installed-baseline acceptance passes 34238949306 at `9802b49`.
+Both preserve independent user decisions and complete the desktop/doctor sequence.
+Actual signed changed-image home acceptance is still being qualified; see R04
+for the observed remembered-login fixture failure and corrected run. Wider
+path/group behavior remains open.
+
+2026-09-08 current work: ordinary niri text selection/local-only policy and Git
+source export/receipts pass the actual Linux CLI workflow in
+[34233086757](https://github.com/Reidond/kedra/actions/runs/34233086757) at `86bb96b`
+(ADR 0019). This covers adjacent line choices, retained selections after later
+file edits, exact-local policy, source/index preservation, exact commit receipts,
+insertion/deletion and symlink refusal. Native niri
+[34233086974](https://github.com/Reidond/kedra/actions/runs/34233086974) also passes
+actual file edits, validation, pinned line retention and exact-local resurfacing
+at that source, alongside the complete desktop checks. A source-reconciliation
+preview passes actual CLI workspace 34235455512 at 3c948aa (ADR 0020): current,
+intermediate and older source, retained future publications, exact-local default
+override, conflicting later edits and unchanged accepted/live state.
+Equal-size replacements select by line; other edit
+blocks remain hunks. Native niri discard/reload passes the follow-up above
+(ADR 0021); changed-image baseline activation remains unqualified. The Noctalia native interruption subset separately
+passes 34230166262 at 3267e03; see R04. Only E2E/manual testing is authorized now;
+the isolated test counts below are historical evidence.
+
+Latest subset, 2026-09-08: [workspace 34192732940](https://github.com/Reidond/kedra/actions/runs/34192732940)
+at `a2c0e63` passes 81 Linux tests plus one doctest, including the actual CLI,
+SQLite, selected Git patch and exact source-commit receipt round trip. Eight
+export cases and the retained-revision case also pass on Windows. Native desktop
+[34192732970](https://github.com/Reidond/kedra/actions/runs/34192732970) continues
+to pass GUI review. Selected-field source export/receipts are implemented; generic
+text/line integration, discard and coordinated activation remain open. See ADR 0014.
+
+Earlier native review subset: [workspace 34188179270](https://github.com/Reidond/kedra/actions/runs/34188179270)
+at `3d108e9` passes 71 Linux tests plus one doctest, including six new
+Noctalia persistence/input cases. [Desktop 34188179252](https://github.com/Reidond/kedra/actions/runs/34188179252)
+passes the actual ordinary-user `sysroot home` commands against Noctalia 5.0.1
+GUI writes: initialize from installed provenance, stage light, change live to
+auto, retain the staged light value, keep an exact value local, resurface a later
+value, and set/clear app ownership. `KEDRA_R03_DURABLE_REVIEW_PASS` is recorded.
+No raw full export enters the store. Generic line/file integration, source export,
+discard and coordinated activation remain unfinished. See [the interface](../../HOME-REVIEW.md)
+and [ADR 0012](../../adr/0012-persistent-noctalia-review.md).
+
+The following records preserve the original synthetic line-review experiment.
 Date: 2026-09-07. Agent: Codex.
 Evidence finalized and CLI argument refusal checked: 2026-09-08 Europe/Kiev.
 Source: local changes on main based on 64c84498c898e61ff370d9f9f1ce30cbd3d00613.

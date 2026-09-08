@@ -1,0 +1,9 @@
+# Disposable R02 boot fixture. Never promote this image as an installed desktop.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY boot-check.sh /usr/libexec/kedra-research-boot-check
+COPY boot-check.service /usr/lib/systemd/system/kedra-research-boot-check.service
+COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
+RUN chmod 0755 /usr/libexec/kedra-research-boot-check && \
+    systemctl enable kedra-research-boot-check.service && \
+    bootc container lint

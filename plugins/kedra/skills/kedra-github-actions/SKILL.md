@@ -21,6 +21,14 @@ scheduled/manual/accepted-source changes. Fresh metadata and full installed RPM
 closure matter even when the Fedora base digest and source package list do not
 change. A cached RUN can skip DNF entirely; --refresh inside it is insufficient.
 
+Measured 2026-09-09: ten native signed-RPM snapshot cases pass in Actions
+34286322016 at 0d82b1f, including requested/transitive/inherited updates,
+metadata-only identity, same-NEVRA byte changes, repeated uncached execution and
+specific repository/signature/solver refusals. See the refresh notes and
+docs/research/update-refresh/REPORT.md for DNF 5.4.4.0/RPM 6.0.2 evidence. This
+is fixture-only equivalence; full-target comparison and checkpoint renewal are
+still not implemented or qualified.
+
 Keep fedora/updates as the proposed reviewed allowlist, fail required-repo errors,
 preserve signature checks and audit solver results. Normal upgrade is not routine
 distro-sync. Do not mirror every Fedora package or commit nightly RPM-version

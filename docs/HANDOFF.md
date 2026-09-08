@@ -8,8 +8,9 @@ the native digest-preserving correction passes signed R01 round-trip and VM
 regression 34253906774. Replacement candidate 34255228394 passes its public build,
 GHCR/storage guard and separately owner-approved isolated signing of bb4f2b68.
 Independent anonymous manifest/signature verification, complete ISO construction
-and offline signed-payload/Anaconda startup pass. The complete media is downloading
-for a fresh local installation; main remains fixed at c660c58 during qualification. Later work stays
+and offline signed-payload/Anaconda startup pass. Archive and whole-ISO hashes
+verify; the fresh local encrypted two-disk installation is in progress after the
+VM's own offline payload check passed. Main remains fixed at c660c58 during qualification. Later work stays
 on the development branch. Read AGENTS.md, the current
 worklog snapshot and latest entries, then the relevant source/research evidence.
 

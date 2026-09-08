@@ -5,7 +5,8 @@ on:
     branches: [codex/usable-system]
     paths:
       - .github/workflows/research-refresh.yml
-      - build/research/refresh/**
+      - build/research/refresh/*.py
+      - build/research/refresh/Containerfile.*
       - build/research/inputs.json
 permissions:
   contents: read

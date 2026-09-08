@@ -1,7 +1,9 @@
 # Native RPM refresh experiment
 
-Prepared 2026-09-09; native execution is **not-run** until an exact Actions run is
-recorded in [the report](../../../docs/research/update-refresh/REPORT.md).
+Measured 2026-09-09: all ten bounded native cases pass
+[Actions 34286322016](https://github.com/Reidond/kedra/actions/runs/34286322016)
+at `0d82b1f`. See [the report](../../../docs/research/update-refresh/REPORT.md)
+for exact inputs, native evidence and the remaining boundaries.
 This is a bounded section-A experiment for R02/R07/R08, using real Fedora DNF/RPM
 and Podman image materialization. It does not publish images, create an ISO,
 renew a checkpoint, or use a production signing environment.
@@ -98,4 +100,5 @@ it does not create a successful resolution record.
 - [createrepo_c](https://rpm-software-management.github.io/createrepo_c/):
   native repository metadata and package checksum generation.
 
-These describe mechanisms. They are not native Fedora 44 experiment results.
+These describe mechanisms. The linked report separately records actual Fedora
+44 results with DNF 5.4.4.0, RPM 6.0.2 and Podman 4.9.3.

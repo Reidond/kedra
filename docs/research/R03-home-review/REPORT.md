@@ -3,8 +3,12 @@
 Status: core prototype pass; complete R03 gate blocked.
 
 2026-09-08 current work: ordinary niri text selection/local-only policy and Git
-source export/receipts are prepared (ADR 0019). Actual CLI and native niri
-qualification are pending. Equal-size replacements select by line; other edit
+source export/receipts pass the actual Linux CLI workflow in
+[34233086757](https://github.com/Reidond/kedra/actions/runs/34233086757) at `86bb96b`
+(ADR 0019). This covers adjacent line choices, retained selections after later
+file edits, exact-local policy, source/index preservation, exact commit receipts,
+insertion/deletion and symlink refusal. Native niri qualification is pending.
+Equal-size replacements select by line; other edit
 blocks remain hunks. Live text activation and generic baseline reconciliation
 are not yet implemented. The Noctalia native interruption subset separately
 passes 34230166262 at 3267e03; see R04. Only E2E/manual testing is authorized now;

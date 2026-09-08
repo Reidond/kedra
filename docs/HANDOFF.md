@@ -24,7 +24,7 @@ The installed helper has a bounded root protocol with independent trust/scope ch
 durable stage/rollback records and explicit rollback hold/resume. Production trust
 and promotion are not configured. No workstation enrollment has occurred.
 
-R01 native signed helper run 34226367288 at 71916b9 passes older-media enrollment against a newer fresh channel, metadata/OCI
+R01 native signed helper run 34228725707 at 94678f6 passes older-media enrollment against a newer fresh channel, metadata/OCI
 negatives, stage/boot B, retained-A rollback, newer-data/high-water preservation and
 explicit resume. Minimal VM 34218886101 also passes. The refreshed official Fedora
 44 AMD64 base is pinned in build/research/inputs.json; the preceding pin became
@@ -48,12 +48,22 @@ skills stay checkout-local; none are installed into personal profiles or the OS.
 
 Noctalia plan/apply/discard/recover commands are implemented with narrow native
 field edits, writer coordination, checked file replacement and durable recovery.
-Actual desktop 34223972271 at a5cd96e passes stale-plan refusal, discard, metadata
-and selection retention and installed doctor. Later 34226367519 passes discard,
-Codex and Bitwarden but times out at bus checks after audio output. New 94678f6
-adds bounded portal/keyring calls and markers, inherited error traps and a required
-portal response in doctor. R07 34228725414 is pending. Broader crash/recovery and
-baseline-transition cases remain open; no unit/meta harnesses were added.
+Actual desktop 34230166262 at 3267e03 passes stale-plan refusal, discard,
+metadata/selection retention and SIGKILL-at-publication recovery. Abort restores
+the prior file; resume completes the selected version; keep-current preserves a
+later real Noctalia edit after abort refuses it. Keep-current now starts and
+validates the app before clearing pending state. Default XDG private home state,
+bounded portal/keyring calls, doctor, Codex and Bitwarden also pass. Power loss,
+full disk, other interruption phases and baseline transitions remain open.
+
+Ordinary niri file review/export is implemented. Workspace 34233086757 at 86bb96b
+passes the actual CLI/Git workflow: adjacent selected/local lines, later file
+edits, source/index preservation, receipts, insertion/deletion and symlink refusal.
+Native niri run 34233086974 is pending. `home file init --reviewed-safe` explicitly
+adopts only .config/niri/config.kdl; whole live bytes are compared through Git stdin
+and never saved as Git snapshots. Selected/source/publication state stays separate
+from accepted image B. Text activation/discard and wider path/group integration
+are not yet provided. See TEXT-REVIEW.md and ADR 0019; no unit/meta tests were added.
 
 Signed-payload ISO 34222699188 at d8a76a9 passes the complete local installation:
 offline signature precheck, deliberate encrypted target choice, owner creation,
@@ -72,12 +82,11 @@ release/promotion is implied. See docs/RELEASES.md.
 
 ## Next actions
 
-1. Inspect current source/CI, including the bounded native bus checks and signed
-   helper regression. Fix observed failures without
+1. Inspect current source/CI, including the native niri workflow. Fix observed failures without
    weakening runtime signature/path/state validation or adding unit/meta tests.
 2. Preserve signed-installer evidence; production authority/promotion, recovery
    and an owner installer are still required after the successful research install.
-3. Complete real home activation/recovery behavior and generic file/line integration.
+3. Complete text discard/activation, new-baseline transitions and wider file/group integration.
 4. Build and qualify production release authority, immutable signed artifacts,
    target-bound promotion/freshness, offline recovery and understandable install
    instructions. Keep production signing keys outside research.

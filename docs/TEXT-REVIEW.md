@@ -1,6 +1,7 @@
 # Review niri configuration by line
 
-This interface is prepared for qualification. It supports the ordinary
+The actual Linux CLI workflow passes; native desktop qualification is pending.
+This interface supports the ordinary
 `.config/niri/config.kdl` file on an installed Linux Kedra desktop. It does not
 apply or discard live text changes yet. Other files and niri includes remain
 unmanaged. Use your editor for live changes; niri's normal validation/reload

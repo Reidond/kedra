@@ -1,7 +1,7 @@
 # ADR 0019: Explicit ordinary-text review through Git
 
-2026-09-08. Implemented for qualification; R03 remains open pending actual CLI
-and native results. Initial adapter: `.config/niri/config.kdl` only. No live file
+2026-09-08. Actual Linux CLI/Git qualification passes 34233086757 at 86bb96b;
+native niri qualification is pending. Initial adapter: `.config/niri/config.kdl` only. No live file
 activation or new-baseline acceptance is provided by this adapter yet.
 
 Niri configuration remains an ordinary writable file. After `home init`, the

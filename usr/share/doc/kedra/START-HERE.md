@@ -32,7 +32,11 @@ The source checkout is separate from the installed OS. In a Kedra checkout:
 
 Those commands inspect committed build inputs and do not modify your machine.
 `sysroot status` reports which management capabilities this build implements.
-This development image does not yet enable managed updates or home adoption.
+`sysroot doctor` checks the installed desktop session without changing it or
+requesting administrator access. Use `sysroot doctor --json` for structured output.
+Managed updates require configured release trust and enrollment. Home review and
+reconciliation currently support three Noctalia fields; complete file management
+and a promoted owner installer are still being prepared.
 Do not run image-building scripts as a workstation package installer.
 
 For recovery without a graphical session, use Ctrl+Alt+F2 and log in on the text

@@ -6,6 +6,7 @@ use std::process::ExitCode;
 use clap::{CommandFactory, Parser, Subcommand};
 mod agents;
 mod deployment;
+mod doctor;
 mod home;
 mod source;
 
@@ -21,6 +22,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Inspect installed desktop/session health without changing the machine.
+    Doctor {
+        #[arg(long)]
+        json: bool,
+    },
     /// Manage a signed installed release through the independently verifying helper.
     Update(deployment::Options),
     /// Review, select and reconcile the supported Noctalia settings.
@@ -183,6 +189,14 @@ fn source_plan(repo: PathBuf, host: String, json: bool) -> Result<(), Box<dyn st
 
 fn main() -> ExitCode {
     match Cli::parse().command {
+        Some(Commands::Doctor { json }) => match doctor::run(json) {
+            Ok(true) => (),
+            Ok(false) => return ExitCode::FAILURE,
+            Err(error) => {
+                eprintln!("sysroot: {error}");
+                return ExitCode::FAILURE;
+            }
+        },
         Some(Commands::Home(options)) => {
             if let Err(error) = home::run(options) {
                 eprintln!("sysroot: {error}");
@@ -225,7 +239,7 @@ fn main() -> ExitCode {
                 println!("{}", sysroot_core::STATUS_JSON);
             } else {
                 println!(
-                    "Kedra: source planning, archives and release verification available; OS deployment and live-home management unavailable."
+                    "Kedra development build: source/release tools and Linux update/home workflows are implemented. Production release setup is still pending; use sysroot doctor for installed desktop checks."
                 );
             }
         }

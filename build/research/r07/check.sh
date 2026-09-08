@@ -94,7 +94,10 @@ if as_user sysroot home --state "$review_state" discard theme.mode --plan "$acti
     false
 fi
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+native_settings="$review_home/.local/state/noctalia/settings.toml"
+native_metadata=$(stat -c '%u:%g:%a:%C' "$native_settings")
 as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" | jq -e '.operation_completed and .pending == null and .fields[0].live.value == "light" and .fields[0].selected.value == "light"' >/dev/null
+test "$(stat -c '%u:%g:%a:%C' "$native_settings")" = "$native_metadata"
 as_user systemctl --user is-active kedra-noctalia.service
 as_user sysroot home --state "$review_state" recover | jq -e '.pending == null and .journal.phase == "completed" and (.native_file_contents_stored | not)' >/dev/null
 test -z "$(find "$review_home/.local/state/noctalia" -maxdepth 1 -name '.sysroot-activation-*' -print -quit)"
@@ -127,6 +130,8 @@ as_user busctl --user call org.freedesktop.secrets /org/freedesktop/secrets org.
 # Prove normal password login unlocked this synthetic account's keyring.
 as_user busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked
 test "$(as_user busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked)" = 'b false'
+as_user sysroot doctor --json | jq -e '.desktop_session_checks_passed and (.changes_performed | not)' >/dev/null
+marker KEDRA_DOCTOR_SESSION_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg panel-toggle launcher
 marker KEDRA_R07_SESSION_READY
 sleep 15

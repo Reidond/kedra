@@ -312,6 +312,22 @@ impl Directory {
             )?;
             let mut file = File::from(descriptor);
             file.write_all(bytes)?;
+            if let Some(original) = &original {
+                if fs::fstat(&file)?.st_gid != original.identity.group {
+                    fs::fchown(
+                        &file,
+                        None,
+                        Some(fs::Gid::from_raw(original.identity.group)),
+                    )?;
+                }
+                if label(&file)? != original.identity.label {
+                    let value =
+                        original.identity.label.as_deref().ok_or(
+                            "cannot preserve an unlabelled original on a labelled filesystem",
+                        )?;
+                    fs::fsetxattr(&file, "security.selinux", value, fs::XattrFlags::empty())?;
+                }
+            }
             let mode = original
                 .as_ref()
                 .map_or(0o600, |value| value.identity.mode & 0o777);

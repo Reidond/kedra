@@ -387,3 +387,12 @@ agent packaging, owner credential setup and physical qualification remain open.
 - Next: Publish the reviewed changes, run the retained CLI and native VM workflows, then continue usable installer/signing integration.
 - Follow-up: Removed the standalone Rust synthetic-example harnesses and the test-only Noctalia projection binary as well. R07 now checks the actual sysroot home CLI against the running/stopped native application. No replacement repository scanner or unit harness was introduced.
 - Additional cleanup: removed the fake-agent process test; real official executables are exercised in R05/R07 instead. The retained home-export end-to-end case now checks the public selection response after refusal rather than an internal SQLite revision. Removed incidental blank EOF lines from new installer files. Local Clippy and diff checks pass; prior Linux workflow 34222446137 passed at 9651d19.
+
+### WL-20260908-04 — 2026-09-08 — Installed desktop diagnostics
+- Agent / state: Codex; in-progress.
+- Scope / base: codex/usable-system, inspected d8a76a9; ordinary-user installed diagnostics while signed ISO and Noctalia end-to-end builds run.
+- Completed: Prepared sysroot doctor with human/JSON results for enforcing SELinux, failed service counts, native configuration validators, session services and login keyring. It reads installed state, does not inspect the source checkout, request sudo, enroll or mutate configuration. Release setup is reported separately from session health. Updated offline guidance and prepared an actual R07 CLI invocation; no unit/meta tests were added.
+- Checks / evidence: pass — local formatting/Clippy. not-run — native doctor invocation until the next desktop image. Earlier d8a76a9 installer/desktop workflows are still in progress.
+- Remaining / blockers: Production release authority and generic file integration remain unfinished; no complete owner installer is claimed.
+- Next: Complete the running native gates, then validate doctor in the installed desktop and continue release integration.
+- R04 native finding: 34222698950 at d8a76a9 passes the Fedora service allowance, then refuses a prepared file whose group/SELinux label differs from the original. Implemented descriptor-based group/label preservation before publication, retaining the final equality check and all refusal guards. Added metadata comparison around the actual native CLI discard flow. Native rerun pending; no unit tests were added.

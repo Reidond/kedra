@@ -9,6 +9,12 @@ export/IPC projection. The startup help overlay is gone. Inspected screenshots
 still show a cramped virtual scanout within the requested display; explicit
 guest output sizing remains open. These tests do not qualify physical displays.
 
+The captured niri output report explains the cramped scanout: QEMU advertises
+640x505 as preferred despite the requested host display size. Its advertised modes
+also include 1280x768. The test-only derivative now selects that existing mode
+and checks the logical dimensions before screenshots. No physical monitor setting
+or custom modeline is added to the desktop payload. The new runtime check is pending.
+
 [Corrected run 34167524359](https://github.com/Reidond/kedra/actions/runs/34167524359)
 at `14be822` passed the image build, niri validator, Noctalia validator and bootc
 lint. Actual versions: niri 26.04 and Noctalia 5.0.1. The Fedora greetd PAM file

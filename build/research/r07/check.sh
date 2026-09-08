@@ -46,6 +46,8 @@ printf 'KEDRA_R03_PROJECT_AFTER %s\n' "$projection"
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R03_NATIVE_PROJECTION_PASS
 as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs
+as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs | \
+    jq -e '.["Virtual-1"].logical | .width == 1280 and .height == 768 and .scale == 1' >/dev/null
 as_user systemctl --user start xdg-desktop-portal.service
 as_user systemctl --user is-active pipewire.service wireplumber.service xdg-desktop-portal.service
 as_user wpctl status

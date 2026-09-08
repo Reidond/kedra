@@ -319,12 +319,11 @@ impl Directory {
             file.sync_all()?;
             let candidate =
                 snapshot(&work, SLOT, self.owner)?.ok_or("prepared file disappeared")?;
-            if let Some(original) = &original {
-                if candidate.identity.group != original.identity.group
-                    || candidate.identity.label != original.identity.label
-                {
-                    return Err("file group or SELinux label could not be preserved".into());
-                }
+            if let Some(original) = &original
+                && (candidate.identity.group != original.identity.group
+                    || candidate.identity.label != original.identity.label)
+            {
+                return Err("file group or SELinux label could not be preserved".into());
             }
             fs::fsync(&work)?;
             fs::fsync(&self.descriptor)?;

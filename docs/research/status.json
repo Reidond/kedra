@@ -7,17 +7,17 @@
       "topic": "Image signing and bootc enforcement",
       "prototype_status": "pass",
       "report": "R01-signatures/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34167524353",
-      "note": "Strict Sigstore registry/local-store import, initial installed enforcement, negative cases, signed B boot and rollback/inherited enforcement passed. Full promotion/target authority, rotation and interactive installer cases remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34208979891",
+      "note": "Strict Sigstore enforcement and the installed helper pass native signed enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold preservation and explicit resume at bb53ce7. Production authority, promotion, rotation and interactive signed-origin installation remain open."
     },
     {
       "id": "R02",
       "status": "blocked",
       "topic": "Installer and Actions feasibility",
       "report": "R02-installer/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34195114452",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34207121856",
       "prototype_status": "pass",
-      "note": "Encrypted Anaconda installation/owner creation and sentinel retention pass at 923a282. Installed boot unlocks/authenticates with enforcing SELinux, but home mount and logical-root remount defects fail health. ADR 0015 corrections await rebuilt-media validation; signed origin remains open."
+      "note": "Fresh encrypted installation, administrative owner creation, ISO-free boot, niri/Noctalia desktop, enforcing SELinux, correct home/root mounts, zero failed units, unlocked keyring and unchanged sentinel disk pass at 85ed4ab. The unsigned localhost research origin is not a promoted owner installer; signed origin and full recovery remain open."
     },
     {
       "id": "R03",
@@ -32,8 +32,11 @@
     },
     {
       "id": "R04",
-      "status": "not-run",
-      "topic": "Activation, writers, rollback"
+      "status": "blocked",
+      "topic": "Activation, writers, rollback",
+      "report": "R04-activation/REPORT.md",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34217852366",
+      "note": "Managed Noctalia stop/persistence/restart passes native R07 34212238491. Linux plan/patch/file replacement/journal recovery tests pass at 4a7d02e; native discard rerun requires an explicitly refreshed Fedora base after upstream manifest HTTP 404. Generic home groups and full process-kill/full-disk fault coverage remain open."
     },
     {
       "id": "R05",
@@ -46,10 +49,11 @@
     },
     {
       "id": "R06",
-      "status": "not-run",
+      "status": "blocked",
       "topic": "Bitwarden and credential bootstrap",
       "report": "R06-credentials/REPORT.md",
-      "note": "Pinned native Bitwarden package/layout and source inspected; image preparation and session defaults are prepared. Generated native systemd/shell environment checks pass; Fedora runtime and authenticated states remain not-run."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34199985702",
+      "note": "Pinned native Bitwarden 2026.8.0 package and actual Fedora logged-out startup pass, with graphical/systemd/TTY socket propagation. Owner vault/SSH signing and separate API/model authentication remain not-run."
     },
     {
       "id": "R07",
@@ -57,15 +61,15 @@
       "topic": "Desktop session and hardware",
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34192732970",
-      "note": "Graphical login/services/keyring/full-size capture and native Noctalia review pass at a2c0e63. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34212238491",
+      "note": "Graphical login/services/keyring, native Noctalia review/writer lifecycle, private Codex and logged-out Bitwarden pass at 3ce1c1a. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
     },
     {
       "id": "R08",
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Release/checkpoint/replay verification and OpenSSL CLI interoperability pass on Windows and Linux. Production signer, helper authorization, promotion races, Cosign blobs and rotation drill remain open."
+      "note": "Release/checkpoint/replay verification and OpenSSL interoperability pass. Actual Cosign blobs and independent installed helper verification pass R01 34208979891. Production signer, promotion races and rotation drill remain open."
     },
     {
       "id": "R09",
@@ -79,8 +83,8 @@
       "topic": "Privileged protocol and persistent state",
       "prototype_status": "pass",
       "report": "R10-state/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34179189211",
-      "note": "Eight Linux private-storage tests pass at d74c4c0. Helper authorization, fixed installed trust paths, live-file activation, disk-full faults and offline recovery remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34208979891",
+      "note": "Installed helper authorization, fixed trust/state, strict native enrollment/staging/rollback/hold pass at bb53ce7. Related-record transactions and generated file/recovery tests pass workspace 34217852366. Native process-kill/full-disk faults, production authority and full offline recovery remain open."
     },
     {
       "id": "R11",

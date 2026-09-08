@@ -3,7 +3,27 @@
 Status: **pass** for the minimal image/QCOW2/UEFI guest experiment; full R02
 installation gate remains **blocked**. Updated 2026-09-08 (Europe/Kiev).
 
-Latest interactive result: cleanup-fixed media
+Latest fresh-install result: [34207121856](https://github.com/Reidond/kedra/actions/runs/34207121856)
+at `85ed4ab` passes Anaconda completion and first-boot desktop health on 2026-09-08.
+The fully downloaded ISO is 2,865,981,440 bytes with SHA-256
+`d74e2a1eb79e8c93f52da82a8626bad43ad65498382941cf8982f07f41174ed3`.
+Local QEMU 8.2.2/OVMF boots UEFI/KVM with 8 GiB RAM and two generated 64 GiB disks,
+no network or host disks. The user deliberately selected only vda after verifying
+its KEDRA-INSTALL-ONLY serial, enabled encryption, and created the generated owner
+account with wheel membership and a generated password. No repair or kernel
+override was used on this installation.
+
+Anaconda completed; the owner directory is on the separate mounted home subvolume
+and the generated fstab correctly addresses /sysroot. Clean shutdown returns
+QEMU exit 0; qemu-img compares the unselected KEDRA-KEEP-DATA disk identically to
+its original sentinel copy. Boot without the ISO unlocks LUKS, authenticates the
+owner and reaches niri/Noctalia. Native niri validation, enforcing SELinux, zero
+failed system/user units, read-only /sysroot, writable home and unlocked login
+keyring all pass. The installed origin remains the deliberately unsigned
+localhost research payload, so this is **not promoted owner installation media**.
+Signed-origin enrollment/update, recovery and hardware qualification remain open.
+
+Earlier interactive result: cleanup-fixed media
 [34195114452](https://github.com/Reidond/kedra/actions/runs/34195114452) at `923a282`
 completed encrypted installation and owner creation in a fresh two-disk local VM.
 Its verified ISO SHA-256 is

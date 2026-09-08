@@ -32,6 +32,13 @@ checkout-only; do not ship this collection as system/global agent skills.
 
 Resolve and record base digest, RPM inventory and external artifacts. Never
 claim exact rebuildability from a source commit against changing repositories.
+On 2026-09-08 Quay stopped serving pinned Fedora 44 digest 70b8fe469fe1...
+(registry HTTP 404; R07 34217852336 and R01 34217852250 failed before their VM
+tests). The official 44 tag resolved to AMD64 d4b9c5e156ab..., version
+44.20260908.0, verified against exact manifest/config bytes. A pin prevents
+silent substitution but does not guarantee upstream retention. Record any
+replacement as a new build input and requalify it; retain promoted Kedra digests
+independently. See build/research/inputs.json and the R04 report for this rerun.
 Run bootc container lint in image validation, but do not treat it as a boot test.
 All candidate references must be final registry digests, not local image IDs.
 

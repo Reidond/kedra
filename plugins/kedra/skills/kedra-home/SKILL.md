@@ -70,6 +70,18 @@ reset the real index. Receipt of a local commit is not a push, promotion or depl
 
 ## Established synthetic R03 findings
 
+Follow-up 2026-09-08, R04/ADR 0017: Noctalia 5.0.1 native service stop/read-back/
+restart passes 34212238491 at 3ce1c1a. Linux workspace 34217852366 at 4a7d02e
+passes narrow plan/patch/file replacement and durable recovery tests. The new
+home plan/apply/discard/recover commands are implemented for native qualification;
+the new VM run stopped on an unavailable Fedora base before exercising discard.
+Only native settings.toml receives changed safe fields. Full native file bytes
+stay outside review/source storage; private atomic-I/O checkpoints are removed
+after validated success or retained on conflict. Pending state blocks mutations
+and older readers. Generic files and full fault/rollback cases remain open.
+This updates the older unavailable-activation descriptions above; do not infer
+full home qualification from the successful synthetic cases.
+
 Follow-up 2026-09-08: the pure Noctalia 5.0.1 model projects three safe fields
 from native full-export TOML; unknown/private fields and error excerpts are not
 persisted. It separates pinned S, exact I, app-owned keys and publication chains,

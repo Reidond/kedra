@@ -115,6 +115,7 @@ fn apply(
         store.compare_exchange(RECORD, Some(revision), &after.to_bytes()?)?;
         return Ok(());
     }
+    let prior = store.read(JOURNAL)?.map(|r| r.revision);
     app.stop()?;
     let preparation = (|| -> Result<Receipt> {
         if app.observe()? != plan.observed {
@@ -144,7 +145,6 @@ fn apply(
         receipt,
         phase: Phase::Prepared,
     };
-    let prior = store.read(JOURNAL)?.map(|r| r.revision);
     if let Err(error) = store.compare_exchange_batch(&[
         (RECORD, Some(revision), &state.to_bytes()?),
         (JOURNAL, prior, &serde_json::to_vec(&journal)?),

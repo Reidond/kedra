@@ -282,6 +282,7 @@ pub(super) fn run(options: Options) -> Result<()> {
     if let Some(result) = source_result {
         response["source"] = result;
     }
+    response["pending_activation"] = serde_json::json!(state.pending_activation());
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }

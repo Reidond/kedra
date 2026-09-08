@@ -7,8 +7,10 @@ credentials and raw application exports do not enter that store.
 
 The native R03 subset passes desktop run 34192732970 at a2c0e63. There is no promoted
 owner image yet. Selected-field patch export and source receipts are now implemented
-with the actual Linux CLI/SQLite/source round trip passing run 34192732940. Generic file/line review,
-discard and live activation remain required before complete home management.
+with the actual Linux CLI/SQLite/source round trip passing run 34192732940.
+The narrow plan/apply/discard/recovery bridge passes Linux synthetic tests in
+34217852366 at 4a7d02e; native mutation is still being qualified. Generic file/line
+review remains required before complete home management.
 The running workstation must not be used for its enrollment experiment.
 
 On a qualifying installed Kedra desktop, run as the ordinary desktop user:
@@ -87,3 +89,32 @@ the committed source and the patch is empty. Record the matching source commit
 instead of creating a duplicate edit. A shallow or rewritten checkout that lacks
 the recorded history needs an explicit fetch/merge or rebind review; the command
 does not guess ancestry or change branches.
+
+## Review activation and discard
+
+These commands currently require qualification in a disposable Kedra desktop.
+They support the default Noctalia profile and the installed managed service.
+
+```sh
+sysroot home --state "$HOME/.local/state/kedra-home-review" plan
+sysroot home --state "$HOME/.local/state/kedra-home-review" apply --plan PLAN_ID
+```
+
+Read the observed/desired values first, then supply that exact `plan_id`. Any
+change in review state, effective settings or installed baseline makes the old
+plan unusable. Local-only and app-owned decisions remain separate; a conflicting
+baseline does not overwrite live settings or advance the accepted baseline.
+
+To discard only the unselected difference in one field, use `plan --discard
+theme.mode`, then `discard theme.mode --plan PLAN_ID`. The destination is that
+field's pinned selection, latest recorded publication, or accepted baseline in
+that order. Other fields and the selection remain intact.
+
+An interrupted operation blocks other review mutations. Inspect `recover`, then
+choose `recover resume`, `recover abort`, or `recover keep-current`. Resume
+requires the recorded plan and installed baseline to still match. Abort restores
+only exact recorded file versions and refuses later edits. Keep-current preserves
+the live file, clears the pending operation without advancing the baseline, and
+leaves any private checkpoint for inspection. After validated cleanup the old
+checkpoint may be gone, so use resume or keep-current. Never delete/reset the
+review store to work around an error. See [R04 evidence](research/R04-activation/REPORT.md).

@@ -21,3 +21,17 @@ download links will be supplied after those tests; no owner account/password,
 disk identifier or unattended erase configuration is supplied for the installed OS.
 
 See [R02 evidence](../docs/research/R02-installer/REPORT.md).
+
+The first generic ISO froze before Anaconda on SELinux permission errors. The
+pinned v82.0.0 generic `os-tree` pipeline lacks a labeling stage. `build-iso.sh`
+retains the original manifest, appends the standard `org.osbuild.selinux` stage
+using the installer's own file contexts, then exports through native osbuild with
+the same cache. The preliminary unlabeled ISO is not exported. The adjustment
+fails if the expected pipeline changes or upstream adds labeling. It does not
+disable enforcement or modify the installed payload's verification rules.
+
+The workflow checks the packaged systemd label and boots the unchanged ISO stage2
+using its extracted kernel/initramfs with an explicit research probe and no disks.
+That is an enforcing-userspace smoke test; UEFI, Anaconda UI and installation
+still require their separate VM cases. The probe runs only with the research
+kernel flag and never enters the installed desktop payload.

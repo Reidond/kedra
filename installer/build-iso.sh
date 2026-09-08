@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Actions-only pinned builder environment; use native osbuild stages.
+set -euo pipefail
+test -f /run/.containerenv
+test -d /output
+test -d /evidence
+test ! -e /tmp/kedra-unlabeled
+# Initialize the builder's supported container environment and retain its exact
+# manifest/cache. This preliminary ISO is never exported as installation media.
+image-builder build --bootc-ref localhost/kedra-anaconda:research \
+    --bootc-default-fs ext4 \
+    --bootc-installer-payload-ref localhost/kedra-desktop:installer-research \
+    --output-dir /tmp/kedra-unlabeled --with-manifest bootc-generic-iso
+mapfile -t manifests < <(find /tmp/kedra-unlabeled -type f -name '*.osbuild-manifest.json')
+test "${#manifests[@]}" -eq 1
+cp "${manifests[0]}" /evidence/original.osbuild-manifest.json
+python3 /kedra-installer/label-manifest.py /evidence/original.osbuild-manifest.json \
+    /evidence/labeled.osbuild-manifest.json
+osbuild --store /var/cache/image-builder/store --output-directory /output \
+    --export bootiso /evidence/labeled.osbuild-manifest.json

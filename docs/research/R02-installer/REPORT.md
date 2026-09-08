@@ -94,6 +94,13 @@ This is unsigned localhost-origin research media; interactive installation has
 not yet been tested. The older legacy ISO remains rejected and was not booted.
 
 - Minimal QCOW2 build and UEFI boot: pass (run 34165475139).
+- Generic ISO local UEFI boot: fail before Anaconda (2026-09-08). Exact downloaded
+  SHA-256 matched, but systemd froze on SELinux permission errors. Neither disk
+  was selected; qemu-img comparison confirms the sentinel disk remains identical.
+  v82.0.0's generic OSFromContainer pipeline lacks SELinux labeling, also noted in
+  the upstream demonstration README. Added the standard osbuild SELinux stage
+  before packaging, with pipeline-drift refusal and an enforcing-userspace smoke
+  test. Corrected build/runtime results are pending.
 - Interactive multi-disk installer, encryption and account creation: not-run.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).
 - Desktop package build and graphical session subset: pass (R07); physical qualification remains open.
@@ -111,3 +118,8 @@ not yet been tested. The older legacy ISO remains rejected and was not booted.
   retrieved 2026-09-08: architecture-scoped kargs.d provides the serial console.
 
 Documentation establishes experiment inputs, not passed test results.
+
+Labeling sources reviewed 2026-09-08:
+[v82 OSFromContainer](https://github.com/osbuild/image-builder/blob/v82.0.0/pkg/manifest/os_from_container.go),
+[standard SELinux stage](https://github.com/osbuild/osbuild/blob/main/stages/org.osbuild.selinux),
+[upstream ISO limitation](https://github.com/ondrejbudai/bootc-isos#quirks).

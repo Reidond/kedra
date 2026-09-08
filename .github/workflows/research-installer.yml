@@ -33,7 +33,7 @@ jobs:
       - name: Prepare runner
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo xorriso squashfs-tools
+          sudo apt-get install -y --no-install-recommends podman skopeo xorriso squashfs-tools attr qemu-system-x86
           {
             date --utc --iso-8601=seconds
             git rev-parse HEAD
@@ -68,10 +68,11 @@ jobs:
           builder=$(jq -er .builder installer/inputs.json)
           sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
             -v "$PWD/output/installer-image:/output" \
+            -v "$PWD/output/installer-evidence:/evidence" \
+            -v "$PWD/installer:/kedra-installer:ro" \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            "$builder" build --bootc-ref localhost/kedra-anaconda:research --bootc-default-fs ext4 \
-            --bootc-installer-payload-ref localhost/kedra-desktop:installer-research \
-            --with-manifest bootc-generic-iso 2>&1 | tee output/installer-evidence/iso-build.log
+            --entrypoint /bin/bash "$builder" /kedra-installer/build-iso.sh \
+            2>&1 | tee output/installer-evidence/iso-build.log
           sudo chown -R "$(id -u):$(id -g)" output/installer-image
           find output/installer-image -type f -printf '%P %s bytes\n' > output/installer-evidence/artifact-sizes.txt
       - name: Inspect boot media before VM use
@@ -91,6 +92,24 @@ jobs:
           # A bootc-installer must be reviewed for interactive storage/account flow.
           # No unattended first-disk erase profile is supplied by this repository.
           echo 'Research media only: installer configuration and multi-disk VM behavior remain unqualified.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Check installer labels and enforcing userspace boot
+        run: |
+          set -euo pipefail
+          mapfile -t images < <(find "$PWD/output/installer-image" -type f -name '*.iso')
+          test "${#images[@]}" -eq 1
+          mkdir -p output/installer-inspection output/installer-evidence/smoke
+          xorriso -osirrox on -indev "${images[0]}" \
+            -extract /images/pxeboot "$PWD/output/installer-inspection/pxeboot" \
+            -extract /LiveOS/squashfs.img "$PWD/output/installer-inspection/squashfs.img"
+          sudo unsquashfs -no-progress -d output/installer-inspection/labels \
+            output/installer-inspection/squashfs.img usr/lib/systemd/systemd
+          sudo getfattr -n security.selinux output/installer-inspection/labels/usr/lib/systemd/systemd \
+            > output/installer-evidence/installer-label.txt
+          grep -q 'init_exec_t' output/installer-evidence/installer-label.txt
+          sudo python3 installer/smoke.py --iso "${images[0]}" \
+            --kernel-dir "$PWD/output/installer-inspection/pxeboot" \
+            --work "$PWD/output/installer-evidence/smoke" \
+            | tee output/installer-evidence/smoke-result.txt
       - name: Preserve evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

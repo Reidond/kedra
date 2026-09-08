@@ -53,6 +53,14 @@ normal upstream runtime writes. Corrected execution is pending. A local `/tmp`
 probe also shows Codex's deliberate refusal to put argument-zero helpers there;
 version output still succeeds. No real account or model request was involved.
 
+Corrected [run 34182776503](https://github.com/Reidond/kedra/actions/runs/34182776503)
+at `43873cb` passes all three Sigstore bundle checks and four native runtime/scope
+combinations: bundled 0.153.4 and personal 0.153.3, each with management or personal
+configuration. Version/help/login-help return success; management launches retain
+seeded personal config/files and all probes preserve dirty checkout state. These
+probes do not run a model turn, authenticating login, MCP server or actual skill
+discovery. Those parts of the matrix remain open.
+
 Remaining: official binary write/discovery traces, full
 runtime/profile matrix, personal-version updates and OS rollback, signal/PTY and
 long-lived child behavior, credential identities, redistribution prerequisites,

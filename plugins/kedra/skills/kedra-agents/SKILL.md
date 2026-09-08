@@ -38,6 +38,13 @@ names, MCP/hooks, credentials, child environments and shared paths against pinne
 versions. Separate personal-runtime management state from bundled-runtime state
 when schema versions can differ. Official login flows remain intact.
 
+Codex 0.153.4 performs helper-path setup before parsing help/version. Version
+discovery must use a disposable config directory while preserving HOME; it is
+not necessarily a read-only operation with the caller's normal CODEX_HOME.
+R05 run 34182176074 exposed the side effect; corrected run 34182776503 at 43873cb
+(2026-09-08) passes native 0.153.4/0.153.3 runtime/scope probes and three Sigstore
+checks. Model turns, keyring login and external discovery remain separate gates.
+
 Bundle updates through images; personal versions update through their own tools.
 Disable bundled Claude updates only in that invocation and prevent leakage into
 user-runtime launches. Never globally set DISABLE_UPDATES or modify personal

@@ -1,0 +1,9 @@
+label: KEDRA-44-Install
+grub2:
+  entries:
+    - name: Install Kedra (Fedora 44)
+      linux: /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=KEDRA-44-Install console=tty0 inst.graphical quiet
+      initrd: /images/pxeboot/initrd.img
+    - name: Rescue an installed system
+      linux: /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=KEDRA-44-Install console=tty0 inst.rescue
+      initrd: /images/pxeboot/initrd.img

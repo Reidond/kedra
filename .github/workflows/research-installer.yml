@@ -48,7 +48,7 @@ jobs:
           builder=$(jq -er .builder installer/inputs.json)
           sudo podman run --rm "$builder" --version > output/installer-evidence/builder-version.txt
           sudo podman run --rm "$builder" build --help > output/installer-evidence/builder-help.txt
-          grep -q -- '--installer-payload-ref' output/installer-evidence/builder-help.txt
+          grep -q -- '--bootc-installer-payload-ref' output/installer-evidence/builder-help.txt
       - name: Build desktop and separate installer environment
         run: |
           set -euo pipefail
@@ -57,20 +57,21 @@ jobs:
             --tag localhost/kedra-desktop:installer-research output/desktop-context \
             2>&1 | tee output/installer-evidence/desktop-build.log
           sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+            --build-arg PAYLOAD_IMAGE=localhost/kedra-desktop:installer-research \
             --tag localhost/kedra-anaconda:research --file installer/Containerfile installer \
             2>&1 | tee output/installer-evidence/anaconda-build.log
           sudo podman image inspect localhost/kedra-desktop:installer-research localhost/kedra-anaconda:research \
             > output/installer-evidence/image-inspect.json
-      - name: Build bootc-installer ISO with separate payload
+      - name: Build generic interactive ISO with separate payload
         run: |
           set -euo pipefail
           builder=$(jq -er .builder installer/inputs.json)
           sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
             -v "$PWD/output/installer-image:/output" \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            "$builder" build --type bootc-installer --rootfs ext4 --use-librepo=True \
-            --installer-payload-ref localhost/kedra-desktop:installer-research \
-            localhost/kedra-anaconda:research 2>&1 | tee output/installer-evidence/iso-build.log
+            "$builder" build --bootc-ref localhost/kedra-anaconda:research --bootc-default-fs ext4 \
+            --bootc-installer-payload-ref localhost/kedra-desktop:installer-research \
+            --with-manifest bootc-generic-iso 2>&1 | tee output/installer-evidence/iso-build.log
           sudo chown -R "$(id -u):$(id -g)" output/installer-image
           find output/installer-image -type f -printf '%P %s bytes\n' > output/installer-evidence/artifact-sizes.txt
       - name: Inspect boot media before VM use
@@ -83,6 +84,10 @@ jobs:
             > output/installer-evidence/iso-files.txt 2>&1
           mkdir -p output/installer-evidence/boot-config
           xorriso -osirrox on -indev "${images[0]}" -extract /EFI/BOOT/grub.cfg output/installer-evidence/boot-config/grub.cfg
+          ! grep -Eq 'inst\.text|selinux=0|inst\.ks=' output/installer-evidence/boot-config/grub.cfg
+          sudo podman run --rm localhost/kedra-anaconda:research cat /usr/share/anaconda/interactive-defaults.ks \
+            > output/installer-evidence/boot-config/interactive-defaults.ks
+          ! grep -Eq '^(clearpart|zerombr|autopart|ignoredisk|user |reboot)' output/installer-evidence/boot-config/interactive-defaults.ks
           # A bootc-installer must be reviewed for interactive storage/account flow.
           # No unattended first-disk erase profile is supplied by this repository.
           echo 'Research media only: installer configuration and multi-disk VM behavior remain unqualified.' >> "$GITHUB_STEP_SUMMARY"

@@ -72,6 +72,19 @@ installer/inputs.json and checks its build help before expensive assembly. The
 earlier Quay builder remains pinned for the already-tested QCOW2/signature cases.
 No installer execution or disk-choice success is claimed from the failed attempt.
 
+The corrected legacy build [34173909609](https://github.com/Reidond/kedra/actions/runs/34173909609)
+at `eca177c` produced a 3,490,482,176-byte ISO (SHA-256
+`67f3628bb66ea63b729b3b52dd1c49f67852e23faf1260b71e10c4656820c7f9`). It was not
+booted. Inspection found forced `inst.text`, generated `clearpart --all`, and a
+legacy ostreecontainer import followed by bootc origin mutation. These defaults
+are not the selected Kedra installation contract. The new experiment uses the
+current canonical image-builder v82.0.0 container and `bootc-generic-iso`, with
+an explicit native bootc interactive-defaults file and graphical/rescue entries.
+The upstream sample's SELinux-disable flag is not copied. Installer signing,
+disk choice, encryption/account setup and the documented remount-service concern
+still require VM evidence. The ISO size also requires a deliberate release-asset
+splitting/reassembly design before public promotion.
+
 - Minimal QCOW2 build and UEFI boot: pass (run 34165475139).
 - Interactive multi-disk installer, encryption and account creation: not-run.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).

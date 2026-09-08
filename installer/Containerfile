@@ -1,11 +1,20 @@
 # Separate Anaconda environment. The installed desktop is a distinct OCI payload.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
+ARG PAYLOAD_IMAGE
 RUN dnf -y --best --refresh --repo=fedora --repo=updates \
       '--setopt=*.skip_if_unavailable=False' '--setopt=*.gpgcheck=True' \
-      install anaconda anaconda-install-env-deps anaconda-dracut \
+      install anaconda anaconda-install-img-deps anaconda-dracut \
       dracut-config-generic dracut-network net-tools squashfs-tools \
-      grub2-efi-x64-cdboot python3-mako lorax-templates-generic biosdevname prefixdevname && \
+      grub2-efi-x64-cdboot grub2-pc-modules xorrisofs isomd5sum \
+      python-unversioned-command plymouth default-fonts-core-sans \
+      default-fonts-other-sans google-noto-sans-cjk-fonts && \
     dnf clean all && \
     mkdir -p /boot/efi /var/mnt && \
     cp -ra /usr/lib/efi/*/*/EFI /boot/efi
+COPY iso.yaml /usr/lib/image-builder/bootc/iso.yaml
+COPY prepare.sh /tmp/kedra-installer-prepare.sh
+RUN test -n "$PAYLOAD_IMAGE" && \
+    printf 'bootc --source-imgref containers-storage:%s --target-imgref %s\nrootpw --lock\n' \
+      "$PAYLOAD_IMAGE" "$PAYLOAD_IMAGE" > /usr/share/anaconda/interactive-defaults.ks && \
+    /bin/bash /tmp/kedra-installer-prepare.sh && rm /tmp/kedra-installer-prepare.sh

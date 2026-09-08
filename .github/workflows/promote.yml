@@ -45,6 +45,8 @@ jobs:
       release: ${{ steps.prepare.outputs.release }}
       checkpoint: ${{ steps.prepare.outputs.checkpoint }}
       request: ${{ steps.prepare.outputs.signing_request }}
+      candidate: ${{ steps.prepare.outputs.candidate }}
+      checksums: ${{ steps.prepare.outputs.checksums }}
     steps:
       - name: Require existing owner-reviewed signing protection
         env:
@@ -102,6 +104,7 @@ jobs:
     outputs:
       release_signature: ${{ steps.sign.outputs.release_signature }}
       checkpoint_signature: ${{ steps.sign.outputs.checkpoint_signature }}
+      checksums_signature: ${{ steps.sign.outputs.checksums_signature }}
     steps:
       # No checkout, artifact execution, repository script or candidate binary.
       - name: Prepare pinned native signer before exposing private material
@@ -118,6 +121,8 @@ jobs:
           RELEASE_B64: ${{ needs.prepare.outputs.release }}
           CHECKPOINT_B64: ${{ needs.prepare.outputs.checkpoint }}
           REQUEST_B64: ${{ needs.prepare.outputs.request }}
+          CANDIDATE_B64: ${{ needs.prepare.outputs.candidate }}
+          CHECKSUMS_B64: ${{ needs.prepare.outputs.checksums }}
           REVIEWED_CANDIDATE_SHA256: ${{ inputs.reviewed_candidate_sha256 }}
           QUALIFICATION_JSON: ${{ inputs.qualification_json }}
           CANDIDATE_RUN: ${{ inputs.candidate_run }}
@@ -128,7 +133,7 @@ jobs:
           set -euo pipefail
           test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
           python3 - <<'PY'
-          import base64, hashlib, json, os, pathlib, subprocess, time
+          import base64, hashlib, json, os, pathlib, re, subprocess, time
           def require(value, message):
               if not value:
                   raise SystemExit(message)
@@ -143,13 +148,17 @@ jobs:
           root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'public-signing'
           root.mkdir(exist_ok=False)
           raw = {}
-          for name, variable in [('release', 'RELEASE_B64'), ('checkpoint', 'CHECKPOINT_B64'), ('request', 'REQUEST_B64')]:
+          for name, variable in [('release', 'RELEASE_B64'), ('checkpoint', 'CHECKPOINT_B64'), ('request', 'REQUEST_B64'),
+                                 ('candidate', 'CANDIDATE_B64'), ('checksums', 'CHECKSUMS_B64')]:
               raw[name] = base64.b64decode(os.environ[variable], validate=True)
               require(0 < len(raw[name]) <= 65536, 'Public signing input exceeds its bound')
-              (root / (name + '.json')).write_bytes(raw[name])
+              (root / ('SHA256SUMS' if name == 'checksums' else name + '.json')).write_bytes(raw[name])
           release, checkpoint, request = [json.loads(raw[name], object_pairs_hook=unique) for name in ['release', 'checkpoint', 'request']]
-          require(request['release_sha256'] == sha(raw['release']) and request['checkpoint_sha256'] == sha(raw['checkpoint']), 'Payload hash differs')
+          candidate = json.loads(raw['candidate'], object_pairs_hook=unique)
+          require(request['release_sha256'] == sha(raw['release']) and request['checkpoint_sha256'] == sha(raw['checkpoint'])
+                  and request['sha256sums_sha256'] == sha(raw['checksums']), 'Payload hash differs')
           require(request['candidate_sha256'] == os.environ['REVIEWED_CANDIDATE_SHA256']
+                  and request['candidate_sha256'] == sha(raw['candidate'])
                   and request['qualification_sha256'] == sha(os.environ['QUALIFICATION_JSON'].encode())
                   and request['key_fingerprint_sha256'] == os.environ['APPROVED_FINGERPRINT'], 'Reviewed authority/evidence differs')
           scope = {'target': 'desktop', 'architecture': 'x86_64', 'fedora_release': 44, 'repository': 'ghcr.io/reidond/kedra-desktop'}
@@ -159,6 +168,50 @@ jobs:
           build = {'repository': 'Reidond/kedra', 'workflow': '.github/workflows/release.yml',
                    'run_id': int(os.environ['CANDIDATE_RUN']), 'run_attempt': int(os.environ['CANDIDATE_ATTEMPT'])}
           require(release['build'] == request['build'] == build, 'Build identity differs')
+          require(type(candidate['schema_version']) is int and candidate['schema_version'] == 2
+                  and candidate['approval'] == 'candidate' and candidate['fresh_install_qualified'] is False
+                  and all(candidate[key] == release[key] for key in ['project', 'scope', 'source_revision',
+                          'build', 'image_digest', 'home_manifest_sha256', 'installer'])
+                  and candidate['last_successful_resolution'] == checkpoint['last_successful_resolution'],
+                  'Reviewed candidate differs from proposed signed release')
+          installer = release['installer']
+          iso_name = f'kedra-desktop-44-{build["run_id"]}-{build["run_attempt"]}.iso'
+          size = installer['size_bytes']
+          require(installer['filename'] == iso_name and type(size) is int and 0 < size <= 64 * 1024**3,
+                  'Unexpected installer name or size')
+          part_names = [iso_name + f'.part{index:02d}' for index in range((size + 1900 * 1024**2 - 1) // (1900 * 1024**2))]
+          require(candidate['parts'] == part_names, 'Unexpected ordered installer parts')
+          require(isinstance(candidate['parts_sha256'], dict) and set(candidate['parts_sha256']) == set(part_names),
+                  'Missing reviewed download part hashes')
+          public_key = (os.environ['RELEASE_PUBLIC_KEY'].strip() + '\n').encode()
+          known = {'release.json': raw['release'], 'checkpoint.json': raw['checkpoint'],
+                   'candidate.json': raw['candidate'], 'qualification.json': os.environ['QUALIFICATION_JSON'].encode(),
+                   'release.pub': public_key, 'release-key.sha256': (os.environ['APPROVED_FINGERPRINT'] + '\n').encode()}
+          expected_hashes = {name: sha(value) for name, value in known.items()}
+          expected_hashes.update({'source.json': candidate['home_manifest_sha256'],
+                                 'packages.txt': candidate['packages_sha256'], 'provenance.json': candidate['provenance_sha256'],
+                                 iso_name: installer['sha256']})
+          expected_hashes.update(candidate['parts_sha256'])
+          assets = request['assets']
+          require(isinstance(assets, dict) and set(assets) == set(expected_hashes),
+                  'Checksum names differ from fixed candidate assets')
+          for name, item in assets.items():
+              require(isinstance(item, dict) and set(item) == {'sha256', 'size_bytes'}
+                      and isinstance(item['sha256'], str) and re.fullmatch('[a-f0-9]{64}', item['sha256'])
+                      and type(item['size_bytes']) is int and 0 < item['size_bytes'] <= 64 * 1024**3,
+                      'Invalid reviewed asset identity')
+              if name in expected_hashes:
+                  require(item['sha256'] == expected_hashes[name], 'Checksum differs from reviewed candidate/payload')
+              if name in known:
+                  require(item['size_bytes'] == len(known[name]), 'Public payload size differs')
+          require(assets[iso_name]['size_bytes'] == size and assets['source.json']['size_bytes'] <= 1048576
+                  and assets['packages.txt']['size_bytes'] <= 4 * 1024**2 and assets['provenance.json']['size_bytes'] <= 65536,
+                  'Inventory/provenance size exceeds its bound')
+          for index, name in enumerate(part_names):
+              require(assets[name]['size_bytes'] == min(1900 * 1024**2, size - index * 1900 * 1024**2),
+                      'Unexpected download part size')
+          expected_checksums = ''.join(f'{assets[name]["sha256"]}  {name}\n' for name in sorted(assets)).encode('ascii')
+          require(raw['checksums'] == expected_checksums, 'Checksum payload differs from exact fixed inventory')
           result = subprocess.run(['gh', 'api', f'repos/Reidond/kedra/actions/runs/{build["run_id"]}/attempts/{build["run_attempt"]}'], check=True, capture_output=True)
           run = json.loads(result.stdout)
           require(run['conclusion'] == 'success' and run['head_sha'] == os.environ['GITHUB_SHA']
@@ -186,11 +239,11 @@ jobs:
               old = json.loads(channel, object_pairs_hook=unique)
               require(sha(old['release']['payload'].encode()) == request['expected_previous_release_sha256']
                       and sha(old['checkpoint']['payload'].encode()) == request['expected_previous_checkpoint_sha256'], 'Previous signed payload hashes differ')
-          (root / 'release.pub').write_text(os.environ['RELEASE_PUBLIC_KEY'] + '\n')
+          (root / 'release.pub').write_bytes(public_key)
           PY
           openssl pkey -pubin -in "$RUNNER_TEMP/public-signing/release.pub" -outform DER -out "$RUNNER_TEMP/public-signing/public.der"
           test "$(sha256sum "$RUNNER_TEMP/public-signing/public.der" | cut -d ' ' -f 1)" = "$APPROVED_FINGERPRINT"
-      - name: Sign exact release and checkpoint bytes with dedicated authority
+      - name: Sign exact release, checkpoint and checksum bytes with dedicated authority
         id: sign
         env:
           RELEASE_PRIVATE_KEY: ${{ secrets.KEDRA_DESKTOP_SIGNING_KEY }}
@@ -203,14 +256,16 @@ jobs:
           trap 'rm -rf -- "$private"' EXIT
           printf '%s\n' "$RELEASE_PRIVATE_KEY" > "$private/release.key"
           unset RELEASE_PRIVATE_KEY
-          for name in release checkpoint; do
+          for name in release checkpoint checksums; do
+            payload="$RUNNER_TEMP/public-signing/$name.json"
+            if test "$name" = checksums; then payload="$RUNNER_TEMP/public-signing/SHA256SUMS"; fi
             "$RUNNER_TEMP/cosign" sign-blob --yes --use-signing-config=false --tlog-upload=false \
               --key "$private/release.key" --bundle "$private/$name.bundle.json" \
-              "$RUNNER_TEMP/public-signing/$name.json"
+              "$payload"
             jq -er '.messageSignature.signature' "$private/$name.bundle.json" > "$private/$name.sig"
             base64 --decode "$private/$name.sig" > "$private/$name.der"
             openssl dgst -sha256 -verify "$RUNNER_TEMP/public-signing/release.pub" \
-              -signature "$private/$name.der" "$RUNNER_TEMP/public-signing/$name.json"
+              -signature "$private/$name.der" "$payload"
             printf '%s_signature=%s\n' "$name" "$(base64 -w 0 "$private/$name.sig")" >> "$GITHUB_OUTPUT"
           done
           unset COSIGN_PASSWORD
@@ -242,8 +297,10 @@ jobs:
           RELEASE_B64: ${{ needs.prepare.outputs.release }}
           CHECKPOINT_B64: ${{ needs.prepare.outputs.checkpoint }}
           REQUEST_B64: ${{ needs.prepare.outputs.request }}
+          CHECKSUMS_B64: ${{ needs.prepare.outputs.checksums }}
           RELEASE_SIG_B64: ${{ needs.sign-metadata.outputs.release_signature }}
           CHECKPOINT_SIG_B64: ${{ needs.sign-metadata.outputs.checkpoint_signature }}
+          CHECKSUMS_SIG_B64: ${{ needs.sign-metadata.outputs.checksums_signature }}
           QUALIFICATION_JSON: ${{ inputs.qualification_json }}
         run: python3 build/release/promotion.py publish --candidate-dir output/candidate --work output/publication --sysroot target/release/sysroot
       - name: Preserve exact public publication records, including interrupted runs

@@ -34,7 +34,8 @@ environment. It builds public trust into the final candidate, pushes the unsigne
 build to a separate repository, and signs its exact digest in a job without a
 checkout or candidate execution. A separate job anonymously verifies the signed
 GHCR image and its installed source/public key before building an offline-checking
-installer. It records the exact ISO hash/size and download parts in candidate.json.
+installer. Candidate schema version 2 records the exact ISO hash/size, ordered
+download parts and each part's hash, plus packages.txt and provenance.json hashes.
 That descriptor deliberately records fresh_install_qualified=false and cannot be
 used as a promoted release manifest.
 
@@ -70,13 +71,15 @@ fingerprint and refuses a different fingerprint without creating output. This
 qualifies that earlier public-input preparation only. Later authority/keypair
 and environment provisioning are documented separately; no promoted media exists.
 
-`prepare-release.py` prepares exact **unsigned** release/checkpoint bytes after
-review of candidate.json, the installed source.json, the complete ISO and a bound
+`prepare-release.py` prepares exact **unsigned** release/checkpoint/checksum bytes after
+review of candidate.json, the installed source.json, packages.txt, provenance.json,
+the complete ISO, every download part and a bound
 qualification report. It verifies the reviewed candidate hash, source/ISO hashes,
 scope/key, all required manual/E2E installation cases and an actual CLI-verified
 previous channel. It advances sequence/generation and rejects older/repeated build
 run/attempts. Initial preparation requires explicit `--bootstrap`. The output
-signing-request.json binds the expected previous release/checkpoint hashes; the
+signing-request.json binds the exact asset names, sizes and hashes, SHA256SUMS
+bytes and expected previous release/checkpoint hashes; the
 protected publisher compares those to current channel state under
 the target lock before signing/publication. This local producer cannot inspect
 GitHub ordering or establish that someone actually performed a reported test.
@@ -94,6 +97,13 @@ renewal and rotation are not implemented by it. It makes no signing/publishing
 request itself and refuses existing output. The `approval=promoted` value in the
 unsigned bytes is a proposed signing payload, not an actual promoted release.
 
+The producer takes `--packages`, `--provenance` and `--installer-parts-dir` in
+addition to the source, complete installer and qualification inputs. Candidate
+schema version 1 lacks the reviewed inventory/provenance/part hashes and is not
+accepted for this expanded publication path. Historical candidate evidence is
+preserved as produced; do not synthesize these fields for an earlier candidate.
+Release and checkpoint protocol versions remain 1.
+
 ## Protected publication
 
 The manual [promotion workflow](../../.github/workflows/promote.yml) takes a
@@ -107,19 +117,68 @@ The proposed exact payloads and qualification are retained for owner review.
 The protected signing job has no checkout, repository scripts, candidate execution
 or production-write token. It independently checks the approved source, successful
 build, candidate/qualification hashes, public authority and unchanged channel.
-Pinned Cosign 3.1.3 signs exact release/checkpoint bytes using the dedicated key;
-OpenSSL independently verifies both signatures. The key and passphrase are exposed
+It derives the fixed checksum filenames and expected hashes from the exact
+reviewed candidate, metadata, qualification and public authority, then compares
+the entire checksum payload before using a key. Pinned Cosign 3.1.3 signs exact
+release/checkpoint/SHA256SUMS bytes using the dedicated key; OpenSSL independently
+verifies all three signatures. The key and passphrase are exposed
 only in this step and its private temporary directory is removed on exit.
 
 A separate publisher receives signatures but no private key. It repeats native
-signature/freshness and complete ISO verification, creates the versioned release
+signature/freshness and complete ISO verification, independently verifies the
+checksum signature and every named asset, and creates the versioned release
 `desktop-44-x86_64-rSEQUENCE` as a draft, uploads and checks the complete asset
-inventory, then publishes it. Versioned releases are never overwritten. Finally
+inventory, downloads every draft asset and compares its exact bytes before
+publication. Versioned releases are never overwritten. Finally
 it replaces only `channel.json` on `desktop-44-x86_64-channel` and verifies exact
 readback. The bundle contains schema_version=1 plus release and checkpoint, each
 with the original payload string and detached signature string. Clients must
 verify both documents and their own retained replay history. A bundle is discovery
 data, not an extra signature format.
+
+### Inventory, provenance and checksums
+
+The versioned release includes the following additional assets:
+
+- `packages.txt`: the exact build-time `rpm -qa | sort` inventory read from
+  `/usr/share/sysroot/packages.txt` in the signature-verified payload. It lists
+  installed RPM versions; separately bundled, non-RPM software is outside this
+  inventory's scope.
+- `provenance.json`: Kedra's small, explicit `kedra-candidate-provenance` JSON
+  format, schema version 1. It records candidate scope/source/run/attempt/image,
+  installed source and package hashes, RPM-resolution time, whole ISO identity,
+  and the digest-pinned base/builder arguments and observed builder version used
+  by the installer job. It is drawn from that job's actual outputs. It is not
+  SPDX, CycloneDX, SLSA or an independently attested external build statement, and
+  does not claim a complete dependency graph or reproducible build.
+- `SHA256SUMS` and `SHA256SUMS.sig`: lexically ordered ASCII SHA-256 lines with
+  two spaces before each fixed filename and LF endings. They cover the whole
+  ISO, every numbered download part, release/checkpoint JSON, candidate/source/
+  qualification JSON, inventory/provenance and public authority files. The
+  complete ISO is reconstructed from the parts; it is not uploaded above the
+  per-asset size limit. The detached signature is base64-encoded DER
+  ECDSA/P-256 over SHA-256, the same encoding as the release/checkpoint signatures.
+
+Checksums omit themselves and signature files to avoid self-reference. The
+signing request is a review record, not independent authority; the channel
+contains the separately signed release/checkpoint pair. No additional signature
+or provenance field changes installed client release authorization.
+
+After obtaining the public key's fingerprint independently and downloading the
+versioned assets, the checksum signature can be checked with standard tools:
+
+```sh
+sysroot release key --public-key release.pub
+# Compare the reported fingerprint to the independently trusted value.
+openssl base64 -d -in SHA256SUMS.sig -out SHA256SUMS.sig.der
+openssl dgst -sha256 -verify release.pub -signature SHA256SUMS.sig.der SHA256SUMS
+# Assemble the whole ISO using the signed release metadata as documented in docs/RELEASES.md.
+sha256sum --check SHA256SUMS
+```
+
+The final checksum command expects both the downloaded files and the assembled
+ISO in the current directory. It does not replace signature, scope, freshness or
+replay verification by `sysroot release assemble` and the installed helper.
 
 A transient missing channel asset fails closed. A failure after creating a
 versioned draft/release is deliberately not repaired by a blind rerun: inspect

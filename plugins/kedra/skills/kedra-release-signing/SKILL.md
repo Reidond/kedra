@@ -112,3 +112,14 @@ The corrected signed registry/strict-pull/isolated-storage round trip passes
 34253906774 at 7e846f0 with Skopeo 1.13.3 and Podman 4.9.3. Replacement production
 GHCR publication and complete ISO construction still need exact-run evidence.
 Source: R08-release-protocol/owner-candidate-20260908.md; gates R01/R02/R08.
+
+Prepared 2026-09-09 for a later accepted source: candidate schema 2 binds actual
+resolved packages, explicit Kedra provenance and each ISO part hash. The producer
+prepares a fixed ASCII SHA256SUMS payload; the no-checkout signer independently
+derives its complete file/hash inventory before signing. Key-free publication
+verifies that signature, all local assets and downloaded draft bytes. Release
+and checkpoint stay protocol version 1. Earlier candidate schema 1 lacks the
+new evidence and is deliberately not backfilled. Existing c660c58 media must use
+its original workflow. Syntax, independent review and native disposable checksum/
+signature interoperability pass; actual v2 producer/publisher qualification is
+not-run. Sources: build/release/README.md and WL-20260909-02; gate R08.

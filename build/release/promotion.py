@@ -53,6 +53,19 @@ def sha(value):
     return hashlib.sha256(value).hexdigest()
 
 
+def file_identity(path, expected_size):
+    require(path.is_file() and not path.is_symlink(), 'Expected an ordinary release asset')
+    require(type(expected_size) is int and 0 < expected_size <= 64 * 1024**3, 'Invalid release asset size')
+    hasher, size = hashlib.sha256(), 0
+    with path.open('rb') as stream:
+        while chunk := stream.read(min(1024**2, expected_size - size + 1)):
+            size += len(chunk)
+            require(size <= expected_size, 'Release asset exceeds its reviewed size')
+            hasher.update(chunk)
+    require(size == expected_size, 'Release asset is truncated')
+    return {'sha256': hasher.hexdigest(), 'size_bytes': size}
+
+
 def unique(pairs):
     value = {}
     for key, item in pairs:
@@ -168,6 +181,8 @@ def prepare(args):
     command = [sys.executable, ROOT / 'build/release/prepare-release.py',
                '--candidate', evidence / 'candidate.json', '--reviewed-candidate-sha256', sha(candidate),
                '--source', evidence / 'source.json', '--installer', iso,
+               '--installer-parts-dir', args.candidate_dir / 'release-installer',
+               '--packages', evidence / 'packages.txt', '--provenance', evidence / 'provenance.json',
                '--qualification', qualification_path,
                '--public-key', ROOT / 'build/release/authority/desktop.pub',
                '--expected-fingerprint', read(ROOT / 'build/release/authority/desktop.sha256').decode().strip(),
@@ -179,11 +194,14 @@ def prepare(args):
     request['expected_previous_bundle_sha256'] = previous_hash
     request_path.write_text(json.dumps(request, sort_keys=True, indent=2) + '\n')
     with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-        for name in ['release', 'checkpoint', 'signing-request']:
-            output.write(name.replace('-', '_') + '=' + base64.b64encode(read(args.work / f'unsigned/{name}.json')).decode() + '\n')
+        for name, filename in [('release', 'release.json'), ('checkpoint', 'checkpoint.json'),
+                               ('signing_request', 'signing-request.json'), ('candidate', 'candidate.json'),
+                               ('checksums', 'SHA256SUMS')]:
+            output.write(name + '=' + base64.b64encode(read(args.work / 'unsigned' / filename)).decode() + '\n')
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
         summary.write(f'Proposed desktop release {request["sequence"]}, checkpoint {request["generation"]}.\n\n'
                       f'Candidate SHA-256: `{sha(candidate)}`\n\nQualification SHA-256: `{sha(qualification)}`\n\n'
+                      f'SHA256SUMS SHA-256: `{request["sha256sums_sha256"]}`\n\n'
                       f'Source: `{source}`. Inspect qualification.json and exact installation evidence before approving signing.\n')
 
 
@@ -193,6 +211,7 @@ def publish(args):
     signed.mkdir(exist_ok=False)
     for name, variable in [('release.json', 'RELEASE_B64'), ('checkpoint.json', 'CHECKPOINT_B64'),
                            ('release.sig', 'RELEASE_SIG_B64'), ('checkpoint.sig', 'CHECKPOINT_SIG_B64'),
+                           ('SHA256SUMS', 'CHECKSUMS_B64'), ('SHA256SUMS.sig', 'CHECKSUMS_SIG_B64'),
                            ('signing-request.json', 'REQUEST_B64')]:
         value = base64.b64decode(os.environ[variable], validate=True)
         require(0 < len(value) <= (1024 if name.endswith('.sig') else 65_536), 'Signed input exceeds its bound')
@@ -200,7 +219,16 @@ def publish(args):
     request = document(read(signed / 'signing-request.json'))
     release_bytes, checkpoint_bytes = read(signed / 'release.json'), read(signed / 'checkpoint.json')
     require(sha(release_bytes) == request['release_sha256'] and sha(checkpoint_bytes) == request['checkpoint_sha256']
+            and sha(read(signed / 'SHA256SUMS')) == request['sha256sums_sha256']
             and request['source_revision'] == source, 'Signed bytes differ from the reviewed request')
+    identity = document(run(args.sysroot, 'release', 'key', '--public-key',
+                            ROOT / 'build/release/authority/desktop.pub', '--json'))
+    require(identity['key_fingerprint_sha256'] == request['key_fingerprint_sha256'], 'Checksum authority differs')
+    # Same detached base64 DER ECDSA/SHA-256 encoding as the metadata signatures.
+    checksum_der = args.work / 'checksums.der'
+    checksum_der.write_bytes(base64.b64decode(read(signed / 'SHA256SUMS.sig', 1024).strip(), validate=True))
+    run('openssl', 'dgst', '-sha256', '-verify', ROOT / 'build/release/authority/desktop.pub',
+        '-signature', checksum_der, signed / 'SHA256SUMS')
     release = document(release_bytes)
     candidate_identity(str(release['build']['run_id']), str(release['build']['run_attempt']), source)
     verified = verify_channel(signed, args.sysroot)
@@ -222,7 +250,9 @@ def publish(args):
     candidate_bytes = read(evidence / 'candidate.json')
     require(sha(candidate_bytes) == request['candidate_sha256'], 'Publication candidate changed')
     candidate = document(candidate_bytes)
-    require(candidate['installer'] == release['installer'], 'Publication installer differs from signed release')
+    require(candidate['schema_version'] == 2 and all(candidate[key] == release[key] for key in
+            ['project', 'scope', 'source_revision', 'build', 'image_digest', 'home_manifest_sha256', 'installer']),
+            'Publication candidate differs from signed release')
     iso = assemble(args.candidate_dir, candidate, args.work / 'assembled')
     run(args.sysroot, 'release', 'verify', '--manifest', signed / 'release.json', '--signature', signed / 'release.sig',
         '--public-key', ROOT / 'build/release/authority/desktop.pub', '--target', 'desktop', '--artifact', iso, '--json')
@@ -232,8 +262,24 @@ def publish(args):
     (signed / 'candidate.json').write_bytes(candidate_bytes)
     (signed / 'source.json').write_bytes(read(evidence / 'source.json', 1_048_576))
     require(sha(read(signed / 'source.json', 1_048_576)) == release['home_manifest_sha256'], 'Publication source differs')
+    for name, limit in [('packages.txt', 4 * 1024**2), ('provenance.json', 65_536)]:
+        value = read(evidence / name, limit)
+        require(sha(value) == candidate[name.split('.')[0] + '_sha256'], 'Publication inventory/provenance differs')
+        (signed / name).write_bytes(value)
     (signed / 'release.pub').write_bytes(read(ROOT / 'build/release/authority/desktop.pub', 4096))
     (signed / 'release-key.sha256').write_bytes(read(ROOT / 'build/release/authority/desktop.sha256'))
+    checksum_paths = {name: signed / name for name in ['candidate.json', 'source.json', 'qualification.json',
+                      'packages.txt', 'provenance.json', 'release.json', 'checkpoint.json',
+                      'release.pub', 'release-key.sha256']}
+    checksum_paths[iso.name] = iso
+    checksum_paths.update({name: args.candidate_dir / 'release-installer' / name for name in candidate['parts']})
+    require(set(request['assets']) == set(checksum_paths), 'Reviewed checksum inventory differs from fixed release assets')
+    for name, path in checksum_paths.items():
+        expected = request['assets'][name]
+        require(file_identity(path, expected['size_bytes']) == expected, 'Asset differs from reviewed signing request: ' + name)
+    expected_checksums = ''.join(f'{request["assets"][name]["sha256"]}  {name}\n'
+                                 for name in sorted(checksum_paths)).encode('ascii')
+    require(read(signed / 'SHA256SUMS') == expected_checksums, 'Signed checksums differ from actual release assets')
     bundle = {'schema_version': 1,
               'release': {'payload': release_bytes.decode(), 'signature': read(signed / 'release.sig', 1024).decode()},
               'checkpoint': {'payload': checkpoint_bytes.decode(), 'signature': read(signed / 'checkpoint.sig', 1024).decode()}}
@@ -252,11 +298,24 @@ def publish(args):
     run('gh', 'release', 'create', tag, '--repo', REPOSITORY, '--target', source, '--draft',
         '--title', f'Kedra desktop 44 / release {request["sequence"]}', '--notes-file', notes)
     assets = list(sorted(signed.iterdir())) + [args.candidate_dir / 'release-installer' / name for name in candidate['parts']]
+    upload_identities = {}
     for path in assets:
+        identity = file_identity(path, path.stat().st_size)
+        if path.name in request['assets']:
+            require(identity == request['assets'][path.name], 'Release asset changed before upload: ' + path.name)
+        upload_identities[path.name] = identity
         run('gh', 'release', 'upload', tag, path, '--repo', REPOSITORY)
     uploaded = api(f'releases/tags/{tag}')
-    require({asset['name']: asset['size'] for asset in uploaded['assets'] if asset['state'] == 'uploaded'}
-            == {path.name: path.stat().st_size for path in assets}, 'Draft asset inventory differs; leaving draft for inspection')
+    require(len(uploaded['assets']) == len(assets)
+            and {asset['name']: asset['size'] for asset in uploaded['assets'] if asset['state'] == 'uploaded'}
+            == {name: item['size_bytes'] for name, item in upload_identities.items()}, 'Draft asset inventory differs; leaving draft for inspection')
+    # Verify remote bytes, not merely names/sizes, before making the version/channel discoverable.
+    readback = args.work / 'version-readback'
+    readback.mkdir(exist_ok=False)
+    run('gh', 'release', 'download', tag, '--repo', REPOSITORY, '--dir', readback)
+    for name, expected in upload_identities.items():
+        require(file_identity(readback / name, expected['size_bytes']) == expected,
+                'Draft asset readback differs; leaving draft for inspection: ' + name)
     current_source()
     run('gh', 'release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--latest=false')
     with tempfile.TemporaryDirectory(prefix='kedra-channel-recheck-') as temporary:
@@ -275,7 +334,8 @@ def publish(args):
                 'Published channel readback differs; inspect before retry')
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
         summary.write(f'Published [desktop release {request["sequence"]}](https://github.com/{REPOSITORY}/releases/tag/{tag}) '
-                      f'and verified the exact single-bundle channel readback. No machine was enrolled, staged or rebooted.\n')
+                      f'and verified exact versioned asset and single-bundle channel readback. '
+                      'No machine was enrolled, staged or rebooted.\n')
 
 
 parser = argparse.ArgumentParser()

@@ -18,8 +18,8 @@ Last updated: 2026-09-09 (Europe/Kiev).
 | Latest verified check | Main 34255226140 and development checks through b9a68ac pass. R04 caller-home A/B/A, R01/R07 regressions and ten RPM cases pass. Owner media 34255228394 passes all ten manual installation cases. After promotion 34288691672's HTTP 500/draft-lookup failure, exact approved-byte recovery passes all 13 downloaded asset hashes, signed ISO assembly, version/channel publication, anonymous native channel verification and tag-source checks. Production opt-in is restored to true. |
 | R11 | Canonical skill files readable through AGENTS routing; Codex 0.153.4 source/native-help audit explains why its normal scan/cache loading omits this tree. No direct CLI extra-root route was established. Claude authoring validation passed. App Server extra-root/model/editor checks not-run; distribution review remains open. |
 | R03 | Native Noctalia and niri review/discard/recovery pass. Niri publication, source receipts, insertion/deletion, source-ancestry reconciliation and actual signed A/B/A baseline acceptance pass. Wider groups and additional failure phases remain open. See docs/research/R03-home-review/REPORT.md. |
-| Other R01-R10 | R01 strict signing/update/rollback and older-media enrollment pass. R02 signed research installation passes locally; R07 graphical session and native home recovery pass. R08 signature/assembly CLI interoperability passes. Owner release authority/promotion, full home baseline transitions, authentication and physical hardware gates remain open. |
-| Current task | Owner requested full implementation through usable installation. Actual signed graphical A/B/A passes. Isolated production build/sign/installer and protected promotion jobs are prepared for qualification. Owner-authorized key/environment secrets are provisioned; owner confirmed Bitwarden backup and retrieval. Exact production-media qualification and metadata publication/renewal remain active. |
+| Other R01-R10 | R01 strict signing/update/rollback and older-media enrollment pass. R02 exact owner installation passes locally; R07 graphical session and native home recovery pass. R08 owner signing and verified manual publication recovery pass. Repaired automated v2 publication, renewal/rotation, wider home groups, authentication and physical hardware gates remain open. |
+| Current task | Owner requested full implementation through usable installation. Published desktop release 1 and channel generation 1 are verified. The retained generated VM is testing first-time enrollment from that public channel; installation documentation and the next publisher source are being updated. Full-target refresh evidence is a separate development experiment. |
 | Machine effects | QEMU/OVMF and graphical dependencies are installed in existing Ubuntu WSL2; existing Docker Desktop ran pinned offline key tools. Recovery files have protected owner/SYSTEM ACLs. No workstation enrollment, vault/profile edits, host-disk formatting or OS installation. A pre-existing Mise shim unexpectedly removed several installed personal tool versions during command resolution; later commands bypass it. See WL-20260908-20. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
@@ -33,11 +33,12 @@ reports remain authoritative for what was tested.
 
 ### Next concrete actions
 
-Qualify the protected production candidate/promotion path;
-retain the owner's confirmed Bitwarden recovery backup. Preserve the
-successful signed research installation evidence; it does not establish owner
-release authority. RPM refresh/no-change, owner credential setup, independent
-targets and physical qualification remain open.
+Verify public-channel enrollment in the retained generated VM and finish the
+published-media instructions. Accept the repaired publisher and expanded v2
+asset source through CI, then qualify a matching production candidate. Retain
+the owner's confirmed recovery backup. Full-target refresh/no-change, broader
+home groups, owner credential setup, independent targets and physical
+qualification remain open.
 
 ## Work entries
 
@@ -636,3 +637,11 @@ targets and physical qualification remain open.
 - Remaining / blockers: KEDRA_RELEASES_ENABLED was restored to its prior true value and verified. Main, signing authority and environment protections are unchanged. The historical Actions run retains its failed publisher outcome; this manual recovery does not turn it green. The development publisher's ID-based repair and v2 assets still need a later real production execution.
 - Next: Verify first-time enrollment against the public channel in the retained generated VM, update the install guide, and accept the repaired next-source pipeline through normal CI.
 - Public result: https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1 and https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-channel. Full downloaded verification evidence is output/owner-recovery-34288691672. No keys, signatures, approved metadata bytes or qualified ISO changed, and no draft/tag was deleted during recovery.
+
+### WL-20260909-08 — 2026-09-09 — Public enrollment and next publisher preparation
+- Agent / state: Codex with implementation and independent review agents; in-progress.
+- Scope / base: codex/usable-system at 645b835; published owner release 1 remains bound to accepted c660c58 and candidate 34255228394.
+- Completed: Rechecked published-recovery state, production opt-in true and unchanged main. Development publisher now discovers drafts through bounded authenticated listings, uses pinned numeric release/asset IDs for transfers and publication, verifies actual peeled Git tags, and permits only one exact empty-draft readback after an uncertain create acknowledgement. Independent review found no remaining actionable defect. Booted the retained generated disks without ISO using user NAT and no host forwarding, with separate enrollment logs preserving offline installation evidence. Documentation update and separate full-target resolution-evidence implementation are active.
+- Checks / evidence: pass — publisher Python syntax, independent source review, git diff --check and current CI/state readback. not-run — repaired native v2 publication/uncertain-create path and public-channel guest enrollment result.
+- Remaining / blockers: No renewed checkpoint or second release is claimed. Native pipeline qualification and broader lifecycle work remain required. The workstation is not enrolled and no personal profile or credential store is changed.
+- Next: Capture real installed enrollment/status and healthy shutdown, update the guide and evidence, then submit the repaired next source through normal PR/CI.

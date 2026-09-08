@@ -188,8 +188,63 @@ may be replaced to make a rerun pass. The mutable channel release is incompatibl
 with enabling repository-wide immutable releases for every future release; keep
 that channel mutable. Versioned assets are append-only by this workflow.
 
-Preparation/signing/publication under actual production authority, interrupted
-publication recovery and races remain not-run. Syntax parsing and native signer
+Draft discovery uses authenticated, paginated release listings, refusing duplicate
+matches or a lookup that exceeds 60 seconds or 100 pages of 100 releases. GitHub's tag lookup
+returns published releases, so a 404 from that endpoint cannot establish that a
+draft is absent. Draft metadata and asset inventory are checked by numeric release
+ID; publication also updates that exact ID. Uploads use that release ID and
+downloads use the returned, validated asset IDs, without resolving a tag again
+for transfers. Download streams enforce the checked byte size and a 15-minute
+deadline, killing/reaping the CLI on failure. The read-only preparation token's view
+is limited by its access. It does not establish absence of hidden drafts: the
+publisher repeats discovery with its existing `contents:write` token before any
+creation, and refuses visible conflicting drafts without changing permissions.
+
+Each new draft body includes the promotion run, attempt and exact signing-request
+hash. A create request is submitted once, with a 60-second CLI timeout. If it
+returns an error or times out, one bounded
+authenticated lookup may continue only with a unique, empty draft matching that
+operation's exact tag, source, title, complete marked body and unpublished state.
+An absent, ambiguous, changed or populated result stops for explicit recovery.
+Pre-existing drafts always refuse a new attempt, including a rerun with the same
+requested release. There is no create retry, version overwrite or automatic draft
+deletion. This handles only an uncertain acknowledgement within the current
+invocation, not general interrupted-publication recovery.
+
+Observed 2026-09-09: the earlier accepted v1 publisher's create returned HTTP 500
+in run 34288691672 while GitHub retained empty draft 385117864 for
+`desktop-44-x86_64-r1`. Authenticated list and ID reads returned that draft while
+the tag endpoint returned 404. That observation motivates this development
+repair; it does not qualify the repaired v2 publisher or authorize automatic
+adoption of the earlier draft. Sources:
+[GitHub release listing/access](https://docs.github.com/en/rest/releases/releases#list-releases),
+[release lookup by ID](https://docs.github.com/en/rest/releases/releases#get-a-release)
+and [release updates](https://docs.github.com/en/rest/releases/releases#update-a-release).
+
+Immediately before each mutation, the publisher rechecks the accepted source and
+the applicable draft/channel metadata and asset inventory. Version assets are
+never deleted or replaced. The sole replacement path is the current channel:
+it deletes only the exact old `channel.json` asset ID whose bytes were already
+downloaded and verified, checks that exact removal and unchanged surrounding
+metadata, then uploads once to the same release ID. Any unexpected asset, changed
+release or uncertain mutation stops for explicit recovery. Final readback binds
+the new channel's release ID, asset ID and full byte hash. This preserves the
+existing fail-closed availability gap during replacement; it is not an atomic
+server-side transaction with independent writers. See
+[GitHub release asset APIs](https://docs.github.com/en/rest/releases/assets).
+
+Before publishing a version or the initial channel draft, the real Git tag must
+be absent or resolve to the accepted source; annotated tags are peeled with a
+bounded lookup. After publication it must resolve to that exact source.
+`target_commitish` alone is insufficient because GitHub ignores it when the tag
+already exists. A mismatch is never repaired by moving the tag. Later updates to
+the existing mutable channel retain its historical Git tag; only its verified
+discovery asset advances. See [Git references](https://docs.github.com/en/rest/git/refs#get-a-reference)
+and [annotated tags](https://docs.github.com/en/rest/git/tags#get-a-tag).
+
+Expanded v2 preparation/signing/publication under actual production authority,
+uncertain-create continuation, interrupted-publication recovery and races remain
+not-run. Syntax parsing and native signer
 help inspection do not qualify those behaviors. No-change renewal, expired-channel
 recovery and key rotation remain separate unfinished work.
 

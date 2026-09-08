@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use sysroot_helper::storage::Store;
 
+mod activation;
 mod transition;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -101,10 +102,16 @@ struct State {
     selected: Vec<Change>,
     ignored: Vec<Change>,
     published: Vec<Publication>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pending_activation: Option<String>,
 }
 impl State {
     fn validate(&self, instance: &str) -> Result<()> {
         if self.schema_version != 1
+            || self
+                .pending_activation
+                .as_ref()
+                .is_some_and(|v| !hex(v, 32))
             || self.instance != instance
             || !hex(&self.baseline.source_revision, 40)
             || self.published.len() > 128
@@ -472,7 +479,7 @@ fn installed() -> Result<Baseline> {
         contents: content(&bytes)?,
     })
 }
-fn live() -> Result<String> {
+fn live_path() -> Result<PathBuf> {
     let requested_home = PathBuf::from(std::env::var_os("HOME").ok_or("HOME is unavailable")?);
     if !requested_home.is_absolute() {
         return Err("HOME must be absolute".into());
@@ -492,8 +499,11 @@ fn live() -> Result<String> {
             "NIRI_CONFIG selects a different file; it is not adopted by this adapter".into(),
         );
     }
+    Ok(home.join(FILE))
+}
+fn live() -> Result<String> {
     content(&linux::read_regular(
-        &home.join(FILE),
+        &live_path()?,
         rustix::process::geteuid().as_raw(),
         LIMIT,
     )?)
@@ -598,6 +608,7 @@ pub(super) fn run(
             selected: Vec::new(),
             ignored: Vec::new(),
             published: Vec::new(),
+            pending_activation: None,
         }
     } else {
         let record = record.ok_or("initialize home review, then use home file init --reviewed-safe after reviewing niri for secrets")?;
@@ -605,6 +616,14 @@ pub(super) fn run(
             .map_err(|_| "niri text state is malformed; preserve the store")?
     };
     state.validate(instance)?;
+    if activation::handles(command) {
+        return activation::run(store, parent, &state, command);
+    }
+    if state.pending_activation.is_some()
+        && !matches!(command, TextCommand::Status | TextCommand::Selection)
+    {
+        return Err("niri activation is pending; inspect home file recover first".into());
+    }
     if let TextCommand::Plan { repo, commit } = command {
         return transition::preview(&state, parent, repo, commit.as_deref());
     }
@@ -754,6 +773,7 @@ pub(super) fn run(
     if let Some(result) = source_result {
         response["source"] = result;
     }
+    response["pending_activation"] = serde_json::json!(state.pending_activation);
     println!("{}", serde_json::to_string_pretty(&response)?);
     Ok(())
 }

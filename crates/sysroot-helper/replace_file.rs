@@ -240,6 +240,46 @@ impl Directory {
     pub fn read(&self, filename: &str) -> Result<Option<Vec<u8>>> {
         Ok(snapshot(&self.descriptor, filename, self.owner)?.map(|snapshot| snapshot.bytes))
     }
+
+    /// Run a native validator with the real parent directory for relative includes.
+    /// The bounded private I/O file is never a review snapshot or Git object.
+    pub fn validate_bytes(
+        &self,
+        token: &str,
+        bytes: &[u8],
+        validate: impl FnOnce(&Path) -> Result<()>,
+    ) -> Result<()> {
+        if !hex(token, 32) || bytes.len() > MAX_FILE {
+            return Err("invalid validation token or file size".into());
+        }
+        let filename = format!(".sysroot-check-{token}");
+        let fd = fs::openat(
+            &self.descriptor,
+            &filename,
+            OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::from_raw_mode(0o600),
+        )?;
+        let mut file = File::from(fd);
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        let expected = snapshot(&self.descriptor, &filename, self.owner)?
+            .ok_or("validation file disappeared")?
+            .identity;
+        let path = std::path::PathBuf::from(format!(
+            "/proc/{}/fd/{}/{}",
+            std::process::id(),
+            self.descriptor.as_raw_fd(),
+            filename
+        ));
+        let result = validate(&path);
+        if snapshot(&self.descriptor, &filename, self.owner)?.map(|s| s.identity) != Some(expected)
+        {
+            return Err("validation file changed; preserve it for manual review".into());
+        }
+        fs::unlinkat(&self.descriptor, &filename, AtFlags::empty())?;
+        fs::fsync(&self.descriptor)?;
+        result
+    }
     fn work_name(token: &str) -> Result<String> {
         if !hex(token, 32) {
             return Err("invalid file transaction token".into());

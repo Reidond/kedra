@@ -206,6 +206,7 @@ pub(super) fn preview(
         selected,
         ignored,
         published: future,
+        pending_activation: None,
     };
     after.validate(&state.instance)?;
     let state_hash = hash(&serde_json::to_vec(state)?);

@@ -89,6 +89,25 @@ enum Command {
 
 #[derive(Subcommand)]
 enum TextCommand {
+    /// Preview restoring one live change to its pinned selection or public reference.
+    DiscardPlan { change: String },
+    /// Apply an exact discard plan and load the managed file into the running niri session.
+    Discard {
+        change: String,
+        #[arg(long)]
+        plan: String,
+        /// Explicitly select .config/niri/config.kdl as the session's active configuration.
+        #[arg(long, required = true)]
+        activate_managed_file: bool,
+    },
+    /// Inspect or recover an interrupted niri file discard.
+    Recover {
+        #[arg(value_enum)]
+        action: Option<Recovery>,
+        /// Required for recovery actions that reload the managed configuration.
+        #[arg(long)]
+        activate_managed_file: bool,
+    },
     /// Preview a committed source baseline without changing live files or accepted state.
     Plan {
         #[arg(long, default_value = ".")]

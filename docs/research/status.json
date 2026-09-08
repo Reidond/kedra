@@ -7,8 +7,8 @@
       "topic": "Image signing and bootc enforcement",
       "prototype_status": "pass",
       "report": "R01-signatures/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34242602458",
-      "note": "Actual signed helper regression at 3d29689 passes older-media enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold and explicit resume. Signed-origin research installation passes R02. Production authority, promotion and rotation remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34253906774",
+      "note": "Actual signed helper regression at 7e846f0 passes older-media enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold and explicit resume. Native digest-preserving signed registry/storage/isolated-storage copy also passes. Signed-origin research installation passes R02; owner replacement signature passes R08. Production promotion and rotation remain open."
     },
     {
       "id": "R02",
@@ -70,7 +70,7 @@
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Channel/unpack CLI passes Windows and Linux workspace 34249793986 at f8a2cb8. Dedicated P-256 authority is provisioned in the protected main-only owner-reviewed environment; owner confirms Bitwarden backup/retrieval. Owner-approved candidate 34250485539 at accepted main 3b1bcdf passes isolated image signing, anonymous strict pull and embedded trust checks, then fails ISO assembly on compressed layer identity. Native digest-preserving publication and storage round-trip correction is under qualification. No production installation/promotion; interrupted publication recovery, renewal and rotation remain open."
+      "note": "Channel/unpack CLI passes Windows/Linux at f8a2cb8. Dedicated P-256 authority is provisioned in the protected owner-reviewed main-only environment; owner confirms Bitwarden backup/retrieval. First candidate 34250485539 fails compressed layer identity in ISO assembly. Corrected signed native round trip passes R01 34253906774; replacement 34255228394 at accepted main c660c58 passes public build, GHCR/storage guard, separately owner-approved signing and independent anonymous manifest/OpenSSL verification. Installer execution is in progress. Production installation/promotion, interrupted publication recovery, renewal and rotation remain open."
     },
     {
       "id": "R09",

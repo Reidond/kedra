@@ -2,12 +2,14 @@
 
 The owner requested full implementation through a usable, understandable installer,
 with disposable VM testing. Public artifacts may contain reviewed project files
-only. Work is on codex/usable-system. PR 1 merged as main 3b1bcdf on 2026-09-08;
-production candidate 34250485539 passed owner-approved signing and anonymous
-strict pull, then failed ISO construction on compressed layer identity. It is
-retained and not promotable. The development branch corrects initial publication
-to preserve native OCI bytes and qualifies the registry/storage round trip before
-requesting a replacement signing review. Read AGENTS.md, the current
+only. Work is on codex/usable-system. PR 2 merged as main c660c58 on 2026-09-08.
+First candidate 34250485539 failed compressed layer identity during ISO assembly;
+the native digest-preserving correction passes signed R01 round-trip and VM
+regression 34253906774. Replacement candidate 34255228394 passes its public build,
+GHCR/storage guard and separately owner-approved isolated signing of bb4f2b68.
+Independent anonymous manifest/signature verification passes. Its installer job
+is running; main remains fixed at c660c58 during qualification. Later work stays
+on the development branch. Read AGENTS.md, the current
 worklog snapshot and latest entries, then the relevant source/research evidence.
 
 ## Owner testing decision — 2026-09-08
@@ -36,7 +38,9 @@ recovery files are backed up in Bitwarden and retrieval is confirmed by the owne
 (2026-09-08); the agent did not access the vault. Production workflow opt-in remains
 enabled for the manual workflow; no promoted media exists. Candidate signing must
 wait at the configured owner-review environment for each exact candidate. The
-first candidate's approval does not approve a replacement digest.
+owner separately approved replacement 34255228394 on 2026-09-09 (Europe/Kiev);
+that approval has been submitted and signing passed. No further approval is
+needed to follow its already authorized ISO/VM qualification.
 No workstation enrollment has occurred.
 
 R01 native signed helper run 34228725707 at 94678f6 passes older-media enrollment against a newer fresh channel, metadata/OCI

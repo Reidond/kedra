@@ -8,7 +8,7 @@
       "prototype_status": "pass",
       "report": "R01-signatures/REPORT.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34253906774",
-      "note": "Actual signed helper regression at 7e846f0 passes older-media enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold and explicit resume. Native digest-preserving signed registry/storage/isolated-storage copy also passes. Signed-origin research installation passes R02; owner replacement signature passes R08. Production promotion and rotation remain open."
+      "note": "Actual signed helper regression at 7e846f0 passes older-media enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold and explicit resume. Native digest-preserving signed registry/storage/isolated-storage copy also passes. Owner r1 installation, signed metadata/publication recovery and first public-channel enrollment pass separately in R02/R08. Rotation and broader lifecycle cases remain open."
     },
     {
       "id": "R02",
@@ -17,7 +17,7 @@
       "report": "R02-installer/REPORT.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34255228394",
       "prototype_status": "pass",
-      "note": "Owner media at accepted c660c58 passes all ten v1 manual installation cases: full ISO/source/key hashes, offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and both stopped-sentinel comparisons. Exact owner digest and containerPolicy match; installed helper accepts inherited trust and reports unenrolled. Both QEMU sessions exit 0; all local VMs are stopped. Metadata promotion/enrollment, full recovery and hardware remain open."
+      "note": "Owner media at accepted c660c58 passes all ten v1 manual installation cases: full ISO/source/key hashes, offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and both stopped-sentinel comparisons. Exact owner digest and containerPolicy match. The same media is published as desktop-44-x86_64-r1 after verified exact-byte recovery. Public-channel enrollment, repeat refusal with unchanged status, doctor, clean shutdown and final sentinel preservation also pass in the retained VM, with separate R08 evidence. Post-enrollment reboot persistence, full recovery and physical hardware remain open."
     },
     {
       "id": "R03",
@@ -70,7 +70,11 @@
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Dedicated P-256 authority and protected owner-reviewed main-only environment are provisioned; owner confirms Bitwarden backup/retrieval. After the first compressed-layer ISO failure, replacement 34255228394 at accepted c660c58 passes owner-approved signing, anonymous native verification, complete ISO construction and all ten exact-media manual installation cases. Candidate/source/key/ISO/booted identities match. Native RPM snapshot experiment 34286322016 passes ten fixture-only cases. Production metadata promotion/enrollment, whole-target equivalence, interrupted publication recovery, renewal and rotation remain open."
+      "recovery_report": "R08-release-protocol/owner-promotion-34288691672.md",
+      "enrollment_report": "R08-release-protocol/owner-r1-enrollment/REPORT.md",
+      "release_url": "https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1",
+      "channel_url": "https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-channel",
+      "note": "Dedicated P-256 authority and protected owner-reviewed main-only environment are provisioned; owner confirms Bitwarden backup/retrieval. Exact owner media 34255228394 at c660c58 passes installation and is published as r1. Promotion 34288691672 passed owner-approved metadata signing but retains its failed HTTP500 publisher outcome. Bounded key-free recovery passed all 13 downloaded asset hashes, native signed ISO assembly, version/channel publication, anonymous channel verification and exact tag-source checks; production opt-in was restored true. Public-channel enrollment, repeat refusal/state preservation, doctor and clean shutdown/sentinel checks also pass. Native RPM experiment 34286322016 passes ten fixture-only cases. Repaired v2 publication/expanded assets, owner reboot persistence/forward update, whole-target equivalence, general interruption/race recovery, renewal and rotation remain open."
     },
     {
       "id": "R09",
@@ -85,7 +89,7 @@
       "prototype_status": "pass",
       "report": "R10-state/REPORT.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34208979891",
-      "note": "Installed helper authorization, fixed trust/state, strict native enrollment/staging/rollback/hold pass at bb53ce7. Related-record transactions and generated file/recovery tests pass workspace 34217852366. Native process-kill/full-disk faults, production authority and full offline recovery remain open."
+      "note": "Installed helper authorization, fixed trust/state, strict native enrollment/staging/rollback/hold pass at bb53ce7. Related-record transactions and generated file/recovery tests pass workspace 34217852366. First enrollment against the published r1 owner channel also passes with exact booted image, sequence/generation and no staged operation. Further privileged interruption/full-disk cases and full offline recovery remain open."
     },
     {
       "id": "R11",

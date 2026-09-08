@@ -1,5 +1,23 @@
 # R08/R10: release verification subset
 
+2026-09-09 publication milestone: owner release
+[desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1)
+and its [signed channel](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-channel)
+are published. The owner approved metadata directly in GitHub. Promotion
+34288691672 completed preparation/signing but failed after an HTTP 500 left an
+empty draft; its failed conclusion is preserved. Bounded key-free recovery reused
+the exact approved bytes, verified all 13 downloaded assets and the reconstructed
+ISO, published version then channel, verified anonymous native channel consumption,
+and checked both Git tags against accepted `c660c58`. Production opt-in was restored
+to true. See the [exact recovery report](owner-promotion-34288691672.md).
+First public-channel enrollment, repeat-enrollment refusal with unchanged state,
+required desktop health and clean shutdown/sentinel checks also pass in the
+retained r1 VM; its [separate report](owner-r1-enrollment/REPORT.md) records the
+scope. Post-enrollment reboot persistence and a new owner image were not tested.
+V2 checksum/inventory/provenance publication,
+the repaired publisher's native execution, whole-target equivalence, renewal and
+rotation remain open; overall R08 is not complete.
+
 2026-09-09 owner-media milestone: separately approved candidate 34255228394 at
 accepted `c660c58` passes native signing/registry-storage compatibility, ISO
 construction and all ten exact-media manual installation cases. Installed bootc
@@ -7,7 +25,8 @@ uses the exact owner digest with containerPolicy; source/key identity, doctor,
 mounts and retained sentinel pass. See the
 [candidate record](owner-candidate-34255228394.md) and
 [public installation evidence](../R02-installer/owner-34255228394/REPORT.md).
-Metadata promotion/enrollment, lifecycle renewal and rotation remain open.
+Metadata promotion and first public-channel enrollment later completed through
+the follow-ups above. Lifecycle renewal and rotation remain open.
 The historical preparation and earlier research results below retain their scope.
 
 2026-09-08 protected-publisher preparation: promote.yml now separates public

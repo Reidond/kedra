@@ -1,0 +1,9 @@
+{
+  "phase": "after public-channel enrollment and clean guest shutdown",
+  "command": "qemu-img compare -f qcow2 -F qcow2",
+  "unselected_disk": "KEDRA-KEEP-DATA",
+  "virtual_size_bytes": 68719476736,
+  "exit_code": 0,
+  "stdout": "Images are identical.\n",
+  "status": "pass"
+}

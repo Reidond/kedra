@@ -1,0 +1,3 @@
+sysroot: the installed helper will independently verify this request; no reboot or home activation is requested
+sysroot-helper: state I/O: File exists (os error 17)
+sysroot: installed management helper refused or could not complete the request

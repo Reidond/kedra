@@ -174,10 +174,15 @@ Recovery status validates the stored journal and reservation relationship withou
 opening native checkpoints. The explicit recovery command checks whether those
 checkpoints and the current native file still permit a chosen recovery action.
 
-The new assessment's Linux/native qualification is pending. The R04 signed A/B/A
-fixture exercises the actual public CLI for absence, preserved independent home
+Linux [workspace 34287224455](https://github.com/Reidond/kedra/actions/runs/34287224455)
+and signed [R04 A/B/A 34287224388](https://github.com/Reidond/kedra/actions/runs/34287224388)
+pass at `8288cc2` (2026-09-09, Europe/Kiev). The R04 fixture exercises the actual
+public CLI for absence, preserved independent home
 decisions, B mismatch/explicit acceptance, rollback mismatch, real process-kill
-recovery and unavailable stores/profiles. Its generated guest has a root-owned,
+recovery and unavailable stores/profiles. It checks both groups independently:
+after niri accepts B, Noctalia's unaccepted B keeps the overall assessment at
+`reconciliation_required`; after explicit niri rollback handling, both match A.
+Its generated guest has a root-owned,
 `visudo`-checked grant limited to the installed helper with no arguments; that
 unattended fixture is not evidence of interactive password authentication and
 the grant is never part of the production or shared image.

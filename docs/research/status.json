@@ -35,9 +35,9 @@
       "status": "blocked",
       "topic": "Activation, writers, rollback",
       "report": "R04-activation/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34243567959",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34287224388",
       "prototype_status": "pass",
-      "note": "Actual signed graphical A/B/A passes at f45b55a: B native baseline acceptance preserves independent L/S/I/P, rollback detects/refuses the home conflict, explicit CLI resolution accepts A, and replay high-water/hold/policy survive. Process-kill recovery also passes earlier R07. Wider groups, old schemas, power loss/full disk remain open."
+      "note": "Actual signed graphical A/B/A passes at 8288cc2 with optional per-caller home assessment. It distinguishes absence/unavailable/reconciliation/recovery, preserves L/S/I/P, checks both Noctalia/niri and overall precedence through B acceptance and retained-A rollback, and reports real killed-CLI recovery. No-flag/helper protocol is unchanged and private home state stays outside root. Wider groups, power loss/full disk and full old-schema compatibility remain open."
     },
     {
       "id": "R05",
@@ -63,7 +63,7 @@
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34287224389",
-      "note": "Full graphical session/doctor/portal/keyring/Codex/Bitwarden and existing native home recovery/current-baseline checks pass at 8288cc2. Actual owner ISO-free desktop also passes its R02 session scope. New caller-home A/B/A assessment is separately pending R04. Physical hardware, screen sharing and real owner credentials remain unqualified."
+      "note": "Full graphical session/doctor/portal/keyring/Codex/Bitwarden and existing native home recovery/current-baseline checks pass at 8288cc2. New caller-home A/B/A assessment also passes its separate R04 run. Actual owner ISO-free desktop passes its R02 session scope. Physical hardware, screen sharing and real owner credentials remain unqualified."
     },
     {
       "id": "R08",

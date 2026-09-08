@@ -1,8 +1,9 @@
 # Replacement owner-trust desktop candidate
 
-Date: 2026-09-08. Status: public build and registry/storage compatibility pass;
-the protected image-signing job is awaiting exact owner review. No replacement
-image signature, ISO, fresh installation or metadata promotion is claimed.
+Date: 2026-09-09. Status: public build, registry/storage compatibility and
+owner-approved isolated signing pass. Independent anonymous manifest access and
+OpenSSL signature verification pass. ISO construction is running; fresh
+installation and metadata promotion remain not-run.
 
 | Identity / check | Observed result |
 |---|---|
@@ -17,8 +18,10 @@ image signature, ISO, fresh installation or metadata promotion is claimed.
 | Environment protection | pass — sole Reidond reviewer, main-only, administrator bypass disabled |
 | Native registry round trip | pass — first push preserves digest; pull and isolated-storage copy retain the same digest |
 | bootc lint | 11 pass, 1 skipped, 2 retained warnings |
-| Owner image signing | pending owner review |
-| Signed anonymous pull / ISO / installation / promotion | not-run |
+| Owner image signing | pass — explicit approval and isolated Skopeo job |
+| Public manifest / detached OCI signature | pass — anonymous exact digest and independent OpenSSL verification |
+| Native signed pull / ISO | in-progress in installer job |
+| Installation / promotion | not-run |
 
 The first candidate failed after successful signing because ordinary registry
 publication compressed native OCI layers. This replacement preserves the native
@@ -46,9 +49,13 @@ and /var entries without matching tmpfiles rules. They are not a failed lint
 result or a substitute for installed health checks. Fresh owner-media installation
 must verify the exact booted digest, SELinux, mounts, services and doctor.
 
-The owner's earlier signing approval applies only to failed candidate 34250485539.
-This run is waiting in the existing kedra-desktop-signing environment, ID
-21492153153. Main still matches the accepted source above. The requested action
-is isolated signing of this exact candidate; it does not promote metadata or
-install anything on the workstation. Dedicated key recovery remains confirmed by
-the owner; no vault, SSH key or personal profile was accessed.
+The owner separately approved this replacement on 2026-09-09 (Europe/Kiev).
+After unchanged-source/digest readback, approval was submitted to the existing
+kedra-desktop-signing environment, ID 21492153153, and the signing job passed.
+Anonymous registry access returns the exact manifest; native OpenSSL independently
+verifies the published OCI payload/signature against the dedicated public key.
+The signed identity is `ghcr.io/reidond/kedra-desktop:candidate-34255228394-1`.
+Public proof is retained under the candidate artifact's local `registry-signature`
+directory. This does not promote metadata or install anything on the workstation.
+Dedicated key recovery remains confirmed by the owner; no vault, SSH key or
+personal profile was accessed.

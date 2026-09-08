@@ -101,6 +101,12 @@ not yet been tested. The older legacy ISO remains rejected and was not booted.
   the upstream demonstration README. Added the standard osbuild SELinux stage
   before packaging, with pipeline-drift refusal and an enforcing-userspace smoke
   test. Corrected build/runtime results are pending.
+  Corrected [run 34180796587](https://github.com/Reidond/kedra/actions/runs/34180796587)
+  at `da140ff` passes the standard labeling stage, packaged systemd `init_exec_t`
+  check and diskless enforcing-userspace boot. ISO: 2,541,139,968 bytes, SHA-256
+  `85753341b9070938590d9e9c9a70bd7f67d44e4ba685e0be5627eb390566b74e`.
+  This smoke uses the ISO's extracted kernel/initramfs and unchanged stage2;
+  corrected-media UEFI/UI/disk/encryption/account installation remains pending.
 - Interactive multi-disk installer, encryption and account creation: not-run.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).
 - Desktop package build and graphical session subset: pass (R07); physical qualification remains open.

@@ -16,8 +16,10 @@ CLI. `--runtime user` uses the personal executable on absolute PATH entries, or 
 explicit absolute `--executable`. Missing personal executables fail without a
 bundled fallback. The default bundled path is
 `/usr/libexec/sysroot/agents/NAME/bin/NAME`, outside ordinary PATH. Bundled agents
-are not yet installed by the image assembly. `--print-plan` runs `--version` but
-does not create a profile, take the checkout lock, or start an agent session.
+are not yet installed by the image assembly. `--print-plan` runs `--version` in
+a disposable private configuration directory; it does not create a persistent
+profile, take the checkout lock, or start an agent session. Native CLI startup can
+write runtime files even when only help/version was requested.
 
 The checkout comes from `--repo`, `SYSROOT_REPO`, or `~/src/kedra`. Its local origin
 must identify Reidond/kedra using the documented GitHub HTTPS or SSH spelling.

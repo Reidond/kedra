@@ -1,5 +1,6 @@
 """Native launcher probes under a generated user home and no network namespace."""
 import argparse
+import hashlib
 import json
 import os
 import pathlib
@@ -17,6 +18,12 @@ if os.geteuid() == 0:
 args.work.mkdir(mode=0o700)
 home = args.work / 'home'
 home.mkdir(mode=0o700)
+personal = home / '.codex'
+personal.mkdir(mode=0o700)
+(personal / 'config.toml').write_text('# synthetic personal preferences; preserve exactly\n')
+def snapshot(directory):
+    return {str(p.relative_to(directory)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in directory.rglob('*') if p.is_file() and not p.is_symlink()}
 repo = args.work / 'checkout'
 repo.mkdir()
 repo.joinpath('hosts/desktop').mkdir(parents=True)
@@ -33,6 +40,7 @@ before = subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain
 results = []
 for runtime in ['bundled', 'user']:
     for scope in ['management', 'personal']:
+        personal_before = snapshot(personal)
         command = [str(args.sysroot), 'codex', '--repo', str(repo), '--runtime', runtime, '--config-scope', scope]
         if runtime == 'user':
             command.extend(['--executable', str(args.packages / 'personal-codex/bin/codex')])
@@ -46,11 +54,13 @@ for runtime in ['bundled', 'user']:
                 raise RuntimeError(f'Native invocation failed: {runtime}/{scope}/{upstream}')
         results.append({'runtime': runtime, 'scope': scope, 'version': plan['version'],
                         'version_help_login_help': 'pass', 'deployment_authorized': False})
+        if scope == 'management' and personal_before != snapshot(personal):
+            raise RuntimeError('Management launch changed personal profile files')
 after = subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain=v1'], env=environment)
 if before != after or repo.joinpath('untracked').read_text() != 'must remain untouched\n':
     raise RuntimeError('Checkout changed during read-only native probes')
-if (home / '.codex').exists():
-    raise RuntimeError('Help/version probe unexpectedly created a personal profile')
+if (personal / 'config.toml').read_text() != '# synthetic personal preferences; preserve exactly\n':
+    raise RuntimeError('Personal configuration changed')
 args.evidence.mkdir(parents=True, exist_ok=True)
 (args.evidence / 'native-results.json').write_text(json.dumps(results, indent=2) + '\n')
 print('PASS: native Codex 0.153.4/0.153.3 runtime and config selection; unchanged checkout/personal profile')

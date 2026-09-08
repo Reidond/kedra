@@ -43,6 +43,16 @@ home in a network namespace without network access. This native workflow is pend
 Only safe result JSON/version/signature evidence is uploaded, not binaries,
 profiles, transcripts or auth state. Public OS packaging remains disabled.
 
+Native run 34182176074 at `3be3030` verifies all three Sigstore bundles, but fails
+the personal-profile assertion. Upstream Codex initializes argument-zero runtime
+helpers before parsing help/version. The wrapper now probes versions with a
+disposable private CODEX_HOME/CLAUDE_CONFIG_DIR while keeping HOME unchanged.
+The corrected native test preserves a seeded personal config and checks personal
+files before/after management launches; explicit personal launches may perform
+normal upstream runtime writes. Corrected execution is pending. A local `/tmp`
+probe also shows Codex's deliberate refusal to put argument-zero helpers there;
+version output still succeeds. No real account or model request was involved.
+
 Remaining: official binary write/discovery traces, full
 runtime/profile matrix, personal-version updates and OS rollback, signal/PTY and
 long-lived child behavior, credential identities, redistribution prerequisites,

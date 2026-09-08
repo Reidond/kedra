@@ -8,6 +8,26 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static PROBE_NUMBER: AtomicU64 = AtomicU64::new(0);
+struct VersionProbe(PathBuf);
+impl VersionProbe {
+    fn new() -> Result<Self> {
+        let path = std::env::temp_dir().join(format!(
+            "kedra-agent-version-{}-{}",
+            std::process::id(),
+            PROBE_NUMBER.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::DirBuilder::new().mode(0o700).create(&path)?;
+        Ok(Self(path))
+    }
+}
+impl Drop for VersionProbe {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -132,8 +152,13 @@ fn select(
             path
         }
     };
+    // Native Codex performs argument-zero setup before parsing --version. Do
+    // not let this discovery step write into the caller's personal profile.
+    let probe = VersionProbe::new()?;
     let output = Command::new(&binary)
         .arg("--version")
+        .env("CODEX_HOME", &probe.0)
+        .env("CLAUDE_CONFIG_DIR", &probe.0)
         .env_remove("BW_SESSION")
         .stdin(Stdio::null())
         .output()?;

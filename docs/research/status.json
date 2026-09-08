@@ -17,7 +17,7 @@
       "report": "R02-installer/REPORT.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34165475139",
       "prototype_status": "pass",
-      "note": "Minimal QCOW2/UEFI passes. Generic graphical ISO build 34176407860 at 76dc82a passes boot-config inspection; interactive two-disk/encryption/account/signature handoff tests pending."
+      "note": "Minimal QCOW2/UEFI passes. Generic media labels and basic userspace passed, but local enforcing-media UI failed. ADR 0010 follows Fedora media-only permissive mode; ADR 0011 guards local-source network/admin fixes. Rebuilt-media installation, installed enforcement, signed origin and sentinel retention are pending."
     },
     {
       "id": "R03",
@@ -37,8 +37,12 @@
     },
     {
       "id": "R05",
-      "status": "not-run",
-      "topic": "Agent packaging and independence"
+      "status": "blocked",
+      "topic": "Agent packaging and independence",
+      "prototype_status": "pass",
+      "report": "R05-agents/REPORT.md",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34182776503",
+      "note": "Linux wrapper tests and native Codex 0.153.4/0.153.3 four-way runtime/profile help/version probes pass, including three Sigstore bundles. Authenticated model use, external discovery, full rollback and public packaging/Claude preinstallation prerequisites remain open."
     },
     {
       "id": "R06",
@@ -51,8 +55,8 @@
       "topic": "Desktop session and hardware",
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34179189185",
-      "note": "Graphical login, services, keyring and native Noctalia projection pass at d74c4c0. Inspected virtual scanout remains cramped. Physical display/audio/suspend, screen sharing and owner credentials unqualified."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34184975810",
+      "note": "Graphical login/services/keyring/native Noctalia projection pass; actual 1280x768 window and guest capture verified at afb8a67. Physical display/audio/suspend, screen sharing and owner credentials remain unqualified."
     },
     {
       "id": "R08",

@@ -113,6 +113,14 @@ not yet been tested. The older legacy ISO remains rejected and was not booted.
   permissive installer policy and media-only install-user account. New media
   follows that contract while the desktop payload stays enforcing; a stronger
   Anaconda service/log smoke and actual installed enforcement are required.
+- Updated [run 34185915639](https://github.com/Reidond/kedra/actions/runs/34185915639)
+  at `cfc956d` passes Anaconda service/log startup under the upstream installer
+  SELinux mode, the separate enforcing desktop configuration check, labels and
+  both guarded native-property adaptations (ADR 0011). ISO: 2,550,966,272 bytes,
+  SHA-256 `f6240416ff5adae95b98e34d3f093329228c72588abb527aecfced1871209db5`.
+  The old-media diagnostic VM was stopped without starting installation; the
+  unselected disk compares identical. New-media transfer is in progress; actual
+  acceptance must use a fresh VM without the diagnostic kernel override.
 - Interactive multi-disk installer, encryption and account creation: not-run.
 - Registry origin and enforced signed A-to-B updates: not-run (R01).
 - Desktop package build and graphical session subset: pass (R07); physical qualification remains open.

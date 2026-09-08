@@ -21,6 +21,7 @@ toml.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 rustix.workspace = true
+sysroot-helper.workspace = true
 
 [lints]
 workspace = true

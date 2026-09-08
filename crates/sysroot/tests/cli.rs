@@ -14,7 +14,7 @@ fn status_distinguishes_source_planning_from_deployment() {
 
 #[test]
 fn operational_commands_fail_closed() {
-    for command in ["update", "deploy", "rollback", "home", "setup"] {
+    for command in ["update", "deploy", "rollback", "setup"] {
         let output = Command::new(env!("CARGO_BIN_EXE_sysroot"))
             .arg(command)
             .output()
@@ -23,6 +23,16 @@ fn operational_commands_fail_closed() {
         assert!(output.stdout.is_empty());
         assert!(String::from_utf8_lossy(&output.stderr).contains("not implemented"));
     }
+}
+
+#[test]
+fn home_review_does_not_expose_unimplemented_activation() {
+    let output = Command::new(env!("CARGO_BIN_EXE_sysroot"))
+        .args(["home", "--state", "/generated-only", "apply"])
+        .output()
+        .expect("run sysroot");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
 }
 
 #[test]

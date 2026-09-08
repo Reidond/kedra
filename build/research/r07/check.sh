@@ -35,6 +35,9 @@ app_version=$(noctalia --version | awk '{print $2}' | sed 's/^v//')
 projection=$(as_user noctalia config export full | /usr/libexec/kedra-research-project-noctalia --project "$app_version")
 printf 'KEDRA_R03_PROJECT_BEFORE %s\n' "$projection"
 original_theme=$(printf '%s' "$projection" | jq -er .theme_mode)
+review_home=$(getent passwd kedra-test | cut -d: -f6)
+review_state="$review_home/kedra-noctalia-review"
+as_user sysroot home --state "$review_state" init
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
 for attempt in $(seq 1 20); do
     projection=$(as_user noctalia config export full | /usr/libexec/kedra-research-project-noctalia --project "$app_version")
@@ -43,6 +46,27 @@ for attempt in $(seq 1 20); do
 done
 test "$(printf '%s' "$projection" | jq -er .theme_mode)" = light
 printf 'KEDRA_R03_PROJECT_AFTER %s\n' "$projection"
+as_user sysroot home --state "$review_state" stage theme.mode
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+for attempt in $(seq 1 20); do
+    review=$(as_user sysroot home --state "$review_state" status)
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = auto; then break; fi
+    sleep 1
+done
+printf '%s' "$review" | jq -e '.fields[0].live.value == "auto" and .fields[0].selected.value == "light"'
+as_user sysroot home --state "$review_state" selection | jq -e '.selection[0].after.value == "light" and .activation_performed == false and .source_written == false'
+as_user sysroot home --state "$review_state" unstage theme.mode
+as_user sysroot home --state "$review_state" keep-local theme.mode | jq -e '.fields[0].local_only and (.fields[0].visible_change | not)'
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+for attempt in $(seq 1 20); do
+    review=$(as_user sysroot home --state "$review_state" status)
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light; then break; fi
+    sleep 1
+done
+printf '%s' "$review" | jq -e '.fields[0].live.value == "light" and .fields[0].visible_change and (.fields[0].local_only | not)'
+as_user sysroot home --state "$review_state" app-own theme.mode | jq -e '.fields[0].app_owned and (.fields[0].visible_change | not)'
+as_user sysroot home --state "$review_state" clear-local theme.mode
+marker KEDRA_R03_DURABLE_REVIEW_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R03_NATIVE_PROJECTION_PASS
 as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs

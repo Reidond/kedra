@@ -53,8 +53,13 @@ Tests must cover overlap, app writes after staging/preflight, deletes/renames,
 non-UTF paths policy, modes/labels, symlink escapes, full disk, interruption,
 upstream adopting the same value, rollback after new edits and source-branch drift.
 Gates R03/R04 precede real-home adoption. Sources: docs/SOURCES.md git-stage,
-git-merge, git-faq, overlayfs, inotify, bootc-fs, noctalia. Production home management
-is not implemented; never use a synthetic merge prototype on a real home.
+git-merge, git-faq, overlayfs, inotify, bootc-fs, noctalia. Full home management and
+activation remain unavailable; never use a synthetic merge prototype on a real home.
+The Linux `sysroot home --state PATH` commands now connect the three-field Noctalia
+model to private review storage. See docs/HOME-REVIEW.md for implemented scope and
+the R03 report for native qualification. They do not yet export source or activate
+live files. This interface was added on 2026-09-08 against Noctalia 5.0.1; unknown
+versions, damaged state or unsafe file metadata fail without reinitialization.
 
 ## Established synthetic R03 findings
 

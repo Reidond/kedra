@@ -740,6 +740,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sysroot-core",
+ "sysroot-helper",
  "tar",
  "toml",
 ]

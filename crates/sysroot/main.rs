@@ -5,6 +5,7 @@ use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
 mod agents;
+mod home;
 mod source;
 
 #[derive(Parser)]
@@ -19,6 +20,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Review the supported Noctalia settings without writing live configuration.
+    Home(home::Options),
     /// Launch an official Codex runtime in the verified Kedra checkout (Linux).
     Codex(agents::Options),
     /// Launch an official Claude runtime in the verified Kedra checkout (Linux).
@@ -177,6 +180,12 @@ fn source_plan(repo: PathBuf, host: String, json: bool) -> Result<(), Box<dyn st
 
 fn main() -> ExitCode {
     match Cli::parse().command {
+        Some(Commands::Home(options)) => {
+            if let Err(error) = home::run(options) {
+                eprintln!("sysroot: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
         Some(Commands::Codex(options)) => {
             if let Err(error) = agents::run("codex", options) {
                 eprintln!("sysroot: {error}");

@@ -21,19 +21,22 @@ private SQLite storage. The shared core performs no filesystem/process I/O.
 Source/Git operations belong to the ordinary-user CLI. The helper has a storage
 library but its binary still refuses privileged operations.
 
-Source `d74c4c0c8899ca67960ceff90a42c3750713a9f8` passed Linux
-[check 34179189211](https://github.com/Reidond/kedra/actions/runs/34179189211):
-formatting, Clippy, 56 tests plus one doctest, release build and independent
+Source `afb8a671ac2e15459b0890b6530b6b01a7d7ea9b` passed Linux
+[check 34184975775](https://github.com/Reidond/kedra/actions/runs/34184975775):
+formatting, Clippy, 64 tests plus one doctest, release build and independent
 OpenSSL interoperability. Eight storage tests cover corruption, links/types/modes,
-concurrency and process interruption. This does not prove live-file transactions.
+concurrency and process interruption. Linux agent wrappers also pass native Codex
+0.153.4/0.153.3 runtime/profile checks in [34182776503](https://github.com/Reidond/kedra/actions/runs/34182776503).
+Model turns, authentication and complete discovery remain unqualified.
 
 R01 disposable strict Sigstore policy, negative cases, signed A-to-B boot and
 rollback pass, including inherited enforcement on initial and rolled-back A.
 R02 minimal QCOW2 boots with enforcing SELinux in Actions and local WSL2/KVM.
-R07 [run 34179189185](https://github.com/Reidond/kedra/actions/runs/34179189185)
+R07 [run 34184975810](https://github.com/Reidond/kedra/actions/runs/34184975810)
 passes graphical login, niri/Noctalia IPC, services, unlocked synthetic keyring
-and native Noctalia 5.0.1 settings projection. Virtual display sizing remains
-cramped; physical display/audio/suspend and owner credentials are unqualified.
+and native Noctalia 5.0.1 settings projection. The inspected 1280x768 capture now
+fills the VM window with readable controls; physical display/audio/suspend and
+owner credentials are unqualified.
 
 The plain Containerfile consumes a reviewed source archive, installs Fedora
 packages, and seeds ordinary writable defaults through /etc/skel for new users.
@@ -42,18 +45,29 @@ fetch/apply is masked. Bundled coding agents and Bitwarden are not packaged yet.
 
 ## Next concrete work
 
-The separate generic Anaconda ISO build
-[34176407860](https://github.com/Reidond/kedra/actions/runs/34176407860) at
-`76dc82a` passes with explicit graphical/rescue entries, native bootc interactive
-defaults and no preset partition commands. The 2,540,959,744-byte ISO SHA-256 is
-`8734723fb87db17a129d4293858a0638164ee4db898990453fadd03eed788205`.
-It is unsigned localhost-origin research media. The earlier legacy ISO was
-rejected for unsuitable text/partition/origin defaults and was never booted.
+The generic Anaconda ISO retains explicit graphical/rescue entries, native bootc
+interactive defaults and no preset disk choice. Early generic media failed
+SELinux startup; corrected labeling reaches enforcing userspace in
+[34180796587](https://github.com/Reidond/kedra/actions/runs/34180796587), but its UI
+still failed. ADR 0010 adopts upstream Lorax's permissive installer environment
+while requiring the separate installed desktop to remain enforcing. ADR 0011
+adapts two version/hash-guarded Anaconda 44.30-2 properties: embedded local payloads
+do not require networking, and a locked root does not satisfy the admin requirement.
+Updated build [34185915639](https://github.com/Reidond/kedra/actions/runs/34185915639)
+at `cfc956d` is in progress. Inspect its actual result before using the media.
+This is unsigned localhost-origin research media, not an owner release.
 
-1. Finish the generic media transfer/checksum and test two disposable VM disks:
+A diagnostic boot of the older media with a temporary kernel override reached
+the UI and a deliberate encryption plan on one of two generated disks. Installation
+was never started. The VM is stopped; comparison confirms the unselected sentinel
+disk remains identical. Actual acceptance must use rebuilt media without that
+diagnostic override. See the R02 report and latest worklog entries.
+
+1. Verify/download the updated media and test two fresh disposable VM disks:
    deliberate target selection, encryption, owner account, first boot and an
    unchanged sentinel disk. Never attach host disks. Check the upstream-mentioned
-   remount-service concern. Record actual results under R02.
+   remount-service concern, offline flow and installed SELinux enforcement.
+   Record actual results under R02.
 2. Join interactive installation to the strict signed image origin/policy proven
    in R01. Configure release authority, target-bound promotion and recovery only
    after the relevant evidence. No production signing keys exist yet.
@@ -65,6 +79,8 @@ rejected for unsuitable text/partition/origin defaults and was never booted.
 5. Package private agent executables behind sysroot, prove personal runtime/profile
    independence, and integrate Bitwarden SSH without exporting keys or broad vault
    sessions. Owner GitHub API/registry/model authentication is separate from SSH.
+   A question about the Commercial Terms required for public Claude preinstallation
+   is pending with the owner; do not infer acceptance or enable that package yet.
 6. Complete RPM refresh/no-change/failure cases, two-target independence, offline
    recovery, owner installation guidance and remaining desktop qualification.
 

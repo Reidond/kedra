@@ -26,7 +26,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-utils ovmf openssl jq e2fsprogs
       - name: Test temporary keys, local TLS registry and three VM boots
-        run: bash build/research/r01/run.sh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          cargo test --workspace --locked
+          cargo build --workspace --release --locked
+          bash build/research/r01/run.sh
       - name: Preserve public research evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

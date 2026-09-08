@@ -32,7 +32,7 @@ cleanup() {
     sudo podman logs kedra-r01-registry > "$evidence/registry.log" 2>&1 || true
     sudo podman stop kedra-r01-registry >/dev/null 2>&1 || true
     # Only generated disposable keys, outside every build context/artifact path.
-    test "$private" = "$RUNNER_TEMP/kedra-r01-private" && rm -f "$private"/*
+    test "$private" = "$RUNNER_TEMP/kedra-r01-private" && rm -rf -- "$private"
 }
 trap cleanup EXIT
 openssl rand -base64 32 > "$private/passphrase"
@@ -48,7 +48,7 @@ docker:
   registry.kedra.test:5000:
     use-sigstore-attachments: true
 EOF
-cp build/research/r01/policy.json "$root/context/policy.json"
+python3 build/research/r01/helper-fixtures.py prepare --root "$root"
 sudo mkdir -p /etc/containers/registries.d /etc/containers/certs.d/registry.kedra.test:5000
 sudo cp "$root/context/registries.yaml" /etc/containers/registries.d/kedra-r01.yaml
 sudo cp "$root/context/tls.crt" /etc/containers/certs.d/registry.kedra.test:5000/ca.crt
@@ -64,6 +64,7 @@ done
 curl --silent --fail --cacert "$root/context/tls.crt" https://registry.kedra.test:5000/v2/ > /dev/null
 cp build/research/r01/{Containerfile,check.sh,check.service,install.toml} "$root/context/"
 cp build/research/console.toml "$root/context/"
+cp target/release/sysroot-helper "$root/context/helper"
 for variant in A B U W M; do
     sudo podman build --pull=always --build-arg "BASE_IMAGE=$base" --build-arg "VARIANT=$variant" \
         --tag "localhost/kedra-r01:$variant" "$root/context" > "$evidence/build-$variant.log" 2>&1
@@ -90,6 +91,8 @@ jq -n --arg a "$repository@$(cat "$root/A.digest")" --arg b "$repository@$(cat "
     --arg m "$repository@$missing_digest" --arg other "registry.kedra.test:5000/kedra/other@$(cat "$root/wrong-repository.digest")" \
     '{schema_version:1,initial_a:$a,valid_b:$b,unsigned:$u,wrong_key:$w,missing_attachment:$m,wrong_repository:$other}' > "$root/cases/cases.json"
 cp "$root/cases/cases.json" "$evidence/cases.json"
+python3 build/research/r01/helper-fixtures.py requests --root "$root"
+cp "$root/cases"/helper-*.json "$evidence/"
 cp "$root/context/policy.json" "$root/context/registries.yaml" "$root/context/public/release.pub" "$evidence/"
 # Verify A before copying it into the local builder store; first-boot policy is
 # still a separate installer-handoff gate, not established by this copy alone.

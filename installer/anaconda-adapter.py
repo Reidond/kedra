@@ -64,6 +64,7 @@ def _kedra_bootc_deploy(physroot, bootc_args, report):
     The /var/tmp bind handles containers/image's big-file path without relying on
     TMPDIR or changing any bootc/signature argument. Mount failures are fatal.
     """
+    import errno
     import tempfile
 
     if not os.path.ismount(physroot) or os.path.realpath(physroot) == "/":
@@ -85,7 +86,16 @@ def _kedra_bootc_deploy(physroot, bootc_args, report):
         # remains busy, leave it intact and report failure for explicit recovery.
         for mountpoint in reversed(mounted):
             safe_exec_program("umount", [mountpoint])
-        os.rmdir(scratch)
+        try:
+            os.rmdir(scratch)
+        except OSError as error:
+            if error.errno != errno.EROFS:
+                raise
+            # bootc finalizes by remounting the target read-only. Anaconda's
+            # following PrepareBootcMountTargetsTask remounts this same target
+            # read-write for account/configuration setup; do that for cleanup too.
+            safe_exec_program("mount", ["-o", "remount,rw", physroot])
+            os.rmdir(scratch)
 '''
 
 def getter(source, name):
@@ -122,7 +132,7 @@ for seen, locked, password, users, expected in [
 # These checks never mount anything in the image builder or its host.
 from unittest.mock import patch
 deploy = getter(updated[patches[2][0]], '_kedra_bootc_deploy')
-for failure in [None, 'first-bind', 'second-bind', 'bootc', 'unmount']:
+for failure in [None, 'first-bind', 'second-bind', 'bootc', 'unmount', 'read-only', 'remount']:
     calls = []
     scratch = '/synthetic-target/.kedra-install-fixture'
     arguments = ['install', 'to-filesystem', '--source-imgref=containers-storage:fixture', '/synthetic-target']
@@ -130,8 +140,13 @@ for failure in [None, 'first-bind', 'second-bind', 'bootc', 'unmount']:
         calls.append((command, tuple(args)))
         if (failure == 'first-bind' and len(calls) == 1
                 or failure == 'second-bind' and len(calls) == 2
-                or failure == 'unmount' and command == 'umount'):
+                or failure == 'unmount' and command == 'umount'
+                or failure == 'remount' and command == 'mount' and args[0] == '-o'):
             raise RuntimeError('synthetic mount failure')
+    def remove(path):
+        calls.append(('rmdir', (path,)))
+        if failure in ['read-only', 'remount'] and sum(command == 'rmdir' for command, _ in calls) == 1:
+            raise OSError(30, 'synthetic read-only target')
     def lines(command, args):
         if command != 'bootc' or args != arguments:
             raise SystemExit('Native bootc arguments changed')
@@ -141,16 +156,16 @@ for failure in [None, 'first-bind', 'second-bind', 'bootc', 'unmount']:
         return ['synthetic progress']
     deploy.__globals__.update(
         os=SimpleNamespace(path=SimpleNamespace(ismount=lambda p: True, realpath=lambda p: p),
-                           rmdir=lambda p: calls.append(('rmdir', (p,)))),
+                           rmdir=remove),
         safe_exec_program=execute, execReadlines=lines, PayloadInstallationError=RuntimeError,
     )
     with patch('tempfile.mkdtemp', return_value=scratch):
         try:
             deploy('/synthetic-target', arguments, lambda line: None)
-            if failure is not None:
+            if failure not in [None, 'read-only']:
                 raise SystemExit('Expected scratch/deployment failure')
         except RuntimeError:
-            if failure is None:
+            if failure in [None, 'read-only']:
                 raise
     expected_cleanup = [('umount', ('/var/tmp',)), ('umount', (scratch,)), ('rmdir', (scratch,))]
     if failure == 'first-bind':
@@ -159,6 +174,10 @@ for failure in [None, 'first-bind', 'second-bind', 'bootc', 'unmount']:
         expected_cleanup = [('umount', (scratch,)), ('rmdir', (scratch,))]
     elif failure == 'unmount':
         expected_cleanup = [('umount', ('/var/tmp',))]
+    elif failure in ['read-only', 'remount']:
+        expected_cleanup += [('mount', ('-o', 'remount,rw', '/synthetic-target'))]
+        if failure == 'read-only':
+            expected_cleanup += [('rmdir', (scratch,))]
     if calls[-len(expected_cleanup):] != expected_cleanup:
         raise SystemExit('Scratch cleanup order changed')
 for mounted, root_path in [(False, '/synthetic-target'), (True, '/')]:

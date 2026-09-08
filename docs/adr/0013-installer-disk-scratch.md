@@ -46,3 +46,13 @@ Sources reviewed 2026-09-08:
 - [Independent Dakota installer experiment](https://github.com/projectbluefin/dakota-iso/blob/main/docs/skills/e2e-ci.md#enospc-root-cause-and-fix)
   records the same ENOSPC symptom and successful disk-backed `/var/tmp` binding.
   Its unrelated debug/VM settings are not adopted here.
+
+Follow-up: ISO 34190162895 gets through image import, GRUB installation, trimming
+and bootc's `Installation complete!`. Cleanup then fails with EROFS because bootc
+1.16.10 finalizes by remounting the Btrfs destination read-only. The native
+PrepareBootcMountTargetsTask subsequently remounts the same sysroot/physroot
+read-write for account/configuration setup. On this specific cleanup error, the
+adapter now performs that same remount on the validated physical root and retries
+the nonrecursive rmdir. It does not skip bootc finalization, ignore residual files,
+or weaken signature/SELinux behavior. Added read-only/remount-failure lifecycle
+cases; another full installer run is required before claiming owner creation/boot.

@@ -208,7 +208,14 @@ fn recover(
     }
     let (revision, _, mut jr, mut journal, mut before) = pending(store, instance)?;
     if matches!(action, Recovery::KeepCurrent) {
-        before.capture(app.observe()?)?;
+        let observed = app.observe()?;
+        app.start()?;
+        if app.observe()? != observed {
+            return Err(
+                "Noctalia changed during recovery startup; review keep-current again".into(),
+            );
+        }
+        before.capture(observed)?;
         // Deliberately leave any private checkpoint intact. No native file writes.
         return conclude(
             store,

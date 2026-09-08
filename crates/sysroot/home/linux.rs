@@ -65,6 +65,55 @@ fn private_parent(path: &Path, owner: u32) -> Result<PathBuf> {
     Ok(parent.join(path.file_name().ok_or("state path has no name")?))
 }
 
+fn default_state(owner: u32, initialize: bool) -> Result<PathBuf> {
+    let base = match std::env::var_os("XDG_STATE_HOME").filter(|v| !v.is_empty()) {
+        Some(path) => PathBuf::from(path),
+        None => PathBuf::from(std::env::var_os("HOME").ok_or("HOME is unavailable")?)
+            .canonicalize()?
+            .join(".local/state"),
+    };
+    if !base.is_absolute()
+        || base
+            .components()
+            .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
+    {
+        return Err("XDG_STATE_HOME must be an absolute path without traversal".into());
+    }
+    let path = base.join("sysroot/home");
+    // The desktop already uses this state directory. Do not recursively
+    // create through unknown ancestors or silently follow profile symlinks.
+    let directory = fs::openat2(
+        fs::CWD,
+        &base,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+        Mode::empty(),
+        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
+    )?;
+    let stat = fs::fstat(&directory)?;
+    if stat.st_uid != owner || stat.st_mode & 0o022 != 0 {
+        return Err("default state parent is not safely owned by this user".into());
+    }
+    if initialize {
+        match fs::mkdirat(&directory, "sysroot", Mode::from_raw_mode(0o700)) {
+            Ok(()) | Err(rustix::io::Errno::EXIST) => (),
+            Err(error) => return Err(error.into()),
+        }
+        fs::fsync(&directory)?;
+    }
+    let private = fs::openat2(
+        &directory,
+        "sysroot",
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+        Mode::empty(),
+        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
+    )?;
+    let stat = fs::fstat(&private)?;
+    if stat.st_uid != owner || stat.st_mode & 0o7777 != 0o700 {
+        return Err("sysroot state parent must be a user-owned private directory (0700)".into());
+    }
+    Ok(path)
+}
+
 #[derive(Deserialize)]
 struct Manifest {
     schema_version: u32,
@@ -212,7 +261,11 @@ pub(super) fn run(options: Options) -> Result<()> {
     if owner == 0 {
         return Err("home review runs as the ordinary desktop user, never root".into());
     }
-    let path = private_parent(&options.state, owner)?;
+    let requested = match &options.state {
+        Some(path) => path.clone(),
+        None => default_state(owner, matches!(options.command, Command::Init))?,
+    };
+    let path = private_parent(&requested, owner)?;
     let machine = read_regular(Path::new("/etc/machine-id"), 0, 64)?;
     let machine_text = std::str::from_utf8(&machine)
         .map_err(|_| "machine identity is malformed")?

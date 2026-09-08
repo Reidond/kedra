@@ -11,9 +11,9 @@ mod linux;
 
 #[derive(Args)]
 pub struct Options {
-    /// Existing private review store, or a new directory for init.
+    /// Private review store; defaults to $XDG_STATE_HOME/sysroot/home or ~/.local/state/sysroot/home.
     #[arg(long)]
-    state: PathBuf,
+    state: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }

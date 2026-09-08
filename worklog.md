@@ -12,14 +12,14 @@ Last updated: 2026-09-08 (Europe/Kiev).
 | Area | Verified status / next boundary |
 |---|---|
 | Phase | Implementation underway: minimal VM, strict signed-update/rollback and graphical desktop prototypes pass. No promoted owner installer yet. |
-| Implemented | Three-package flat Rust workspace; source plan/archive; signed metadata verification; private SQLite state; native Noctalia review/source export; private Codex runtime and Bitwarden image integration. The installed deployment helper passes native signed staging/rollback tests but production trust is not configured. Home activation and generic file integration remain unfinished. |
+| Implemented | Three-package flat Rust workspace; source plan/archive; signed metadata verification and multipart ISO assembly; private SQLite state; native Noctalia review/source export/activation/recovery; installed desktop diagnostics; private Codex runtime and Bitwarden integration. Native discard and signed deployment pass. Broader home recovery, generic file integration and production release setup remain unfinished. |
 | Repository knowledge | One Codex/Claude plugin with 12 Kedra and 18 selected upstream skills in plugins/kedra/skills. Ordinary files; no submodule, symlinks or duplicate discovery copies. No personal installation. |
 | Testing policy | Owner decision 2026-09-08: end-to-end and manual testing only; no unit/model/mock/doctests or codebase self-checks. AGENTS.md governs this across languages and skills. Standard build/lint tools and runtime safeguards remain. |
-| Latest verified check | Workspace 34226367439 and older-media enrollment/update/rollback 34226367288 pass at 71916b9; native desktop/discard/doctor 34223972271 passes at a5cd96e. R07 34226367519 later times out at bus checks; bounded diagnosis rerun pending. Signed-payload ISO 34222699188 passes fresh encrypted install, ISO-free healthy desktop, inherited strict policy and sentinel retention. E2E/manual-only testing applies. |
+| Latest verified check | Workspace 34228725596 at 94678f6 passes actual Linux CLI export/assembly and interoperability; older-media enrollment/update/rollback 34226367288 passes at 71916b9. Native desktop/discard/doctor 34223972271 passes at a5cd96e; R07 34226367519 later times out at bus checks and bounded diagnosis 34228725414 is pending. Signed-payload ISO 34222699188 passes fresh encrypted install, ISO-free healthy desktop, inherited strict policy and sentinel retention. E2E/manual-only testing applies. |
 | R11 | Canonical skill files readable; Codex marketplace and fresh-profile root/crate skills/list found no Kedra entries. Claude authoring validation passed. Loaded-plugin model/editor checks not-run; distribution review blocked. |
 | R03 | Synthetic line models and native three-field Noctalia capture/staging/local policy with private persistence pass. Selected-field export/receipts pass the actual Linux CLI round trip. Generic file/line integration, discard and R04 activation remain open. See docs/research/R03-home-review/REPORT.md. |
 | Other R01-R10 | R01 strict signature/update/rollback prototype passes, including initial and post-rollback policy. R02 minimal VM passes in Actions and locally. R07 graphical login/session/keyring prototype passes. R08 verification has local tests; R09 source/archive tests pass. Full installer, promotion, activation, owner authentication and physical hardware gates remain open. |
-| Current task | Owner requested full implementation through usable installation. Signed research installation and older-media enrollment pass. Verified multipart ISO assembly is implemented and passes actual Windows CLI/full-size checks; Linux CI pending. Production signing/promotion, generic file integration and native recovery remain active work. No promoted owner media exists. |
+| Current task | Owner requested full implementation through usable installation. Signed research installation, older-media enrollment and verified multipart ISO assembly pass their actual workflows. Correcting keep-current recovery to restart/validate the application; native killed-CLI scenarios are prepared. Production signing/promotion and generic file integration remain active work. No promoted owner media exists. |
 | Machine effects | QEMU/OVMF and graphical test dependencies are installed in existing Ubuntu WSL2; the ordinary user now belongs to kvm. Effects are under VM-test authorization. No workstation home enrollment, vault/profile changes, host-disk formatting or workstation OS installation. |
 
 Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
@@ -33,12 +33,12 @@ reports remain authoritative for what was tested.
 
 ### Next concrete actions
 
-Check the corrected Anaconda build, then test deliberate disk choice,
-encryption, administrative account creation and first boot using two disposable VM disks. Join
-the interactive installer to R01's strict signed-origin policy before promotion.
-Implement the narrow helper protocol and home filesystem coordination on the
-tested pure models/storage; do not enroll the workstation. RPM refresh/no-change,
-agent packaging, owner credential setup and physical qualification remain open.
+Inspect the running bounded portal/keyring and signed-helper regressions. Qualify
+interrupted Noctalia operations through the installed CLI and native writer, then
+finish generic file/line review and production signing/promotion. Preserve the
+successful signed research installation evidence; it does not establish owner
+release authority. RPM refresh/no-change, owner credential setup, independent
+targets and physical qualification remain open.
 
 ## Work entries
 
@@ -419,3 +419,13 @@ agent packaging, owner credential setup and physical qualification remain open.
 - Next: Publish reviewed source for Linux E2E qualification, then continue signed installation and production release integration.
 - Full-size result: actual Windows CLI at 94678f6 reconstructs the 2,856,105,984-byte R02 ISO from a 2,000,000,000-byte part and its remainder, verifies the signed size/SHA-256 and publishes the completed ISO. This uses a separate disposable assembly-fixture key/scope, not production authority. Evidence is output/release-assembly-fullsize-20260908/result.json; fixture private key was removed. Linux CI 34228725596 is pending.
 - Qualification: workspace 34228725596 at 94678f6 passes Linux formatting, Clippy, actual CLI export/assembly and OpenSSL interoperability, and release build. Signed installed VM also shuts down cleanly after first-boot checks and the sentinel still compares identical; all local VMs are stopped. R07 34228725414 and R01 34228725707 are still pending.
+
+### WL-20260908-07 — 2026-09-08 — Native interrupted home recovery
+- Agent / state: Codex; in-progress.
+- Scope / base: codex/usable-system, inspected 5809362; R04 application availability after interrupted file replacement.
+- Completed: Corrected keep-current to start and validate Noctalia before clearing pending state; a startup failure or changed effective values retain recovery state. Prepared a generated-VM scenario that watches native file publication, kills the actual CLI process group, and uses public recovery commands for abort, resume and preserving a later actual GUI edit. No product fault hooks, altered journals, mocked programs, unit tests or source scanners were added.
+- Checks / evidence: pass — local Rust 1.98.1 formatting/Clippy/release build and Python/shell syntax. not-run — new Linux/native recovery behavior; Windows does not compile the Linux bridge. Earlier bounded bus-check run 34228725414 and signed helper 34228725707 remain in progress.
+- Remaining / blockers: Native process-kill recovery must qualify; current published desktop regression has not yet completed. Generic file integration and production owner release setup remain open.
+- Next: Finish the running native regression, publish the recovery change and execute the actual VM interruption workflow; fix any observed failure without weakening file/journal checks.
+- Baseline qualification: R07 34228725414 at 94678f6 passes bounded portal/Secret Service calls, keyring unlock and doctor, plus native discard/Codex/Bitwarden/session checks. Downloaded evidence is output/r07-run-34228725414; serial records explicit portal, secret-service and doctor pass markers. R01 34228725707 also passes the actual signed helper regression. These runs precede the recovery change.
+- Usability prepared: home commands now default to the user's XDG state location (or ~/.local/state/sysroot/home); init creates only a checked private sysroot parent. Explicit custom stores remain supported. Existing stores are never reset. Added actual installed init/status and permission checks to R07; Linux/native qualification is pending.

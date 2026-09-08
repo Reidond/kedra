@@ -17,13 +17,18 @@ On a qualifying installed Kedra desktop, run as the ordinary desktop user:
 
 ```sh
 mkdir -p "$HOME/.local/state"
-sysroot home --state "$HOME/.local/state/kedra-home-review" init
-sysroot home --state "$HOME/.local/state/kedra-home-review" status
-sysroot home --state "$HOME/.local/state/kedra-home-review" stage theme.mode
-sysroot home --state "$HOME/.local/state/kedra-home-review" selection
+sysroot home init
+sysroot home status
+sysroot home stage theme.mode
+sysroot home selection
 ```
 
-The state parent must exist, belong to the user and exclude writes by other users.
+The default store is `$XDG_STATE_HOME/sysroot/home`, or
+`$HOME/.local/state/sysroot/home` when XDG_STATE_HOME is unset. The state directory
+must already exist and exclude writes by other users; init creates the private
+0700 sysroot parent. Use `--state /absolute/private/path` to choose a different
+store or continue an existing one. Keep using that same option for every command
+on a custom store. Profile symlinks and unsafe ownership are refused at setup.
 `init` requires a new directory; it refuses to overwrite any existing or incomplete
 store. The starting baseline comes from the installed image's hash-checked source
 manifest, not the current checkout or a user-supplied claim. A machine/user binding
@@ -54,7 +59,7 @@ running as the same user, and it cannot authorize OS deployment.
 From the reviewed state, create a new patch file:
 
 ```sh
-sysroot home --state "$HOME/.local/state/kedra-home-review" export \
+sysroot home export \
   --repo "$HOME/src/kedra" --output "$HOME/noctalia-selected.patch"
 git -C "$HOME/src/kedra" apply --check "$HOME/noctalia-selected.patch"
 ```
@@ -74,7 +79,7 @@ conflict resolution. Commit only the intended paths reported by the export, taki
 care to preserve unrelated staged changes. After that commit exists, record it:
 
 ```sh
-sysroot home --state "$HOME/.local/state/kedra-home-review" record-source \
+sysroot home record-source \
   --repo "$HOME/src/kedra" --commit "$(git -C "$HOME/src/kedra" rev-parse HEAD)"
 ```
 
@@ -97,8 +102,8 @@ service. Native discard is qualified; the broader interruption and image-baselin
 transition cases remain under qualification before a complete owner home workflow.
 
 ```sh
-sysroot home --state "$HOME/.local/state/kedra-home-review" plan
-sysroot home --state "$HOME/.local/state/kedra-home-review" apply --plan PLAN_ID
+sysroot home plan
+sysroot home apply --plan PLAN_ID
 ```
 
 Read the observed/desired values first, then supply that exact `plan_id`. Any
@@ -115,7 +120,9 @@ An interrupted operation blocks other review mutations. Inspect `recover`, then
 choose `recover resume`, `recover abort`, or `recover keep-current`. Resume
 requires the recorded plan and installed baseline to still match. Abort restores
 only exact recorded file versions and refuses later edits. Keep-current preserves
-the live file, clears the pending operation without advancing the baseline, and
-leaves any private checkpoint for inspection. After validated cleanup the old
+the current settings, restarts and validates Noctalia, and clears the pending
+operation without advancing the baseline. If startup fails or changes the
+effective settings, recovery remains pending for review. Keep-current leaves any
+private checkpoint for inspection. After validated cleanup the old
 checkpoint may be gone, so use resume or keep-current. Never delete/reset the
 review store to work around an error. See [R04 evidence](research/R04-activation/REPORT.md).

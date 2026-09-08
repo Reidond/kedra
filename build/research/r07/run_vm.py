@@ -12,6 +12,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--disk", type=pathlib.Path, required=True)
 parser.add_argument("--work", type=pathlib.Path, required=True)
 parser.add_argument("--password-file", type=pathlib.Path, required=True)
+parser.add_argument("--success-marker", default="KEDRA_R07_SESSION_PASS")
+parser.add_argument("--login-marker", default="KEDRA_R07_LOGIN_READY")
+parser.add_argument("--failure-marker", default="KEDRA_R07_FAIL")
+parser.add_argument("--persistent-disk", action="store_true")
+parser.add_argument("--cases-disk", type=pathlib.Path)
+parser.add_argument("--network", action="store_true")
+parser.add_argument("--firmware-vars", type=pathlib.Path)
 args = parser.parse_args()
 disk = args.disk.resolve(strict=True)
 if not disk.is_file() or disk.suffix != ".qcow2":
@@ -21,7 +28,11 @@ if not re.fullmatch(r"[0-9a-f]{32}", password):
     raise SystemExit("Expected generated disposable test password")
 work = args.work.resolve()
 work.mkdir(parents=True, exist_ok=True)
-shutil.copyfile("/usr/share/OVMF/OVMF_VARS_4M.fd", work / "OVMF_VARS.fd")
+firmware = args.firmware_vars.resolve() if args.firmware_vars else work / "OVMF_VARS.fd"
+if not firmware.exists():
+    shutil.copyfile("/usr/share/OVMF/OVMF_VARS_4M.fd", firmware)
+elif not args.firmware_vars:
+    raise SystemExit("Existing VM firmware state requires an explicit --firmware-vars path")
 qmp_path = work / "qmp.sock"
 log = work / "serial.log"
 events = work / "events.log"
@@ -70,13 +81,18 @@ command = [
     "qemu-system-x86_64", "-machine", "q35,accel=kvm", "-cpu", "host",
     "-smp", "4", "-m", "4096", "-device", "virtio-rng-pci",
     "-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
-    "-drive", f"if=pflash,format=raw,file={work / 'OVMF_VARS.fd'}",
-    "-drive", f"file={disk},if=virtio,format=qcow2,snapshot=on",
+    "-drive", f"if=pflash,format=raw,file={firmware}",
+    "-drive", f"file={disk},if=virtio,format=qcow2,snapshot={'off' if args.persistent_disk else 'on'}",
     "-vga", "none", "-device", "virtio-vga-gl,xres=1280,yres=768", "-display", "gtk,gl=on", "-full-screen",
     "-audiodev", "none,id=audio0", "-device", "ich9-intel-hda", "-device", "hda-duplex,audiodev=audio0",
-    "-serial", f"file:{log}", "-serial", f"file:{events}", "-monitor", "none", "-nic", "none",
+    "-serial", f"file:{log}", "-serial", f"file:{events}", "-monitor", "none", "-nic", "user,model=virtio-net-pci" if args.network else "none",
     "-qmp", f"unix:{qmp_path},server=on,wait=off",
 ]
+if args.cases_disk:
+    cases = args.cases_disk.resolve(strict=True)
+    if not cases.is_file() or cases.suffix != ".raw":
+        raise SystemExit("Expected a generated raw fixture disk")
+    command += ["-drive", f"file={cases},if=virtio,format=raw,readonly=on"]
 with (work / "qemu.log").open("w") as output:
     process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT)
     qmp = None
@@ -99,11 +115,11 @@ with (work / "qemu.log").open("w") as output:
             if qmp is None and qmp_path.exists():
                 qmp = Qmp()
             text = events.read_text(errors="replace") if events.exists() else ""
-            if "KEDRA_R07_FAIL" in text:
+            if args.failure_marker in text:
                 if qmp:
                     qmp.screenshot("failure.png")
                 raise RuntimeError("Guest desktop check failed; inspect serial.log")
-            if qmp and "KEDRA_R07_LOGIN_READY" in text and "login" not in markers:
+            if qmp and args.login_marker in text and "login" not in markers:
                 time.sleep(1)
                 qmp.screenshot("login.png")
                 qmp.type_text("kedra-test\n")
@@ -124,9 +140,9 @@ with (work / "qemu.log").open("w") as output:
                 qmp.screenshot("timeout.png")
             raise RuntimeError("Desktop VM timed out")
         text = events.read_text(errors="replace") if events.exists() else ""
-        if process.returncode != 0 or "KEDRA_R07_SESSION_PASS" not in text:
+        if process.returncode != 0 or args.success_marker not in text:
             raise RuntimeError("Desktop VM did not pass; inspect QEMU/serial evidence")
-        print("PASS: graphical login, niri/Noctalia IPC, services and unlocked synthetic keyring", flush=True)
+        print(f"PASS: generated graphical VM reported {args.success_marker}", flush=True)
     finally:
         if process.poll() is None:
             process.terminate()

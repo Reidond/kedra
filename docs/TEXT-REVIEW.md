@@ -93,8 +93,8 @@ native candidate. The result shows the retained selection/local decisions and
 pending publications. Apply recomputes that plan, reloads the managed file and
 accepts the new baseline only after validation succeeds. Abort and keep-current
 retain the previous accepted baseline; resume checks the installed baseline again.
-This implementation is pending native qualification, including a real A-to-B
-image transition. It does not stage an OS or turn advisory source preview into
+Current-baseline acceptance passes native VM 34238949306 at 9802b49. A real A-to-B
+image transition is prepared but not yet qualified. It does not stage an OS or turn advisory source preview into
 installed-image authority. See [ADR 0022](adr/0022-installed-text-baseline.md).
 
 Discard of one current change passes native VM 34237287511 at 5e238c7:

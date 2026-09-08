@@ -35,10 +35,21 @@ currently installed baseline while preserving a later native edit. The bundle
 is confined to the research image. It does not install repository skills into a
 global profile, ordinary image or personal home baseline.
 
-Qualification is pending. This current-baseline scenario is not evidence of an
+Current-baseline acceptance passes native 34238949306 at 9802b49; workspace
+34238949291 also passes. This current-baseline scenario is not evidence of an
 A-to-B OS transition. Actual changed-image baseline activation, rollback and
 interruption across that change remain R04 work. OS staging, multi-file groups,
 include transactions and competing external IPC actions remain separate.
+
+A separate Actions-only R04 workflow now prepares two signed graphical images
+and persistent A/B/A VM boots. A starts at the dispatched source. A generated
+public descendant records the selected width; B contains that publication, a new
+gap default and a cursor default. Actual CLI state includes a pinned later width,
+a still-later live width and an exact-local gap rule. The scenario must prove B
+retirement/reanchoring, retain the older accepted home B across OS rollback, refuse
+a real pinned-selection conflict, and accept A only after explicit user-level
+resolution. It keeps strict native signature policy and uses disposable keys.
+This changed-image scenario is prepared, not yet executed.
 
 Sources: ADRs 0019-0021 and their pinned Git/niri evidence; root-installed source
 provenance as implemented by the existing source planner and installed reader.

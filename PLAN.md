@@ -23,8 +23,10 @@ Describe a desired change to a local official coding agent
  -> verify the running image and requested behavior
 ```
 
-All OS/installer builds run in Actions. Local Rust unit tests, source editing and
-synthetic home experiments are allowed. Users can edit the repo without an agent.
+All OS/installer builds run in Actions. Source editing, standard build/lint tools
+and end-to-end or manual experiments are allowed locally. The owner's 2026-09-08
+testing decision in AGENTS.md excludes unit/model/mock tests, doctests and
+repository self-checking code. Users can edit the repo without an agent.
 Personal agent installation/update and local dotfile experimentation need not
 trigger an OS build. A deterministic interface and recovery path must work without
 an AI service, GitHub availability or a continuously running agent process.

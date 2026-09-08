@@ -5,6 +5,15 @@ description: Implement or research writable dotfile capture, Git partial staging
 
 # Writable home is a core feature
 
+Current evidence, 2026-09-08: actual R07 desktop run 34223972271 at a5cd96e
+passes native stale-plan refusal and selected-field discard with writer restart,
+selection retention and owner/group/mode/SELinux preservation. Source export and
+receipts also have actual CLI evidence. Generic file/line integration and broader
+interruption/baseline-transition cases remain open. Earlier synthetic commands
+below are historical evidence: their harnesses were removed under the owner's
+E2E/manual-only decision and must not be recreated or run. See R03/R04 reports
+and ADR 0017 for exact scope and fail-closed recovery behavior.
+
 Applications and users edit ordinary files. The repository supplies a baseline,
 not every byte of live state. Do not replace this with immutable symlinks,
 OverlayFS, blanket rsync, an automatic commit daemon, or Git rooted at all HOME.

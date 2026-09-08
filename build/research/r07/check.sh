@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 marker() { printf '%s\n' "$1" | tee /dev/ttyS1; }
 trap 'code=$?; marker "KEDRA_R07_FAIL line=$LINENO code=$code"; journalctl -b -u greetd --no-pager -n 50; systemctl poweroff --no-block; exit "$code"' ERR
 test "$(getenforce)" = Enforcing
@@ -125,11 +125,14 @@ as_user env NIRI_SOCKET="$niri_socket" niri msg --json outputs | \
 as_user systemctl --user start xdg-desktop-portal.service
 as_user systemctl --user is-active pipewire.service wireplumber.service xdg-desktop-portal.service
 as_user wpctl status
-as_user busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop org.freedesktop.DBus.Peer Ping
-as_user busctl --user call org.freedesktop.secrets /org/freedesktop/secrets org.freedesktop.DBus.Peer Ping
+marker KEDRA_R07_PORTAL_PING_START
+as_user timeout --kill-after=2s 20s busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop org.freedesktop.DBus.Peer Ping
+marker KEDRA_R07_PORTAL_PING_PASS
+as_user timeout --kill-after=2s 20s busctl --user call org.freedesktop.secrets /org/freedesktop/secrets org.freedesktop.DBus.Peer Ping
+marker KEDRA_R07_SECRET_SERVICE_PING_PASS
 # Prove normal password login unlocked this synthetic account's keyring.
-as_user busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked
-test "$(as_user busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked)" = 'b false'
+as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked
+test "$(as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked)" = 'b false'
 as_user sysroot doctor --json | jq -e '.desktop_session_checks_passed and (.changes_performed | not)' >/dev/null
 marker KEDRA_DOCTOR_SESSION_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg panel-toggle launcher

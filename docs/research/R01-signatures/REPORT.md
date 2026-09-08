@@ -3,6 +3,14 @@
 Status: **blocked** at full installation-policy/authority gates, 2026-09-08
 (Europe/Kiev); the first strict transport/update/rollback subset passed.
 
+Follow-up [34226367288](https://github.com/Reidond/kedra/actions/runs/34226367288)
+at `71916b9` passes older-media enrollment: the running signed A release is
+verified separately from a fresh channel naming newer B. Enrollment caches A's
+verified identity while retaining B's newer high-water state. The actual VM emits
+`KEDRA_R10_OLDER_ISO_ENROLLMENT_PASS`, then passes metadata/OCI refusal, B stage/boot,
+retained A rollback, replay/hold retention and explicit resume. This is an
+end-to-end installed-helper result using disposable signing authority.
+
 The installed-helper extension passes
 [34208979891](https://github.com/Reidond/kedra/actions/runs/34208979891) at `bb53ce7`.
 Cosign 3.1.3 signs exact release/checkpoint bytes with the disposable Skopeo key;

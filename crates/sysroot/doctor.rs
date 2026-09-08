@@ -165,6 +165,16 @@ mod linux {
                 "Log in with the account password and inspect the login keyring.",
             ),
         ];
+        checks.push(check(
+            "desktop_portal_response",
+            "/usr/bin/busctl",
+            &["--user", "call", "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop", "org.freedesktop.DBus.Peer", "Ping"],
+            Some(""),
+            "Desktop portal responds",
+            "Desktop portal did not respond within the diagnostic timeout",
+            "Inspect journalctl --user -u xdg-desktop-portal.service and log back into the desktop.",
+        ));
         for (name, unit) in [
             ("compositor", "niri.service"),
             ("desktop_controls", "kedra-noctalia.service"),

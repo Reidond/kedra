@@ -3,7 +3,18 @@
 Status: **pass** for the minimal image/QCOW2/UEFI guest experiment; full R02
 installation gate remains **blocked**. Updated 2026-09-08 (Europe/Kiev).
 
-Latest fresh-install result: [34207121856](https://github.com/Reidond/kedra/actions/runs/34207121856)
+Signed-payload follow-up: [34222699188](https://github.com/Reidond/kedra/actions/runs/34222699188)
+at `d8a76a9` passes signature-preserving assembly, strict positive/wrong-key
+checks and offline signature verification before Anaconda startup. The downloaded
+2,856,105,984-byte ISO matches SHA-256
+`94c58c5c4ea0a9b39832cc60e530426390968d97974885e46ff96a95f621a00e`.
+Its research-scoped payload is
+`sha256:09cb69b122daf8fb7fb6d29ac33168ba4834c4cbd0befd9bb4e29beab570bda5`.
+A fresh local encrypted two-disk installation is in progress. Installed origin,
+first boot and sentinel retention are not yet passed for this media. The outer
+ISO is not signed/promoted owner media; all authority is disposable research scope.
+
+Earlier fresh-install result: [34207121856](https://github.com/Reidond/kedra/actions/runs/34207121856)
 at `85ed4ab` passes Anaconda completion and first-boot desktop health on 2026-09-08.
 The fully downloaded ISO is 2,865,981,440 bytes with SHA-256
 `d74e2a1eb79e8c93f52da82a8626bad43ad65498382941cf8982f07f41174ed3`.

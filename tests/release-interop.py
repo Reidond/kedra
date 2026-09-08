@@ -75,7 +75,32 @@ try:
         corrupted = root / "corrupted.iso"
         corrupted.write_bytes(b"abd")
         verify(signature, image=corrupted, expected=False)
+        # Exercise the distributed-download workflow through the actual CLI.
+        # OpenSSL, not sysroot, supplies its signed release fixture.
+        parts = []
+        for number, content in enumerate([b"a", b"b", b"c"]):
+            path = root / f"installer.part{number}"
+            path.write_bytes(content)
+            parts.append(path)
+        destination = root / "assembled"
+        destination.mkdir()
+        assemble = [str(binary), "release", "assemble", "--manifest", str(payload),
+            "--signature", str(signature), "--public-key", str(public), "--target", "desktop",
+            "--output-dir", str(destination), "--json"]
+        for invalid in [parts[:-1], list(reversed(parts)), parts + parts]:
+            result = subprocess.run(assemble + list(map(str, invalid)), capture_output=True)
+            assert result.returncode != 0 and not list(destination.iterdir()), "Bad parts published output"
+        result = subprocess.run(assemble + list(map(str, parts)), capture_output=True)
+        if result.returncode != 0:
+            raise RuntimeError("Installer assembly failed: " + result.stderr.decode())
+        assert json.loads(result.stdout)["artifact_verified"]
+        assembled = destination / artifact.name
+        assert assembled.read_bytes() == artifact.read_bytes()
+        verify(signature, image=assembled)
+        result = subprocess.run(assemble + list(map(str, parts)), capture_output=True)
+        assert result.returncode != 0 and assembled.read_bytes() == b"abc", "Existing output was replaced"
         print("PASS: 16 OpenSSL signatures, wrong-key/tamper/artifact rejection, advisory output", flush=True)
+        print("PASS: CLI installer assembly, missing/reordered/extra parts and existing-output refusal", flush=True)
     else:
         print("Generated 16 public signature fixtures for separate-platform CLI verification", flush=True)
 finally:

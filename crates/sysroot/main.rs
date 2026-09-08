@@ -8,6 +8,7 @@ mod agents;
 mod deployment;
 mod doctor;
 mod home;
+mod installer_artifact;
 mod source;
 
 #[derive(Parser)]
@@ -56,6 +57,25 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum ReleaseCommand {
+    /// Assemble downloaded parts in the given order and verify the complete ISO.
+    Assemble {
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        signature: PathBuf,
+        #[arg(long)]
+        public_key: PathBuf,
+        /// Existing output directory; the signed installer filename is used.
+        #[arg(long)]
+        output_dir: PathBuf,
+        #[arg(long)]
+        target: String,
+        #[arg(long)]
+        json: bool,
+        /// Downloaded parts in release order (never expanded or sorted internally).
+        #[arg(required = true, num_args = 1..=64)]
+        parts: Vec<PathBuf>,
+    },
     /// Verify exact signed bytes using an independently trusted public key.
     Verify {
         #[arg(long)]
@@ -88,6 +108,40 @@ fn limited_file(
 }
 
 fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Error>> {
+    if let ReleaseCommand::Assemble {
+        manifest,
+        signature,
+        public_key,
+        output_dir,
+        target,
+        json,
+        parts,
+    } = command
+    {
+        let payload = limited_file(&manifest, sysroot_core::release::MAX_DOCUMENT)?;
+        let signature = limited_file(&signature, 1024)?;
+        let key = limited_file(&public_key, 4096)?;
+        let key =
+            std::str::from_utf8(&key).map_err(|_| sysroot_core::release::Error::InvalidKey)?;
+        let verified = sysroot_core::release::verify_release(&payload, &signature, key, None)?;
+        if target != verified.release().scope.target {
+            return Err(sysroot_core::release::Error::ScopeMismatch.into());
+        }
+        let output = installer_artifact::assemble(&verified, &output_dir, &parts)?;
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({"signature_valid":true,"artifact_verified":true,
+                "output":output,"release_sha256":verified.sha256(),
+                "key_fingerprint_sha256":verified.key_fingerprint(),
+                "channel_freshness_verified":false,"deployment_authorized":false})
+            );
+        } else {
+            println!("Verified installer: {}", output.display());
+            println!("Signing key SHA-256: {}", verified.key_fingerprint());
+        }
+        return Ok(());
+    }
     let ReleaseCommand::Verify {
         manifest,
         signature,
@@ -95,7 +149,10 @@ fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Err
         artifact,
         target,
         json,
-    } = command;
+    } = command
+    else {
+        return Err("unsupported release operation".into());
+    };
     let payload = limited_file(&manifest, sysroot_core::release::MAX_DOCUMENT)?;
     let signature = limited_file(&signature, 1024)?;
     let key = limited_file(&public_key, 4096)?;

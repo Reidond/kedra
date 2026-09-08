@@ -67,7 +67,7 @@ image yet. Signed-update/rollback research is the next dependency.
 ```bash
 git clone https://github.com/Reidond/kedra.git
 cd kedra
-cargo test --workspace --locked
+cargo test --workspace --test 'e2e_*' --locked
 cargo run --locked -p sysroot -- status --json
 ```
 

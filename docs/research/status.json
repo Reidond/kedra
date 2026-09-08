@@ -7,8 +7,8 @@
       "topic": "Image signing and bootc enforcement",
       "prototype_status": "pass",
       "report": "R01-signatures/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34208979891",
-      "note": "Strict Sigstore enforcement and the installed helper pass native signed enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold preservation and explicit resume at bb53ce7. Production authority, promotion, rotation and interactive signed-origin installation remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34226367288",
+      "note": "Actual older-media enrollment against a newer fresh channel, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold preservation and explicit resume pass at 71916b9. Production authority, promotion, rotation and full interactive signed-origin qualification remain open."
     },
     {
       "id": "R02",

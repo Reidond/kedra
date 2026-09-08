@@ -5,6 +5,7 @@ use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
 mod agents;
+mod deployment;
 mod home;
 mod source;
 
@@ -20,6 +21,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Manage a signed installed release through the independently verifying helper.
+    Update(deployment::Options),
     /// Review the supported Noctalia settings without writing live configuration.
     Home(home::Options),
     /// Launch an official Codex runtime in the verified Kedra checkout (Linux).
@@ -184,6 +187,12 @@ fn main() -> ExitCode {
             if let Err(error) = home::run(options) {
                 eprintln!("sysroot: {error}");
                 return ExitCode::FAILURE;
+            }
+        }
+        Some(Commands::Update(options)) => {
+            if let Err(error) = deployment::run(options) {
+                eprintln!("sysroot: {error}");
+                return ExitCode::from(78);
             }
         }
         Some(Commands::Codex(options)) => {

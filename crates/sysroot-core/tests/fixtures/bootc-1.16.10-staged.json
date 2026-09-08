@@ -1,0 +1,72 @@
+{
+  "apiVersion": "org.containers.bootc/v1",
+  "kind": "BootcHost",
+  "metadata": {
+    "name": "host"
+  },
+  "spec": {
+    "bootOrder": "default",
+    "image": {
+      "image": "registry.kedra.test:5000/kedra/r01@sha256:03923abb3f49590293df0107bf723b37fb9efbf657ead792d745239de052e9d3",
+      "signature": "containerPolicy",
+      "transport": "registry"
+    }
+  },
+  "status": {
+    "booted": {
+      "cachedUpdate": null,
+      "composefs": null,
+      "downloadOnly": false,
+      "image": {
+        "architecture": "amd64",
+        "image": {
+          "image": "registry.kedra.test:5000/kedra/r01@sha256:fd6a5b8dfb30d18ec3708898731f21dc63aeeb71f5be695c885a815afa5b74c4",
+          "signature": "containerPolicy",
+          "transport": "registry"
+        },
+        "imageDigest": "sha256:fd6a5b8dfb30d18ec3708898731f21dc63aeeb71f5be695c885a815afa5b74c4",
+        "timestamp": "2026-09-07T22:43:31.064009349Z",
+        "version": "44.20260907.0"
+      },
+      "incompatible": false,
+      "ostree": {
+        "checksum": "d9e3b0b04ba1bd6f221b7e48bcd291955f4ffa037237a6f5092e6367fde1eafd",
+        "deploySerial": 0,
+        "stateroot": "default"
+      },
+      "pinned": false,
+      "softRebootCapable": true,
+      "store": "ostreeContainer"
+    },
+    "readOnly": false,
+    "rollback": null,
+    "rollbackQueued": false,
+    "staged": {
+      "cachedUpdate": null,
+      "composefs": null,
+      "downloadOnly": false,
+      "image": {
+        "architecture": "amd64",
+        "image": {
+          "image": "registry.kedra.test:5000/kedra/r01@sha256:03923abb3f49590293df0107bf723b37fb9efbf657ead792d745239de052e9d3",
+          "signature": "containerPolicy",
+          "transport": "registry"
+        },
+        "imageDigest": "sha256:03923abb3f49590293df0107bf723b37fb9efbf657ead792d745239de052e9d3",
+        "timestamp": "2026-09-07T22:43:56.886903370Z",
+        "version": "44.20260907.0"
+      },
+      "incompatible": false,
+      "ostree": {
+        "checksum": "4c1d9cb410af1e8040fdd4a33e739cdfaa96642b3b13d63d74503abdb8237a26",
+        "deploySerial": 0,
+        "stateroot": "default"
+      },
+      "pinned": false,
+      "softRebootCapable": true,
+      "store": "ostreeContainer"
+    },
+    "type": "bootcHost",
+    "usrOverlay": null
+  }
+}

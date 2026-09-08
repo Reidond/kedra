@@ -1,7 +1,7 @@
 use std::process::Command;
 
 #[test]
-fn no_privileged_operation_is_implemented() {
+fn arbitrary_paths_commands_and_verified_flags_are_refused() {
     let output = Command::new(env!("CARGO_BIN_EXE_sysroot-helper"))
         .args(["deploy", "--verified", "/tmp/untrusted"])
         .output()

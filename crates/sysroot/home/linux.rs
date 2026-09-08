@@ -1,11 +1,8 @@
 use super::{Command, Key, Options, export};
-use rustix::fs::{self, FileType, Mode, OFlags, ResolveFlags};
+use rustix::fs::{self, Mode, OFlags, ResolveFlags};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::fs::File;
 use std::io::Read;
-use std::os::fd::AsRawFd;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command as Process, Stdio};
 use sysroot_core::noctalia::{self, Baseline, Settings, State};
@@ -35,50 +32,7 @@ impl From<Key> for noctalia::Key {
 /// Pin a regular inode without opening a device or following a path symlink.
 /// Raw unprojected bytes never enter the review store or diagnostics.
 fn read_regular(path: &Path, owner: u32, limit: usize) -> Result<Vec<u8>> {
-    let descriptor = fs::openat2(
-        fs::CWD,
-        path,
-        OFlags::PATH | OFlags::CLOEXEC,
-        Mode::empty(),
-        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
-    )?;
-    let before = fs::fstat(&descriptor)?;
-    if FileType::from_raw_mode(before.st_mode) != FileType::RegularFile
-        || before.st_uid != owner
-        || before.st_nlink != 1
-        || before.st_mode & 0o022 != 0
-        || before.st_size < 0
-        || before.st_size as u64 > limit as u64
-    {
-        return Err(
-            "input is not a bounded regular file with safe ownership and permissions".into(),
-        );
-    }
-    // This proc path references only the inode already checked and held above.
-    let mut file = File::open(format!("/proc/self/fd/{}", descriptor.as_raw_fd()))?;
-    let mut bytes = Vec::new();
-    Read::by_ref(&mut file)
-        .take(limit as u64 + 1)
-        .read_to_end(&mut bytes)?;
-    let after = fs::fstat(&descriptor)?;
-    let named = std::fs::symlink_metadata(path)?;
-    if bytes.len() > limit
-        || bytes.len() as u64 != before.st_size as u64
-        || before.st_dev != named.dev()
-        || before.st_ino != named.ino()
-        || before.st_mode != after.st_mode
-        || before.st_uid != after.st_uid
-        || before.st_gid != after.st_gid
-        || before.st_size != after.st_size
-        || before.st_mtime != after.st_mtime
-        || before.st_mtime_nsec != after.st_mtime_nsec
-        || before.st_ctime != after.st_ctime
-        || before.st_ctime_nsec != after.st_ctime_nsec
-        || after.st_nlink != 1
-    {
-        return Err("input changed during capture; retry after the writer finishes".into());
-    }
-    Ok(bytes)
+    sysroot_helper::trusted_file::read(path, owner, limit)
 }
 
 fn private_parent(path: &Path, owner: u32) -> Result<PathBuf> {

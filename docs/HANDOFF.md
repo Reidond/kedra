@@ -18,8 +18,10 @@ The three-package flat Rust workspace provides source planning/archives from
 committed Git blobs with target overlays/provenance, release signature/checkpoint
 verification, synthetic line review and Noctalia disposition models, and Linux
 private SQLite storage. The shared core performs no filesystem/process I/O.
-Source/Git operations belong to the ordinary-user CLI. The helper has a storage
-library but its binary still refuses privileged operations. The ordinary-user CLI
+Source/Git operations belong to the ordinary-user CLI. The helper now has a bounded
+stdin enrollment/stage/rollback/status protocol with independent installed trust
+and journal checks (ADR 0016); Linux/native qualification is pending, and no public
+release authority is configured. The ordinary-user CLI
 now connects private storage to the three-field Noctalia review model; native
 GUI tests pass. Selected-field source patches and exact commit receipts pass Linux tests. Generic
 files, discard and activation remain open.
@@ -86,7 +88,8 @@ diagnostic override. See the R02 report and latest worklog entries.
 2. Join interactive installation to the strict signed image origin/policy proven
    in R01. Configure release authority, target-bound promotion and recovery only
    after the relevant evidence. No production signing keys exist yet.
-3. Implement the narrow helper protocol and fixed installed trust/state paths.
+3. Qualify the new helper protocol/fixed trust and state paths in Linux and the
+   native signed R01 VM, including interruption and exact pending replacement.
    Verification output from the unprivileged CLI does not authorize deployment.
 4. Connect the tested home models to private persistence and coordinated live-file
    activation. Preserve selected snapshots, visible edits, exact local-only policy

@@ -289,6 +289,19 @@ pub struct VerifiedUpdate {
     pub next_trust_state: TrustState,
 }
 
+/// Identify a bounded P-256 SPKI public key without accepting any signed content.
+pub fn public_key_fingerprint(public_key: &str) -> Result<String, Error> {
+    if public_key.len() > 4096 {
+        return Err(Error::InvalidKey);
+    }
+    let key = VerifyingKey::from_public_key_pem(public_key).map_err(|_| Error::InvalidKey)?;
+    Ok(hash(
+        key.to_public_key_der()
+            .map_err(|_| Error::InvalidKey)?
+            .as_bytes(),
+    ))
+}
+
 fn signed<T: DeserializeOwned>(
     payload: &[u8],
     signature: &[u8],

@@ -9,7 +9,9 @@ Agents run as the ordinary user. A future root-owned image-installed helper
 accepts a narrow structured protocol and verifies eligibility independently.
 It does not execute scripts, hooks, parsers or arbitrary commands from the writable
 checkout. No passwordless root wrapper around a user-writable script. The current
-helper refuses all operations and is not installed/setuid/sudo-authorized.
+helper protocol is implemented behind missing installed release trust and awaits
+Linux/native qualification (ADR 0016). It has no setuid bit or passwordless sudo
+rule. The ordinary CLI requests explicit sudo authorization for the fixed binary.
 
 ## Input and privilege review
 

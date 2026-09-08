@@ -70,6 +70,17 @@ operations. This is media-only; R07 and actual installed-OS checks retain enforc
 SELinux, and R01/R08 signature verification must never become permissive. Keep
 labels, require Anaconda startup, and record installed enforcement after install.
 
+Anaconda 44.30-2 bootc first-boot findings (2026-09-08, R02/ADR 0015): its native
+PrepareBootcMountTargetsTask omitted the separate home bind after /var, so useradd
+created the owner directory behind the home subvolume later mounted at boot.
+Preserve all selected non-API mounts with native bind/cleanup tracking before
+account creation. Installed fstab must address the physical root as /sysroot,
+not the logical overlay /; otherwise systemd-remount-fs fails. The fixed installer
+normalizer retains ro and all other mounts. Existing bootc-generated root/rootflags
+kargs remain authoritative. Source-hash drift or unsupported fstab input fails
+installation. See the R02 report for fresh-media results; a diagnostic repair
+does not qualify installation. Primary guidance: https://bootc.dev/bootc/bootc-install.html#finding-and-configuring-the-physical-root-filesystem.
+
 Tests: install A/update B/rollback A, /etc local drift, persistent home retention,
 interrupted staging, candidate-versus-running digest, and old journal readers.
 Also run docs/research/update-refresh/EXPERIMENTS.md client cases. Gates:

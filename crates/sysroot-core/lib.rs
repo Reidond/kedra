@@ -5,6 +5,8 @@
 //! assert!(!sysroot_core::DEPLOYMENT_AVAILABLE);
 //! ```
 
+/// Qualified bootc observations and non-mutating deployment journal transitions.
+pub mod deployment;
 /// Narrow Noctalia effective-settings review and disposition transitions.
 pub mod noctalia;
 /// Signed release records, freshness checkpoints and replay validation.

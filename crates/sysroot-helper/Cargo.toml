@@ -16,6 +16,11 @@ path = "main.rs"
 [lints]
 workspace = true
 
+[dependencies]
+sysroot-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
 [target.'cfg(target_os = "linux")'.dependencies]
 rustix.workspace = true
 rusqlite.workspace = true

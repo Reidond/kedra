@@ -1,6 +1,14 @@
 # R06 credential bootstrap
 
-2026-09-08: packaging in progress; full gate blocked.
+2026-09-08: native package/startup subset passes; full gate blocked.
+
+[Fedora VM run 34199985702](https://github.com/Reidond/kedra/actions/runs/34199985702)
+at `4dc3355` passes package preparation, installed Bitwarden startup and the default
+socket environment in the graphical/systemd and TTY-login paths. Its captured
+logged-out Bitwarden window was inspected. The ordinary generated user launched
+the unchanged upstream runtime without a sandbox-disable flag or setuid change.
+Codex, Noctalia, session services and synthetic keyring checks also pass. This is
+startup/propagation evidence, not vault authentication or SSH signing evidence.
 
 The reviewed official Bitwarden Desktop 2026.8.0 x86_64 RPM has SHA-256
 `5537e0ae5b1d3a2a3aff560362f6689d9f45c4584bb271e3cedff482f01f237a`

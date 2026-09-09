@@ -10,9 +10,11 @@ Claude Code. There is no BlueBuild or generic distribution framework.
 
 ## Current status
 
-Kedra is **in implementation**, with a working signed research installation and
-no promoted owner installer yet. The first protected production candidate is
-being built from accepted main source. Start with the
+The first signed owner installer is published as
+[desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1).
+Exact encrypted installation, desktop health and enrollment against the public
+channel pass in a disposable VM. Broader lifecycle implementation continues.
+Start with the
 [installation guide](docs/INSTALL.md), [current worklog](worklog.md) and
 [exact research evidence](docs/research/status.json).
 
@@ -31,8 +33,9 @@ owner account authentication and physical hardware are separate gates.
 
 The owner-approved public release authority and protected GitHub signing
 environment are provisioned, and the owner confirmed Bitwarden backup/retrieval.
-Exact production-media installation and promotion remain pending. A candidate
-signature is not a promoted release. Wider home groups, no-change refresh,
+Release 1 passed exact production-media installation and verified publication;
+the next candidate is qualifying expanded signed assets and the repaired publisher.
+Wider home groups, no-change refresh,
 expired-channel recovery, rotation and independent targets remain unfinished.
 
 The flat Rust workspace uses explicit main.rs/lib.rs paths, a single lockfile and
@@ -62,12 +65,14 @@ The desktop package/configuration candidate is tracked in
 
 `sysroot release verify` checks signed release records and optional installer
 checksums offline. Its scope and key requirements are described in
-[release verification](docs/RELEASES.md). No production release has been promoted.
+[release verification](docs/RELEASES.md), with exact release 1 download names and
+the independently confirmed public-key fingerprint.
 
-The [R02 report](docs/research/R02-installer/REPORT.md) records interactive
-signed-payload ISO installation; [R01](docs/research/R01-signatures/REPORT.md)
-records real signed update/rollback. Research authority/media do not establish
-owner production qualification.
+The [R02 report](docs/research/R02-installer/REPORT.md) records exact owner ISO
+installation; [R01](docs/research/R01-signatures/REPORT.md) records real signed
+update/rollback. [R08](docs/research/R08-release-protocol/REPORT.md) records owner
+publication and first public-channel enrollment. Each report retains the scope
+of earlier research results separately.
 
 ## Continue in Codex or Claude
 

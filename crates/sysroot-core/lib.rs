@@ -27,7 +27,7 @@ pub const STATUS_JSON: &str = r#"{
       "requires": ["public key and release inputs for the selected operation"]
     },
     "deployment": {
-      "implemented": true, "platform": "linux", "operations": ["enroll", "status", "stage", "rollback"],
+      "implemented": true, "platform": "linux", "operations": ["check", "enroll", "status", "stage", "rollback"],
       "requires": ["installed Kedra helper and trust", "administrator authorization", "enrollment for stage and rollback"]
     },
     "home": {
@@ -54,6 +54,7 @@ pub const STATUS_JSON: &str = r#"{
     "agent_authentication": "not_qualified"
   },
   "installed_checks": {
+    "published_channel": "sysroot update check",
     "deployment": "sysroot update status",
     "caller_home": "sysroot update status --home",
     "desktop": "sysroot doctor"

@@ -97,6 +97,51 @@ publication with release sequence 1 and checkpoint generation 1. Fetch the curre
 channel again for later online operations; its versioned r1 copy is historical
 evidence. Automatic/no-change renewal and expired-channel recovery remain open.
 
+## Development-only installed channel check
+
+The development CLI implements `sysroot update check`. It is absent from published
+r1 and the frozen `0eb1cf0` candidate; installed native qualification is still
+pending. Run the development command as the ordinary installed owner:
+
+```sh
+sysroot update check
+sysroot update check --json
+```
+
+The command reads deployment status through the fixed installed helper, which can
+request administrator authorization. It then downloads the installed target's
+channel anonymously and verifies both signatures, exact release/checkpoint binding,
+scope, actual-clock freshness and the enrolled machine's replay high-water. Only
+desktop / Fedora 44 / x86_64 / `ghcr.io/reidond/kedra-desktop` currently has a
+configured channel. The public key, policy and source manifest come from fixed
+installed paths; there are no caller-supplied authority or download-URL overrides.
+The bounded HTTPS download uses the system certificate trust and ignores personal
+curl configuration, proxy settings and credential environment variables.
+
+The result keeps the signed channel identity separate from observed installed
+state. `current` means the fresh channel names the booted image and its exact
+installed source provenance. `available` means it names a different image.
+`staged` and `downloaded` distinguish a matching pending deployment from an image
+that has only been downloaded; `pending_other_deployment` identifies a different
+pending image. `held` preserves a rollback hold or queued rollback. An unenrolled
+installation reports `enrollment_required` and `replay_checked: false`; signature
+validity alone cannot recover earlier accepted history. Existing slots, operation
+state and high-water remain visible under JSON `installed_status`.
+
+Release sequence and checkpoint generation are separate: renewal can advance the
+checkpoint without changing the image. JSON comparison fields describe advances
+relative to enrolled high-water, or are null when enrollment is absent. They are
+advisory and never replace the helper's independent checks during explicit staging.
+Network, signature, expiry, replay or trust errors produce a nonzero exit, never a
+successful `current` result. Status and installed trust are checked again after
+download; a change causes refusal with a request to run the check again.
+
+Checking does not stage, reboot, activate home changes, save channel files or advance
+high-water. The existing helper Status operation may reconcile a previously pending
+deployment operation in its journal, so this is not a promise of byte-for-byte
+read-only storage. The command has no daemon or persistent download cache. Keep
+using the explicit download/unpack/enroll/stage workflow above with published r1.
+
 ## Authenticate predecessor history for publication
 
 The development CLI now provides a separate history command. It is not included

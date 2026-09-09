@@ -120,3 +120,17 @@ its base/builder pins and image-builder 82.0.0 identity match the reviewed input
 The complete archive is downloading. These bounded metadata observations do not
 replace whole-archive/part/ISO verification or fresh installation. Those remain
 pending; candidate approval remains `candidate` and `fresh_install_qualified=false`.
+
+## Local media verification
+
+The completed 2,801,608,149-byte archive independently matches the ZIP hash above.
+Extraction then passed exact schema/scope/source/image/key/inventory/provenance
+checks. Both ordered parts match their recorded size and SHA-256; complete ISO
+assembly matches 2,856,314,880 bytes and `15ddfafb…a1eb4b`. The candidate hash also
+matches the earlier bounded metadata read. Independent public-input review found
+no actionable defect. Local `assembly-verification.json` retains these results.
+
+A fresh offline UEFI VM has now started from that exact ISO with two newly
+generated 64 GiB disks, 8 GiB RAM and four virtual CPUs. No host disk or network
+is attached. Installation/first-boot qualification is in progress, while the
+separate enrolled release 1 VM remains stopped for the later forward update.

@@ -140,6 +140,21 @@ Rollback queues the retained verified image and places forward updates on hold;
 to bypass a refusal. Offline current boot and retained rollback are separate from
 fresh online metadata requirements.
 
+### Development-only channel discovery
+
+The development CLI adds `sysroot update check` and `sysroot update check --json`.
+They are not included in published r1 or the frozen `0eb1cf0` candidate, and native
+qualification is pending. Run the command as the ordinary owner; it requests helper
+authorization for installed status and anonymously verifies the fixed target's
+fresh signed channel against installed trust and enrollment.
+
+It reports current/available images, pending deployments, enrollment requirements
+and rollback holds separately. It does not stage, reboot, activate home changes or
+advance update high-water. Reading helper status can reconcile an existing operation
+journal. Use the explicit workflow above on r1; see the
+[development check semantics](RELEASES.md#development-only-installed-channel-check)
+before using a later development build.
+
 ## Day-to-day changes
 
 Keep the Kedra checkout separate from private account data. The owner can edit

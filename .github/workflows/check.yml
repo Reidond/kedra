@@ -40,8 +40,21 @@ jobs:
         run: cargo build --workspace --release --locked
       - name: Independent OpenSSL signature interoperability
         run: python3 tests/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
+      - name: Record the checked Linux CLI checksum
+        working-directory: target/release
+        run: sha256sum sysroot > sysroot.sha256
+      - name: Retain checked CLI for manual disposable-guest workflows
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sysroot-linux-x86_64-${{ github.sha }}
+          path: |
+            target/release/sysroot
+            target/release/sysroot.sha256
+          if-no-files-found: error
+          retention-days: 7
       - name: Scope of this result
         if: always()
         run: |
           echo 'This workflow builds and lints Rust, then exercises the actual CLI export workflow and independent signature interoperability.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Installed-system behavior is covered by the separate disposable VM workflows. Unit and repository self-tests are not used.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The retained CLI is a development verification artifact tied to this exact source/run, not an owner-signed OS release or installer.' >> "$GITHUB_STEP_SUMMARY"

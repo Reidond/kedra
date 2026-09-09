@@ -7,6 +7,7 @@ authority. It does not sign, publish, renew freshness, or compare a prior releas
 
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -16,6 +17,8 @@ import subprocess
 import sys
 import tarfile
 import time
+
+import target_image
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -33,6 +36,7 @@ RECIPES = (
     "build/agents/package.py", "build/bitwarden/prepare.py",
     "build/research/refresh/Containerfile.target", "build/research/refresh/target-native.sh",
     "build/research/refresh/target-dnf.sh", "build/research/refresh/target.py",
+    "build/research/refresh/target-filesystem.py", "build/research/refresh/target_image.py",
 )
 BUILD_CONFIGURATION = (
     "Cargo.lock", "Cargo.toml", "rust-toolchain.toml", "crates/sysroot/Cargo.toml",
@@ -68,20 +72,28 @@ def canonical_hash(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def native(label, args, *, checked=True):
+def native(label, args, *, checked=True, timeout=None):
     """Retain actual argv, outputs and exit status; never turn an error into equality."""
     directory = OUTPUT / "commands" / label
     directory.mkdir()
-    write(directory / "argv.json", [str(arg) for arg in args])
+    command = [str(arg) for arg in args]
+    if timeout is not None:
+        require(timeout > 0, "Native command deadline has expired")
+        limit = ["timeout", "--signal=TERM", "--kill-after=10s", str(math.ceil(timeout)) + "s"]
+        # Let the standard deadline tool run with the same privilege as its
+        # command; an ordinary parent cannot reliably signal a sudo child tree.
+        command = ["sudo", *limit, *command[1:]] if command[0] == "sudo" else [*limit, *command]
+    write(directory / "argv.json", command)
     started = time.time_ns()
     print(f"{label}: starting", flush=True)
     with (directory / "stdout").open("wb") as stdout, (directory / "stderr").open("wb") as stderr:
-        result = subprocess.run(args, cwd=ROOT, stdout=stdout, stderr=stderr, check=False)
+        result = subprocess.run(command, cwd=ROOT, stdout=stdout, stderr=stderr, check=False)
+        code = result.returncode
     write(directory / "result.json", {"started_ns": started, "finished_ns": time.time_ns(),
-                                       "exit_code": result.returncode})
-    print(f"{label}: exit {result.returncode}", flush=True)
-    require(not checked or result.returncode == 0, f"Native {label} exited {result.returncode}; see retained command evidence")
-    return directory, result.returncode
+                                       "exit_code": code, "native_timeout_seconds": timeout})
+    print(f"{label}: exit {code}", flush=True)
+    require(not checked or code == 0, f"Native {label} exited {code}; see retained command evidence")
+    return directory, code
 
 
 def image_identity(label, reference):
@@ -416,14 +428,17 @@ def main():
     results = {"schema_version": 1, "status": "not-run", "scope": "desktop-resolution-research",
                "cases": [], "whole_image_equivalence": "unproven", "freshness_written": False}
     write(OUTPUT / "results.json", results)
+    observation_deadline = time.monotonic() + 60 * 60
     try:
         for label, command in (("podman-version", [*PODMAN, "version"]), ("skopeo-version", ["skopeo", "--version"]),
                                ("rustc-version", ["rustc", "-Vv"]), ("cargo-version", ["cargo", "-V"]),
+                               ("getfattr-version", ["getfattr", "--version"]),
+                               ("timeout-version", ["timeout", "--version"]),
                                ("runner-kernel", ["uname", "-a"]), ("runner-disk", ["df", "-h"])):
             native(label, command)
         base = resolve_base()
         plan, material, manifest_hash, expected = prepare_inputs()
-        records, executions = [], set()
+        records, images, executions = [], [], set()
         for name in ("baseline", "repeat-fresh"):
             evidence = OUTPUT / name
             evidence.mkdir()
@@ -447,16 +462,22 @@ def main():
             native("trust-" + name, [*PODMAN, "build", "--no-cache", "--pull=never", "--build-arg", "CANDIDATE_IMAGE=" + tag,
                                     "--file", ROOT / "build/release/Containerfile", "--tag", tag + "-trust", TRUST])
             verify_final_payload(name, tag + "-trust", evidence, expected, record)
-            case.update(status="pass", native_execution_id=execution,
-                        native_image_id=image_identity("image-" + name, tag + "-trust"),
+            image_id = image_identity("image-" + name, tag + "-trust")
+            case.update(native_assembly_status="pass", native_execution_id=execution, native_image_id=image_id,
                         material_comparison_sha256=record["material_comparison_sha256"],
                         whole_image_equivalence="unproven")
+            image = {"oci": target_image.capture_oci(name, image_id, evidence, native),
+                     "filesystem": target_image.capture_filesystem(name, image_id, evidence, RESEARCH / "target-filesystem.py",
+                                                                   native, observation_deadline)}
+            case.update(status="recorded", complete_final_image_observation=True, image_unmounted=True)
             records.append(record)
+            images.append(image)
             write(OUTPUT / "results.json", results)
         equal = records[0]["material_comparison"] == records[1]["material_comparison"]
-        results.update(status="pass", classification="material-inputs-equal/equivalence-unproven" if equal else "material-inputs-changed",
+        results.update(status="recorded", classification="material-inputs-equal/equivalence-unproven" if equal else "material-inputs-changed",
                        repeated_native_execution=True,
                        repository_metadata_equal=records[0]["metadata"] == records[1]["metadata"],
+                       final_image_observation=target_image.compare_pair(OUTPUT, images),
                        no_change_release_decision=False)
     except (OSError, ValueError, RuntimeError, KeyError, tarfile.TarError) as error:
         results.update(status="fail", error=str(error), classification="resolution-or-evidence-failed",
@@ -464,7 +485,7 @@ def main():
     finally:
         write(OUTPUT / "results.json", results)
     print(json.dumps(results, indent=2), flush=True)
-    return 0 if results["status"] == "pass" else 1
+    return 0 if results["status"] == "recorded" else 1
 
 
 if __name__ == "__main__":

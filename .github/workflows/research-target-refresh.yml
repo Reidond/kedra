@@ -9,6 +9,8 @@ on:
       - build/research/refresh/target.py
       - build/research/refresh/target-native.sh
       - build/research/refresh/target-dnf.sh
+      - build/research/refresh/target-filesystem.py
+      - build/research/refresh/target_image.py
       - build/research/refresh/Containerfile.target
       - build/research/inputs.json
       - Containerfile
@@ -40,15 +42,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Prepare native build tools
+        timeout-minutes: 15
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo rpm cpio
+          sudo apt-get install -y --no-install-recommends podman skopeo rpm cpio attr
           rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets --locked -- -D warnings
           cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
       - name: Materialize actual desktop twice and retain native resolution inputs
+        timeout-minutes: 65
         run: python3 build/research/refresh/target.py
       - name: Retain public evidence including exact transaction RPM archives
         if: always()

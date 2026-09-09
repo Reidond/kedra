@@ -1,8 +1,8 @@
 # Actual desktop resolution evidence
 
-Prepared 2026-09-09 for development Actions qualification. Native baseline
-assembly now passes, but the evidence adapter rejected its reason-row encoding;
-complete resolution accounting and repeated comparison remain **not-run**.
+Recorded 2026-09-09: native full RPM accounting, repeated desktop assembly and
+declared-payload readback **pass** in run 34294737585. The subsequent complete
+filesystem/OCI observation extension described below is prepared but **not-run**.
 This is the next bounded experiment after the ten synthetic RPM cases
 in [run 34286322016](https://github.com/Reidond/kedra/actions/runs/34286322016).
 Those earlier cases remain fixture evidence, not proof of this implementation.
@@ -23,8 +23,39 @@ rows. Actual DNF 5.4.4.0 output contained literal `\t` separators: unlike RPM's
 query formatter, this interface does not translate that escape. The observer now
 passes literal tabs/newlines through Bash ANSI-C quoting, keeping strict host
 parsing. The failure message also includes a bounded escaped row for diagnosis.
-Native repeat/final payload readback remain not-run; no comparison/freshness
-result was emitted. The full evidence is artifact `10082478066` (802,174,754 bytes).
+That run did not reach repeat/final payload readback and emitted no comparison or
+freshness result. Artifact `10082478066` is 802,174,754 bytes; its complete ZIP
+independently verifies SHA-256
+`3d65d67ecd0955434a88c4d362430b0a7acb7f0d3f5f299a4870213c1cd8897f`.
+
+[Third run 34294737585](https://github.com/Reidond/kedra/actions/runs/34294737585)
+at `67b4b141012f57d126d9ac9e16646d0f7bfd55b5` passes both actual assemblies,
+native evidence accounting, public-trust derivatives and final declared payload
+readback with DNF/libdnf5 5.4.4.0, RPM 6.0.2 and Podman 4.9.3. Each resulting
+image accounts for 1,005 RPMs: 542 unchanged packages from the exact pinned base
+and 463 matching verified transaction archives. All 133 compared declared files
+match; the source manifest is separately checked against its original bytes.
+Distinct execution receipts and actual command records prove both native package
+steps ran. Their material comparison SHA-256 is
+`791296edc0fcd653d39448d5b648e7ba579563b50e6bf6451f827d74bcf39c7a`.
+
+The result is `material-inputs-equal/equivalence-unproven`. Native image IDs differ:
+`3f2e9c0c21641242f6a0e9bcac0e3c8c04ff0291126aa590153a57d19fcea911` and
+`f0051a75eb5d5b41cff3293502d038e9f292027d5872f8ea7d63b3a6852fb2ab`.
+Podman's reported runtime `Config` is equal, while creation/history/layers,
+digests and the public derivative's base-name/base-digest annotations differ.
+Reported image sizes differ by 13 bytes; those inspections do not identify the
+responsible filesystem paths. Cached metalink and libsolv files differ while
+retained repomd/data identities match. No timestamp or cache normalization was
+applied, and no release/ISO pruning or freshness operation was authorized.
+
+Successful artifact `10083040414` is 1,608,870,789 bytes. The complete downloaded
+ZIP independently matches SHA-256
+`95d4e5dc930bc9797cdebdeb1b054ad33b535c6db40bf15e2194bc01387e7249`.
+Actual evidence is retained locally under `output/target-refresh-34294737585/`.
+That completed runner did not export a complete filesystem inventory. The next
+extension must collect a newly built pair while those exact images still exist;
+it cannot backfill missing filesystem observations into this successful run.
 
 The workflow is
 `.github/workflows/research-target-refresh.yml`. Its entrypoint is
@@ -139,6 +170,79 @@ downloaded transaction RPMs. They are retained for seven days without ZIP
 recompression. The generated context, unsigned images and agent download work
 directory are not artifact upload paths. No private signing material is created.
 
+## Prepared complete image observation
+
+The new `target_image.py` coordinator records exact raw manifests and raw OCI
+configuration through Skopeo's `--raw` and `--config --raw` interfaces. The config
+bytes must match both the manifest descriptor and the exact built image ID.
+Runtime configuration, platform fields, remaining config fields (including
+creation/history/rootfs identity) and manifest fields are compared separately.
+All fields remain in the evidence; a changed annotation is not silently ignored.
+
+For each exact built image ID, the coordinator checks native Podman mount state,
+mounts that image and validates its canonical returned path beneath the actual
+native Podman GraphRoot. Custom `target-filesystem.py` traversal runs in a
+separate no-network container with a read-only root and read-only `/image` bind;
+`--read-only-tmpfs=false` keeps its temporary directories read-only too. The bind
+is nonrecursive and traversal refuses another filesystem. The reader opens
+directories/files without following symlinks and visits the static image mount,
+not the reader container's generated `/proc`, `/sys`, host files or runtime root.
+The recorder itself is bind-mounted read-only and receives no extra capabilities.
+
+The complete path inventory records raw path bytes (base64) with readable names,
+types, modes, UID/GID, sizes, link counts, observed inode/device/block facts,
+observed access/modification/change timestamps, regular-file SHA-256 hashes,
+symlink targets and complete hardlink groups. Directory entries and stat facts
+are rechecked; inconsistent reads and unaccounted hardlink counts fail the
+observation. No file content is exported. Device/FIFO/socket entries are recorded
+as metadata and never opened as data streams.
+
+The host's standard `getfattr` program reads only that validated image mount with
+all namespaces selected, physical/no-dereference recursion, absolute names and
+base64 value encoding. This covers namespaces that a capability-limited container
+could hide. Only the disposable Actions job adds the `attr` package; no custom
+checkout program runs as host root, and the recorder container receives no
+`SYS_ADMIN` capability. Native xattr snapshots before and after traversal must
+agree. Native stderr/nonzero exits, unsupported escaped path/name mapping,
+duplicate records or a path outside the validated mount fail rather than assigning
+metadata incorrectly. Raw native dumps are retained for diagnosing any such case.
+
+The exact image is unmounted in `finally`, without `--all` or `--force`, and native
+readback must show its mount gone. The reader has a unique, initially absent
+container name. Bounded native stop/remove/absence checks reap that exact reader
+before ordinary image unmount, including when a timed-out Podman client leaves
+the reader running. Missing auto-removed readers are accepted through native
+`--ignore` and a separate absence result, not by ignoring a running container.
+If evidence I/O prevents ordinary cleanup
+logging, bounded native Podman state/unmount calls still attempt cleanup and the
+observation remains failed. This does not promise recovery after runner destruction
+or an uncatchable process kill.
+
+The mounted phase has a 15-minute deadline within an earlier 60-minute overall
+observation deadline. GNU `timeout` runs with the native command's privilege and
+has a bounded termination grace period. The reader also checks a 14-minute
+internal deadline and has a 2 GiB memory/swap ceiling. One million entries,
+64 MiB of path bytes, 64 GiB of content reads, 128 MiB of emitted metadata and
+directory depth 256 are explicit fail-closed ceilings. Native metadata dumps are
+size-checked before host parsing. Hitting a deadline/budget produces an incomplete
+observation; nothing is silently truncated. Actions preparation and experiment
+steps are bounded separately to leave time for exact cleanup before the job limit.
+
+`filesystem-observation.json.gz` retains the complete per-image observation;
+`final-image-differences.json.gz` retains every changed path/field, hardlink
+relationship and OCI field. Small adjacent JSON files contain counts and hashes.
+Compression only packages evidence; observed image facts are unchanged. There is
+no ignore list. Timestamp, inode/device and other storage-visible differences
+remain visible alongside content, permission and xattr differences, allowing a
+later decision based on concrete evidence.
+
+New result status `recorded` means complete observation, not file equality.
+The comparison reports `differences-observed` or `observed-identical`, always with
+normalization and equivalence authorization false. Incomplete observations exit
+nonzero. The existing RPM/material-intent comparison remains a separate result.
+No policy for skipping images, renewing checkpoints or normalizing these fields
+is implemented by this recorder. Its complete native run remains not-run.
+
 ## Primary mechanism references
 
 - [DNF5 configuration](https://dnf5.readthedocs.io/en/latest/dnf5.conf.5.html):
@@ -154,6 +258,19 @@ directory are not artifact upload paths. No private signing material is created.
   public-key evidence and `_pkgverify_level=all` signature/digest requirements.
 - [jq 1.8 invocation](https://jqlang.org/manual/v1.8/#invoking-jq): `--` ends option
   processing even when `--args` is used to collect remaining string arguments.
+- [Podman 4.9.3 image mount](https://docs.podman.io/en/v4.9.3/markdown/podman-image-mount.1.html),
+  [unmount](https://docs.podman.io/en/v4.9.3/markdown/podman-image-unmount.1.html),
+  [info](https://docs.podman.io/en/v4.9.3/markdown/podman-info.1.html) and
+  [run](https://docs.podman.io/en/v4.9.3/markdown/podman-run.1.html): exact image
+  mounts/counters, actual GraphRoot, nonrecursive binds and read-only runtime.
+- [Skopeo 1.13.3 inspect](https://github.com/containers/skopeo/blob/v1.13.3/docs/skopeo-inspect.1.md):
+  `--config --raw` preserves config bytes, distinct from the raw manifest.
+- [getfattr upstream manual](https://man7.org/linux/man-pages/man1/getfattr.1.html):
+  all-namespace physical traversal, no symlink dereference and encoded output.
+- [Podman 4.9.3 stop](https://docs.podman.io/en/v4.9.3/markdown/podman-stop.1.html),
+  [remove](https://docs.podman.io/en/v4.9.3/markdown/podman-rm.1.html) and
+  [container exists](https://docs.podman.io/en/v4.9.3/markdown/podman-container-exists.1.html):
+  bounded cleanup and distinct native absence/storage-error results.
 
 These are mechanism references, not a new native result. Record actual run,
 versions, archive hash and observed failures in the research report after Actions.

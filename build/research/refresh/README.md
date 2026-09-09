@@ -8,6 +8,10 @@ This is a bounded section-A experiment for R02/R07/R08, using real Fedora DNF/RP
 and Podman image materialization. It does not publish images, create an ISO,
 renew a checkpoint, or use a production signing environment.
 
+The separate [actual desktop evidence experiment](target-README.md) is prepared
+for development Actions qualification. Its native execution is not-run; it does
+not change or broaden the ten measured synthetic RPM results below.
+
 The entrypoint is `python3 build/research/refresh/run.py` in
 `.github/workflows/research-refresh.yml`, restricted to `codex/usable-system`.
 There is a path-filtered development push trigger and manual dispatch, no schedule.

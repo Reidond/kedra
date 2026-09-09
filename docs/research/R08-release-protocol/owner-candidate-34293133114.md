@@ -81,3 +81,19 @@ enrolled release 1 VM. Published release 1 and its channel remain unchanged.
 
 Local continuation evidence: `output/owner-candidate-34293133114/`, including
 the verified archive, extracted native build records and anonymous manifest.
+
+## Signing outcome
+
+After the concrete review above and another exact-main/pending-environment
+readback, the configured review was submitted under the owner's standing
+authorization. GitHub accepted deployment `6339675374` at source `0eb1cf0`.
+The isolated sign-image job passed. The installer job is now building the ISO.
+
+Independent anonymous verification also passes: the owner repository serves the
+exact reviewed `71b928fd` manifest, and native OpenSSL 3.6.1 verifies the attached
+P-256/SHA-256 signature with the established public key. The verified payload
+binds the complete digest above to
+`ghcr.io/reidond/kedra-desktop:candidate-34293133114-1` and the expected signature
+type. Local `registry-signature/` records retain the public manifest, signed
+payload, detached signature and verification result. This does not establish
+new ISO or installed-system qualification; those results remain pending.

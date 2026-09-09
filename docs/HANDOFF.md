@@ -23,6 +23,15 @@ The existing production opt-in was restored to true; signing authority and
 protections did not change. Later work stays on codex/usable-system until accepted
 through normal CI. Read AGENTS.md, current worklog and actual source/CI evidence.
 
+PR 3 has since merged as accepted main `0eb1cf0`. Candidate 34293133114 passes
+public build, registry/storage compatibility and the configured signing review
+under the owner's standing authorization. Anonymous native verification confirms
+signed image `71b928fd`; its installer is building. See
+[the exact next-candidate review](research/R08-release-protocol/owner-candidate-34293133114.md).
+Main stays fixed through this candidate's v2 qualification/publication. Full-target
+resolution research, expired-predecessor history verification and capability
+status corrections remain separate development work. No new ISO has been booted.
+
 ## Owner testing decision — 2026-09-08
 
 Use end-to-end or manual testing only. Unit/model/mock tests, doctests, standalone

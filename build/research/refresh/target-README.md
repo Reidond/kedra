@@ -1,7 +1,8 @@
 # Actual desktop resolution evidence
 
-Prepared 2026-09-09 for development Actions qualification. The first native run
-failed before DNF execution; full desktop resolution remains **not-run**.
+Prepared 2026-09-09 for development Actions qualification. Native baseline
+assembly now passes, but the evidence adapter rejected its reason-row encoding;
+complete resolution accounting and repeated comparison remain **not-run**.
 This is the next bounded experiment after the ten synthetic RPM cases
 in [run 34286322016](https://github.com/Reidond/kedra/actions/runs/34286322016).
 Those earlier cases remain fixture evidence, not proof of this implementation.
@@ -11,9 +12,19 @@ at `1fdec1fb80e86d3195ef44d0868100d8fc8fc18b` passed base resolution and actual
 source/agent/Bitwarden/public-trust preparation. Fedora's `jq 1.8.1-3.fc44`
 rejected `--repo=fedora` while the observer serialized its argument array; no
 native DNF command had run. Both argv serialization sites now terminate jq's
-option processing with `--`. The corrected full native run is not-run. Artifact
+option processing with `--`. Artifact
 `10082232519` is 366,806 bytes; its downloaded ZIP independently matches SHA-256
 `f16aa2ad59825aa7f738721d20368a3bc5aa6a05245490c30dcdd2355fc8d5bb`.
+
+[Second run 34293703725](https://github.com/Reidond/kedra/actions/runs/34293703725)
+at `2954d764b78e59823b7901af43c491414a09392b` passed the complete actual baseline
+assembly and native observer (exit 0), then refused unsupported installed-reason
+rows. Actual DNF 5.4.4.0 output contained literal `\t` separators: unlike RPM's
+query formatter, this interface does not translate that escape. The observer now
+passes literal tabs/newlines through Bash ANSI-C quoting, keeping strict host
+parsing. The failure message also includes a bounded escaped row for diagnosis.
+Native repeat/final payload readback remain not-run; no comparison/freshness
+result was emitted. The full evidence is artifact `10082478066` (802,174,754 bytes).
 
 The workflow is
 `.github/workflows/research-target-refresh.yml`. Its entrypoint is

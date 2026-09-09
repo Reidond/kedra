@@ -93,7 +93,7 @@ observe_dnf() {
     if test "$operation" = clean; then
         record_repositories final
         native final-reasons /usr/bin/dnf "${options[@]}" --cacheonly repoquery --installed \
-            --queryformat '%{full_nevra}\t%{from_repo}\t%{reason}\n'
+            --queryformat $'%{full_nevra}\t%{from_repo}\t%{reason}\n'
         snapshot_cache before-clean
     fi
     inventory "$operation-before"

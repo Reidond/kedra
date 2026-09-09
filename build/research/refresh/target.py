@@ -301,7 +301,7 @@ def resolution_record(evidence, base, plan, material, manifest_hash):
     reasons = {}
     for line in command_output(evidence, "final-reasons").read_text().splitlines():
         fields = line.split("\t")
-        require(len(fields) == 3 and fields[0] not in reasons, "Unsupported native installed reason row")
+        require(len(fields) == 3 and fields[0] not in reasons, f"Unsupported native installed reason row: {line[:300]!r}")
         reasons[fields[0]] = {"from_repo": fields[1], "reason": fields[2]}
     archive_rows = {}
     origins = {}

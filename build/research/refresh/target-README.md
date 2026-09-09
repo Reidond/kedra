@@ -1,9 +1,19 @@
 # Actual desktop resolution evidence
 
-Prepared 2026-09-09 for development Actions qualification; native execution is
-**not-run**. This is the next bounded experiment after the ten synthetic RPM cases
+Prepared 2026-09-09 for development Actions qualification. The first native run
+failed before DNF execution; full desktop resolution remains **not-run**.
+This is the next bounded experiment after the ten synthetic RPM cases
 in [run 34286322016](https://github.com/Reidond/kedra/actions/runs/34286322016).
 Those earlier cases remain fixture evidence, not proof of this implementation.
+
+[First run 34293193670](https://github.com/Reidond/kedra/actions/runs/34293193670)
+at `1fdec1fb80e86d3195ef44d0868100d8fc8fc18b` passed base resolution and actual
+source/agent/Bitwarden/public-trust preparation. Fedora's `jq 1.8.1-3.fc44`
+rejected `--repo=fedora` while the observer serialized its argument array; no
+native DNF command had run. Both argv serialization sites now terminate jq's
+option processing with `--`. The corrected full native run is not-run. Artifact
+`10082232519` is 366,806 bytes; its downloaded ZIP independently matches SHA-256
+`f16aa2ad59825aa7f738721d20368a3bc5aa6a05245490c30dcdd2355fc8d5bb`.
 
 The workflow is
 `.github/workflows/research-target-refresh.yml`. Its entrypoint is
@@ -131,6 +141,8 @@ directory are not artifact upload paths. No private signing material is created.
 - [RPM 6.0.2 rpmkeys](https://rpm.org/docs/6.0.x/man/rpmkeys.8) and
   [RPM configuration](https://rpm.org/docs/6.0.x/man/rpm-config.5):
   public-key evidence and `_pkgverify_level=all` signature/digest requirements.
+- [jq 1.8 invocation](https://jqlang.org/manual/v1.8/#invoking-jq): `--` ends option
+  processing even when `--args` is used to collect remaining string arguments.
 
 These are mechanism references, not a new native result. Record actual run,
 versions, archive hash and observed failures in the research report after Actions.

@@ -19,7 +19,7 @@ native() {
     local label=$1 code started finished
     shift
     mkdir "$evidence/commands/$label"
-    jq -cn --args '$ARGS.positional' "$@" > "$evidence/commands/$label/argv.json"
+    jq -cn --args '$ARGS.positional' -- "$@" > "$evidence/commands/$label/argv.json"
     started=$(date +%s%N)
     set +e
     "$@" > "$evidence/commands/$label/stdout" 2> "$evidence/commands/$label/stderr"
@@ -157,7 +157,7 @@ case "${1:-}" in
             '{schema_version:1,execution_id:$execution,started_ns:$started,state:"running",whole_image_equivalence:"unproven",freshness_written:false}' > "$evidence/outcome.json"
         trap finish EXIT
         cp /usr/share/sysroot/source.json "$evidence/source.before.json"
-        jq -cn --args '$ARGS.positional' "${options[@]}" > "$evidence/observer-dnf-options.json"
+        jq -cn --args '$ARGS.positional' -- "${options[@]}" > "$evidence/observer-dnf-options.json"
         native dnf-version /usr/bin/dnf --version
         native rpm-version rpm --version
         native rpm-querytags rpm --querytags

@@ -27,7 +27,8 @@ intermediate and older source, retained future publications, exact-local default
 override, conflicting later edits and unchanged accepted/live state.
 Equal-size replacements select by line; other edit
 blocks remain hunks. Native niri discard/reload passes the follow-up above
-(ADR 0021); changed-image baseline activation remains unqualified. The Noctalia native interruption subset separately
+(ADR 0021); changed-image baseline activation is qualified by the later A/B/A
+sequence above. The Noctalia native interruption subset separately
 passes 34230166262 at 3267e03; see R04. Only E2E/manual testing is authorized now;
 the isolated test counts below are historical evidence.
 

@@ -17,7 +17,7 @@
       "report": "R02-installer/REPORT.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34255228394",
       "prototype_status": "pass",
-      "note": "Owner media at accepted c660c58 passes all ten v1 manual installation cases: full ISO/source/key hashes, offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and both stopped-sentinel comparisons. Exact owner digest and containerPolicy match. The same media is published as desktop-44-x86_64-r1 after verified exact-byte recovery. Public-channel enrollment, repeat refusal with unchanged status, doctor, clean shutdown and final sentinel preservation also pass in the retained VM, with separate R08 evidence. Post-enrollment reboot persistence, full recovery and physical hardware remain open."
+      "note": "Owner media at accepted c660c58 passes all ten v1 manual installation cases: full ISO/source/key hashes, offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and both stopped-sentinel comparisons. Exact owner digest and containerPolicy match. The same media is published as desktop-44-x86_64-r1 after verified exact-byte recovery. Public-channel enrollment, repeat refusal with unchanged status, doctor, clean shutdown and final sentinel preservation also pass in the retained VM, with separate R08 evidence. A separate no-ISO reboot retains exactly the enrolled image/order state and passes doctor, clean shutdown and sentinel preservation. Full recovery and physical hardware remain open."
     },
     {
       "id": "R03",

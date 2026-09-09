@@ -126,6 +126,8 @@ retained r1 VM: the helper reported enrolled, the exact booted owner digest and
 sequence/generation 1 without staging or rebooting. Status and doctor passed;
 repeating enrollment was refused with the original state preserved. Clean
 shutdown and a final comparison confirmed that the unselected disk was unchanged.
+A later no-ISO reboot also retained exactly the enrolled image/order state and
+passed desktop health and stopped-disk preservation without re-enrollment.
 See the separate
 [enrollment evidence](research/R08-release-protocol/owner-r1-enrollment/REPORT.md).
 

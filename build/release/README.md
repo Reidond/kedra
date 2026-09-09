@@ -1,11 +1,16 @@
-# Production release preparation
+# Production releases
 
-The public trust-context producer and an enabled manual candidate workflow are
-implemented. The dedicated public authority and protected GitHub environment
-secrets are now provisioned; the owner confirmed Bitwarden backup and retrieval.
-Production execution and promotion remain unqualified. The public producers do
-not create private keys or enroll machines. The main-only promotion workflow can
-publish a release after exact-media qualification and protected owner approval.
+[Owner release r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1)
+and its [signed channel](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-channel)
+are published. Exact installation, verified publication recovery and public-channel
+enrollment pass under the dedicated owner authority. See the
+[recovery report](../../docs/research/R08-release-protocol/owner-promotion-34288691672.md)
+and [installation guide](../../docs/INSTALL.md).
+
+The expanded v2 publisher and expired-predecessor publication remain under
+qualification; r1 retains its original v1 assets and signed bytes. The owner has
+confirmed Bitwarden backup/retrieval and the protected signing environment is
+provisioned. Public producers create no private keys and enroll no machines.
 
 For the independently reviewed desktop public key:
 
@@ -28,7 +33,7 @@ untrusted download does not establish authority. A dedicated OS-release private
 key and its recovery copy must be separate from the owner's Bitwarden SSH key.
 Research keys and generated fixture fingerprints are never production authority.
 
-The prepared [release workflow](../../.github/workflows/release.yml) builds only
+The [release workflow](../../.github/workflows/release.yml) builds only
 from current main after explicit opt-in and an existing protected signing
 environment. It builds public trust into the final candidate, pushes the unsigned
 build to a separate repository, and signs its exact digest in a job without a
@@ -40,15 +45,17 @@ That descriptor deliberately records fresh_install_qualified=false and cannot be
 used as a promoted release manifest.
 
 See [authority setup](authority/README.md) for the concrete files, environment,
-secret names, recovery steps and current configuration evidence. The workflow has
-signed production candidate 34250485539 after exact owner review. PR 1 merged as
-main 3b1bcdf and the explicit manual opt-in is enabled. That candidate passed
+secret names and protected environment configuration. The first production
+candidate 34250485539 at accepted source 3b1bcdf passed owner-reviewed signing and
 anonymous strict pull but failed ISO construction on compressed layer identity;
 it is retained and not promotable. The correction preserves native OCI identity
 on the first push and requires a registry/storage round trip before signing.
-A replacement needs its own owner review and exact-media qualification. No release
-channel exists. Shared installer regression 34244387167 passed its signed build
-and offline-startup scope with disposable authority.
+Replacement 34255228394 at c660c58 then passed separate image/metadata approval,
+exact-media installation and publication as r1. Promotion 34288691672's failed
+publisher remains failed; its exact approved bytes were recovered and verified
+manually. The current opt-in and later accepted-source candidate are tracked in
+worklog.md. Shared installer regression 34244387167 retains its earlier signed
+build/offline-startup scope with disposable authority.
 
 The complete release path must preserve these boundaries:
 
@@ -65,11 +72,11 @@ The complete release path must preserve these boundaries:
 5. Preserve independent recovery material and explicit stage/reboot/rollback
    controls. A failed or stale refresh must not renew successful freshness.
 
-Current manual evidence uses a disposable public key whose private key was
+The earlier public-input preparation experiment used a disposable public key whose private key was
 removed by the CLI/OpenSSL workflow. The local producer accepts the matching
 fingerprint and refuses a different fingerprint without creating output. This
-qualifies that earlier public-input preparation only. Later authority/keypair
-and environment provisioning are documented separately; no promoted media exists.
+qualifies that earlier public-input preparation only. Actual owner authority,
+installation and recovered r1 publication have their separate evidence above.
 
 `prepare-release.py` prepares exact **unsigned** release/checkpoint/checksum bytes after
 review of candidate.json, the installed source.json, packages.txt, provenance.json,
@@ -256,9 +263,10 @@ and [annotated tags](https://docs.github.com/en/rest/git/tags#get-a-tag).
 Expanded v2 preparation/signing/publication under actual production authority,
 uncertain-create continuation, expired-predecessor publication, interrupted-publication recovery and races remain
 not-run. Syntax parsing and native signer
-help inspection do not qualify those behaviors. Native Windows CLI/OpenSSL checks
+help inspection do not qualify those behaviors. Native Windows and Linux CLI/OpenSSL checks
 exercise history authentication and unchanged incoming expiry/refusal semantics;
-the extended R01 VM flow still needs its actual run. No-change renewal and key
+Linux workspace 34294737483 passes at 67b4b14. The extended R01 VM flow still needs
+its actual result. No-change renewal and key
 rotation remain separate unfinished work.
 
 Sources: [Sigstore blob signing](https://docs.sigstore.dev/cosign/signing/signing_with_blobs/)

@@ -151,8 +151,10 @@ native ISO assembly, then published version 385117864 and channel 385128562.
 Anonymous native channel verification and both tag-source checks pass. Initial
 public-channel enrollment, repeat-enrollment refusal with unchanged status,
 doctor, clean shutdown and final sentinel preservation also passed in the
-retained r1 VM. Post-enrollment reboot persistence and a new owner image were not
-tested. Production opt-in was restored true; main c660c58, approved
+retained r1 VM. A later no-ISO boot also passes exact enrollment/order-state
+persistence, doctor, clean shutdown and sentinel preservation without
+re-enrollment. A new owner image has not yet been staged. Production opt-in was
+restored true; main c660c58, approved
 bytes, authority and environment protections were unchanged. The owner's direct
 GitHub approval covered those metadata bytes; recovery needed no new signature
 or repeated approval of them.

@@ -145,10 +145,10 @@ release/promotion is implied. See docs/RELEASES.md.
 
 ## Next actions
 
-1. Preserve the completed r1 installation, publication and enrollment evidence;
-   qualify post-enrollment reboot persistence and the first owner forward update
-   with the next exact accepted candidate. No new owner image was staged by the
-   enrollment continuation.
+1. Preserve the completed r1 installation, publication and enrollment evidence.
+   A later no-ISO reboot passes exact enrollment/order-state persistence, doctor,
+   clean shutdown and sentinel preservation. Qualify the first owner forward
+   update with the next exact accepted candidate; no new owner image is staged.
 2. Accept the repaired development pipeline through normal CI, then qualify a
    later candidate schema 2 and its expanded signed checksum/inventory/provenance
    outputs. The current r1 has its original 13 v1 assets; do not backfill or

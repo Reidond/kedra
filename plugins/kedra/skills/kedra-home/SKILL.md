@@ -5,6 +5,28 @@ description: Implement or research writable dotfile capture, Git partial staging
 
 # Writable home is a core feature
 
+## Current qualified scope — 2026-09-09
+
+Noctalia's three-field projection and the named niri text adapter support review,
+independent selected/local/live state, source export/receipts, native discard and
+recovery. Signed graphical A/B/A run
+[34287224388](https://github.com/Reidond/kedra/actions/runs/34287224388) at `8288cc2`
+passes niri installed-baseline acceptance and retained-A rollback, preservation of
+user choices, and optional caller-home assessment for both groups. Assessment
+distinguishes unadopted/unavailable/reconciliation/recovery and does not send private
+home state to root. The no-flag helper contract is unchanged.
+
+Process-kill recovery is qualified; power loss/full disk, broader interruption
+phases, old-binary schemas and additional groups remain open. Public owner release
+1 includes the earlier home workflows but predates caller-home assessment; the
+signed `0eb1cf0` candidate includes it and awaits exact installation. Independent
+niri-only adoption is development work, not yet qualified. Sources: R03/R04 reports,
+HOME-REVIEW.md, TEXT-REVIEW.md and ADRs 0017/0019-0022. These facts supersede the
+older pending/blocked statements in the historical findings below.
+
+Only end-to-end or manual testing is authorized. Historical isolated test counts
+are evidence of earlier work and must not be recreated.
+
 Niri 26.04 discard/reload finding, 2026-09-08 (ADR 0021): relative includes use
 the main file's parent. Validate candidates with the same directory context.
 IPC LoadConfigFile can switch the runtime path; argv/environment cannot prove the

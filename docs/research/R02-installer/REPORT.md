@@ -7,8 +7,11 @@ installation, ISO-free owner desktop, doctor, exact owner image/source/key,
 inherited container policy, correct mounts and both stopped-sentinel comparisons
 pass without repairs. Both QEMU sessions exited 0; all local VMs are stopped.
 See the [public qualification report and native evidence](owner-34255228394/REPORT.md).
-Production metadata promotion/enrollment, recovery and physical hardware remain
-open; this does not mark the full R02 gate complete.
+Follow-up: the same media is published as release 1, and public-channel enrollment
+passes in the retained generated VM; see the [R08 enrollment evidence](../R08-release-protocol/owner-r1-enrollment/REPORT.md).
+Recovery and physical hardware remain open; this does not mark the full R02 gate
+complete. Candidate 34293133114 at accepted `0eb1cf0` is a separate v2 installer
+build and has not yet been installed.
 
 Shared public-trust copy regression, 2026-09-08: signed research ISO
 [34244387167](https://github.com/Reidond/kedra/actions/runs/34244387167) at `cb11646`

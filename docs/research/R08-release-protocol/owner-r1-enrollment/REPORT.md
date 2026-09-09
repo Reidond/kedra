@@ -85,3 +85,23 @@ checkpoint renewal, expired-channel recovery or key rotation was performed in
 this continuation. Their separate research results and unresolved gates remain
 unchanged. The next production check is an exact accepted-source v2 candidate,
 followed by native v1-to-v2 staging, boot and installed status/health verification.
+
+## Post-enrollment reboot persistence — 2026-09-09
+
+A separate boot of the retained encrypted disks passes enrollment persistence.
+The ISO remained absent and user NAT had no host forwarding. After ordinary
+LUKS unlock, remembered-owner login and `sudo -v`, installed `sysroot update status`
+returned JSON exactly equal to the saved first-enrollment state: enrolled true,
+the same `bb4f2b68` digest, generation/sequence 1 and their original signed hashes,
+no pending operation, no staged image and no rollback hold. No re-enrollment was
+performed. Native `sysroot doctor --json` passed every required session check at
+source `c660c58`.
+
+Ordinary `sudo systemctl poweroff` completed with QEMU exit 0. The stopped
+unselected generated disk again compared identical to its pre-installation copy.
+Evidence: [status JSON](persistence/status.json), [status screenshot](persistence/status.png),
+[doctor JSON](persistence/doctor.json), [doctor screenshot](persistence/doctor.png)
+and [disk comparison](persistence/disk-comparison.json). Original enrollment logs
+are preserved separately; private credentials and full boot logs are excluded.
+All local VMs are stopped. The new accepted `0eb1cf0` candidate's installer is
+still building, so a production forward update remains not-run.

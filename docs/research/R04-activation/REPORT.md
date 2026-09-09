@@ -71,8 +71,9 @@ later-edit abort refusal and independent S/B/checkpoint retention. The complete
 desktop and doctor pass. Evidence is
 `output/r07-run-34237287511/r07-desktop-evidence-34237287511-1/vm/serial.log`.
 Workspace 34237287689 also passes actual CLI/release workflows at this source.
-Installed-baseline acceptance is qualified separately above (ADR 0022); actual changed-
-image home acceptance remains not-run. The preceding 7d14ada stopped on a rustix PID conversion
+Installed-baseline acceptance and actual changed-image home acceptance are
+qualified separately above (ADR 0022 and the later A/B/A runs). The preceding
+7d14ada stopped on a rustix PID conversion
 method error; the method was corrected without relaxing peer checks. The source
 preview native regression 34235455502 was cancelled when superseded.
 No unit, mock, model or repository-scanner tests were added.

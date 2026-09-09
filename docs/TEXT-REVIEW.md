@@ -23,8 +23,19 @@ adds its own record while preserving existing niri selections, local policy,
 publication state and recovery journals. Repeating either adoption refuses rather
 than replacing the existing group. This change is not in r1 or the frozen
 `0eb1cf0` candidate, which require the earlier `sysroot home init` prerequisite.
-Native requalification of independent adoption is pending the development R07/R04
-workflows.
+Signed native A/B/A run
+[34296369019](https://github.com/Reidond/kedra/actions/runs/34296369019) at
+`6d0abcf` passes niri-first adoption, caller-home reporting of unadopted Noctalia,
+and later Noctalia adoption without changing the niri record or live file. The
+same run passes retained selections/local choices, native recovery, B acceptance
+and A rollback with preserved high-water/hold state. R07 run
+[34296984700](https://github.com/Reidond/kedra/actions/runs/34296984700) at
+`9b4838d` separately passes niri adoption while Noctalia is stopped, later Noctalia
+adoption with retained niri decisions, repeat-adoption refusal and orphaned
+Noctalia history/journal and niri-journal refusal. Its existing native discard,
+killed-CLI recovery, installed-baseline, doctor and graphical session checks also
+pass. The initial `6d0abcf` desktop run was cancelled during disk assembly before
+guest checks; its result is not substituted for this passing successor.
 
 The commands default to the private home-review state directory described in
 [home review](HOME-REVIEW.md). Use the same explicit `--state PATH` on each
@@ -111,9 +122,11 @@ native candidate. The result shows the retained selection/local decisions and
 pending publications. Apply recomputes that plan, reloads the managed file and
 accepts the new baseline only after validation succeeds. Abort and keep-current
 retain the previous accepted baseline; resume checks the installed baseline again.
-Current-baseline acceptance passes native VM 34238949306 at 9802b49. A real A-to-B
-image transition is prepared but not yet qualified. It does not stage an OS or turn advisory source preview into
-installed-image authority. See [ADR 0022](adr/0022-installed-text-baseline.md).
+Current-baseline acceptance passes native VM 34238949306 at 9802b49. The signed
+A/B/A subset also passes run 34296369019 at `6d0abcf`, including the independent
+group adoption described above. The home command does not stage an OS or turn
+advisory source preview into installed-image authority. See
+[ADR 0022](adr/0022-installed-text-baseline.md).
 
 Discard of one current change passes native VM 34237287511 at 5e238c7:
 
@@ -149,3 +162,13 @@ power loss and full disk remain unqualified.
 Binary/non-UTF-8 files, CRLF, missing final newline, unsafe links/ownership and
 files over 128 KiB or 8192 lines are refused. Preserve an unreadable store for
 recovery; do not reset it. See [ADR 0019](adr/0019-ordinary-text-review.md).
+
+The independent-adoption evidence archives were downloaded, checked against
+GitHub's complete ZIP digests and inspected on 2026-09-09. The results apply to
+the named generated VM workflows, not additional files, physical hardware or
+owner-media qualification.
+
+| Workflow/source | Artifact | Verified ZIP SHA-256 |
+|---|---|---|
+| R04 `34296369019` / `6d0abcf` | `10083706747`, 514,925 bytes | `fc3632fed3b9fab2bdf41e4e3de251f2ac0e6368ac5cb2a6b1abcc312873a6e2` |
+| R07 `34296984700` / `9b4838d` | `10083816334`, 1,374,501 bytes | `0995b2c636433adddea3f33a7e4c87a60decb9c0079a87fc03217e5f4a5e5a8d` |

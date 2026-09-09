@@ -1,0 +1,69 @@
+{
+  "activation_performed": false,
+  "channel": {
+    "advances_checkpoint_generation": false,
+    "advances_release_sequence": false,
+    "checkpoint_generation": 1,
+    "image_matches_booted": true,
+    "image_matches_staged": false,
+    "image_reference": "ghcr.io/reidond/kedra-desktop@sha256:bb4f2b68996a4fc260972d9654440f62ee078bcf92a0996a8f7e34ea0133118b",
+    "last_successful_resolution": 1788887587,
+    "release_sequence": 1,
+    "release_sha256": "03678d846d8ed88c0ea08dfab4ce302240a9a0ab54d58aba990bbf3cc7f017fb"
+  },
+  "channel_freshness_verified": true,
+  "channel_url": "https://github.com/Reidond/kedra/releases/download/desktop-44-x86_64-channel/channel.json",
+  "deployment_authorized": false,
+  "helper_status_reconciliation_possible": true,
+  "high_water_advanced": false,
+  "installed_status": {
+    "activation_performed": false,
+    "enrolled": true,
+    "home_reconciliation_checked": false,
+    "home_reconciliation_required": null,
+    "host": {
+      "booted": {
+        "digest": "sha256:bb4f2b68996a4fc260972d9654440f62ee078bcf92a0996a8f7e34ea0133118b",
+        "download_only": false
+      },
+      "rollback": null,
+      "rollback_queued": false,
+      "staged": null
+    },
+    "journal": {
+      "high_water": {
+        "checkpoint_sha256": "e97d4c85569f7555e1579c982c104de9022e17846c6878ddde80df7d74893365",
+        "generation": 1,
+        "highest_release_sequence": 1,
+        "highest_release_sha256": "03678d846d8ed88c0ea08dfab4ce302240a9a0ab54d58aba990bbf3cc7f017fb",
+        "last_successful_resolution": 1788887587,
+        "schema_version": 1,
+        "scope": {
+          "architecture": "x86_64",
+          "fedora_release": 44,
+          "repository": "ghcr.io/reidond/kedra-desktop",
+          "target": "desktop"
+        }
+      },
+      "operation": null,
+      "rollback_hold": false
+    },
+    "reboot_performed": false,
+    "schema_version": 1,
+    "scope": {
+      "architecture": "x86_64",
+      "fedora_release": 44,
+      "repository": "ghcr.io/reidond/kedra-desktop",
+      "target": "desktop"
+    }
+  },
+  "key_fingerprint_sha256": "a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e",
+  "kind": "update_check",
+  "reboot_performed": false,
+  "replay_checked": true,
+  "schema_version": 1,
+  "signature_valid": true,
+  "staging_performed": false,
+  "state": "current",
+  "verified_at": 1788916163
+}

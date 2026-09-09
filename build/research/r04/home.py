@@ -66,7 +66,8 @@ def assessed(expected, accepted, installed, adopted=True,
              overall='accepted_baseline_matches_installed'):
     before = cli('status') if adopted else None
     native_before = native.read_bytes()
-    noctalia_before = run(['sysroot', 'home', 'status', '--last-capture']) if home_state.exists() else None
+    noctalia_before = run(['sysroot', 'home', 'status', '--last-capture']) \
+        if home_state.exists() and noctalia != 'not_adopted' else None
     ordinary = json.loads(run(['sysroot', 'update', 'status']))
     if 'caller_home' in ordinary:
         raise RuntimeError('ordinary update status changed its output contract')
@@ -206,9 +207,14 @@ if phase == 'prepare':
                      noctalia='not_adopted', overall='not_adopted')
     if fresh['status'] != 'not_adopted' or home_state.exists():
         raise RuntimeError('fresh assessment adopted or initialized home state')
-    run(['sysroot', 'home', 'init'])
-    assessed('not_adopted', None, fixture['a'], adopted=False)
     cli('init', '--reviewed-safe')
+    assessed('accepted_baseline_matches_installed', fixture['a'], fixture['a'], noctalia='not_adopted')
+    niri_before, live_before = cli('status'), native.read_bytes()
+    run(['sysroot', 'home', 'init'])
+    if cli('status') != niri_before or native.read_bytes() != live_before:
+        raise RuntimeError('later Noctalia adoption changed the independent niri state or live file')
+    assessed('accepted_baseline_matches_installed', fixture['a'], fixture['a'])
+    print('KEDRA_R04_INDEPENDENT_GROUP_ADOPTION_PASS', flush=True)
     run(['git', 'init', str(repo)])
     run(['git', '-C', str(repo), 'fetch', '--no-tags',
          '/usr/share/kedra-research/source.bundle', 'refs/heads/kedra-r04-b'])

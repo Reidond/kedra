@@ -222,22 +222,30 @@ pub(super) fn live() -> Result<Settings> {
     Ok(noctalia::project(noctalia::APP_VERSION, text)?)
 }
 
-pub(super) fn load(store: &Store, instance: &str) -> Result<(u64, State)> {
-    let record = store
-        .read(RECORD)?
-        .ok_or("Noctalia review record is missing; do not reset this store")?;
-    Ok((record.revision, State::from_bytes(&record.bytes, instance)?))
+pub(super) fn load_optional(store: &Store, instance: &str) -> Result<Option<(u64, State)>> {
+    let record = store.read(RECORD)?;
+    let Some(record) = record else {
+        if store.history(RECORD, 1)?.is_some() {
+            return Err("Noctalia adoption record is missing but retained history exists; preserve the store".into());
+        }
+        super::activation::linux::assessment_pending(store, instance, None)?;
+        return Ok(None);
+    };
+    Ok(Some((
+        record.revision,
+        State::from_bytes(&record.bytes, instance)?,
+    )))
 }
 
-fn change(
-    store: &mut Store,
-    instance: &str,
-    observed: Settings,
-    command: &Command,
-) -> Result<State> {
+pub(super) fn load(store: &Store, instance: &str) -> Result<(u64, State)> {
+    load_optional(store, instance)?
+        .ok_or_else(|| "Noctalia is not adopted; use sysroot home init".into())
+}
+
+fn change(store: &mut Store, instance: &str, command: &Command) -> Result<State> {
     let (revision, mut state) = load(store, instance)?;
     let before = state.to_bytes()?;
-    state.capture(observed)?;
+    state.capture(live()?)?;
     match command {
         Command::Stage { key } => state.stage((*key).into())?,
         Command::Unstage { key } => state.unstage((*key).into())?,
@@ -275,31 +283,89 @@ pub(super) fn instance(owner: u32) -> Result<String> {
 
 pub(super) fn run(options: Options) -> Result<()> {
     let owner = rustix::process::geteuid().as_raw();
-    if owner == 0 {
+    if owner == 0 || rustix::process::getuid().as_raw() != owner {
         return Err("home review runs as the ordinary desktop user, never root".into());
     }
+    // Resolve the closed path allowlist before creating any state directories.
+    let managed = match &options.command {
+        Command::File { path, .. } => Some(super::text::ManagedText::from_path(path)?),
+        _ => None,
+    };
+    let initializing = matches!(options.command, Command::Init)
+        || matches!(
+            options.command,
+            Command::File {
+                command: super::TextCommand::Init {
+                    reviewed_safe: true
+                },
+                ..
+            }
+        );
     let requested = match &options.state {
         Some(path) => path.clone(),
-        None => default_state(owner, matches!(options.command, Command::Init))?,
+        None => default_state(owner, initializing)?,
     };
     let path = private_parent(&requested, owner)?;
     let instance = instance(owner)?;
+    let (mut store, created) = match std::fs::symlink_metadata(&path) {
+        Ok(_) => {
+            // A present, incomplete or unsafe store is never treated as absent.
+            (Store::open(&path)?, false)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound && initializing => {
+            let (record, bytes) = match managed {
+                Some(managed) => (
+                    managed.record(),
+                    super::text::initial_record(&instance, managed)?,
+                ),
+                None => {
+                    let baseline = installed_baseline(Path::new("/"), 0)?;
+                    let state = State::new(instance.clone(), baseline, live()?)?;
+                    (RECORD, state.to_bytes()?)
+                }
+            };
+            // Concurrent first adoptions may race; exclusive creation refuses
+            // the loser. A later explicit retry may add its still-missing group.
+            (Store::create(&path, &[(record, &bytes)])?, true)
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let _coordination = store.coordinate()?;
+    if initializing && !created {
+        let noctalia = load_optional(&store, &instance)?;
+        if let Some((_, state)) = &noctalia {
+            super::activation::linux::assessment_pending(&store, &instance, Some(state))?;
+        }
+        let text_adopted =
+            super::text::is_adopted(&store, &instance, super::text::ManagedText::Niri)?;
+        if noctalia.is_none() && !text_adopted {
+            return Err(
+                "existing home store has no valid adopted group; preserve it for recovery".into(),
+            );
+        }
+    }
+    if let (Some(managed), Command::File { command, .. }) = (managed, &options.command) {
+        // A new store already contains its explicitly adopted text record.
+        // Status produces the existing init response without a second insertion.
+        let command = if created {
+            &super::TextCommand::Status
+        } else {
+            command
+        };
+        return super::text::run(&mut store, &path, &instance, managed, command);
+    }
     let mut source_result = None;
     let state = if matches!(options.command, Command::Init) {
-        let baseline = installed_baseline(Path::new("/"), 0)?;
-        let state = State::new(instance.clone(), baseline, live()?)?;
-        Store::create(&path, &[(RECORD, &state.to_bytes()?)])?;
-        state
-    } else {
-        let mut store = Store::open(&path)?;
-        let _coordination = store.coordinate()?;
-        if let Command::File {
-            path: managed,
-            command,
-        } = &options.command
-        {
-            return super::text::run(&mut store, &path, &instance, managed, command);
+        if !created {
+            if load_optional(&store, &instance)?.is_some() {
+                return Err("Noctalia is already adopted; existing state is never reset".into());
+            }
+            let baseline = installed_baseline(Path::new("/"), 0)?;
+            let state = State::new(instance.clone(), baseline, live()?)?;
+            store.compare_exchange(RECORD, None, &state.to_bytes()?)?;
         }
+        load(&store, &instance)?.1
+    } else {
         if super::activation::linux::handles(&options.command) {
             return super::activation::linux::run(&mut store, &instance, &options.command);
         }
@@ -333,7 +399,7 @@ pub(super) fn run(options: Options) -> Result<()> {
                 }));
                 state
             }
-            _ => change(&mut store, &instance, live()?, &options.command)?,
+            _ => change(&mut store, &instance, &options.command)?,
         }
     };
     let mut response = if matches!(options.command, Command::Selection | Command::Export { .. }) {

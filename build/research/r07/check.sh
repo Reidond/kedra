@@ -107,12 +107,11 @@ marker KEDRA_R04_NATIVE_DISCARD_PASS
 as_user env WAYLAND_DISPLAY="$wayland" python3 /usr/libexec/kedra-research-recovery.py "$review_state"
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_NATIVE_RECOVERY_PASS
-as_user sysroot home init >/dev/null
+as_user env NIRI_SOCKET="$niri_socket" WAYLAND_DISPLAY="$wayland" python3 /usr/libexec/kedra-research-niri-review.py "$review_state"
 as_user sysroot home status | jq -e '.pending_activation == null and (.activation_performed | not)' >/dev/null
 test "$(stat -c '%a' "$review_home/.local/state/sysroot")" = 700
 test "$(stat -c '%a' "$review_home/.local/state/sysroot/home")" = 700
 marker KEDRA_HOME_DEFAULT_STATE_PASS
-as_user env NIRI_SOCKET="$niri_socket" python3 /usr/libexec/kedra-research-niri-review.py
 marker KEDRA_R04_NATIVE_NIRI_DISCARD_PASS
 marker KEDRA_R04_NATIVE_NIRI_RECOVERY_PASS
 marker KEDRA_R04_NIRI_INSTALLED_BASELINE_PASS

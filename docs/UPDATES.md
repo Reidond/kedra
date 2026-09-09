@@ -1,6 +1,10 @@
 # Kedra updates and scheduled Fedora refresh
 
-Date: 2026-09-07. Status: **implementation plan; not enabled or integration-tested**.
+Plan date: 2026-09-07. Scheduled refresh/no-change renewal and periodic client
+notifications remain **proposed and disabled**. Manual signed release verification,
+enrollment, explicit staging and retained rollback are implemented, with native
+research and owner installation/enrollment evidence in [RELEASES.md](RELEASES.md)
+and [INSTALL.md](INSTALL.md). The automation policy below is not an execution report.
 This supplements PLAN.md sections 4-5. Defaults below are proposed Kedra policy,
 not claims about upstream defaults. Existing R01-R11 gates still apply. See
 [ADR 0002](adr/0002-updates-and-fedora-refresh.md),
@@ -86,7 +90,7 @@ Keep non-RPM agent binaries, Bitwarden downloads, build tools, Rust and Cargo
 inputs pinned. Their update checks may propose ordinary reviewed dependency PRs;
 the Fedora refresh must not secretly download their latest installers. No personal
 Codex/Claude update, Flatpak update, Toolbx package update, user MCP/skill update or
-firmware flashing is part of this loop. Repo skills and the Rust-skills submodule
+firmware flashing is part of this loop. Repo skills and the pinned Rust-skills integration
 remain checkout-only and are not image/rootfs/home payloads.
 
 Fedora-major changes (44 -> a later release), new RPM repositories/signing keys,

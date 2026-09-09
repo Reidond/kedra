@@ -97,3 +97,26 @@ binds the complete digest above to
 type. Local `registry-signature/` records retain the public manifest, signed
 payload, detached signature and verification result. This does not establish
 new ISO or installed-system qualification; those results remain pending.
+
+## Installer construction outcome
+
+The complete candidate run passed at accepted source `0eb1cf0`. Its installer job
+finished at 2026-09-09 00:37:28 UTC, including strict anonymous signed-payload
+consumption, source/trust readback and diskless offline verification/Anaconda
+startup. Artifact `10083059586`, `desktop-installer-candidate-34293133114-1`, is
+2,801,608,149 bytes; GitHub reports ZIP SHA-256
+`d1ca7b361713d395b30aad2dcf165f67f501bb153ff5cedc955bd529c6225493`.
+
+Bounded range reads verified ZIP CRCs for the candidate, source, provenance,
+checksum and smoke-result metadata. Candidate SHA-256 is
+`1763899dae4b0a2cbef0cb384347c31ad1f819642281ea20adec7d3567683521`.
+It declares the same reviewed source/image/package identities above and ISO
+`kedra-desktop-44-34293133114-1.iso`, 2,856,314,880 bytes, SHA-256
+`15ddfafb8567297220e02831b6639f0fceb7efce0cd47bcf799fae97c5a1eb4b`.
+The explicit provenance hash is
+`f19f6145d9461eb10a02b186f74aa470014f8c904b28df8b50f74fc111516218`;
+its base/builder pins and image-builder 82.0.0 identity match the reviewed inputs.
+
+The complete archive is downloading. These bounded metadata observations do not
+replace whole-archive/part/ISO verification or fresh installation. Those remain
+pending; candidate approval remains `candidate` and `fresh_install_qualified=false`.

@@ -265,8 +265,12 @@ uncertain-create continuation, expired-predecessor publication, interrupted-publ
 not-run. Syntax parsing and native signer
 help inspection do not qualify those behaviors. Native Windows and Linux CLI/OpenSSL checks
 exercise history authentication and unchanged incoming expiry/refusal semantics;
-Linux workspace 34294737483 passes at 67b4b14. The extended R01 VM flow still needs
-its actual result. No-change renewal and key
+Linux workspace 34294737483 and actual R01 34294737470 pass at 67b4b14. The guest
+accepted history only as ordering, refused expired request 6 above enrolled floor
+2, then passed fresh B staging/boot and retained-A rollback with high-water/hold
+preservation. R07 34294737457 also passes its existing desktop regressions. See
+[native evidence](../../docs/research/R08-release-protocol/REPORT.md#native-history-qualification--2026-09-09).
+These do not qualify production expired-predecessor publication. No-change renewal and key
 rotation remain separate unfinished work.
 
 Sources: [Sigstore blob signing](https://docs.sigstore.dev/cosign/signing/signing_with_blobs/)

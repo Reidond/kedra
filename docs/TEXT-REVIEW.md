@@ -12,10 +12,19 @@ First review the file for secrets, including values passed to custom commands.
 Do not adopt a file containing credentials. Then, as the desktop user:
 
 ```sh
-sysroot home init                         # once, if home review is not initialized
 sysroot home file init --reviewed-safe   # once, after inspecting this file
 sysroot home file status
 ```
+
+Development source permits niri to be the first explicitly adopted group; it does
+not require Noctalia initialization, capture or a running Noctalia service. Run
+`sysroot home init` separately when choosing to adopt Noctalia. That later command
+adds its own record while preserving existing niri selections, local policy,
+publication state and recovery journals. Repeating either adoption refuses rather
+than replacing the existing group. This change is not in r1 or the frozen
+`0eb1cf0` candidate, which require the earlier `sysroot home init` prerequisite.
+Native requalification of independent adoption is pending the development R07/R04
+workflows.
 
 The commands default to the private home-review state directory described in
 [home review](HOME-REVIEW.md). Use the same explicit `--state PATH` on each
@@ -23,6 +32,15 @@ command if you already use a custom store. Initialization never replaces an
 existing record. The baseline comes from the installed image's verified source
 manifest. Live text is compared in memory; complete live snapshots are not saved
 in review state or Git objects.
+
+Managed text paths resolve through a closed application descriptor; only niri is
+accepted. A caller path never selects an arbitrary file, state record or native
+reload strategy. Existing niri record/journal names, schema and plan IDs are
+preserved. A missing group with no retained history or journal can be adopted into
+a valid existing home store. A missing adoption record with retained history or
+recovery, an incomplete store, or an unsupported/corrupt state is refused and must
+be preserved. A concurrent first initialization can lose the exclusive creation
+race; retry explicitly after inspecting the store rather than resetting it.
 
 Status returns JSON. Each `changes` row includes before/after text and a `change.id`.
 Copy the ID of the exact change you reviewed:

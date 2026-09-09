@@ -129,9 +129,12 @@ previous bundle/payload hashes. There is no allow-expired flag for channel, unpa
 enrollment or staging, and no clock override. This is not key rotation, automatic
 no-change renewal or proof that an old release is current.
 
-Windows native CLI/OpenSSL interoperability passes the historical-only and strict
-incoming-expiry boundary. The extended R01 guest flow and full production
-expired-predecessor publication remain unqualified until their actual runs.
+Windows and Linux native CLI/OpenSSL interoperability pass the historical-only
+and strict incoming-expiry boundary. Actual R01 run 34294737470 at 67b4b14 also
+passes installed history checks, refusal of expired higher-sequence metadata at
+an enrolled lower floor, fresh staging/boot and retained rollback with preserved
+high-water state. See the [native evidence](research/R08-release-protocol/REPORT.md#native-history-qualification--2026-09-09).
+Full production expired-predecessor publication remains unqualified.
 
 An old retained release can remain valid recovery media even when its checkpoint
 has expired or it is no longer current. Installed staging/rollback and persistent
@@ -139,8 +142,9 @@ trust state pass the disposable R01 workflow. First enrollment against this
 published owner channel also passed in the retained r1 VM; see the separate
 [enrollment report](research/R08-release-protocol/owner-r1-enrollment/REPORT.md)
 for repeat-enrollment refusal with unchanged state, required desktop health and
-clean shutdown/sentinel evidence. Post-enrollment reboot persistence and an owner
-forward update were not tested in that continuation.
+clean shutdown/sentinel evidence. A separate same-r1 reboot also preserved the
+enrollment/high-water state and required session health. An owner forward update
+to a new image remains a separate qualification.
 
 For installation steps and building a trusted verifier before installing Kedra,
 see [INSTALL.md](INSTALL.md).

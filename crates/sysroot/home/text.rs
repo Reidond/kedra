@@ -13,10 +13,59 @@ mod activation;
 mod transition;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-const RECORD: &str = "niri-text";
-const FILE: &str = ".config/niri/config.kdl";
-const DESTINATION: &str = "usr/share/sysroot/home/default/.config/niri/config.kdl";
 const LIMIT: usize = 131_072;
+
+/// Closed application selection; a caller path never becomes a storage key or
+/// an arbitrary home/installed path. Existing niri identities stay byte-stable.
+#[derive(Clone, Copy)]
+pub(super) enum ManagedText {
+    Niri,
+}
+impl ManagedText {
+    pub(super) fn from_path(path: &str) -> Result<Self> {
+        match path {
+            ".config/niri/config.kdl" => Ok(Self::Niri),
+            _ => {
+                Err("ordinary text adoption currently supports only .config/niri/config.kdl".into())
+            }
+        }
+    }
+    pub(super) const fn record(self) -> &'static str {
+        match self {
+            Self::Niri => "niri-text",
+        }
+    }
+    const fn path(self) -> &'static str {
+        match self {
+            Self::Niri => ".config/niri/config.kdl",
+        }
+    }
+    const fn destination(self) -> &'static str {
+        match self {
+            Self::Niri => "usr/share/sysroot/home/default/.config/niri/config.kdl",
+        }
+    }
+    const fn journal(self) -> &'static str {
+        match self {
+            Self::Niri => "niri-text-activation",
+        }
+    }
+    const fn file_name(self) -> &'static str {
+        match self {
+            Self::Niri => "config.kdl",
+        }
+    }
+    const fn activation_domain(self) -> &'static str {
+        match self {
+            Self::Niri => "activate-managed-niri-file",
+        }
+    }
+    const fn installed_domain(self) -> &'static str {
+        match self {
+            Self::Niri => "installed-niri-baseline",
+        }
+    }
+}
 
 fn hash(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -106,7 +155,7 @@ struct State {
     pending_activation: Option<String>,
 }
 impl State {
-    fn validate(&self, instance: &str) -> Result<()> {
+    fn validate(&self, instance: &str, managed: ManagedText) -> Result<()> {
         if self.schema_version != 1
             || self
                 .pending_activation
@@ -123,8 +172,8 @@ impl State {
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
             || ![
-                format!("home/{FILE}"),
-                format!("hosts/{}/home/{FILE}", self.baseline.target),
+                format!("home/{}", managed.path()),
+                format!("hosts/{}/home/{}", self.baseline.target, managed.path()),
             ]
             .contains(&self.baseline.source_path)
         {
@@ -180,12 +229,61 @@ impl State {
     }
 }
 
+fn load_optional(
+    store: &Store,
+    instance: &str,
+    managed: ManagedText,
+) -> Result<Option<(u64, State)>> {
+    let record = store.read(managed.record())?;
+    let Some(record) = record else {
+        if store.history(managed.record(), 1)?.is_some() || store.read(managed.journal())?.is_some()
+        {
+            return Err("text adoption record is missing but retained history or recovery exists; preserve the store".into());
+        }
+        return Ok(None);
+    };
+    let state: State = serde_json::from_slice(&record.bytes)
+        .map_err(|_| "text review state is malformed; preserve the store")?;
+    state.validate(instance, managed)?;
+    Ok(Some((record.revision, state)))
+}
+
+pub(super) fn is_adopted(store: &Store, instance: &str, managed: ManagedText) -> Result<bool> {
+    let state = load_optional(store, instance, managed)?;
+    activation::assessment_pending(store, state.as_ref().map(|(_, state)| state), managed)?;
+    Ok(state.is_some())
+}
+
+fn initial(instance: &str, managed: ManagedText) -> Result<State> {
+    let baseline = installed(managed)?;
+    // The caller has explicitly reviewed this approved path. Live bytes are
+    // checked in memory and never become a private/source Git snapshot.
+    live(managed)?;
+    let state = State {
+        schema_version: 1,
+        instance: instance.to_owned(),
+        reference: baseline.contents.clone(),
+        baseline,
+        selected: Vec::new(),
+        ignored: Vec::new(),
+        published: Vec::new(),
+        pending_activation: None,
+    };
+    state.validate(instance, managed)?;
+    Ok(state)
+}
+
+pub(super) fn initial_record(instance: &str, managed: ManagedText) -> Result<Vec<u8>> {
+    Ok(serde_json::to_vec(&initial(instance, managed)?)?)
+}
+
 /// Inspect only accepted public provenance and durable reservations, never L/S/I/P.
 pub(super) fn assessment(
     store: Option<&Store>,
     instance: &str,
 ) -> Result<super::assessment::Group> {
-    let baseline = installed()?;
+    let managed = ManagedText::Niri;
+    let baseline = installed(managed)?;
     let installed_state = State {
         schema_version: 1,
         instance: instance.to_owned(),
@@ -196,20 +294,14 @@ pub(super) fn assessment(
         published: Vec::new(),
         pending_activation: None,
     };
-    installed_state.validate(instance)?;
+    installed_state.validate(instance, managed)?;
     let state = store
-        .map(|store| store.read(RECORD))
+        .map(|store| load_optional(store, instance, managed))
         .transpose()?
         .flatten()
-        .map(|record| {
-            let state: State = serde_json::from_slice(&record.bytes)
-                .map_err(|_| "niri text state is malformed; preserve the store")?;
-            state.validate(instance)?;
-            Ok::<_, Box<dyn std::error::Error>>(state)
-        })
-        .transpose()?;
+        .map(|(_, state)| state);
     let pending = match store {
-        Some(store) => activation::assessment_pending(store, state.as_ref())?,
+        Some(store) => activation::assessment_pending(store, state.as_ref(), managed)?,
         None => false,
     };
     let baseline = &installed_state.baseline;
@@ -501,7 +593,7 @@ struct Payload {
     home_baseline: bool,
     mode: String,
 }
-fn installed() -> Result<Baseline> {
+fn installed(managed: ManagedText) -> Result<Baseline> {
     let manifest: Manifest = serde_json::from_slice(&linux::read_regular(
         Path::new("/usr/share/sysroot/source.json"),
         0,
@@ -510,12 +602,12 @@ fn installed() -> Result<Baseline> {
     let files: Vec<_> = manifest
         .files
         .iter()
-        .filter(|f| f.destination == DESTINATION && f.home_baseline)
+        .filter(|f| f.destination == managed.destination() && f.home_baseline)
         .collect();
     if manifest.schema_version != 1 || files.len() != 1 || files[0].mode != "100644" {
         return Err("installed niri baseline lacks unique ordinary-file provenance".into());
     }
-    let bytes = linux::read_regular(&Path::new("/").join(DESTINATION), 0, LIMIT)?;
+    let bytes = linux::read_regular(&Path::new("/").join(managed.destination()), 0, LIMIT)?;
     if hash(&bytes) != files[0].sha256 {
         return Err("installed niri baseline hash differs".into());
     }
@@ -526,7 +618,7 @@ fn installed() -> Result<Baseline> {
         contents: content(&bytes)?,
     })
 }
-fn live_path() -> Result<PathBuf> {
+fn live_path(managed: ManagedText) -> Result<PathBuf> {
     let requested_home = PathBuf::from(std::env::var_os("HOME").ok_or("HOME is unavailable")?);
     if !requested_home.is_absolute() {
         return Err("HOME must be absolute".into());
@@ -539,18 +631,18 @@ fn live_path() -> Result<PathBuf> {
         return Err("niri text review supports the default home profile only".into());
     }
     if let Some(value) = std::env::var_os("NIRI_CONFIG").filter(|v| !v.is_empty())
-        && Path::new(&value) != home.join(FILE)
-        && Path::new(&value) != requested_home.join(FILE)
+        && Path::new(&value) != home.join(managed.path())
+        && Path::new(&value) != requested_home.join(managed.path())
     {
         return Err(
             "NIRI_CONFIG selects a different file; it is not adopted by this adapter".into(),
         );
     }
-    Ok(home.join(FILE))
+    Ok(home.join(managed.path()))
 }
-fn live() -> Result<String> {
+fn live(managed: ManagedText) -> Result<String> {
     content(&linux::read_regular(
-        &live_path()?,
+        &live_path(managed)?,
         rustix::process::geteuid().as_raw(),
         LIMIT,
     )?)
@@ -560,6 +652,7 @@ fn source_content(
     repo: &Path,
     state: &State,
     revision: Option<&str>,
+    managed: ManagedText,
 ) -> Result<(source::Plan, String)> {
     let plan = match revision {
         Some(revision) => source::plan_revision(repo, &state.baseline.target, revision)?,
@@ -583,7 +676,7 @@ fn source_content(
     let file = plan
         .files
         .iter()
-        .find(|f| f.destination == DESTINATION && f.home_baseline)
+        .find(|f| f.destination == managed.destination() && f.home_baseline)
         .ok_or("source niri baseline is missing")?;
     if file.source_path != state.baseline.source_path || file.mode != "100644" {
         return Err(
@@ -594,8 +687,8 @@ fn source_content(
     Ok((plan, contents))
 }
 
-fn select(state: &mut State, git: &Git, id: &str, local: bool) -> Result<()> {
-    let observed = git.changes(&state.reference, &live()?)?;
+fn select(state: &mut State, git: &Git, id: &str, local: bool, managed: ManagedText) -> Result<()> {
+    let observed = git.changes(&state.reference, &live(managed)?)?;
     let change = observed
         .into_iter()
         .find(|c| c.id == id)
@@ -625,16 +718,11 @@ pub(super) fn run(
     store: &mut Store,
     parent: &Path,
     instance: &str,
-    path: &str,
+    managed: ManagedText,
     command: &TextCommand,
 ) -> Result<()> {
-    if path != FILE {
-        return Err(
-            "ordinary text adoption currently supports only .config/niri/config.kdl".into(),
-        );
-    }
-    let record = store.read(RECORD)?;
-    let revision = record.as_ref().map(|r| r.revision);
+    let record = load_optional(store, instance, managed)?;
+    let revision = record.as_ref().map(|(revision, _)| *revision);
     let mut state = if matches!(
         command,
         TextCommand::Init {
@@ -644,27 +732,15 @@ pub(super) fn run(
         if record.is_some() {
             return Err("niri text is already adopted; existing state is never reset".into());
         }
-        let baseline = installed()?;
-        // Validate only this explicitly approved path before any decisions persist.
-        live()?;
-        State {
-            schema_version: 1,
-            instance: instance.to_owned(),
-            reference: baseline.contents.clone(),
-            baseline,
-            selected: Vec::new(),
-            ignored: Vec::new(),
-            published: Vec::new(),
-            pending_activation: None,
-        }
+        initial(instance, managed)?
     } else {
-        let record = record.ok_or("initialize home review, then use home file init --reviewed-safe after reviewing niri for secrets")?;
-        serde_json::from_slice::<State>(&record.bytes)
-            .map_err(|_| "niri text state is malformed; preserve the store")?
+        record
+            .ok_or("use home file init --reviewed-safe after reviewing niri for secrets")?
+            .1
     };
-    state.validate(instance)?;
+    state.validate(instance, managed)?;
     if activation::handles(command) {
-        return activation::run(store, parent, &state, command);
+        return activation::run(store, parent, &state, command, managed);
     }
     if state.pending_activation.is_some()
         && !matches!(command, TextCommand::Status | TextCommand::Selection)
@@ -672,7 +748,7 @@ pub(super) fn run(
         return Err("niri activation is pending; inspect home file recover first".into());
     }
     if let TextCommand::Plan { repo, commit } = command {
-        return transition::preview(&state, parent, repo, commit.as_deref());
+        return transition::preview(&state, parent, repo, commit.as_deref(), managed);
     }
     let before = serde_json::to_vec(&state)?;
     let git = Git::new(parent)?;
@@ -681,8 +757,8 @@ pub(super) fn run(
         TextCommand::Init {
             reviewed_safe: false,
         } => return Err("explicit reviewed-safe acknowledgement is required".into()),
-        TextCommand::Stage { change } => select(&mut state, &git, change, false)?,
-        TextCommand::KeepLocal { change } => select(&mut state, &git, change, true)?,
+        TextCommand::Stage { change } => select(&mut state, &git, change, false, managed)?,
+        TextCommand::KeepLocal { change } => select(&mut state, &git, change, true, managed)?,
         TextCommand::Unstage { change } => {
             if !state.selected.iter().any(|c| c.id == *change) {
                 return Err("selected change ID is missing".into());
@@ -700,7 +776,7 @@ pub(super) fn run(
                 return Err("no selected text changes to export".into());
             }
             let repo = export::checkout(repo)?;
-            let (plan, current) = source_content(&repo, &state, None)?;
+            let (plan, current) = source_content(&repo, &state, None, managed)?;
             let selected = git.apply(&state.reference, &state.selected)?;
             let merged = git.merge(&current, &state.reference, &selected)?;
             let index = git.scratch.0.join("source-index");
@@ -765,7 +841,7 @@ pub(super) fn run(
                 return Err("record-source requires selected changes and a full commit ID".into());
             }
             let repo = export::checkout(repo)?;
-            let (_, current) = source_content(&repo, &state, Some(commit))?;
+            let (_, current) = source_content(&repo, &state, Some(commit), managed)?;
             let selected = git.apply(&state.reference, &state.selected)?;
             if git.merge(&current, &state.reference, &selected)? != current {
                 return Err("source commit does not contain the exact selected changes".into());
@@ -804,17 +880,17 @@ pub(super) fn run(
         }
         _ => (),
     }
-    state.validate(instance)?;
+    state.validate(instance, managed)?;
     let after = serde_json::to_vec(&state)?;
     if revision.is_none() || before != after {
-        store.compare_exchange(RECORD, revision, &after)?;
+        store.compare_exchange(managed.record(), revision, &after)?;
     }
-    let mut response = serde_json::json!({"schema_version":1,"path":FILE,"accepted_baseline":{"source_revision":state.baseline.source_revision,"source_path":state.baseline.source_path,"target":state.baseline.target},"reference_sha256":hash(state.reference.as_bytes()),"selection":state.selected,"local_only":state.ignored,"publication_count":state.published.len(),"live_file_changed":false,"checkout_changed":false,"installed_baseline_activation_available":true,"discard_available":true});
+    let mut response = serde_json::json!({"schema_version":1,"path":managed.path(),"accepted_baseline":{"source_revision":state.baseline.source_revision,"source_path":state.baseline.source_path,"target":state.baseline.target},"reference_sha256":hash(state.reference.as_bytes()),"selection":state.selected,"local_only":state.ignored,"publication_count":state.published.len(),"live_file_changed":false,"checkout_changed":false,"installed_baseline_activation_available":true,"discard_available":true});
     if !matches!(
         command,
         TextCommand::Selection | TextCommand::Export { .. } | TextCommand::RecordSource { .. }
     ) {
-        let observed = git.changes(&state.reference, &live()?)?;
+        let observed = git.changes(&state.reference, &live(managed)?)?;
         response["changes"] = serde_json::json!(observed.iter().map(|change| serde_json::json!({"change":change,"selected":state.selected.contains(change),"local_only":state.ignored.contains(change),"visible_change":!state.ignored.contains(change)})).collect::<Vec<_>>());
     }
     if let Some(result) = source_result {

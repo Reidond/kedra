@@ -7,9 +7,49 @@ for the old pair; the newly signed pair repeats fresh verification against its
 ordering floor. Native Windows Rust 1.98.1 build/lint and actual CLI/OpenSSL 3.6.1
 E2E pass; [the retained output](history-cli-windows-20260909.txt) records the
 positive and refusal boundaries. Independent review found no actionable defect.
-New R01 guest cases and full production expired-predecessor publication remain
-pending. This development code is outside frozen candidate source `0eb1cf0`.
+Linux workspace and the new R01 guest cases now pass at exact source
+`67b4b141012f57d126d9ac9e16646d0f7bfd55b5`; details follow. Full production
+expired-predecessor publication remains not-run. This development code is outside
+frozen candidate source `0eb1cf0`.
 See [ADR 0024](../../adr/0024-historical-release-ordering.md).
+
+### Native history qualification — 2026-09-09
+
+[Workspace 34294737483](https://github.com/Reidond/kedra/actions/runs/34294737483)
+passes Linux formatting, Clippy, CLI E2E, release build and actual OpenSSL
+interoperability, including historical-only expired data, strict incoming expiry
+and signature/schema/scope/time/ordering refusals.
+[R01 34294737470](https://github.com/Reidond/kedra/actions/runs/34294737470)
+passes the actual signed three-boot flow at the same source. No source repair was
+needed. Its artifact `10082928500` is 1,273,061 bytes and independently matches ZIP
+SHA-256 `ef213b23d2d4df9b4d6fb3fd17c9aeb2660a1f7a913a30ab2a1a760d30468063`.
+The [extracted native observations](history-native-67b4b14.json) preserve the public
+fixture inputs and helper response fields.
+
+| Case | Actual result |
+|---|---|
+| Historical predecessor | Installed CLI accepted expired sequence/generation 1 only as historical ordering; the guest checked expired/historical-only flags and absence of fresh eligibility. |
+| Strict incoming verification | Ordinary channel verification refused that expired pair; a fresh sequence/generation 2 pair passed against its ordering floor. |
+| Installed expiry boundary | After enrollment at floor 2, an expired staging request proposing sequence/generation 6 was refused with native image state and high-water unchanged. Its higher numbers prevent replay refusal from masking an expiry regression. |
+| Fresh continuation | Fresh request 6 subsequently staged B and B booted. Existing intervening OCI-negative cases retained metadata floors 3/4/5 without applying their images. |
+| Retained rollback | A booted again with floor 6 and rollback hold preserved; ordinary forward replay/held staging refused, and explicit resume staged B. |
+
+`KEDRA_R08_EXPIRED_HISTORY_BOUNDARY_PASS` and the expiry-refusal/stage/rollback/hold/
+resume markers occur in the actual serial logs. The history JSON was checked
+inside the guest rather than exported separately; the public JSON above contains
+the retained native helper observations and signed-request identities. Runner
+tools were Podman 4.9.3, Skopeo 1.13.3, OpenSSL 3.0.13 and QEMU 8.2.2; guest bootc
+remains the qualified 1.16.10. Local complete evidence is
+`output/history-r01-34294737470-1/evidence/`.
+
+[R07 34294737457](https://github.com/Reidond/kedra/actions/runs/34294737457)
+also passes at 67b4b14: graphical session, doctor/portal/keyring and existing native
+Noctalia/niri discard/recovery/baseline markers are present. Artifact `10083010133`
+is 1,374,725 bytes, ZIP SHA-256
+`669ad5878a70002b63d90b700fcb140f631b305dd7ee36f2e7fb79be09f18bf3`, independently
+verified under `output/history-r07-34294737457-1/`. This is regression evidence,
+not a production expired-predecessor promotion, new owner ISO qualification,
+no-change renewal or key rotation.
 
 2026-09-09 publication milestone: owner release
 [desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1)
@@ -24,7 +64,9 @@ to true. See the [exact recovery report](owner-promotion-34288691672.md).
 First public-channel enrollment, repeat-enrollment refusal with unchanged state,
 required desktop health and clean shutdown/sentinel checks also pass in the
 retained r1 VM; its [separate report](owner-r1-enrollment/REPORT.md) records the
-scope. Post-enrollment reboot persistence and a new owner image were not tested.
+scope. A later same-r1 reboot also preserved exact enrollment/high-water state and
+required session health, followed by clean shutdown and sentinel preservation.
+A new owner image has not been tested in those enrollment continuations.
 V2 checksum/inventory/provenance publication,
 the repaired publisher's native execution, whole-target equivalence, renewal and
 rotation remain open; overall R08 is not complete.

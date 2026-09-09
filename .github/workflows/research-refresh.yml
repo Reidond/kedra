@@ -5,8 +5,12 @@ on:
     branches: [codex/usable-system]
     paths:
       - .github/workflows/research-refresh.yml
-      - build/research/refresh/*.py
-      - build/research/refresh/Containerfile.*
+      - build/research/refresh/run.py
+      - build/research/refresh/prepare.py
+      - build/research/refresh/materialize.py
+      - build/research/refresh/Containerfile.tools
+      - build/research/refresh/Containerfile.seed
+      - build/research/refresh/Containerfile.case
       - build/research/inputs.json
 permissions:
   contents: read

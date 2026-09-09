@@ -5,9 +5,13 @@ Status: core prototype pass; complete R03 gate blocked.
 Follow-up: native niri discard and killed-CLI recovery pass 34237287511 at
 `5e238c7`; current installed-baseline acceptance passes 34238949306 at `9802b49`.
 Both preserve independent user decisions and complete the desktop/doctor sequence.
-Actual signed changed-image home acceptance is still being qualified; see R04
-for the observed remembered-login fixture failure and corrected run. Wider
-path/group behavior remains open.
+Actual signed changed-image home acceptance and retained-image rollback now
+pass the A/B/A sequence at `8288cc2` in
+[34287224388](https://github.com/Reidond/kedra/actions/runs/34287224388).
+The same run checks caller-home Noctalia/niri assessment, preserved live/selected/
+local decisions and actual interrupted-operation recovery. See the
+[R04 report](../R04-activation/REPORT.md) for the exact scope; the older fixture
+failure remains historical evidence. Wider path/group behavior remains open.
 
 2026-09-08 current work: ordinary niri text selection/local-only policy and Git
 source export/receipts pass the actual Linux CLI workflow in

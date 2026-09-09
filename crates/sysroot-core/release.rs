@@ -289,6 +289,14 @@ pub struct VerifiedUpdate {
     pub next_trust_state: TrustState,
 }
 
+/// Authenticated predecessor ordering only. This is never fresh-update eligibility.
+#[derive(Debug)]
+pub struct VerifiedHistory {
+    pub release: VerifiedRelease,
+    pub ordering_state: TrustState,
+    pub expired: bool,
+}
+
 /// Identify a bounded P-256 SPKI public key without accepting any signed content.
 pub fn public_key_fingerprint(public_key: &str) -> Result<String, Error> {
     if public_key.len() > 4096 {
@@ -353,17 +361,14 @@ pub fn verify_release(
     })
 }
 
-/// Validate a fresh signed checkpoint against independently loaded enrollment and
-/// high-water state. Returning next state never writes it or stages/reboots an OS.
-pub fn verify_update(
-    release: VerifiedRelease,
+fn checkpoint(
+    release: &VerifiedRelease,
     payload: &[u8],
     signature: &[u8],
     public_key: &str,
     scope: &Scope,
-    previous: Option<&TrustState>,
     now: u64,
-) -> Result<VerifiedUpdate, Error> {
+) -> Result<Checkpoint, Error> {
     let (checkpoint, _): (Checkpoint, _) = signed(payload, signature, public_key)?;
     if checkpoint.schema_version != PROTOCOL {
         return Err(Error::UnsupportedSchema(checkpoint.schema_version));
@@ -400,10 +405,16 @@ pub fn verify_update(
             "checkpoint is from the future; check the clock",
         ));
     }
-    if now >= checkpoint.expires_at {
-        return Err(Error::Time("checkpoint has expired"));
-    }
-    let checkpoint_sha256 = hash(payload);
+    Ok(checkpoint)
+}
+
+fn ordering_state(
+    release: &VerifiedRelease,
+    checkpoint: &Checkpoint,
+    checkpoint_sha256: String,
+    scope: &Scope,
+    previous: Option<&TrustState>,
+) -> Result<TrustState, Error> {
     if let Some(previous) = previous {
         previous.validate()?;
         if previous.scope != *scope {
@@ -429,7 +440,7 @@ pub fn verify_update(
             return Err(Error::Replay("resolution history moved backwards"));
         }
     }
-    let next_trust_state = TrustState {
+    Ok(TrustState {
         schema_version: PROTOCOL,
         scope: scope.clone(),
         generation: checkpoint.generation,
@@ -437,10 +448,49 @@ pub fn verify_update(
         highest_release_sequence: release.release.sequence,
         highest_release_sha256: release.sha256.clone(),
         last_successful_resolution: checkpoint.last_successful_resolution,
-    };
+    })
+}
+
+/// Validate a fresh signed checkpoint against independently loaded enrollment and
+/// high-water state. Returning next state never writes it or stages/reboots an OS.
+pub fn verify_update(
+    release: VerifiedRelease,
+    payload: &[u8],
+    signature: &[u8],
+    public_key: &str,
+    scope: &Scope,
+    previous: Option<&TrustState>,
+    now: u64,
+) -> Result<VerifiedUpdate, Error> {
+    let checkpoint = checkpoint(&release, payload, signature, public_key, scope, now)?;
+    // Incoming metadata must always be fresh, including after an expired predecessor.
+    if now >= checkpoint.expires_at {
+        return Err(Error::Time("checkpoint has expired"));
+    }
+    let next_trust_state = ordering_state(&release, &checkpoint, hash(payload), scope, previous)?;
     Ok(VerifiedUpdate {
         release,
         next_trust_state,
+    })
+}
+
+/// Authenticate historical ordering without accepting an expired checkpoint for
+/// enrollment or staging. All other signature, time, scope and replay checks apply.
+pub fn verify_history(
+    release: VerifiedRelease,
+    payload: &[u8],
+    signature: &[u8],
+    public_key: &str,
+    scope: &Scope,
+    previous: Option<&TrustState>,
+    now: u64,
+) -> Result<VerifiedHistory, Error> {
+    let checkpoint = checkpoint(&release, payload, signature, public_key, scope, now)?;
+    let ordering_state = ordering_state(&release, &checkpoint, hash(payload), scope, previous)?;
+    Ok(VerifiedHistory {
+        release,
+        ordering_state,
+        expired: now >= checkpoint.expires_at,
     })
 }
 

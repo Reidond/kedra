@@ -75,8 +75,8 @@ and environment provisioning are documented separately; no promoted media exists
 review of candidate.json, the installed source.json, packages.txt, provenance.json,
 the complete ISO, every download part and a bound
 qualification report. It verifies the reviewed candidate hash, source/ISO hashes,
-scope/key, all required manual/E2E installation cases and an actual CLI-verified
-previous channel. It advances sequence/generation and rejects older/repeated build
+scope/key, all required manual/E2E installation cases and an actual CLI-authenticated
+previous release/checkpoint history. It advances sequence/generation and rejects older/repeated build
 run/attempts. Initial preparation requires explicit `--bootstrap`. The output
 signing-request.json binds the exact asset names, sizes and hashes, SHA256SUMS
 bytes and expected previous release/checkpoint hashes; the
@@ -91,9 +91,16 @@ owner_desktop_login, selinux_enforcing, exact_booted_image, container_policy,
 home_writable, root_read_only and doctor. Review that evidence before submitting
 it. Do not relabel research authority/identity as an owner candidate.
 
-The conservative initial producer requires candidate RPM resolution within 36
-hours and a still-fresh previous channel. Expired-channel recovery, no-change
-renewal and rotation are not implemented by it. It makes no signing/publishing
+The producer requires candidate RPM resolution within 36 hours. It authenticates
+the predecessor using `sysroot release history`, so an expired predecessor may
+supply its ordering floor while invalid signatures, scope, binding, lifetime,
+future timestamps or replay still refuse. The result is explicitly historical
+and cannot confer fresh eligibility. The publisher repeats that authentication,
+then verifies the newly signed pair with ordinary fresh `release channel` and
+the predecessor's ordering floor. No clock is changed and no installed helper
+freshness check is relaxed. No-change renewal and rotation remain unimplemented;
+complete production expired-predecessor qualification is still not-run.
+The producer makes no signing/publishing
 request itself and refuses existing output. The `approval=promoted` value in the
 unsigned bytes is a proposed signing payload, not an actual promoted release.
 
@@ -111,12 +118,16 @@ successful current-main release.yml run/attempt, an independently reviewed
 candidate.json SHA-256, the exact qualification JSON, and a bootstrap flag used
 only when the channel is absent. It shares the candidate workflow's concurrency
 group. Public preparation reassembles and hashes the entire ISO, verifies source
-and authority, and authenticates previous signed channel state with sysroot.
+and authority, and authenticates previous signed ordering history with sysroot.
 The proposed exact payloads and qualification are retained for owner review.
 
 The protected signing job has no checkout, repository scripts, candidate execution
 or production-write token. It independently checks the approved source, successful
 build, candidate/qualification hashes, public authority and unchanged channel.
+Its predecessor check binds the exact bundle/payload hashes; it does not execute
+the repository history command or claim an independent predecessor freshness
+check. Incoming checkpoint freshness checks remain strict. Historical verification
+is performed independently by the public producer and the key-free publisher.
 It derives the fixed checksum filenames and expected hashes from the exact
 reviewed candidate, metadata, qualification and public authority, then compares
 the entire checksum payload before using a key. Pinned Cosign 3.1.3 signs exact
@@ -243,10 +254,12 @@ discovery asset advances. See [Git references](https://docs.github.com/en/rest/g
 and [annotated tags](https://docs.github.com/en/rest/git/tags#get-a-tag).
 
 Expanded v2 preparation/signing/publication under actual production authority,
-uncertain-create continuation, interrupted-publication recovery and races remain
+uncertain-create continuation, expired-predecessor publication, interrupted-publication recovery and races remain
 not-run. Syntax parsing and native signer
-help inspection do not qualify those behaviors. No-change renewal, expired-channel
-recovery and key rotation remain separate unfinished work.
+help inspection do not qualify those behaviors. Native Windows CLI/OpenSSL checks
+exercise history authentication and unchanged incoming expiry/refusal semantics;
+the extended R01 VM flow still needs its actual run. No-change renewal and key
+rotation remain separate unfinished work.
 
 Sources: [Sigstore blob signing](https://docs.sigstore.dev/cosign/signing/signing_with_blobs/)
 and [GitHub draft-first release publication](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository?tool=cli),

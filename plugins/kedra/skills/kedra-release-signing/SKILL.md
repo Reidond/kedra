@@ -62,6 +62,15 @@ initial r1 checkpoint expires 2026-09-15 23:05:17 UTC; publication does not make
 that historical checkpoint perpetually fresh. No-change renewal remains open.
 Never use one unscoped GitHub latest-release result as authority for every host.
 
+Prepared and CLI-qualified 2026-09-09: `sysroot release history` authenticates
+expired predecessor ordering as a distinct historical-only result. It retains
+signature/schema/scope/binding/lifetime/future-clock/replay checks and never
+grants fresh update eligibility. Producer/publisher use it only for the old pair;
+incoming channel, unpack and installed update verification still reject expiry.
+Rust 1.98.1/Windows OpenSSL 3.6.1 E2E passes; new R01 guest and full production
+expired-predecessor execution remain pending. No-change renewal and rotation are
+separate. Sources: ADR 0024 and R08 history CLI evidence; gates R08/R10.
+
 A writer lock does not alone order workflows: recheck current desired image inputs
 and sequence under the promotion lock. Workflow recreation and rerun identities
 need explicit epoch/rank handling. Exact-byte metadata is implemented; general

@@ -65,6 +65,7 @@ curl --silent --fail --cacert "$root/context/tls.crt" https://registry.kedra.tes
 cp build/research/r01/{Containerfile,check.sh,check.service,install.toml} "$root/context/"
 cp build/research/console.toml "$root/context/"
 cp target/release/sysroot-helper "$root/context/helper"
+cp target/release/sysroot "$root/context/sysroot"
 for variant in A B U W M; do
     sudo podman build --pull=always --build-arg "BASE_IMAGE=$base" --build-arg "VARIANT=$variant" \
         --tag "localhost/kedra-r01:$variant" "$root/context" > "$evidence/build-$variant.log" 2>&1
@@ -137,7 +138,10 @@ for phase in stage-b boot-b rollback-a; do
         -nic user,model=virtio-net-pci -display none -serial stdio -monitor none > "$evidence/$phase.serial.log" 2>&1
     ! grep -q KEDRA_R01_FAIL "$evidence/$phase.serial.log"
     case "$phase" in
-        stage-b) grep -q KEDRA_R01_STAGE_PASS "$evidence/$phase.serial.log" ;;
+        stage-b)
+            grep -q KEDRA_R01_STAGE_PASS "$evidence/$phase.serial.log"
+            grep -q KEDRA_R08_EXPIRED_HISTORY_BOUNDARY_PASS "$evidence/$phase.serial.log"
+            ;;
         boot-b) grep -q KEDRA_R01_BOOT_B_ROLLBACK_STAGED_PASS "$evidence/$phase.serial.log" ;;
         rollback-a) grep -q KEDRA_R01_ROLLBACK_PRESERVES_DATA_PASS "$evidence/$phase.serial.log" ;;
     esac

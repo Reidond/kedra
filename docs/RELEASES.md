@@ -97,6 +97,42 @@ publication with release sequence 1 and checkpoint generation 1. Fetch the curre
 channel again for later online operations; its versioned r1 copy is historical
 evidence. Automatic/no-change renewal and expired-channel recovery remain open.
 
+## Authenticate predecessor history for publication
+
+The development CLI now provides a separate history command. It is not included
+in r1 or the frozen `0eb1cf0` candidate. Normal installation and updates continue
+to use fresh `release channel`/`release unpack` verification.
+
+```sh
+sysroot release history --manifest previous/release.json --signature previous/release.sig --checkpoint previous/checkpoint.json --checkpoint-signature previous/checkpoint.sig --public-key release.pub --target desktop --repository ghcr.io/reidond/kedra-desktop --json
+```
+
+History verifies both signatures, supported schemas, scope, exact release/checkpoint
+binding, a valid maximum-seven-day lifetime and the normal future-clock tolerance.
+It uses the actual system clock and reports `expired` separately. An expired
+predecessor can supply authenticated ordering history; it cannot authorize an
+incoming update. Output has `historical_only: true`, `channel_freshness_verified:
+false`, `deployment_authorized: false` and `ordering_state`, with no
+`next_trust_state`. No state file or installed authority is changed.
+
+Add `--previous-state PATH` with an independently retained ordering floor to reject
+older generations/releases, changed same-number records and backwards resolution
+history. Without that floor, a signature alone cannot reveal an earlier accepted
+history. The returned `ordering_state` can be saved by the caller and passed to
+ordinary fresh channel verification for the next signed pair.
+
+Only publication's predecessor uses this historical interface. The new candidate
+still needs genuine exact-media qualification and recent resolution; the newly
+signed pair must pass ordinary actual-clock freshness and all ordering floors.
+The protected signer still executes no repository verifier and binds its exact
+previous bundle/payload hashes. There is no allow-expired flag for channel, unpack,
+enrollment or staging, and no clock override. This is not key rotation, automatic
+no-change renewal or proof that an old release is current.
+
+Windows native CLI/OpenSSL interoperability passes the historical-only and strict
+incoming-expiry boundary. The extended R01 guest flow and full production
+expired-predecessor publication remain unqualified until their actual runs.
+
 An old retained release can remain valid recovery media even when its checkpoint
 has expired or it is no longer current. Installed staging/rollback and persistent
 trust state pass the disposable R01 workflow. First enrollment against this

@@ -1,5 +1,16 @@
 # R08/R10: release verification subset
 
+2026-09-09 development follow-up: distinct `release history` authenticates an
+expired predecessor as ordering data while ordinary channel/unpack and installed
+incoming verification remain strict. Preparation/publication use history only
+for the old pair; the newly signed pair repeats fresh verification against its
+ordering floor. Native Windows Rust 1.98.1 build/lint and actual CLI/OpenSSL 3.6.1
+E2E pass; [the retained output](history-cli-windows-20260909.txt) records the
+positive and refusal boundaries. Independent review found no actionable defect.
+New R01 guest cases and full production expired-predecessor publication remain
+pending. This development code is outside frozen candidate source `0eb1cf0`.
+See [ADR 0024](../../adr/0024-historical-release-ordering.md).
+
 2026-09-09 publication milestone: owner release
 [desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1)
 and its [signed channel](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-channel)

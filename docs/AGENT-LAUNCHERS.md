@@ -1,7 +1,7 @@
 # Agent launchers
 
 On Linux, `sysroot codex` and `sysroot claude` select a runtime and open the
-verified Kedra checkout. This prototype does not install agent binaries or
+verified Kedra checkout. The launchers do not install agent binaries or
 authorize publishing, deployment or reboot.
 
 ```sh
@@ -15,11 +15,21 @@ Wrapper options precede `--`; everything after it goes directly to the official
 CLI. `--runtime user` uses the personal executable on absolute PATH entries, or an
 explicit absolute `--executable`. Missing personal executables fail without a
 bundled fallback. The default bundled path is
-`/usr/libexec/sysroot/agents/NAME/bin/NAME`, outside ordinary PATH. Bundled agents
-are not yet installed by the image assembly. `--print-plan` runs `--version` in
+`/usr/libexec/sysroot/agents/NAME/bin/NAME`, outside ordinary PATH. The desktop
+image packages the pinned official
+Codex runtime, whose native VM startup and profile-retention checks pass. Claude
+is not packaged pending the owner's preinstallation terms choice. Authenticated
+model workflows and the complete runtime/profile matrix remain unqualified.
+`--print-plan` runs `--version` in
 a disposable private configuration directory; it does not create a persistent
 profile, take the checkout lock, or start an agent session. Native CLI startup can
 write runtime files even when only help/version was requested.
+
+`sysroot status --json` schema 2 reports implemented capabilities, their platform
+and runtime requirements, and separate qualification limits. It replaces the
+bootstrap availability flags and does not inspect installed runtimes, enrollment,
+home state or credentials. A checkout build therefore does not claim that the
+selected agent exists or is authenticated on the current machine.
 
 The checkout comes from `--repo`, `SYSROOT_REPO`, or `~/src/kedra`. Its local origin
 must identify Reidond/kedra using the documented GitHub HTTPS or SSH spelling.

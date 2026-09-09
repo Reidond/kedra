@@ -1,8 +1,20 @@
 # Fedora refresh implementation notes
 
-Planning knowledge, 2026-09-07. No refresh experiment has run.
+Planning knowledge, 2026-09-07; bounded native follow-up measured 2026-09-09.
 Canonical policy: docs/UPDATES.md; ADR 0002; docs/research/update-refresh/EXPERIMENTS.md.
 All files in this skill remain checkout-only, not installed OS skills.
+
+Actions 34286322016 at 0d82b1f passes ten generated signed-RPM cases with
+DNF/libdnf5 5.4.4.0, RPM 6.0.2 and Podman 4.9.3. Direct, transitive and inherited
+updates materialize; metadata-only and repeated fixed inputs retain identical
+fixture contents; changed same-NEVRA bytes are detected. Required repository,
+damaged signed payload and unsatisfiable newest direct-request refusals preserve
+the installed inventory. DNF reports the damaged package as a generic open
+failure: correlate the named downloaded bytes with native rpmkeys BAD payload
+diagnostics, rather than treating any nonzero DNF exit as a signature result.
+Exact native evidence is in docs/research/update-refresh/REPORT.md. This proves
+only the RPM fixture scope; full Fedora/OS equivalence and renewal remain open
+under R02/R07/R08. No schedule or production freshness was enabled.
 
 ## Refresh means image reconciliation, not mirroring
 

@@ -1,6 +1,24 @@
 # R04: Native home activation and recovery
 
-2026-09-08. Full gate: blocked. No workstation home was used.
+Updated 2026-09-09. Full gate: blocked. No workstation home was used.
+
+Optional caller-home status passes Linux workspace 34287224455 and actual signed
+[A/B/A run 34287224388](https://github.com/Reidond/kedra/actions/runs/34287224388)
+at `8288cc263331f64625e131776a799b38d0bd0f85`. The public CLI distinguishes absent,
+unsafe/corrupt/incompatible/busy/profile state, matching accepted baselines,
+required reconciliation and actual killed-CLI recovery. Independent live,
+selected, local and published choices remain intact. Both groups and overall
+precedence are checked: after niri accepts B, Noctalia remains on A and keeps
+overall reconciliation required; after explicit rollback handling both match A.
+The no-flag/helper contract stays unchanged, and no private home data is sent
+to root. The fixture's narrow, visudo-checked helper grant is guest-only; it
+does not qualify interactive authentication or change production sudo policy.
+Artifact 10080447739 independently matches ZIP SHA-256
+`c6547af784d8d4a934485d226df9932e2ae2252bf58eb4576d2f3d7a35e7a25b`;
+local native evidence is `output/caller-home-8288cc2/r04/evidence`.
+R01 34287224413 and R07 34287224389 also pass the existing regressions at this
+source. See [HOME-REVIEW.md](../../HOME-REVIEW.md) for the assessment's limits.
+The separately qualified owner ISO remains on `c660c58` and lacks this new flag.
 
 Actual signed graphical A/B/A passes
 [34243567959](https://github.com/Reidond/kedra/actions/runs/34243567959) at `f45b55a`.

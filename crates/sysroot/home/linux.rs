@@ -35,7 +35,7 @@ pub(super) fn read_regular(path: &Path, owner: u32, limit: usize) -> Result<Vec<
     sysroot_helper::trusted_file::read(path, owner, limit)
 }
 
-fn private_parent(path: &Path, owner: u32) -> Result<PathBuf> {
+pub(super) fn private_parent(path: &Path, owner: u32) -> Result<PathBuf> {
     if !path.is_absolute()
         || path
             .components()
@@ -256,16 +256,7 @@ fn change(
     Ok(state)
 }
 
-pub(super) fn run(options: Options) -> Result<()> {
-    let owner = rustix::process::geteuid().as_raw();
-    if owner == 0 {
-        return Err("home review runs as the ordinary desktop user, never root".into());
-    }
-    let requested = match &options.state {
-        Some(path) => path.clone(),
-        None => default_state(owner, matches!(options.command, Command::Init))?,
-    };
-    let path = private_parent(&requested, owner)?;
+pub(super) fn instance(owner: u32) -> Result<String> {
     let machine = read_regular(Path::new("/etc/machine-id"), 0, 64)?;
     let machine_text = std::str::from_utf8(&machine)
         .map_err(|_| "machine identity is malformed")?
@@ -279,7 +270,20 @@ pub(super) fn run(options: Options) -> Result<()> {
             "machine identity is not initialized; home review cannot be bound safely".into(),
         );
     }
-    let instance = hash(&[machine, owner.to_le_bytes().to_vec()].concat())[..32].to_owned();
+    Ok(hash(&[machine, owner.to_le_bytes().to_vec()].concat())[..32].to_owned())
+}
+
+pub(super) fn run(options: Options) -> Result<()> {
+    let owner = rustix::process::geteuid().as_raw();
+    if owner == 0 {
+        return Err("home review runs as the ordinary desktop user, never root".into());
+    }
+    let requested = match &options.state {
+        Some(path) => path.clone(),
+        None => default_state(owner, matches!(options.command, Command::Init))?,
+    };
+    let path = private_parent(&requested, owner)?;
+    let instance = instance(owner)?;
     let mut source_result = None;
     let state = if matches!(options.command, Command::Init) {
         let baseline = installed_baseline(Path::new("/"), 0)?;

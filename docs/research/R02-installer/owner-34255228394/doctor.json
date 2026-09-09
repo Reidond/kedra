@@ -1,0 +1,101 @@
+{
+  "changes_performed": false,
+  "checks": [
+    {
+      "detail": "Enforcing",
+      "name": "selinux",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "No failed system services",
+      "name": "system_services",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "No failed user services",
+      "name": "user_services",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Configuration is valid",
+      "name": "niri_configuration",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Configuration is valid",
+      "name": "noctalia_configuration",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Login keyring is unlocked",
+      "name": "login_keyring",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Desktop portal responds",
+      "name": "desktop_portal_response",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Service is active",
+      "name": "compositor",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Service is active",
+      "name": "desktop_controls",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Service is active",
+      "name": "audio",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Service is active",
+      "name": "audio_policy",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Service is active",
+      "name": "desktop_portal",
+      "next_action": null,
+      "passed": true,
+      "required_for_session": true
+    },
+    {
+      "detail": "Public release trust is present; enrollment has not been queried",
+      "name": "release_setup",
+      "next_action": "Run sysroot update status to inspect the signed deployment.",
+      "passed": true,
+      "required_for_session": false
+    }
+  ],
+  "desktop_session_checks_passed": true,
+  "project": "Kedra",
+  "schema_version": 1,
+  "source_revision": "c660c58d9bbbbe34119f6ea35a03528485455848",
+  "target": "desktop"
+}

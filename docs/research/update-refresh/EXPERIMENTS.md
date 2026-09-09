@@ -1,6 +1,10 @@
 # Update/refresh experiments supplement
 
-Status: **all cases not-run**. Date: 2026-09-07.
+Status: **ten bounded native RPM cases pass** in [run 34286322016](https://github.com/Reidond/kedra/actions/runs/34286322016),
+recorded 2026-09-09. See [REPORT.md](REPORT.md) for exact case outcomes and limits.
+Whole-target equivalence, checkpoint renewal and the remaining cases below are
+still not-run; metadata-only fixture equivalence does not satisfy their full
+publication requirements.
 This is a test specification under existing R01-R11 packets, not a new completed
 research report or a reason to mark those packets passed. Policy: docs/UPDATES.md.
 Use fixture RPM repositories with synthetic signed packages/disposable keys and

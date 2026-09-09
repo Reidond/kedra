@@ -1,0 +1,11 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+# Only built in the development-branch Actions experiment. No private key is
+# ever present in this build context or image layer.
+RUN test -f /run/.containerenv && \
+    dnf -y --best --refresh --repo=fedora --repo=updates \
+      '--setopt=*.skip_if_unavailable=False' '--setopt=*.gpgcheck=True' \
+      install rpm-build rpm-sign gnupg2 createrepo_c python3 && \
+    dnf clean all
+COPY prepare.py materialize.py /opt/kedra-refresh/
+ENV LC_ALL=C.UTF-8

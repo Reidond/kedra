@@ -1,14 +1,27 @@
 # Continue Kedra implementation
 
 The owner requested full implementation through a usable, understandable installer,
-with disposable VM testing. Public artifacts may contain reviewed project files
-only. Work is on codex/usable-system. PR 1 merged as main 3b1bcdf on 2026-09-08;
-production candidate 34250485539 passed owner-approved signing and anonymous
-strict pull, then failed ISO construction on compressed layer identity. It is
-retained and not promotable. The development branch corrects initial publication
-to preserve native OCI bytes and qualifies the registry/storage round trip before
-requesting a replacement signing review. Read AGENTS.md, the current
-worklog snapshot and latest entries, then the relevant source/research evidence.
+with disposable VM testing. The first owner release is now published:
+[desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1)
+and its [signed channel](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-channel).
+Use [INSTALL.md](INSTALL.md) for concrete download/verification/install commands.
+All ten exact owner-media installation cases pass. First enrollment against the
+anonymous public channel, repeated-enrollment refusal with unchanged status,
+required desktop health, clean shutdown and final sentinel preservation also pass
+in the retained generated VM. Evidence is tracked separately in
+[the enrollment report](research/R08-release-protocol/owner-r1-enrollment/REPORT.md).
+
+Published r1 remains accepted source `c660c58`, image `bb4f2b68`, candidate
+34255228394. The first candidate's compressed-layer failure is historical.
+Promotion 34288691672 passed owner-approved metadata signing but failed after
+HTTP 500 left an empty draft. Exact-byte, key-free recovery verified all 13
+downloaded assets and signed ISO assembly, then published version ID 385117864
+and channel ID 385128562. Anonymous channel verification passes; both Git tags
+resolve to c660c58. The failed Actions run remains failed. See the
+[recovery report](research/R08-release-protocol/owner-promotion-34288691672.md).
+The existing production opt-in was restored to true; signing authority and
+protections did not change. Later work stays on codex/usable-system until accepted
+through normal CI. Read AGENTS.md, current worklog and actual source/CI evidence.
 
 ## Owner testing decision — 2026-09-08
 
@@ -27,16 +40,19 @@ release/checkpoint signature and replay verification, private state, Noctalia
 capture/staging/local policy, selected-field source export and source receipts.
 The installed helper has a bounded root protocol with independent trust/scope checks,
 durable stage/rollback records and explicit rollback hold/resume. Production trust
-is provisioned; promotion remains unqualified. The manual release candidate workflow
+is provisioned and r1 is promoted through the measured recovery above. The manual release candidate workflow
 separates build/sign-image/installer jobs; see build/release/authority/README.md.
 The owner authorized a new dedicated release key and GitHub deployment secrets;
 public authority files and the protected kedra-desktop-signing environment are
 now provisioned. Main requires CI and disallows forced/deleted history. Local
 recovery files are backed up in Bitwarden and retrieval is confirmed by the owner
 (2026-09-08); the agent did not access the vault. Production workflow opt-in remains
-enabled for the manual workflow; no promoted media exists. Candidate signing must
-wait at the configured owner-review environment for each exact candidate. The
-first candidate's approval does not approve a replacement digest.
+enabled for the manual workflow. The owner approved both replacement image signing
+and exact r1 metadata; the latter review was performed directly in GitHub. The
+owner requested continuation without repeating approval questions for the already
+authorized work. Do not ask again for those same approved bytes or rerun signing
+to recover publication. Future signing still uses the configured protected
+environment; this recovery did not relax its controls.
 No workstation enrollment has occurred.
 
 R01 native signed helper run 34228725707 at 94678f6 passes older-media enrollment against a newer fresh channel, metadata/OCI
@@ -59,7 +75,20 @@ Bitwarden plus session/keyring checks pass earlier runs. Owner authentication,
 Claude preinstallation terms and physical hardware remain separate. Repository
 skills stay checkout-local; none are installed into personal profiles or the OS.
 
-## Work now being qualified
+## Qualified development work and remaining scope
+
+Later source `8288cc2` adds optional `sysroot update status --home`, preserving
+the no-flag/helper protocol while assessing the caller's accepted Noctalia/niri
+baselines and pending recovery. Linux workspace 34287224455 and actual signed
+R04 A/B/A 34287224388 pass, including both group statuses, overall precedence,
+absence/unavailable distinctions and killed-CLI recovery. R01 34287224413 and
+R07 34287224389 also pass regressions. This feature is not in the published
+c660c58/r1 image. See HOME-REVIEW.md and the R04 report.
+
+Native RPM refresh experiment 34286322016 at `0d82b1f` passes all ten prepared
+snapshot cases. Its equality result is limited to the generated RPM fixture;
+whole-target material equivalence and checkpoint renewal remain unfinished.
+See research/update-refresh/REPORT.md. No production refresh schedule is enabled.
 
 Noctalia plan/apply/discard/recover commands are implemented with narrow native
 field edits, writer coordination, checked file replacement and durable recovery.
@@ -107,26 +136,32 @@ release/promotion is implied. See docs/RELEASES.md.
 
 ## Next actions
 
-1. Inspect current source/CI and qualify the prepared production candidate and
-   protected promotion workflows. Actual signed graphical A/B/A already passes
-   34243567959; shared signed installer regression 34244387167 also passes its
-   build/offline-startup scope. Do not repeat or relabel these as owner-media tests.
-2. Preserve signed-installer evidence; production authority/promotion, recovery
-   and an owner installer are still required after the successful research install.
-3. Complete text discard/activation, new-baseline transitions and wider file/group integration.
-4. Build and qualify production release authority, immutable signed artifacts,
-   target-bound promotion/freshness, offline recovery and understandable install
-   instructions. Keep production signing keys outside research.
-5. Complete RPM/no-change/failure cases and independent targets. Owner vault/model
+1. Preserve the completed r1 installation, publication and enrollment evidence;
+   qualify post-enrollment reboot persistence and the first owner forward update
+   with the next exact accepted candidate. No new owner image was staged by the
+   enrollment continuation.
+2. Accept the repaired development pipeline through normal CI, then qualify a
+   later candidate schema 2 and its expanded signed checksum/inventory/provenance
+   outputs. The current r1 has its original 13 v1 assets; do not backfill or
+   overwrite them. Full native v2 publisher execution remains not-run.
+3. Build whole-target material evidence and protected no-change renewal. The
+   initial public checkpoint expires 2026-09-15 23:05:17 UTC; an expired channel
+   must not be reported as fresh. Keep owner keys outside research.
+4. Complete wider home/file groups, remaining interruption/compatibility cases,
+   expired-channel recovery and signing-key rotation.
+5. Complete independent targets and physical qualification. Owner vault/model
    authentication, the pending Claude terms choice and actual hardware require
    their own evidence; do not invent them or guess future XPS hardware.
 
-Prepared promote.yml has public prepare/publish jobs around a protected no-checkout
-Cosign signing job. Exact candidate, installed source, whole ISO and qualification
-are bound to owner review; versioned drafts publish before the single signed-pair
-channel bundle. Actual production execution and interrupted-publication recovery
-remain not-run. See ADR 0023; current main/opt-in and Bitwarden backup status must
-be checked before enabling. Public key files are committed at a6cd08f.
+Promote.yml keeps public prepare/publish jobs around a protected no-checkout
+Cosign signer. R1 exercised actual authority and one exact-byte recovery after
+uncertain draft creation. The development repair uses authenticated draft listing,
+numeric release/asset IDs, exact Git tag checks and bounded readback; it preserves
+existing-version refusal and replaces only the verified mutable channel asset.
+Independent source review passes, but the complete repaired v2 path, broader
+publication races, renewal and rotation remain unqualified. Preserve the existing
+owner backup and environment controls; do not infer another setup/approval step
+from the historical preparation notes. See ADR 0023 and build/release/README.md.
 
 Only generated guest disks are used. QEMU/OVMF are installed in existing Ubuntu
 WSL2 under the owner's authorization. Never attach/format host disks, enroll the

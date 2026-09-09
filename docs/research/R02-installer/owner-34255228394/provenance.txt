@@ -1,0 +1,2 @@
+{"algorithm":"ecdsa-p256-sha256","key_fingerprint_sha256":"a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e","trust_established":false}
+4451de9c4363a4d3a7a3f789816b6ec9d169b14283aeb3a5a322c045fe745208  /usr/share/sysroot/source.json

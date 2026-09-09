@@ -1,10 +1,11 @@
 # Install and understand Kedra
 
-Owner media is not published yet. The signed research installer passed a fresh
-encrypted two-disk VM installation and ISO-free desktop boot. That evidence does
-not make research media an owner release. Production candidate and promotion
-workflows are prepared; the exact owner ISO must pass the same installation
-checks before this guide points to a usable published version.
+The first owner installer is published as
+[desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1).
+Its signed image and exact ISO passed fresh encrypted two-disk installation,
+ISO-free desktop boot, native health/provenance checks and preservation of the
+unselected disk. See the [installation qualification](research/R02-installer/owner-34255228394/REPORT.md)
+and [verified publication recovery](research/R08-release-protocol/owner-promotion-34288691672.md).
 
 Kedra is Fedora 44 bootc with niri, Noctalia and the `sysroot` management command.
 System software comes from a signed image built by Actions. Your home files remain
@@ -16,10 +17,19 @@ Bitwarden login are configured by their owner after installation.
 
 ## Obtain verified media
 
-Use the versioned release for **desktop / Fedora 44 / x86_64**, not an arbitrary
-research artifact, OCI candidate tag or a different target. Each promoted version
-will contain numbered ISO parts, release.json, release.sig, the public key,
-qualification evidence and exact source identity. Download every ISO part.
+Open [release r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1),
+for **desktop / Fedora 44 / x86_64**. Download `release.json`, `release.sig`,
+`release.pub` and both numbered ISO parts into one new directory:
+
+1. [kedra-desktop-44-34255228394-1.iso.part00](https://github.com/Reidond/kedra/releases/download/desktop-44-x86_64-r1/kedra-desktop-44-34255228394-1.iso.part00)
+2. [kedra-desktop-44-34255228394-1.iso.part01](https://github.com/Reidond/kedra/releases/download/desktop-44-x86_64-r1/kedra-desktop-44-34255228394-1.iso.part01)
+
+The release also contains the qualification, source identity and signed channel
+records. Its complete ISO is 2,856,306,688 bytes and has SHA-256
+`9c1401489d1c47119249ab213c9a187b47db6c5112ebccce567cf0cc4a76d988`.
+The signed `release.json` authenticates that complete image. Separate signed
+SHA256SUMS, packages.txt and provenance.json are prepared for a later v2 candidate;
+they are not assets of r1.
 
 Confirm the public authority independently. The owner-authorized public-key SPKI
 DER SHA-256 provisioned on 2026-09-08 is:
@@ -28,20 +38,39 @@ DER SHA-256 provisioned on 2026-09-08 is:
 a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
 ```
 
-Use a trusted build of sysroot to check the key and reconstruct the exact ISO:
+Use a trusted build of sysroot. From the download directory, check the key and
+compare the printed fingerprint to the independently confirmed value above:
 
 ```sh
 sysroot release key --public-key release.pub
-sysroot release assemble --manifest release.json --signature release.sig --public-key release.pub --target desktop --output-dir . EXACT_NAME.iso.part00 EXACT_NAME.iso.part01
+sysroot release assemble --manifest release.json --signature release.sig --public-key release.pub --target desktop --output-dir . kedra-desktop-44-34255228394-1.iso.part00 kedra-desktop-44-34255228394-1.iso.part01
 ```
 
-Use the actual ordered names from the release. The command verifies the signed
-record and complete ISO size/hash before exposing the final ISO, and refuses an
-existing output. On the development Windows checkout the built command is
-`target\release\sysroot.exe`. To build it from independently reviewed source with
-the pinned toolchain, run `cargo +1.98.1 build --workspace --release --locked`.
-The source build requires Rust; no preinstallation binary distribution is claimed
-yet. See [release verification](RELEASES.md) for complete semantics and limitations.
+The result is `kedra-desktop-44-34255228394-1.iso`. The command verifies the signed
+record and complete ISO size/hash before exposing it, and refuses an existing
+output. Keep the two source parts until verification succeeds.
+
+If sysroot is not installed, its preinstallation verifier currently requires a
+source build with Rust 1.98.1; r1 does not distribute a standalone verifier binary.
+In a new checkout of the published tag:
+
+```sh
+git clone --branch desktop-44-x86_64-r1 --depth 1 https://github.com/Reidond/kedra.git kedra-r1-source
+cd kedra-r1-source
+git rev-parse HEAD
+```
+
+Check that HEAD is `c660c58d9bbbbe34119f6ea35a03528485455848`, then build:
+
+```sh
+cargo +1.98.1 build --workspace --release --locked
+```
+
+Use the resulting `target/release/sysroot` on Linux or `target\release\sysroot.exe`
+on Windows, substituting its absolute path for `sysroot` in the commands above.
+In PowerShell, prefix a quoted executable path with `&`. The single-line assembly
+command also works there. See
+[release verification](RELEASES.md) for complete semantics and limitations.
 
 ## Install deliberately
 
@@ -71,11 +100,14 @@ policy or boot arguments to force a result.
 
 ## Enroll and update
 
-Download the target channel bundle and unpack it as described in
-[RELEASES.md](RELEASES.md). Enrollment requires the exact running promoted release
-and a fresh equal-or-newer channel. For an installation that is still current:
+Inside the installed Kedra session, download the
+[current channel.json](https://github.com/Reidond/kedra/releases/download/desktop-44-x86_64-channel/channel.json)
+into a new working directory. Enrollment requires the exact running promoted
+release and a fresh equal-or-newer channel. Use the installed public key to unpack
+the bundle, then enroll an installation that is still current:
 
 ```sh
+sysroot release unpack --bundle channel.json --public-key /usr/lib/sysroot/trust/release.pub --expected-fingerprint a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e --target desktop --repository ghcr.io/reidond/kedra-desktop --output-dir verified-channel
 sysroot update enroll --manifest verified-channel/release.json --signature verified-channel/release.sig --checkpoint verified-channel/checkpoint.json --checkpoint-signature verified-channel/checkpoint.sig
 sysroot update status
 ```
@@ -84,6 +116,18 @@ When the current channel is newer than the installed ISO, also provide that ISO'
 signed record using `--installed-manifest` and `--installed-signature`. The helper
 checks installed provenance and public trust independently; downloading files
 does not establish machine authorization.
+
+The initially published checkpoint expires on **2026-09-15 at 23:05:17 UTC**.
+Always fetch the current channel for online operations. An expired channel is
+refused; retain the verified ISO and wait for a valid fresh checkpoint rather
+than changing the clock or verification policy. No-change renewal is not yet
+implemented. First enrollment against the anonymous public channel passed in the
+retained r1 VM: the helper reported enrolled, the exact booted owner digest and
+sequence/generation 1 without staging or rebooting. Status and doctor passed;
+repeating enrollment was refused with the original state preserved. Clean
+shutdown and a final comparison confirmed that the unselected disk was unchanged.
+See the separate
+[enrollment evidence](research/R08-release-protocol/owner-r1-enrollment/REPORT.md).
 
 After reviewing a newer release, explicitly stage it with the same four channel
 file arguments using `sysroot update stage`. Staging does not reboot. Reboot when
@@ -105,6 +149,10 @@ publication and recovery commands. Real files stay writable; applying a new
 baseline requires a current plan and explicit conflict resolution. Wider home
 groups are not implemented. Repository skills remain checkout-local and personal
 agent settings, MCP, skills and credentials remain independent.
+
+The optional `sysroot update status --home` assessment was qualified on the later
+development source `8288cc2`; it is not included in r1's `c660c58` image. Use r1's
+ordinary `sysroot update status` and the explicit `sysroot home` commands.
 
 The owner confirmed Bitwarden release-key backup and retrieval on 2026-09-08.
 Personal authentication, physical hardware, expired channel recovery, no-change

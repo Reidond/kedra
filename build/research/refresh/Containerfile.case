@@ -1,0 +1,5 @@
+ARG FIXTURE_BASE
+FROM ${FIXTURE_BASE}
+# Snapshot and evidence mounts are supplied by the Actions experiment. Context,
+# base, command and requested package intent stay fixed across every case.
+RUN python3 /opt/kedra-refresh/materialize.py reconcile

@@ -7,17 +7,17 @@
       "topic": "Image signing and bootc enforcement",
       "prototype_status": "pass",
       "report": "R01-signatures/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34242602458",
-      "note": "Actual signed helper regression at 3d29689 passes older-media enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold and explicit resume. Signed-origin research installation passes R02. Production authority, promotion and rotation remain open."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34253906774",
+      "note": "Actual signed helper regression at 7e846f0 passes older-media enrollment, metadata/OCI refusals, B stage/boot, retained-A rollback, high-water/hold and explicit resume. Native digest-preserving signed registry/storage/isolated-storage copy also passes. Owner r1 installation, signed metadata/publication recovery and first public-channel enrollment pass separately in R02/R08. Rotation and broader lifecycle cases remain open."
     },
     {
       "id": "R02",
       "status": "blocked",
       "topic": "Installer and Actions feasibility",
       "report": "R02-installer/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34222699188",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34255228394",
       "prototype_status": "pass",
-      "note": "Signed-payload media at d8a76a9 passes offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and sentinel retention. Exact booted digest and containerPolicy enforcement match; installed helper accepts inherited trust and reports unenrolled. Outer ISO/authority remain research-only; production enrollment/promotion and full recovery are open."
+      "note": "Owner media at accepted c660c58 passes all ten v1 manual installation cases: full ISO/source/key hashes, offline verification, fresh encrypted installation, administrative owner login, ISO-free healthy desktop, portal/keyring, correct mounts and both stopped-sentinel comparisons. Exact owner digest and containerPolicy match. The same media is published as desktop-44-x86_64-r1 after verified exact-byte recovery. Public-channel enrollment, repeat refusal with unchanged status, doctor, clean shutdown and final sentinel preservation also pass in the retained VM, with separate R08 evidence. Post-enrollment reboot persistence, full recovery and physical hardware remain open."
     },
     {
       "id": "R03",
@@ -35,9 +35,9 @@
       "status": "blocked",
       "topic": "Activation, writers, rollback",
       "report": "R04-activation/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34243567959",
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34287224388",
       "prototype_status": "pass",
-      "note": "Actual signed graphical A/B/A passes at f45b55a: B native baseline acceptance preserves independent L/S/I/P, rollback detects/refuses the home conflict, explicit CLI resolution accepts A, and replay high-water/hold/policy survive. Process-kill recovery also passes earlier R07. Wider groups, old schemas, power loss/full disk remain open."
+      "note": "Actual signed graphical A/B/A passes at 8288cc2 with optional per-caller home assessment. It distinguishes absence/unavailable/reconciliation/recovery, preserves L/S/I/P, checks both Noctalia/niri and overall precedence through B acceptance and retained-A rollback, and reports real killed-CLI recovery. No-flag/helper protocol is unchanged and private home state stays outside root. Wider groups, power loss/full disk and full old-schema compatibility remain open."
     },
     {
       "id": "R05",
@@ -62,15 +62,19 @@
       "topic": "Desktop session and hardware",
       "prototype_status": "pass",
       "report": "R07-desktop/REPORT.md",
-      "run_url": "https://github.com/Reidond/kedra/actions/runs/34240940795",
-      "note": "Full graphical session/doctor/portal/keyring/Codex/Bitwarden and native home recovery/current-baseline checks pass through 967fd93. Physical hardware, screen sharing and owner credentials remain unqualified."
+      "run_url": "https://github.com/Reidond/kedra/actions/runs/34287224389",
+      "note": "Full graphical session/doctor/portal/keyring/Codex/Bitwarden and existing native home recovery/current-baseline checks pass at 8288cc2. New caller-home A/B/A assessment also passes its separate R04 run. Actual owner ISO-free desktop passes its R02 session scope. Physical hardware, screen sharing and real owner credentials remain unqualified."
     },
     {
       "id": "R08",
       "status": "blocked",
       "topic": "Release authority, privacy, lifecycle",
       "report": "R08-release-protocol/REPORT.md",
-      "note": "Channel/unpack CLI passes Windows and Linux workspace 34249793986 at f8a2cb8. Dedicated P-256 authority is provisioned in the protected main-only owner-reviewed environment; owner confirms Bitwarden backup/retrieval. Owner-approved candidate 34250485539 at accepted main 3b1bcdf passes isolated image signing, anonymous strict pull and embedded trust checks, then fails ISO assembly on compressed layer identity. Native digest-preserving publication and storage round-trip correction is under qualification. No production installation/promotion; interrupted publication recovery, renewal and rotation remain open."
+      "recovery_report": "R08-release-protocol/owner-promotion-34288691672.md",
+      "enrollment_report": "R08-release-protocol/owner-r1-enrollment/REPORT.md",
+      "release_url": "https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1",
+      "channel_url": "https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-channel",
+      "note": "Dedicated P-256 authority and protected owner-reviewed main-only environment are provisioned; owner confirms Bitwarden backup/retrieval. Exact owner media 34255228394 at c660c58 passes installation and is published as r1. Promotion 34288691672 passed owner-approved metadata signing but retains its failed HTTP500 publisher outcome. Bounded key-free recovery passed all 13 downloaded asset hashes, native signed ISO assembly, version/channel publication, anonymous channel verification and exact tag-source checks; production opt-in was restored true. Public-channel enrollment, repeat refusal/state preservation, doctor and clean shutdown/sentinel checks also pass. Native RPM experiment 34286322016 passes ten fixture-only cases. Repaired v2 publication/expanded assets, owner reboot persistence/forward update, whole-target equivalence, general interruption/race recovery, renewal and rotation remain open."
     },
     {
       "id": "R09",
@@ -85,7 +89,7 @@
       "prototype_status": "pass",
       "report": "R10-state/REPORT.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34208979891",
-      "note": "Installed helper authorization, fixed trust/state, strict native enrollment/staging/rollback/hold pass at bb53ce7. Related-record transactions and generated file/recovery tests pass workspace 34217852366. Native process-kill/full-disk faults, production authority and full offline recovery remain open."
+      "note": "Installed helper authorization, fixed trust/state, strict native enrollment/staging/rollback/hold pass at bb53ce7. Related-record transactions and generated file/recovery tests pass workspace 34217852366. First enrollment against the published r1 owner channel also passes with exact booted image, sequence/generation and no staged operation. Further privileged interruption/full-disk cases and full offline recovery remain open."
     },
     {
       "id": "R11",
@@ -96,7 +100,7 @@
       "local_followup": "R11-rust-workspace/plugins.md",
       "discovery_followup": "R11-rust-workspace/discovery-20260907.md",
       "run_url": "https://github.com/Reidond/kedra/actions/runs/34138882781",
-      "note": "Historical bootstrap and local standard Cargo checks passed. Codex 0.153.4 marketplace and empty-profile skills/list probes at root/crate discover no Kedra plugin skills; canonical manual reads work. Claude authoring validation passed; interactive Claude/Codex loaded-plugin and editor checks remain not-run. Distribution review remains blocked. These gaps do not block independent R03 research."
+      "note": "Historical bootstrap and local standard Cargo checks passed. Codex 0.153.4 marketplace and empty-profile skills/list probes at root/crate discover no Kedra plugin skills; canonical manual reads work. A pinned-source/native-help audit explains the configured-marketplace, installed-plugin and .agents/skills loading boundary. No direct CLI extra-root route was established; the documented App Server endpoint and loaded-model workflow remain not-run. Keep AGENTS-directed canonical-file reading without copies/profile registration. Claude authoring validation passed; interactive/editor/distribution checks remain open."
     }
   ]
 }

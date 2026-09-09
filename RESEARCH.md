@@ -14,7 +14,9 @@ repository-local Rust skills without global hooks/plugins/MCP installation.
 
 P0 blocks the named production feature, not safe independent experiments. Work in
 disposable VMs/targets and synthetic homes. All OS/installer builds are in Actions;
-local unit tests are allowed. Never test destructive bootc/home/disk operations on
+local end-to-end and manual checks are allowed under the owner's testing policy
+in AGENTS.md. Do not add unit/model/mock tests, doctests or repository self-checks.
+Never test destructive bootc/home/disk operations on
 the current workstation or use real vault/production signing data as fixtures.
 
 Each packet needs a reproducible experiment, positive and negative cases, exact

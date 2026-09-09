@@ -286,6 +286,41 @@ fn pending(store: &Store, state: &State) -> Result<(u64, Journal)> {
     }
     Ok((record.revision, journal))
 }
+
+pub(super) fn assessment_pending(store: &Store, state: Option<&State>) -> Result<bool> {
+    if let Some(state) = state
+        && state.pending_activation.is_some()
+    {
+        pending(store, state)?;
+        return Ok(true);
+    }
+    if let Some(record) = store.read(JOURNAL)? {
+        let journal: Journal =
+            serde_json::from_slice(&record.bytes).map_err(|_| "niri journal is malformed")?;
+        let state = state.ok_or("niri journal exists without an adopted state")?;
+        if journal.schema_version != 1
+            || !journal.phase.terminal()
+            || [
+                &journal.state_sha256,
+                &journal.plan_id,
+                &journal.observed_sha256,
+                &journal.desired_sha256,
+            ]
+            .iter()
+            .any(|value| !hex(value, 64))
+            || !hex(&journal.receipt.token, 32)
+        {
+            return Err("niri journal has no matching reservation".into());
+        }
+        if let Some(after) = journal.after {
+            after.validate(&state.instance)?;
+            if after.pending_activation.is_some() {
+                return Err("planned niri state contains a nested reservation".into());
+            }
+        }
+    }
+    Ok(false)
+}
 fn conclude(
     store: &mut Store,
     state: &State,

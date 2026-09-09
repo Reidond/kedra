@@ -15,8 +15,10 @@ This development skill remains repository-only, not part of a system-wide profil
 Sign the final registry image digest. Bind release metadata to source revision,
 workflow run/attempt, target, architecture, release sequence, image digest,
 home-baseline/provenance digest, tool/base inputs and installer checksum.
-The exact schema/signature encoding remains research; avoid signing ambiguously
-serialized arbitrary JSON. Verify exact bytes or a documented canonical encoding.
+Release/checkpoint protocol 1 signs exact JSON bytes with P-256/SHA-256, SPKI PEM
+public keys and detached base64 DER signatures. The CLI and installed helper
+validate bounded schemas and exact binding. Do not reserialize signed input.
+Owner r1 now exercises this authority; broader lifecycle gates remain open below.
 
 Use a dedicated OS-release key, unrelated to the owner's Bitwarden SSH key.
 Embed public trust material only. Protect the private key and recovery copy.
@@ -55,13 +57,15 @@ a root-owned checkpoint high-water mark, reject same-generation changed payloads
 and do not reset it on rollback. Routine stage requires fresh trusted metadata;
 local offline boot/explicit retained verified rollback remains possible. Treat
 clock errors and partial/mismatched channel publication as explicit failures.
-The seven-day expiry is proposed policy to validate, not an implemented guarantee.
+Protocol 1 enforces expiry and a maximum seven-day checkpoint lifetime. The
+initial r1 checkpoint expires 2026-09-15 23:05:17 UTC; publication does not make
+that historical checkpoint perpetually fresh. No-change renewal remains open.
 Never use one unscoped GitHub latest-release result as authority for every host.
 
 A writer lock does not alone order workflows: recheck current desired image inputs
 and sequence under the promotion lock. Workflow recreation and rerun identities
-need explicit epoch/rank handling. Exact metadata encoding and atomic publication
-remain R01/R08/R10 research, not a home-grown crypto shortcut. See the supplemental
+need explicit epoch/rank handling. Exact-byte metadata is implemented; general
+publication atomicity, races and recovery remain R01/R08/R10 work. See the supplemental
 update-refresh experiment cases for no-change, failed-check, replay and race tests.
 
 ## Prove before production
@@ -73,7 +77,8 @@ the trusted key and exactRepository, in addition to the docker scope. Default
 reject is retained. `/usr/lib/bootc/install/*.toml` with `[install]
 `enforce-container-sigpolicy = true` preserves inherited enforcement on initial
 install and rollback. Without it, initial/rolled-back A lacked the signature
-setting. See R01-signatures/REPORT.md; production authority/rotation remain gated.
+setting. See R01-signatures/REPORT.md. Dedicated owner authority is now provisioned
+and used for r1; key rotation remains gated.
 
 Read references/threat-matrix.md. Use disposable keys and VM images A/B. Exercise
 unsigned, wrong key/repository/target/architecture, tampered metadata, absent
@@ -86,8 +91,10 @@ Gates: R01 proves compatibility; R08 proves authority/lifecycle; R02 proves the
 installer trust handoff; R10 implements independent validation. Sources:
 docs/SOURCES.md policy, registries, podman-sign, blob-sign, bootc-switch,
 actions-security; docs/UPDATES.md. The prepared release.yml candidate workflow is
-manual and enabled; its first owner-approved signature passes but the resulting
-ISO fails compressed layer identity (run 34250485539). Its exact public-input and
+manual and enabled. Its first owner-approved candidate failed ISO construction
+on compressed layer identity (run 34250485539); replacement 34255228394 at c660c58
+passes signed construction and exact installation and is published as r1.
+Its exact public-input and
 environment requirements are in build/release/authority/README.md. No public key
 file or fingerprint from a research fixture may fill the production slots.
 
@@ -96,11 +103,12 @@ to current-main candidate/source and the dedicated public authority. The protect
 Cosign 3.1.3 job executes no checkout/artifacts; a key-free publisher repeats native
 verification, publishes complete versioned assets, then one signed-pair channel
 bundle. Its runtime refuses stale/changed channel state and existing version tags.
-Syntax is checked; actual production publication/races/recovery are not-run.
-Owner authority/environment are provisioned separately (R08); the owner confirmed
-Bitwarden backup/retrieval. Exact-media promotion,
-renewal/expired recovery and rotation remain open. Do not confuse preparation with
-qualification. Source: build/release/README.md and the exact R08/worklog evidence.
+That preparation was later exercised by r1 and the bounded recovery recorded
+below; its failed Actions publisher is retained as failure. Owner authority and
+Bitwarden recovery backup are established. The repaired v2 publisher, general
+races, renewal/expired recovery and rotation remain open. Do not extend the
+measured recovery into a general qualification claim. Source:
+build/release/README.md and the exact R08/worklog evidence.
 
 Measured 2026-09-08: ordinary Skopeo 1.13.3 registry publication compressed the
 native OCI layers. Strict anonymous pull passed, but image-builder v82's later
@@ -110,5 +118,45 @@ registry/storage/isolated-storage path before asking for production signatures.
 Do not strip signatures, remove digest binding or weaken policy to repair this.
 The corrected signed registry/strict-pull/isolated-storage round trip passes
 34253906774 at 7e846f0 with Skopeo 1.13.3 and Podman 4.9.3. Replacement production
-GHCR publication and complete ISO construction still need exact-run evidence.
+GHCR publication, complete ISO construction and exact installation also pass
+34255228394, as recorded in R02/R08.
 Source: R08-release-protocol/owner-candidate-20260908.md; gates R01/R02/R08.
+
+Prepared 2026-09-09 for a later accepted source: candidate schema 2 binds actual
+resolved packages, explicit Kedra provenance and each ISO part hash. The producer
+prepares a fixed ASCII SHA256SUMS payload; the no-checkout signer independently
+derives its complete file/hash inventory before signing. Key-free publication
+verifies that signature, all local assets and downloaded draft bytes. Release
+and checkpoint stay protocol version 1. Earlier candidate schema 1 lacks the
+new evidence and is deliberately not backfilled. Existing c660c58 media must use
+its original workflow. Syntax, independent review and native disposable checksum/
+signature interoperability pass; actual v2 producer/publisher qualification is
+not-run. Sources: build/release/README.md and WL-20260909-02; gate R08.
+
+Measured 2026-09-09, R08: promotion 34288691672 passed public preparation and
+owner-approved metadata signing, then HTTP 500 left an empty version draft.
+GitHub's published-only tag endpoint returned 404 while authenticated listing and
+release-ID reads found it. With production workflows quiescent, exact-byte
+key-free recovery reused that draft, verified all 13 downloaded r1 assets and
+native ISO assembly, then published version 385117864 and channel 385128562.
+Anonymous native channel verification and both tag-source checks pass. Initial
+public-channel enrollment, repeat-enrollment refusal with unchanged status,
+doctor, clean shutdown and final sentinel preservation also passed in the
+retained r1 VM. Post-enrollment reboot persistence and a new owner image were not
+tested. Production opt-in was restored true; main c660c58, approved
+bytes, authority and environment protections were unchanged. The owner's direct
+GitHub approval covered those metadata bytes; recovery needed no new signature
+or repeated approval of them.
+
+Keep the failed run failed and the approved v1 assets unchanged. The development
+repair discovers visible drafts with authenticated bounded listings, transfers
+by numeric release/asset IDs and checks the actual Git tag before/after initial
+publication. Later channel updates retain its historical Git tag and replace only
+the exact verified old channel asset. An uncertain create can continue only after
+bounded confirmation of this operation's uniquely marked empty draft; other
+uncertainty requires preserving state for explicit recovery. Full native v2
+qualification remains not-run. Sources:
+[recovery evidence](../../../../docs/research/R08-release-protocol/owner-promotion-34288691672.md),
+[public enrollment](../../../../docs/research/R08-release-protocol/owner-r1-enrollment/REPORT.md),
+[GitHub release API](https://docs.github.com/en/rest/releases/releases)
+and build/release/README.md; version/date and failure scope must accompany future findings.

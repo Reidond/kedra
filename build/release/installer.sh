@@ -82,13 +82,13 @@ sudo python3 installer/smoke.py --iso "$media/$name" --kernel-dir "$PWD/output/r
     --work "$evidence/smoke" | tee "$evidence/smoke-result.txt"
 # Download parts stay below GitHub's per-asset ceiling. The whole ISO remains the signed identity.
 split --bytes=1900M --numeric-suffixes=0 --suffix-length=2 "$media/$name" "$media/$name.part"
-python3 - "$media/$name" "$evidence" <<'PY'
+python3 - "$media/$name" "$evidence" "$base" "$builder" <<'PY'
 import hashlib, json, os, pathlib, sys
-iso, evidence = map(pathlib.Path, sys.argv[1:])
+iso, evidence = map(pathlib.Path, sys.argv[1:3])
 with iso.open('rb') as stream:
     digest = hashlib.file_digest(stream, 'sha256').hexdigest()
 source = (evidence / 'source.json').read_bytes()
-record = {'schema_version': 1, 'project': 'Kedra',
+record = {'schema_version': 2, 'project': 'Kedra',
     'scope': {'target': 'desktop', 'architecture': 'x86_64', 'fedora_release': 44, 'repository': 'ghcr.io/reidond/kedra-desktop'},
     'source_revision': os.environ['GITHUB_SHA'],
     'build': {'repository': 'Reidond/kedra', 'workflow': '.github/workflows/release.yml',
@@ -96,9 +96,24 @@ record = {'schema_version': 1, 'project': 'Kedra',
     'image_digest': os.environ['KEDRA_CANDIDATE_DIGEST'],
     'last_successful_resolution': int(os.environ['KEDRA_RESOLVED_AT']),
     'home_manifest_sha256': hashlib.sha256(source).hexdigest(),
+    'packages_sha256': hashlib.sha256((evidence / 'packages.txt').read_bytes()).hexdigest(),
     'installer': {'filename': iso.name, 'size_bytes': iso.stat().st_size, 'sha256': digest},
     'parts': [p.name for p in sorted(iso.parent.glob(iso.name + '.part*'))],
     'approval': 'candidate', 'fresh_install_qualified': False}
+# A small record of observed candidate/installer evidence, not a standardized SBOM
+# or an independently attested build. The inventory was read from the verified payload.
+provenance = {key: record[key] for key in ['project', 'scope', 'source_revision', 'build',
+    'image_digest', 'home_manifest_sha256', 'packages_sha256', 'last_successful_resolution', 'installer']}
+provenance.update(schema_version=1, format='kedra-candidate-provenance', installer_inputs={
+    'base_image': sys.argv[3], 'builder_image': sys.argv[4],
+    'builder_version': (evidence / 'builder-version.txt').read_text().strip()})
+provenance_bytes = (json.dumps(provenance, sort_keys=True, indent=2) + '\n').encode()
+(evidence / 'provenance.json').write_bytes(provenance_bytes)
+record['provenance_sha256'] = hashlib.sha256(provenance_bytes).hexdigest()
+record['parts_sha256'] = {}
+for name in record['parts']:
+    with (iso.parent / name).open('rb') as stream:
+        record['parts_sha256'][name] = hashlib.file_digest(stream, 'sha256').hexdigest()
 (evidence / 'candidate.json').write_text(json.dumps(record, indent=2) + '\n')
 PY
 printf 'Exact signed payload passed offline installer startup. Fresh installation and promotion remain pending; see candidate.json.\n' >> "$GITHUB_STEP_SUMMARY"

@@ -36,7 +36,14 @@ enum Operation {
         installed_signature: Option<PathBuf>,
     },
     /// Observe native bootc and reconcile an existing deployment journal.
-    Status,
+    Status {
+        /// Also assess the invoking user's accepted home baselines; never activate them.
+        #[arg(long)]
+        home: bool,
+        /// Existing private home store; requires --home and never initializes state.
+        #[arg(long, requires = "home")]
+        home_state: Option<PathBuf>,
+    },
     /// Verify a fresh promoted release and stage its exact image, without rebooting.
     Stage {
         #[command(flatten)]
@@ -60,7 +67,7 @@ enum Operation {
 pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
     {
-        use std::io::Write;
+        use std::io::{Read, Write};
         use std::process::{Command, Stdio};
         use sysroot_helper::protocol::{Envelope, Request, SignedDocument};
         fn document(
@@ -75,6 +82,7 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                 signature: String::from_utf8(signature)?,
             })
         }
+        let mut home_assessment = None;
         let request = match options.command {
             Operation::Enroll {
                 latest: value,
@@ -92,7 +100,20 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                     installed_release,
                 }
             }
-            Operation::Status => Request::Status {},
+            Operation::Status { home, home_state } => {
+                if home {
+                    if rustix::process::getuid().as_raw() == 0
+                        || rustix::process::geteuid().as_raw() == 0
+                    {
+                        return Err(
+                            "caller-home assessment runs as the ordinary invoking user, never root"
+                                .into(),
+                        );
+                    }
+                    home_assessment = Some(home_state);
+                }
+                Request::Status {}
+            }
             Operation::Stage {
                 release: value,
                 replace_staged,
@@ -125,6 +146,11 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
             .env_remove("BW_SESSION")
             .args(["--", "/usr/libexec/sysroot/helper"])
             .stdin(Stdio::piped())
+            .stdout(if home_assessment.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::inherit()
+            })
             .spawn()?;
         let result = (|| -> Result<(), Box<dyn std::error::Error>> {
             child
@@ -132,10 +158,43 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                 .take()
                 .ok_or("helper input is unavailable")?
                 .write_all(&bytes)?;
+            let response = if home_assessment.is_some() {
+                const MAX_STATUS: usize = 1_048_576;
+                let mut response = Vec::new();
+                child
+                    .stdout
+                    .take()
+                    .ok_or("helper output is unavailable")?
+                    .take(MAX_STATUS as u64 + 1)
+                    .read_to_end(&mut response)?;
+                if response.len() > MAX_STATUS {
+                    return Err("installed helper status exceeded the output bound".into());
+                }
+                Some(response)
+            } else {
+                None
+            };
             if !child.wait()?.success() {
                 return Err(
                     "installed management helper refused or could not complete the request".into(),
                 );
+            }
+            if let (Some(state), Some(response)) = (home_assessment, response) {
+                let mut response: serde_json::Value = serde_json::from_slice(&response)
+                    .map_err(|_| "installed helper status is malformed")?;
+                let object = response
+                    .as_object_mut()
+                    .ok_or("installed helper status is not an object")?;
+                if object.get("schema_version") != Some(&serde_json::json!(1))
+                    || object.contains_key("caller_home")
+                {
+                    return Err("installed helper status is incompatible".into());
+                }
+                object.insert(
+                    "caller_home".to_owned(),
+                    crate::home::assess(state.as_deref()),
+                );
+                println!("{}", serde_json::to_string_pretty(&response)?);
             }
             Ok(())
         })();

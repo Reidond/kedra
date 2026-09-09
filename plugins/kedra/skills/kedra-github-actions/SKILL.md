@@ -5,8 +5,9 @@ description: Build Kedra CI, target matrices, scheduled Fedora package refresh, 
 
 # CI and installer pipeline
 
-All OS and installer builds run in GitHub Actions. Local Rust tests and synthetic
-home tests are allowed; local OS rebuilding is not the intended workflow.
+All OS and installer builds run in GitHub Actions. Local end-to-end CLI checks
+and manual experiments with generated homes are allowed; local OS rebuilding is
+not the intended workflow.
 check.yml builds/lints Rust and exercises actual CLI home/release workflows.
 It has no signing, GHCR publishing or workstation access. Owner policy forbids
 unit/model/mock/doctests and repository self-scanners.
@@ -19,6 +20,14 @@ cases. These are plans, not enabled automation. One future orchestrator handles
 scheduled/manual/accepted-source changes. Fresh metadata and full installed RPM
 closure matter even when the Fedora base digest and source package list do not
 change. A cached RUN can skip DNF entirely; --refresh inside it is insufficient.
+
+Measured 2026-09-09: ten native signed-RPM snapshot cases pass in Actions
+34286322016 at 0d82b1f, including requested/transitive/inherited updates,
+metadata-only identity, same-NEVRA byte changes, repeated uncached execution and
+specific repository/signature/solver refusals. See the refresh notes and
+docs/research/update-refresh/REPORT.md for DNF 5.4.4.0/RPM 6.0.2 evidence. This
+is fixture-only equivalence; full-target comparison and checkpoint renewal are
+still not implemented or qualified.
 
 Keep fedora/updates as the proposed reviewed allowlist, fail required-repo errors,
 preserve signature checks and audit solver results. Normal upgrade is not routine

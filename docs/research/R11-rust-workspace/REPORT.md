@@ -98,3 +98,76 @@ work for the measured bootstrap scope. Complete real CLI/editor/discovery and
 negative-validator cases separately. R03 synthetic home review and R01/R02 image
 research may proceed independently without enrolling real machines/homes.
 Durable finding is linked from the Rust-workspace skill's reference notes.
+
+## Repository-only Codex discovery audit — 2026-09-09
+
+Agent: Codex. Read-only audit began on `codex/usable-system` at `95e0e1c`,
+using the current ordinary-file plugin and repository marketplace. This follow-up
+explains the [2026-09-07 discovery result](discovery-20260907.md); it does not
+replace the historical bootstrap experiment or turn native skill loading into a
+pass. Main remains the separate accepted candidate source `c660c58`.
+
+The pinned runtime is Codex CLI **0.153.4**, source
+`3d2ee51ca2d5db578f328aa75e20aa22c0197c9a`, as recorded in
+`build/agents/inputs.json`. Actual execution of the existing native Windows binary
+confirmed `codex-cli 0.153.4`. Top-level, plugin, plugin-add, marketplace-list and
+app-server help all returned exit 0. These commands used a generated disposable
+CODEX_HOME without copied credentials; the runtime refused to create PATH aliases
+under the Windows temporary directory, and help still succeeded. The temporary
+profile was removed. No marketplace registration, plugin installation, model
+request or authentication was performed. Help output was inspected as stdout;
+no persistent runtime evidence artifact or filesystem isolation trace is claimed.
+
+The source explains two distinct expectations in the earlier probe:
+
+- `codex plugin list` supplies an empty additional-root list to the plugin
+  manager. Its roots are configured marketplace sources and eligible curated
+  catalogs; it does not add the current checkout automatically. The marketplace
+  command uses the same empty-root approach. Thus a filtered query for the
+  unregistered `kedra-local` catalog returning no available entry is not proof
+  of a malformed Kedra manifest. See pinned
+  [plugin command](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/cli/src/plugin_cmd.rs#L261),
+  [marketplace command](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/cli/src/marketplace_cmd.rs#L208)
+  and [root selection](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core-plugins/src/manager.rs#L3507).
+- Standalone repository skills are discovered under `.agents/skills` between
+  the working directory and repository root. The canonical
+  `plugins/kedra/skills` tree is outside that scan. A marketplace entry marked
+  `AVAILABLE` exposes an installation choice; it does not load that tree.
+  Plugin loading requires an active installation. This accounts for the prior
+  fresh-profile `skills/list` returning only built-ins. See pinned
+  [skill roots](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/ext/skills/src/host_roots.rs#L137)
+  and [installed-plugin requirement](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/core-plugins/src/loader.rs#L867).
+
+Current official [skill discovery documentation](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills)
+describes the repository scan. The [plugin packaging documentation](https://developers.openai.com/plugins/build/plugins#how-local-marketplaces-work)
+distinguishes a repository marketplace from installation into the user's plugin
+cache and configuration. That installation would conflict with this project's
+repository-only/no-copy contract when performed as an incidental discovery fix.
+
+There is a supported **App Server** mechanism,
+`skills/extraRoots/set`, which replaces process-level extra roots without
+persisting them. It is documented in the
+[App Server reference](https://learn.chatgpt.com/docs/app-server) and present in
+the previously generated 0.153.4 `SkillsExtraRootsSetParams` schema. A host could
+point it directly at the absolute checkout's `plugins/kedra/skills` directory.
+The pinned [root resolver](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/ext/skills/src/host_roots.rs#L63)
+treats extra roots as process-wide standalone user-scope skills, not a
+repository-scoped installed plugin. Sharing that process with unrelated
+checkouts would not preserve Kedra's intended scope.
+
+This endpoint is not an exercised native CLI/model workflow. The inspected native
+help exposes no `--plugin-dir` or `--skills-dir` option, and
+[`skills.config`](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/config/src/skills_config.rs#L70)
+is an enable/disable selector for discovered skills, not an extra-root setting.
+No supported direct CLI configuration route for loading this canonical tree was
+established by this audit. Building a custom App Server client or daemon to bridge
+the gap is outside this bounded task and is not a discovery fix to introduce
+incidentally.
+
+**Decision / next step:** retain the AGENTS-directed canonical-file reading
+approach in the Kedra checkout. Do not create skill copies, symlinks, profile
+registrations or a custom client to manufacture an automatic-discovery pass.
+If a supported native session path becomes available, qualify actual root/crate
+skill use and supporting-file resolution through that workflow. Current status:
+`pass` for native help observation and source analysis; `not-run` for the extra-root
+endpoint and loaded-plugin/model workflow. Overall R11 remains incomplete.

@@ -5,11 +5,18 @@ use std::path::PathBuf;
 #[cfg(target_os = "linux")]
 mod activation;
 #[cfg(target_os = "linux")]
+mod assessment;
+#[cfg(target_os = "linux")]
 mod export;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
 mod text;
+
+#[cfg(target_os = "linux")]
+pub(crate) fn assess(state: Option<&std::path::Path>) -> serde_json::Value {
+    assessment::run(state)
+}
 
 #[derive(Args)]
 pub struct Options {

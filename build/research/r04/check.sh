@@ -34,6 +34,23 @@ for attempt in $(seq 1 60); do
     sleep 1
 done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status
+# Generated guest only: exercise the real CLI/sudo/helper transport without a
+# password prompt in this unattended fixture. This is not interactive auth proof.
+if sysroot update status --home > "$state/root-home-status.json" 2>/dev/null; then
+    echo 'root caller-home assessment unexpectedly succeeded' >&2
+    false
+fi
+test ! -s "$state/root-home-status.json"
+if test "$phase" = initial; then
+    if as_user sysroot update status --home > "$state/unauthorized-home-status.json" 2>/dev/null; then
+        echo 'unattended helper unexpectedly ran without sudo authorization' >&2
+        false
+    fi
+    test ! -s "$state/unauthorized-home-status.json"
+fi
+printf 'kedra-test ALL=(root) NOPASSWD: /usr/libexec/sysroot/helper ""\n' > /etc/sudoers.d/kedra-r04-helper
+chmod 0440 /etc/sudoers.d/kedra-r04-helper
+visudo --check --file=/etc/sudoers.d/kedra-r04-helper
 helper() { /usr/libexec/sysroot/helper < "$state/helper-$1.json" | tee "$state/response.json"; }
 case "$variant:$phase" in
     A:initial)

@@ -1,16 +1,6 @@
-# Verify a Kedra release
+# Verify releases
 
-The published owner release is
-[desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1),
-source `c660c58d9bbbbe34119f6ea35a03528485455848`. Its exact ISO passed installation
-qualification; every published asset was downloaded and checked during
-[publication recovery](research/R08-release-protocol/owner-promotion-34288691672.md).
-
-Download `release.json`, `release.sig`, `release.pub` and both ISO parts from r1.
-The complete installer is `kedra-desktop-44-34255228394-1.iso`, 2,856,306,688 bytes,
-SHA-256 `9c1401489d1c47119249ab213c9a187b47db6c5112ebccce567cf0cc4a76d988`.
-Obtain the public key through a trusted project channel and independently confirm
-its SPKI DER fingerprint:
+Obtain the public key independently and confirm its P-256 SPKI DER SHA-256 fingerprint:
 
 ```text
 a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
@@ -20,179 +10,45 @@ a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
 sysroot release key --public-key release.pub
 ```
 
-This validates the public-key format and prints its SHA-256 fingerprint. It does
-not establish who owns the key or trust a download by itself. Keep the independently
-confirmed fingerprint with your recovery instructions.
+A matching fingerprint establishes the key you expected, not trust in an arbitrary download. [INSTALL.md](INSTALL.md) includes the published r1 download links and building the verifier before installation.
 
-```sh
-sysroot release verify --manifest release.json --signature release.sig --public-key release.pub --target desktop --artifact kedra-desktop-44-34255228394-1.iso
-```
+## ISO verification
 
-Add `--json` for structured results. Success verifies the exact signed manifest
-and the installer's size/checksum. A modified installer, wrong key, changed
-manifest, wrong target or unpromoted candidate fails with a nonzero exit code.
-The command does not modify disks or authorize a system update.
-
-R1 supplies two numbered download parts. Download both, then reconstruct the ISO
-with `sysroot release assemble`:
+Download the release's signed manifest and numbered ISO parts. For r1:
 
 ```sh
 sysroot release assemble --manifest release.json --signature release.sig --public-key release.pub --target desktop --output-dir . kedra-desktop-44-34255228394-1.iso.part00 kedra-desktop-44-34255228394-1.iso.part01
+sysroot release verify --manifest release.json --signature release.sig --public-key release.pub --target desktop --artifact kedra-desktop-44-34255228394-1.iso
 ```
 
-The same command works in PowerShell. It verifies the signed release before
-creating temporary output, streams the parts without loading the ISO into memory,
-and checks the complete signed size and SHA-256. Only then does it create the
-final filename from the signed manifest. It never replaces an existing ISO.
-Missing, reordered, extra or damaged parts fail; source parts stay unchanged.
-Use an output filesystem with hard-link support, such as NTFS, ext4 or Btrfs,
-and enough free space for the assembled ISO. A forcefully interrupted operation
-can leave a `.kedra-assemble-*` directory containing `installer.partial`; that
-partial file is not verified media. Retry in the same directory after ensuring
-space is available. No wildcard sorting or shell concatenation is required.
+Assembly authenticates the exact manifest, streams parts in supplied order, verifies total size/hash and only then exposes the final ISO. It refuses existing output and leaves source parts untouched. Use NTFS, ext4 or Btrfs with enough free space and hard-link support. Interrupted temporary output is not verified media.
 
-R1 authenticates the whole ISO through `release.json` and `release.sig`. Its 13
-assets also include candidate/source/qualification records and signed checkpoint
-files. It does not contain the separate `SHA256SUMS`/`SHA256SUMS.sig`, packages.txt
-or provenance.json prepared for candidate schema 2. That expanded publisher still
-requires a later accepted candidate and native qualification.
+R1's complete ISO is 2,856,306,688 bytes with SHA-256 `9c1401489d1c47119249ab213c9a187b47db6c5112ebccce567cf0cc4a76d988`. Its 13 original assets do not include the expanded v2 packages/provenance/SHA256SUMS outputs. Never fabricate newer-format evidence for an old release.
 
-Normal updates also need a fresh signed channel checkpoint and the machine's
-independent enrollment/replay state. Download the current
-[`channel.json`](https://github.com/Reidond/kedra/releases/download/desktop-44-x86_64-channel/channel.json)
-from the target-specific
-[desktop-44-x86_64-channel release](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-channel).
-After downloading it, verify and unpack it into a **new** directory:
+For newer releases containing signed checksums:
+
+```sh
+openssl base64 -d -in SHA256SUMS.sig -out SHA256SUMS.sig.der
+openssl dgst -sha256 -verify release.pub -signature SHA256SUMS.sig.der SHA256SUMS
+sha256sum --check SHA256SUMS
+```
+
+The final check expects the assembled ISO as well as downloaded assets. It does not replace target/freshness/replay checks.
+
+## Signed channel
+
+Download the current target's [channel.json](https://github.com/Reidond/kedra/releases/download/desktop-44-x86_64-channel/channel.json). To inspect offline-downloaded bytes:
 
 ```sh
 sysroot release unpack --bundle channel.json --public-key release.pub --expected-fingerprint a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e --target desktop --repository ghcr.io/reidond/kedra-desktop --output-dir verified-channel
 ```
 
-This checks the independently expected public-key fingerprint, both signatures,
-exact release/checkpoint binding, scope and current freshness before creating any
-output. It writes the four original signed files plus `next-trust-state.json`.
-Keep that state independently and provide it as `--previous-state` on subsequent
-unpack operations to detect replay. Existing directories are refused. A disk/write
-failure can leave an incomplete verified directory; inspect it and use a different
-new directory on retry. No installed enrollment/state is changed.
+This verifies exact release/checkpoint signatures, binding, scope and actual-clock freshness before writing their four original files plus next-trust-state.json. Use a new output directory. Retain previous trust state independently and provide `--previous-state` on subsequent unpack operations to detect replay. Without it, a valid signature cannot reveal previously accepted history.
 
-The unpacked files can be passed directly to enrollment/staging, which independently
-verify them through the root helper. Inspect individual downloaded channel files with:
+Installed enrollment/staging independently reload root-owned authority and ordering state. Current-source `sysroot update check` reports current/available, pending slots, enrollment and rollback hold without staging/rebooting or advancing replay floors. Its helper status read may reconcile an existing operation journal. Download/trust/signature/expiry errors fail; they never report successful no-change.
 
-```sh
-sysroot release channel --manifest verified-channel/release.json --signature verified-channel/release.sig --checkpoint verified-channel/checkpoint.json --checkpoint-signature verified-channel/checkpoint.sig --public-key release.pub --target desktop --repository ghcr.io/reidond/kedra-desktop --json
-```
+## Publisher history and recovery
 
-This uses the actual system clock, expected repository/target and seven-day maximum
-checkpoint lifetime. Add `--previous-state prior-state.json` with independently
-retained `next_trust_state` from an earlier successful check to reject a replay.
-Without previous state it cannot detect earlier accepted history. It never writes
-that state or authorizes a deployment; installed `sysroot update` operations load
-their own protected trust and repeat the checks. Caller-supplied public files
-cannot replace machine enrollment or its high-water state.
+`sysroot release history` authenticates an old signed release/checkpoint pair, including an expired predecessor, as historical-only ordering information. Its output cannot authorize installation or staging. Ordinary incoming channel verification retains strict freshness; no allow-expired or clock override exists.
 
-The initial r1 checkpoint was issued at 2026-09-08 23:05:17 UTC and expires at
-2026-09-15 23:05:17 UTC. Native anonymous channel verification passed after
-publication with release sequence 1 and checkpoint generation 1. Fetch the current
-channel again for later online operations; its versioned r1 copy is historical
-evidence. Automatic/no-change renewal and expired-channel recovery remain open.
-
-## Development-only installed channel check
-
-The development CLI implements `sysroot update check`. It is absent from published
-r1 and the frozen `0eb1cf0` candidate; installed native qualification is still
-pending. Run the development command as the ordinary installed owner:
-
-```sh
-sysroot update check
-sysroot update check --json
-```
-
-The command reads deployment status through the fixed installed helper, which can
-request administrator authorization. It then downloads the installed target's
-channel anonymously and verifies both signatures, exact release/checkpoint binding,
-scope, actual-clock freshness and the enrolled machine's replay high-water. Only
-desktop / Fedora 44 / x86_64 / `ghcr.io/reidond/kedra-desktop` currently has a
-configured channel. The public key, policy and source manifest come from fixed
-installed paths; there are no caller-supplied authority or download-URL overrides.
-The bounded HTTPS download uses the system certificate trust and ignores personal
-curl configuration, proxy settings and credential environment variables.
-
-The result keeps the signed channel identity separate from observed installed
-state. `current` means the fresh channel names the booted image and its exact
-installed source provenance. `available` means it names a different image.
-`staged` and `downloaded` distinguish a matching pending deployment from an image
-that has only been downloaded; `pending_other_deployment` identifies a different
-pending image. `held` preserves a rollback hold or queued rollback. An unenrolled
-installation reports `enrollment_required` and `replay_checked: false`; signature
-validity alone cannot recover earlier accepted history. Existing slots, operation
-state and high-water remain visible under JSON `installed_status`.
-
-Release sequence and checkpoint generation are separate: renewal can advance the
-checkpoint without changing the image. JSON comparison fields describe advances
-relative to enrolled high-water, or are null when enrollment is absent. They are
-advisory and never replace the helper's independent checks during explicit staging.
-Network, signature, expiry, replay or trust errors produce a nonzero exit, never a
-successful `current` result. Status and installed trust are checked again after
-download; a change causes refusal with a request to run the check again.
-
-Checking does not stage, reboot, activate home changes, save channel files or advance
-high-water. The existing helper Status operation may reconcile a previously pending
-deployment operation in its journal, so this is not a promise of byte-for-byte
-read-only storage. The command has no daemon or persistent download cache. Keep
-using the explicit download/unpack/enroll/stage workflow above with published r1.
-
-## Authenticate predecessor history for publication
-
-The development CLI now provides a separate history command. It is not included
-in r1 or the frozen `0eb1cf0` candidate. Normal installation and updates continue
-to use fresh `release channel`/`release unpack` verification.
-
-```sh
-sysroot release history --manifest previous/release.json --signature previous/release.sig --checkpoint previous/checkpoint.json --checkpoint-signature previous/checkpoint.sig --public-key release.pub --target desktop --repository ghcr.io/reidond/kedra-desktop --json
-```
-
-History verifies both signatures, supported schemas, scope, exact release/checkpoint
-binding, a valid maximum-seven-day lifetime and the normal future-clock tolerance.
-It uses the actual system clock and reports `expired` separately. An expired
-predecessor can supply authenticated ordering history; it cannot authorize an
-incoming update. Output has `historical_only: true`, `channel_freshness_verified:
-false`, `deployment_authorized: false` and `ordering_state`, with no
-`next_trust_state`. No state file or installed authority is changed.
-
-Add `--previous-state PATH` with an independently retained ordering floor to reject
-older generations/releases, changed same-number records and backwards resolution
-history. Without that floor, a signature alone cannot reveal an earlier accepted
-history. The returned `ordering_state` can be saved by the caller and passed to
-ordinary fresh channel verification for the next signed pair.
-
-Only publication's predecessor uses this historical interface. The new candidate
-still needs genuine exact-media qualification and recent resolution; the newly
-signed pair must pass ordinary actual-clock freshness and all ordering floors.
-The protected signer still executes no repository verifier and binds its exact
-previous bundle/payload hashes. There is no allow-expired flag for channel, unpack,
-enrollment or staging, and no clock override. This is not key rotation, automatic
-no-change renewal or proof that an old release is current.
-
-Windows and Linux native CLI/OpenSSL interoperability pass the historical-only
-and strict incoming-expiry boundary. Actual R01 run 34294737470 at 67b4b14 also
-passes installed history checks, refusal of expired higher-sequence metadata at
-an enrolled lower floor, fresh staging/boot and retained rollback with preserved
-high-water state. See the [native evidence](research/R08-release-protocol/REPORT.md#native-history-qualification--2026-09-09).
-Full production expired-predecessor publication remains unqualified.
-
-An old retained release can remain valid recovery media even when its checkpoint
-has expired or it is no longer current. Installed staging/rollback and persistent
-trust state pass the disposable R01 workflow. First enrollment against this
-published owner channel also passed in the retained r1 VM; see the separate
-[enrollment report](research/R08-release-protocol/owner-r1-enrollment/REPORT.md)
-for repeat-enrollment refusal with unchanged state, required desktop health and
-clean shutdown/sentinel evidence. A separate same-r1 reboot also preserved the
-enrollment/high-water state and required session health. An owner forward update
-to a new image remains a separate qualification.
-
-For installation steps and building a trusted verifier before installing Kedra,
-see [INSTALL.md](INSTALL.md).
-
-See [ADR 0006](adr/0006-signed-release-records.md) and
-[actual research results](research/R08-release-protocol/REPORT.md).
+A retained signed release can remain valid recovery media after its online checkpoint expires. Preserve its signatures and use explicit retained rollback, not replay-state deletion. See [update operations](UPDATES.md), [publisher operations](../build/release/README.md) and [verified status](STATUS.md).

@@ -7,6 +7,7 @@ test "${GITHUB_REF:-}" = refs/heads/main
 [[ "${KEDRA_CANDIDATE_DIGEST:-}" =~ ^sha256:[a-f0-9]{64}$ ]]
 [[ "${KEDRA_PUBLIC_FINGERPRINT:-}" =~ ^[a-f0-9]{64}$ ]]
 [[ "${KEDRA_RESOLVED_AT:-}" =~ ^[0-9]{1,12}$ ]]
+[[ "${KEDRA_BASE_IMAGE:-}" =~ ^quay.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}$ ]]
 test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 evidence="$PWD/output/release-evidence"
 media="$PWD/output/release-installer"
@@ -32,6 +33,9 @@ sudo skopeo --policy "$evidence/host-policy.json" copy --preserve-digests \
 test "$(cat "$evidence/payload.digest")" = "$KEDRA_CANDIDATE_DIGEST"
 sudo podman run --rm "$payload" cat /usr/share/sysroot/source.json > "$context/trust/source.json"
 sudo podman run --rm "$payload" cat /usr/share/sysroot/packages.txt > "$evidence/packages.txt"
+sudo podman run --rm "$payload" cat /usr/share/sysroot/package-material.txt > "$evidence/package-material.txt"
+cp output/build-evidence/resolved-inputs.json "$evidence/resolved-inputs.json"
+cmp output/build-evidence/resolution/package-material.txt "$evidence/package-material.txt"
 python3 - "$context/trust/source.json" "$evidence/source-plan.json" <<'PY'
 import json, pathlib, sys
 installed, expected = [json.loads(pathlib.Path(p).read_bytes()) for p in sys.argv[1:]]
@@ -55,7 +59,7 @@ done
 cp "$context/trust/source.json" "$context/trust/release.pub" "$evidence/"
 cp installer/{Containerfile,iso.yaml,prepare.sh,boot-probe.service,boot-probe.sh,anaconda-adapter.py,finalize-fstab.py,verify-payload.service,require-verification.conf} "$context/"
 cp target/release/sysroot-helper "$context/helper"
-base=$(jq -er .base build/research/inputs.json)
+base=$KEDRA_BASE_IMAGE
 builder=$(jq -er .builder installer/inputs.json)
 sudo podman run --rm "$builder" --version > "$evidence/builder-version.txt"
 sudo podman run --rm "$builder" build --help > "$evidence/builder-help.txt"
@@ -104,7 +108,10 @@ record = {'schema_version': 2, 'project': 'Kedra',
 # or an independently attested build. The inventory was read from the verified payload.
 provenance = {key: record[key] for key in ['project', 'scope', 'source_revision', 'build',
     'image_digest', 'home_manifest_sha256', 'packages_sha256', 'last_successful_resolution', 'installer']}
-provenance.update(schema_version=1, format='kedra-candidate-provenance', installer_inputs={
+resolved_inputs = json.loads((evidence / 'resolved-inputs.json').read_bytes())
+if resolved_inputs['base'] != sys.argv[3]:
+    raise SystemExit('Resolved base differs from actual OS/installer base')
+provenance.update(schema_version=2, format='kedra-candidate-provenance', resolved_inputs=resolved_inputs, installer_inputs={
     'base_image': sys.argv[3], 'builder_image': sys.argv[4],
     'builder_version': (evidence / 'builder-version.txt').read_text().strip()})
 provenance_bytes = (json.dumps(provenance, sort_keys=True, indent=2) + '\n').encode()

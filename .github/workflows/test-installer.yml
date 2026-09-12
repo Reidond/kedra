@@ -1,0 +1,201 @@
+name: Test interactive installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+    paths:
+      - .github/workflows/test-installer.yml
+      - installer/**
+      - build/agents/**
+      - build/bitwarden/**
+      - build/inputs.json
+      - build/assemble.sh
+      - Containerfile
+      - crates/**
+      - Cargo.toml
+      - Cargo.lock
+      - packages/**
+      - hosts/desktop/**
+      - etc/**
+      - usr/**
+      - home/**
+permissions:
+  contents: read
+concurrency:
+  group: test-installer-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  iso:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Build source tooling and explicit payload
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          cargo test --workspace --test 'e2e_*' --locked
+          cargo build --workspace --release --locked
+          mkdir -p output/installer-evidence output/desktop-context output/installer-image
+          target/release/sysroot source plan --host desktop --json > output/installer-evidence/source-plan.json
+          target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
+          cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
+          cp build/inputs.json output/installer-evidence/
+          cp installer/inputs.json output/installer-evidence/installer-inputs.json
+          bash build/agents/prepare.sh output/desktop-context "$RUNNER_TEMP/kedra-agent-inputs" output/installer-evidence/agent-inputs.json
+      - name: Prepare runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo xorriso squashfs-tools attr qemu-system-x86 rpm cpio
+          python3 build/bitwarden/prepare.py --context output/desktop-context --evidence output/installer-evidence/bitwarden-inputs.json
+          {
+            date --utc --iso-8601=seconds
+            git rev-parse HEAD
+            uname -a
+            free -h
+            df -h
+            podman --version
+            skopeo --version
+          } > output/installer-evidence/environment.txt
+      - name: Verify pinned installer-builder interface
+        run: |
+          builder=$(jq -er .builder installer/inputs.json)
+          sudo podman run --rm "$builder" --version > output/installer-evidence/builder-version.txt
+          sudo podman run --rm "$builder" build --help > output/installer-evidence/builder-help.txt
+          grep -q -- '--bootc-installer-payload-ref' output/installer-evidence/builder-help.txt
+      - name: Prepare disposable signing authority and public image inputs
+        run: |
+          set -euo pipefail
+          private="$RUNNER_TEMP/kedra-r02-private"
+          mkdir -m 0700 "$private"
+          openssl rand -base64 32 > "$private/passphrase"
+          chmod 0600 "$private/passphrase"
+          skopeo generate-sigstore-key --output-prefix "$private/allowed" --passphrase-file "$private/passphrase"
+          skopeo generate-sigstore-key --output-prefix "$private/wrong" --passphrase-file "$private/passphrase"
+          python3 installer/prepare-test-trust.py --public-key "$private/allowed.pub" \
+            --source output/installer-evidence/source-plan.json --output output/signed-context/trust
+      - name: Build desktop and separate installer environment
+        run: |
+          set -euo pipefail
+          base=$(jq -er .base build/inputs.json)
+          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+            --tag localhost/kedra-desktop:installer-research output/desktop-context \
+            2>&1 | tee output/installer-evidence/desktop-build.log
+          sudo podman build --pull=never --build-arg PAYLOAD_IMAGE=localhost/kedra-desktop:installer-research \
+            --tag localhost/kedra-desktop:installer-signed --file installer/signed-payload.Containerfile output/signed-context \
+            2>&1 | tee output/installer-evidence/signed-desktop-build.log
+          private="$RUNNER_TEMP/kedra-r02-private"
+          payload_tag="registry.kedra.test:5000/kedra/r02:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo skopeo copy --preserve-digests --sign-by-sigstore-private-key "$private/allowed.private" \
+            --sign-passphrase-file "$private/passphrase" --sign-identity "$payload_tag" \
+            --digestfile output/installer-evidence/signed-payload.digest \
+            containers-storage:localhost/kedra-desktop:installer-signed "containers-storage:$payload_tag" \
+            > output/installer-evidence/sign-local-payload.log 2>&1
+          digest=$(cat output/installer-evidence/signed-payload.digest)
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          payload="registry.kedra.test:5000/kedra/r02@$digest"
+          printf 'KEDRA_INSTALLER_PAYLOAD=%s\n' "$payload" >> "$GITHUB_ENV"
+          jq --arg key "$PWD/output/signed-context/trust/release.pub" '.transports[][][].keyPath=$key' \
+            output/signed-context/trust/policy.json > output/installer-evidence/host-policy.json
+          sudo skopeo --policy "$PWD/output/installer-evidence/host-policy.json" copy --preserve-digests \
+            "containers-storage:$payload" containers-storage:localhost/kedra-installer:verified \
+            > output/installer-evidence/verified-local-copy.log 2>&1
+          jq --arg key "$private/wrong.pub" '.transports[][][].keyPath=$key' \
+            output/signed-context/trust/policy.json > "$private/wrong-policy.json"
+          if sudo skopeo --policy "$private/wrong-policy.json" copy --preserve-digests \
+            "containers-storage:$payload" containers-storage:localhost/kedra-installer:wrong-key \
+            > output/installer-evidence/wrong-key-refusal.log 2>&1; then
+            echo 'Wrong-key local signature check unexpectedly passed' >&2
+            exit 1
+          fi
+          mkdir output/anaconda-context
+          cp installer/{Containerfile,iso.yaml,prepare.sh,boot-probe.service,boot-probe.sh,anaconda-adapter.py,finalize-fstab.py,verify-payload.service,require-verification.conf} output/anaconda-context/
+          cp target/release/sysroot-helper output/anaconda-context/helper
+          cp -a output/signed-context/trust output/anaconda-context/trust
+          cp output/signed-context/trust/{source.json,release.pub,release-policy.json,policy.json} output/installer-evidence/
+          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+            --build-arg "PAYLOAD_IMAGE=$payload" \
+            --build-arg "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" \
+            --tag localhost/kedra-anaconda:research output/anaconda-context \
+            2>&1 | tee output/installer-evidence/anaconda-build.log
+          sudo podman image inspect "$payload" localhost/kedra-anaconda:research \
+            > output/installer-evidence/image-inspect.json
+          sudo podman run --rm "$payload" \
+            grep -x 'SELINUX=enforcing' /etc/selinux/config > output/installer-evidence/desktop-selinux-config.txt
+          sudo podman run --rm localhost/kedra-anaconda:research \
+            grep -x 'SELINUX=permissive' /etc/selinux/config > output/installer-evidence/installer-selinux-config.txt
+      - name: Build generic interactive ISO with separate payload
+        run: |
+          set -euo pipefail
+          builder=$(jq -er .builder installer/inputs.json)
+          sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
+            -e "KEDRA_INSTALLER_PAYLOAD=$KEDRA_INSTALLER_PAYLOAD" \
+            -v "$PWD/output/installer-image:/output" \
+            -v "$PWD/output/installer-evidence:/evidence" \
+            -v "$PWD/installer:/kedra-installer:ro" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            --entrypoint /bin/bash "$builder" /kedra-installer/build-iso.sh \
+            2>&1 | tee output/installer-evidence/iso-build.log
+          sudo chown -R "$(id -u):$(id -g)" output/installer-image
+          find output/installer-image -type f -printf '%P %s bytes\n' > output/installer-evidence/artifact-sizes.txt
+      - name: Inspect boot media before VM use
+        run: |
+          set -euo pipefail
+          mapfile -t images < <(find "$PWD/output/installer-image" -type f -name '*.iso')
+          test "${#images[@]}" -eq 1
+          sha256sum "${images[0]}" > output/installer-evidence/SHA256SUMS
+          xorriso -indev "${images[0]}" -find / -type f -exec lsdl -- \
+            > output/installer-evidence/iso-files.txt 2>&1
+          mkdir -p output/installer-evidence/boot-config
+          xorriso -osirrox on -indev "${images[0]}" -extract /EFI/BOOT/grub.cfg output/installer-evidence/boot-config/grub.cfg
+          ! grep -Eq 'inst\.text|selinux=0|inst\.ks=' output/installer-evidence/boot-config/grub.cfg
+          sudo podman run --rm localhost/kedra-anaconda:research cat /usr/share/anaconda/interactive-defaults.ks \
+            > output/installer-evidence/boot-config/interactive-defaults.ks
+          ! grep -Eq '^(clearpart|zerombr|autopart|ignoredisk|user |reboot)' output/installer-evidence/boot-config/interactive-defaults.ks
+          # A bootc-installer must be reviewed for interactive storage/account flow.
+          # No unattended first-disk erase profile is supplied by this repository.
+          echo 'Research media only: installer configuration and multi-disk VM behavior remain unqualified.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Check installer labels and Anaconda startup
+        run: |
+          set -euo pipefail
+          mapfile -t images < <(find "$PWD/output/installer-image" -type f -name '*.iso')
+          test "${#images[@]}" -eq 1
+          mkdir -p output/installer-inspection output/installer-evidence/smoke
+          xorriso -osirrox on -indev "${images[0]}" \
+            -extract /images/pxeboot "$PWD/output/installer-inspection/pxeboot" \
+            -extract /LiveOS/squashfs.img "$PWD/output/installer-inspection/squashfs.img"
+          sudo unsquashfs -no-progress -d output/installer-inspection/labels \
+            output/installer-inspection/squashfs.img usr/lib/systemd/systemd
+          sudo getfattr -n security.selinux output/installer-inspection/labels/usr/lib/systemd/systemd \
+            > output/installer-evidence/installer-label.txt
+          grep -q 'init_exec_t' output/installer-evidence/installer-label.txt
+          sudo python3 installer/smoke.py --iso "${images[0]}" \
+            --kernel-dir "$PWD/output/installer-inspection/pxeboot" \
+            --work "$PWD/output/installer-evidence/smoke" \
+            | tee output/installer-evidence/smoke-result.txt
+      - name: Remove disposable private signing material
+        if: always()
+        run: |
+          private="$RUNNER_TEMP/kedra-r02-private"
+          if test -d "$private"; then
+            rm -f -- "$private/allowed.private" "$private/allowed.pub" "$private/wrong.private" "$private/wrong.pub" "$private/passphrase" "$private/wrong-policy.json"
+            rmdir -- "$private"
+          fi
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r02-installer-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/installer-evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve research installation media
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r02-installer-iso-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/installer-image/**/*.iso
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3

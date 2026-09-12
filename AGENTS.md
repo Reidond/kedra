@@ -3,9 +3,9 @@
 ## Read first
 
 Read the current project status and latest entries in `worklog.md`, then
-`docs/HANDOFF.md` and `plugins/kedra/skills/kedra-context/SKILL.md` at the start of a new or
-resumed session. `PLAN.md` defines the product; `RESEARCH.md` defines evidence
-gates; `docs/research/status.json` and reports describe actual results. Never
+`docs/STATUS.md` and `plugins/kedra/skills/kedra-context/SKILL.md` at the start of a new or
+resumed session. `PLAN.md` defines the product; `docs/ARCHITECTURE.md` defines durable
+contracts; exact Actions runs and `docs/STATUS.md` describe actual results. Never
 infer an implemented feature from a design example or a stale worklog summary.
 Inspect source, Git state, and CI before continuing.
 
@@ -66,7 +66,7 @@ report the limitation; do not silently broaden this scope.
 | Bitwarden, SSH, keyring, credentials | `kedra-bitwarden` |
 | niri/Noctalia/session/hardware | `kedra-desktop` |
 | Targets, provenance, scope | `kedra-machines` |
-| Experiments, evidence, handoff | `kedra-research` |
+| End-to-end qualification and evidence | `kedra-research` |
 | Privilege, journals, privacy, recovery | `kedra-security` |
 
 Canonical first-party and selected upstream skills are
@@ -107,8 +107,9 @@ last verified source/CI evidence and the next concrete actions. Distinguish
 planned, implemented, tested, published, staged, booted and healthy where relevant.
 Do not invent percentage-complete estimates or mark a research gate passed merely
 because code exists. Keep this snapshot consistent with
-`docs/research/status.json` and detailed reports; link evidence instead of copying
-whole reports. The snapshot summarizes those records and does not override them.
+`docs/STATUS.md` and exact Actions results; link evidence instead of copying logs.
+The snapshot summarizes those records and does not override them. Historical
+research reports remain in Git history; do not recreate tracked research outputs.
 
 Below it, keep a chronological **Work entries** section, appending new entries at
 the bottom with a unique ID, date (and timezone if recording a time), actual agent
@@ -159,7 +160,7 @@ checkout scripts or hooks run as root. Never weaken verification to pass a test.
 No conflict markers in live configuration. Credentials are excluded before
 capture, not merely ignored after entering a Git object database.
 
-Start with the relevant R01-R11 packet; scope P0 to the feature it blocks.
+Start with the relevant architecture contract and actual end-to-end workflow.
 Documentation support is not a pass. Use exact tool versions/digests and primary
 sources. Record `not-run`, `pass`, `fail`, or `blocked` per case. Redact evidence
 before publication. A successful container build is not a boot/hardware test.
@@ -200,7 +201,7 @@ or permanent AI daemon.
 
 Update the relevant skill when learning a durable fact or overturning a prior
 assumption. Include a source and/or experiment, version/date, failure behavior,
-and the impacted research gate. Update reports, status, and an ADR when needed.
+and the impacted feature. Update operational documentation and status when needed.
 Refresh `worklog.md` with the actual outcome, project status and next action.
 Finish with changed scope, checks actually run, unresolved risks, and the next
 concrete step. Do not report staged as booted or scaffolded as implemented.

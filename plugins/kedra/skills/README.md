@@ -2,8 +2,8 @@
 
 These skills package the design session into task-sized instructions for Codex
 and Claude Code. Read `kedra-context` first, then the relevant domain. Each skill
-carries the decision, practical procedure, failure modes, research gates and
-primary references. PLAN.md/RESEARCH.md and evidence reports provide depth.
+carries the decision, practical procedure, failure modes and primary references.
+PLAN.md, docs/ARCHITECTURE.md and docs/STATUS.md provide current scope.
 
 | Skill | Use for |
 |---|---|
@@ -17,7 +17,7 @@ primary references. PLAN.md/RESEARCH.md and evidence reports provide depth.
 | kedra-bitwarden | SSH agent, first-run login, keyring, API/model/registry credentials |
 | kedra-desktop | niri, Noctalia effective settings, session and hardware validation |
 | kedra-machines | Shared/host scope, provenance, enrollment and independent updates |
-| kedra-research | R01-R11 experiments, evidence, handoffs and knowledge maintenance |
+| kedra-research | End-to-end qualification, exact evidence and knowledge maintenance |
 | kedra-security | Privileged interface, path safety, journals, secret exclusion and recovery |
 
 This directory is the single canonical source for twelve Kedra skills and
@@ -43,15 +43,15 @@ tracking choices. See `AGENTS.md` for the full scope and authorization contract.
 
 ## Maintenance contract
 
-When research changes an assumption, update the skill and the relevant report/ADR
+When qualification changes an assumption, update the skill and operational docs
 in the same change. Distinguish product requirement, upstream-documented fact,
 implementation hypothesis, and experimentally validated result. Record exact
-versions/date and link the source or test. Keep detailed fixtures in reports and
-reference notes; do not load the entire skill collection into every agent prompt.
+versions/date and link the source or Actions run. Keep generated output in Actions
+artifacts; do not load the entire skill collection into every agent prompt.
 
 Both agents must also maintain root `worklog.md` as specified in `AGENTS.md`:
 read its current status and recent entries when starting/resuming, record actual
 work and evidence at meaningful milestones, and update status/blockers/next steps
 before handoff. Skills carry reusable knowledge; the worklog records project
-progress. Neither replaces detailed research evidence or grants permission to
+progress. Neither replaces actual end-to-end evidence or grants permission to
 publish or deploy.

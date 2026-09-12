@@ -1,5 +1,7 @@
-# Build boundary
+# Build layout
 
-All OS and installer builds run in GitHub Actions. The current check workflow builds Rust bootstrap binaries only. R01/R02/R07/R08 must establish the image pipeline before a production Containerfile/release workflow is introduced.
+OS and ISO builds run in GitHub Actions. `Containerfile` uses a generated context: compiled CLI/helper, resolved payload, private agent binaries, Bitwarden and `assemble.sh`. Shared files are overlaid by explicit target files; live home is never overwritten during image assembly.
 
-Future assembly: common etc/usr/home inputs, then selected host inputs; report same-path replacement and record source provenance. Exclude `.gitkeep` and documentation from assembled rootfs. Never `COPY .` into an image. Home content becomes `/usr/share/sysroot/home/<user>/`, not a live-home overwrite. Build Rust binaries in a Fedora-compatible builder to avoid a newer host glibc ABI dependency.
+`build/inputs.json` pins the Fedora base and VM builder. `agents/inputs.json`, `bitwarden/inputs.json` and `installer/inputs.json` pin other external inputs. Keep hashes and provenance; package repositories can change independently of source.
+
+See [release operations](release/README.md), [installer internals](../installer/README.md) and [end-to-end checks](../tests/README.md). Do not run OS assembly on the workstation.

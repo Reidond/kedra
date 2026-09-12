@@ -4,8 +4,7 @@ The first owner installer is published as
 [desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1).
 Its signed image and exact ISO passed fresh encrypted two-disk installation,
 ISO-free desktop boot, native health/provenance checks and preservation of the
-unselected disk. See the [installation qualification](research/R02-installer/owner-34255228394/REPORT.md)
-and [verified publication recovery](research/R08-release-protocol/owner-promotion-34288691672.md).
+unselected disk. See [verified status](STATUS.md).
 
 Kedra is Fedora 44 bootc with niri, Noctalia and the `sysroot` management command.
 System software comes from a signed image built by Actions. Your home files remain
@@ -100,11 +99,19 @@ policy or boot arguments to force a result.
 
 ## Enroll and update
 
-Inside the installed Kedra session, download the
-[current channel.json](https://github.com/Reidond/kedra/releases/download/desktop-44-x86_64-channel/channel.json)
-into a new working directory. Enrollment requires the exact running promoted
-release and a fresh equal-or-newer channel. Use the installed public key to unpack
-the bundle, then enroll an installation that is still current:
+On a current-source installation, use the fixed signed target channel:
+
+```sh
+sysroot update check
+sysroot update enroll --channel
+sysroot update stage --channel
+```
+
+Enroll once. Stage only after reviewing the available update; staging selects the next boot without rebooting. The helper independently checks fixed installed trust, scope, signatures, freshness and replay state. See [UPDATES.md](UPDATES.md) for rollback, holds and home reconciliation.
+
+### Published r1 compatibility
+
+R1 does not have the new --channel convenience options or update check. Download [channel.json](https://github.com/Reidond/kedra/releases/download/desktop-44-x86_64-channel/channel.json) into a new working directory and use:
 
 ```sh
 sysroot release unpack --bundle channel.json --public-key /usr/lib/sysroot/trust/release.pub --expected-fingerprint a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e --target desktop --repository ghcr.io/reidond/kedra-desktop --output-dir verified-channel
@@ -112,67 +119,20 @@ sysroot update enroll --manifest verified-channel/release.json --signature verif
 sysroot update status
 ```
 
-When the current channel is newer than the installed ISO, also provide that ISO's
-signed record using `--installed-manifest` and `--installed-signature`. The helper
-checks installed provenance and public trust independently; downloading files
-does not establish machine authorization.
+When the channel is newer than the installed ISO, also provide the ISO's signed record using --installed-manifest and --installed-signature together. Current source supports the equivalent convenience command:
 
-The initially published checkpoint expires on **2026-09-15 at 23:05:17 UTC**.
-Always fetch the current channel for online operations. An expired channel is
-refused; retain the verified ISO and wait for a valid fresh checkpoint rather
-than changing the clock or verification policy. No-change renewal is not yet
-implemented. First enrollment against the anonymous public channel passed in the
-retained r1 VM: the helper reported enrolled, the exact booted owner digest and
-sequence/generation 1 without staging or rebooting. Status and doctor passed;
-repeating enrollment was refused with the original state preserved. Clean
-shutdown and a final comparison confirmed that the unselected disk was unchanged.
-A later no-ISO reboot also retained exactly the enrolled image/order state and
-passed desktop health and stopped-disk preservation without re-enrollment.
-See the separate
-[enrollment evidence](research/R08-release-protocol/owner-r1-enrollment/REPORT.md).
+```sh
+sysroot update enroll --channel --installed-manifest OLD_RELEASE.json --installed-signature OLD_RELEASE.sig
+```
 
-After reviewing a newer release, explicitly stage it with the same four channel
-file arguments using `sysroot update stage`. Staging does not reboot. Reboot when
-you choose, then inspect status and doctor. Keep the preceding signed release
-record for `sysroot update rollback --manifest OLD_RELEASE.json --signature OLD_RELEASE.sig`.
-Rollback queues the retained verified image and places forward updates on hold;
-`--resume` on a later explicit stage clears that hold. Do not delete replay state
-to bypass a refusal. Offline current boot and retained rollback are separate from
-fresh online metadata requirements.
+Keep those files with recovery media.
 
-### Development-only channel discovery
+For a reviewed newer release, run the same four file arguments with `sysroot update stage` instead of enroll. Reboot when ready, then run status and doctor. R1 uses ordinary `sysroot update status`; current source also supports --home.
 
-The development CLI adds `sysroot update check` and `sysroot update check --json`.
-They are not included in published r1 or the frozen `0eb1cf0` candidate, and native
-qualification is pending. Run the command as the ordinary owner; it requests helper
-authorization for installed status and anonymously verifies the fixed target's
-fresh signed channel against installed trust and enrollment.
+The initial r1 checkpoint expires **2026-09-15 23:05:17 UTC**. Fetch the current channel for online operations. Expired metadata is refused; do not alter the clock or verification policy. Retained local boot and explicit rollback are separate from fresh online eligibility.
 
-It reports current/available images, pending deployments, enrollment requirements
-and rollback holds separately. It does not stage, reboot, activate home changes or
-advance update high-water. Reading helper status can reconcile an existing operation
-journal. Use the explicit workflow above on r1; see the
-[development check semantics](RELEASES.md#development-only-installed-channel-check)
-before using a later development build.
+## Daily use
 
-## Day-to-day changes
+Use `sysroot home --help` for explicit Noctalia and niri review, source publication, baseline acceptance and recovery. See [Noctalia](HOME-REVIEW.md) and [niri](TEXT-REVIEW.md). Wider arbitrary home groups are not implemented. Personal agents, MCP, skills, profiles and credentials remain independently owned.
 
-Keep the Kedra checkout separate from private account data. The owner can edit
-source directly or use `sysroot codex` in that checkout. All OS/ISO builds happen
-in Actions; publishing a candidate does not install it on the workstation.
-
-Use `sysroot home --help` for the supported Noctalia and niri review, selection,
-publication and recovery commands. Real files stay writable; applying a new
-baseline requires a current plan and explicit conflict resolution. Wider home
-groups are not implemented. Repository skills remain checkout-local and personal
-agent settings, MCP, skills and credentials remain independent.
-
-The optional `sysroot update status --home` assessment was qualified on the later
-development source `8288cc2`; it is not included in r1's `c660c58` image. Use r1's
-ordinary `sysroot update status` and the explicit `sysroot home` commands.
-
-The owner confirmed Bitwarden release-key backup and retrieval on 2026-09-08.
-Personal authentication, physical hardware, expired channel recovery, no-change
-refresh and signing-key rotation still require their own completed steps/evidence.
-Current status is in [worklog.md](../worklog.md) and
-the [research reports](research/status.json).
+Source changes and midnight package refresh build in Actions. They never install on this workstation automatically. [Verified status](STATUS.md) lists remaining hardware, lifecycle and authentication qualification.

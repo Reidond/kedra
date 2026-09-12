@@ -213,10 +213,16 @@ def create_draft(tag, source, title, body, work, previous):
         failure = 'timed out after 60 seconds'
     if failure is not None:
         print('Draft create ' + failure, file=sys.stderr, flush=True)
-    # One readback, never another create. A 5xx/lost response may already have
+    # Bounded readback, never another create. A 5xx/lost response may already have
     # created a draft. Only this invocation's exact, uniquely marked empty draft
     # can continue; a pre-existing draft was refused before the request.
-    release = release_for_tag(tag)
+    release = None
+    for delay in (0, 2, 5, 10, 20):
+        if delay:
+            time.sleep(delay)
+        release = release_for_tag(tag)
+        if release is not None:
+            break
     require(release is not None, 'Draft creation could not be confirmed; inspect before explicit recovery')
     release = checked_draft(release['id'], tag, source, title, body)
     require(release['assets'] == [], 'New draft is not empty; preserve it for explicit recovery')
@@ -367,7 +373,8 @@ def candidate_identity(run_id, attempt, source):
     value = api(f'actions/runs/{run_id}/attempts/{attempt}')
     require(value['conclusion'] == 'success' and value['status'] == 'completed'
             and value['head_sha'] == source and value['head_branch'] == 'main'
-            and value['event'] == 'workflow_dispatch' and value['path'] == '.github/workflows/release.yml'
+            and value['event'] in ('workflow_dispatch', 'schedule', 'push')
+            and value['path'] == '.github/workflows/release.yml'
             and value['repository']['full_name'] == REPOSITORY
             and value['run_attempt'] == int(attempt), 'Candidate is not the exact successful current-main build')
 
@@ -506,7 +513,7 @@ def publish(args):
     (signed / 'candidate.json').write_bytes(candidate_bytes)
     (signed / 'source.json').write_bytes(read(evidence / 'source.json', 1_048_576))
     require(sha(read(signed / 'source.json', 1_048_576)) == release['home_manifest_sha256'], 'Publication source differs')
-    for name, limit in [('packages.txt', 4 * 1024**2), ('provenance.json', 65_536)]:
+    for name, limit in [('packages.txt', 4 * 1024**2), ('provenance.json', 4 * 1024**2)]:
         value = read(evidence / name, limit)
         require(sha(value) == candidate[name.split('.')[0] + '_sha256'], 'Publication inventory/provenance differs')
         (signed / name).write_bytes(value)
@@ -612,15 +619,16 @@ def publish(args):
                       'No machine was enrolled, staged or rebooted.\n')
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('operation', choices=['prepare', 'publish'])
-parser.add_argument('--candidate-dir', type=pathlib.Path, required=True)
-parser.add_argument('--work', type=pathlib.Path, required=True)
-parser.add_argument('--sysroot', type=pathlib.Path, required=True)
-arguments = parser.parse_args()
-arguments.sysroot = arguments.sysroot.resolve()
-arguments.work.mkdir(parents=True, exist_ok=False)
-if arguments.operation == 'prepare':
-    prepare(arguments)
-else:
-    publish(arguments)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('operation', choices=['prepare', 'publish'])
+    parser.add_argument('--candidate-dir', type=pathlib.Path, required=True)
+    parser.add_argument('--work', type=pathlib.Path, required=True)
+    parser.add_argument('--sysroot', type=pathlib.Path, required=True)
+    arguments = parser.parse_args()
+    arguments.sysroot = arguments.sysroot.resolve()
+    arguments.work.mkdir(parents=True, exist_ok=False)
+    if arguments.operation == 'prepare':
+        prepare(arguments)
+    else:
+        publish(arguments)

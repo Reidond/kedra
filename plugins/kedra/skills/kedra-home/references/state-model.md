@@ -1,9 +1,7 @@
-# State model and adversarial examples (research specification)
+# State model and adversarial examples
 
-The [2026-09-07 R03 report](../../../../../docs/research/R03-home-review/REPORT.md)
-now tests the bounded exact-line subset with separate B/L/N/S/I/P and Git-backed
-export. Durable disposition transitions, structured fields and J remain research
-specifications; do not infer their implementation from the examples below.
+Supported Noctalia/niri workflows use independent review, publication and recovery
+state. See docs/HOME-REVIEW.md, docs/TEXT-REVIEW.md and docs/STATUS.md for actual scope.
 
 ## Separate state dimensions
 
@@ -16,8 +14,8 @@ P: content published to source but not yet deployed.
 J: activation/recovery journal and checkpoints.
 
 A merge(B,L,N) does not by itself preserve S/I/P or prove safe application. Do not
-pretend these are all branches that can be merged without a policy. R03 chooses
-the representation; R04 chooses activation and backward-compatible state. Avoid
+pretend these are all branches that can be merged without a policy. Preserve
+activation and backward-compatible state. Avoid
 a prematurely fixed database/schema based only on these letters.
 
 ## Minimal fixture

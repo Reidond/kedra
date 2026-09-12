@@ -205,7 +205,7 @@ jobs:
               if name in known:
                   require(item['size_bytes'] == len(known[name]), 'Public payload size differs')
           require(assets[iso_name]['size_bytes'] == size and assets['source.json']['size_bytes'] <= 1048576
-                  and assets['packages.txt']['size_bytes'] <= 4 * 1024**2 and assets['provenance.json']['size_bytes'] <= 65536,
+                  and assets['packages.txt']['size_bytes'] <= 4 * 1024**2 and assets['provenance.json']['size_bytes'] <= 4 * 1024**2,
                   'Inventory/provenance size exceeds its bound')
           for index, name in enumerate(part_names):
               require(assets[name]['size_bytes'] == min(1900 * 1024**2, size - index * 1900 * 1024**2),
@@ -215,7 +215,7 @@ jobs:
           result = subprocess.run(['gh', 'api', f'repos/Reidond/kedra/actions/runs/{build["run_id"]}/attempts/{build["run_attempt"]}'], check=True, capture_output=True)
           run = json.loads(result.stdout)
           require(run['conclusion'] == 'success' and run['head_sha'] == os.environ['GITHUB_SHA']
-                  and run['head_branch'] == 'main' and run['event'] == 'workflow_dispatch'
+                  and run['head_branch'] == 'main' and run['event'] in ('workflow_dispatch', 'schedule', 'push')
                   and run['path'] == build['workflow'], 'Successful accepted build differs')
           now = int(time.time())
           require(checkpoint['release_sha256'] == sha(raw['release']) and release['sequence'] == request['sequence']

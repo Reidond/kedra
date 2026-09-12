@@ -19,12 +19,21 @@ struct SignedRelease {
 }
 #[derive(Args)]
 struct FreshRelease {
-    #[command(flatten)]
-    release: SignedRelease,
-    #[arg(long)]
-    checkpoint: PathBuf,
-    #[arg(long)]
-    checkpoint_signature: PathBuf,
+    /// Download and verify the installed target's fixed public channel.
+    #[arg(long, conflicts_with_all = ["manifest", "signature", "checkpoint", "checkpoint_signature"])]
+    channel: bool,
+    /// Signed release JSON; supply all four files instead of --channel.
+    #[arg(long, required_unless_present = "channel")]
+    manifest: Option<PathBuf>,
+    /// Detached signature for the release JSON.
+    #[arg(long, required_unless_present = "channel")]
+    signature: Option<PathBuf>,
+    /// Fresh signed channel checkpoint JSON.
+    #[arg(long, required_unless_present = "channel")]
+    checkpoint: Option<PathBuf>,
+    /// Detached signature for the checkpoint JSON.
+    #[arg(long, required_unless_present = "channel")]
+    checkpoint_signature: Option<PathBuf>,
 }
 #[derive(Subcommand)]
 enum Operation {
@@ -90,6 +99,25 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                 signature: String::from_utf8(signature)?,
             })
         }
+        fn fresh(
+            value: FreshRelease,
+        ) -> Result<(SignedDocument, SignedDocument), Box<dyn std::error::Error>> {
+            if value.channel {
+                return check::documents();
+            }
+            Ok((
+                document(
+                    value.manifest.ok_or("release manifest is required")?,
+                    value.signature.ok_or("release signature is required")?,
+                )?,
+                document(
+                    value.checkpoint.ok_or("checkpoint is required")?,
+                    value
+                        .checkpoint_signature
+                        .ok_or("checkpoint signature is required")?,
+                )?,
+            ))
+        }
         let mut home_assessment = None;
         let request = match options.command {
             Operation::Check { json } => return check::run(json),
@@ -103,9 +131,10 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                     (Some(manifest), Some(signature)) => Some(document(manifest, signature)?),
                     _ => return Err("both installed release files are required".into()),
                 };
+                let (release, checkpoint) = fresh(value)?;
                 Request::Enroll {
-                    release: document(value.release.manifest, value.release.signature)?,
-                    checkpoint: document(value.checkpoint, value.checkpoint_signature)?,
+                    release,
+                    checkpoint,
                     installed_release,
                 }
             }
@@ -127,12 +156,15 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                 release: value,
                 replace_staged,
                 resume,
-            } => Request::Stage {
-                release: document(value.release.manifest, value.release.signature)?,
-                checkpoint: document(value.checkpoint, value.checkpoint_signature)?,
-                replace_staged,
-                resume,
-            },
+            } => {
+                let (release, checkpoint) = fresh(value)?;
+                Request::Stage {
+                    release,
+                    checkpoint,
+                    replace_staged,
+                    resume,
+                }
+            }
             Operation::Rollback {
                 release: value,
                 replace_staged,

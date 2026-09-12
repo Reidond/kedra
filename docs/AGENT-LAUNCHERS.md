@@ -64,7 +64,7 @@ remain available. The wrapper never collects or copies login credentials and
 executes as the ordinary user with normal upstream interaction, signals and exit
 status. No repository skill collection is installed globally or in these profiles.
 
-See [R05 evidence](research/R05-agents/REPORT.md) for remaining qualification and
+See [verified status](STATUS.md) for remaining qualification and
 distribution prerequisites. Official configuration sources, retrieved 2026-09-08:
 [Codex configuration](https://learn.chatgpt.com/docs/config-file/config-advanced),
 [Codex credentials](https://learn.chatgpt.com/docs/auth),

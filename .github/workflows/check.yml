@@ -40,6 +40,8 @@ jobs:
         run: cargo build --workspace --release --locked
       - name: Independent OpenSSL signature interoperability
         run: python3 tests/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
+      - name: Verify signed resolved-input CLI workflows
+        run: python3 tests/release-material.py --workdir target/release-material
       - name: Record the checked Linux CLI checksum
         working-directory: target/release
         run: sha256sum sysroot > sysroot.sha256

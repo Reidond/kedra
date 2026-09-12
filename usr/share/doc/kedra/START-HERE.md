@@ -49,8 +49,11 @@ the running/staged image. Run management commands as your ordinary owner account
 the installed helper requests administrator authentication when needed.
 
 Enrollment and forward staging require a freshly verified channel for this target.
-Unpack a downloaded channel with the installed public key and an independently
-confirmed fingerprint before passing its four signed files to `sysroot update`.
+Use `sysroot update check`, then `sysroot update enroll --channel` once and
+`sysroot update stage --channel` after reviewing an available release. These
+commands use installed trust and the fixed signed channel; the helper verifies
+the exact bytes independently. Older-media enrollment also needs that ISO's
+signed release record; see `sysroot update enroll --help`.
 Keep prior signed release metadata and recovery media. Staging does not reboot,
 and a reboot does not automatically accept a changed home baseline.
 If `sysroot update status --home` is available in this build, it reports the

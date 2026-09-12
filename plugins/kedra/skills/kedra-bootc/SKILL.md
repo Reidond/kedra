@@ -48,20 +48,20 @@ tests). The official 44 tag resolved to AMD64 d4b9c5e156ab..., version
 44.20260908.0, verified against exact manifest/config bytes. A pin prevents
 silent substitution but does not guarantee upstream retention. Record any
 replacement as a new build input and requalify it; retain promoted Kedra digests
-independently. See build/research/inputs.json and the R04 report for this rerun.
+independently. See build/inputs.json and the R04 report for this rerun.
 Run bootc container lint in image validation, but do not treat it as a boot test.
 All candidate references must be final registry digests, not local image IDs.
 
 For a researched trusted update, the helper verifies release eligibility and
 uses bootc switch with signature enforcement and the exact digest. A digest-pinned
 installation needs a new switch for the next release; normal bootc upgrade does
-not advance it. Do not insert operational switch commands into bootstrap code
-before R01/R08/R10 pass. A normal mutable Fedora installation is not automatically
+not advance it. Keep the installed helper as the authority boundary.
+A normal mutable Fedora installation is not automatically
 convertible through bootc switch; prove a fresh VM installer first.
 
 Read [the update-client notes](references/update-client.md), docs/UPDATES.md and
-ADR 0002. Proposed default: periodic signed-metadata check/notification only;
-authorized sysroot update stages without an immediate reboot. Audit/mask inherited
+docs/ARCHITECTURE.md. Explicit signed-channel checking and staging are implemented;
+no periodic notification service is claimed. Staging does not reboot. Audit inherited
 bootc-fetch-apply-updates automation because it can reboot. Do not assume a timer
 that only checks Kedra disables a second upstream updater. --download-only needs
 version-specific pending-slot tests, not a generic safe-prefetch assumption.
@@ -81,13 +81,13 @@ not all persistent data or application migrations. Automatic health rollback is
 a later tested feature. Recovery must work offline without an AI service.
 
 For the separate Anaconda media, follow pinned Lorax's SELINUX=permissive and
-SELINUXTYPE=targeted environment (ADR 0010, 2026-09-08). An enforcing basic.target
+SELINUXTYPE=targeted environment (docs/ARCHITECTURE.md, 2026-09-08). An enforcing basic.target
 probe passed at da140ff but local UEFI testing found denied Anaconda/getty_t shell
 operations. This is media-only; R07 and actual installed-OS checks retain enforcing
 SELinux, and R01/R08 signature verification must never become permissive. Keep
 labels, require Anaconda startup, and record installed enforcement after install.
 
-Anaconda 44.30-2 bootc first-boot findings (2026-09-08, R02/ADR 0015): its native
+Anaconda 44.30-2 bootc first-boot findings (2026-09-08, R02/docs/ARCHITECTURE.md): its native
 PrepareBootcMountTargetsTask omitted the separate home bind after /var, so useradd
 created the owner directory behind the home subvolume later mounted at boot.
 Preserve all selected non-API mounts with native bind/cleanup tracking before
@@ -100,7 +100,11 @@ does not qualify installation. Primary guidance: https://bootc.dev/bootc/bootc-i
 
 Tests: install A/update B/rollback A, /etc local drift, persistent home retention,
 interrupted staging, candidate-versus-running digest, and old journal readers.
-Also run docs/research/update-refresh/EXPERIMENTS.md client cases. Gates:
-R01/R02/R04/R07/R08/R09/R10. Sources: docs/SOURCES.md bootc-fs, bootc-switch,
-bootc-build, bootc-kargs, bootc-secrets; docs/UPDATES.md U09-U11.
+Use the actual signed-update/desktop/home-transition workflows in tests/ and
+docs/STATUS.md for their measured outcomes. Primary references:
+[bootc filesystems](https://bootc.dev/bootc/filesystem.html),
+[switching](https://bootc.dev/bootc/man/bootc-switch.8.html),
+[image building](https://bootc.dev/bootc/building/guidance.html),
+[kernel arguments](https://bootc.dev/bootc/building/kernel-arguments.html) and
+[runtime secrets](https://bootc.dev/bootc/building/secrets.html).
 Read kedra-home for reconciliation and maintain worklog with actual evidence.

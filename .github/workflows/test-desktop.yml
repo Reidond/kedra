@@ -1,0 +1,145 @@
+name: Test desktop image
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+    paths:
+      - .github/workflows/test-desktop.yml
+      - Containerfile
+      - build/assemble.sh
+      - build/agents/**
+      - build/bitwarden/**
+      - tests/vm/desktop/**
+      - tests/vm/console.toml
+      - build/inputs.json
+      - packages/**
+      - home/**
+      - etc/**
+      - usr/**
+      - hosts/desktop/**
+      - crates/**
+      - Cargo.lock
+      - Cargo.toml
+permissions:
+  contents: read
+concurrency:
+  group: test-desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Build checked Rust tooling
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --test 'e2e_*' --locked
+          cargo build --workspace --release --locked
+      - name: Prepare explicit committed payload
+        run: |
+          mkdir -p output/desktop-evidence output/desktop-context
+          target/release/sysroot source plan --host desktop --json > output/desktop-evidence/source.json
+          target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
+          cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
+          cp build/inputs.json output/desktop-evidence/
+          bash build/agents/prepare.sh output/desktop-context "$RUNNER_TEMP/kedra-agent-inputs" output/desktop-evidence/agent-inputs.json
+          sha256sum output/desktop-context/* > output/desktop-evidence/build-input-hashes.txt
+      - name: Install runner container tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils imagemagick xdotool rpm cpio
+          python3 build/bitwarden/prepare.py --context output/desktop-context --evidence output/desktop-evidence/bitwarden-inputs.json
+          sha256sum output/desktop-context/* > output/desktop-evidence/build-input-hashes.txt
+      - name: Build and validate Fedora desktop candidate
+        run: |
+          set -euo pipefail
+          base=$(jq -er .base build/inputs.json)
+          {
+            date --utc --iso-8601=seconds
+            uname -a
+            free -h
+            df -h
+            podman --version
+            skopeo --version
+          } > output/desktop-evidence/environment.txt
+          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+            --tag localhost/kedra-desktop:research output/desktop-context \
+            2>&1 | tee output/desktop-evidence/build.log
+          sudo podman image inspect localhost/kedra-desktop:research > output/desktop-evidence/image-inspect.json
+          sudo podman run --rm localhost/kedra-desktop:research cat /usr/share/sysroot/packages.txt > output/desktop-evidence/packages.txt
+          sudo podman run --rm localhost/kedra-desktop:research bash -e -c \
+            'niri --version; noctalia --version; noctalia msg --help; cat /etc/pam.d/greetd; test "$(systemctl is-enabled greetd)" = enabled; test "$(systemctl is-enabled bootc-fetch-apply-updates.timer || true)" = masked' \
+            > output/desktop-evidence/session-interfaces.txt
+          sudo podman run --rm localhost/kedra-desktop:research find /var -type f > output/desktop-evidence/image-var-files.txt
+      - name: Prepare disposable graphical login fixture
+        run: |
+          mkdir -p output/desktop-test-context output/desktop-image output/desktop-evidence/vm
+          cp tests/vm/desktop/Containerfile tests/vm/desktop/check.sh tests/vm/desktop/check.service tests/vm/desktop/test-profile.toml tests/vm/console.toml output/desktop-test-context/
+          cp tests/vm/desktop/agents.py output/desktop-test-context/
+          cp tests/vm/desktop/recovery.py output/desktop-test-context/
+          cp tests/vm/desktop/niri-review.py output/desktop-test-context/
+          git bundle create output/desktop-test-context/source.bundle HEAD
+          sudo podman build --pull=never --tag localhost/kedra-desktop-test:r07 output/desktop-test-context \
+            > output/desktop-evidence/test-image-build.log 2>&1
+          python3 - <<'PY'
+          import json, os, pathlib, secrets, subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'kedra-r07-private'
+          root.mkdir(mode=0o700)
+          password = secrets.token_hex(16)
+          (root / 'password').write_text(password)
+          (root / 'password').chmod(0o600)
+          hashed = subprocess.check_output(['openssl', 'passwd', '-6', '-stdin'], input=password.encode()).decode().strip()
+          (root / 'blueprint.toml').write_text('[[customizations.user]]\nname = "kedra-test"\npassword = ' + json.dumps(hashed) + '\ngroups = ["wheel"]\n')
+          (root / 'blueprint.toml').chmod(0o600)
+          PY
+      - name: Build disposable desktop disk
+        run: |
+          builder=$(jq -er .builder build/inputs.json)
+          sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
+            -v "$PWD/output/desktop-image:/output" \
+            -v "$RUNNER_TEMP/kedra-r07-private/blueprint.toml:/config.toml:ro" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            "$builder" --type qcow2 --rootfs ext4 --use-librepo=True localhost/kedra-desktop-test:r07 \
+            > "$RUNNER_TEMP/kedra-r07-private/builder.log" 2>&1
+      - name: Test graphical login and session
+        run: |
+          set -euo pipefail
+          mapfile -t disks < <(find "$PWD/output/desktop-image" -name '*.qcow2' -type f)
+          test "${#disks[@]}" -eq 1
+          sudo xvfb-run -a -s '-screen 0 1280x768x24' env LIBGL_ALWAYS_SOFTWARE=1 \
+            python3 tests/vm/desktop/run_vm.py --disk "${disks[0]}" \
+            --work "$PWD/output/desktop-evidence/vm" --password-file "$RUNNER_TEMP/kedra-r07-private/password" \
+            | tee output/desktop-evidence/vm-result.txt
+      - name: Sanitize builder evidence and remove disposable account secret
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'kedra-r07-private'
+          log = root / 'builder.log'
+          if log.exists():
+              text = re.sub(r'\$6\$[^\s"\x27]+', '<synthetic-password-hash-redacted>', log.read_text(errors='replace'))
+              pathlib.Path('output/desktop-evidence/qcow2-build.log').write_text(text)
+          for name in ['password', 'blueprint.toml', 'builder.log']:
+              (root / name).unlink(missing_ok=True)
+          PY
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r07-desktop-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/desktop-evidence/*.txt
+            output/desktop-evidence/*.json
+            output/desktop-evidence/*.log
+            output/desktop-evidence/vm/*.png
+            output/desktop-evidence/vm/*.log
+          if-no-files-found: error
+          retention-days: 14

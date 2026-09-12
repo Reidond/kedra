@@ -11,7 +11,7 @@ not install /usr/bin/codex or /usr/bin/claude, add aliases or shadow personal PA
 commands. Ordinary codex/claude belong to the user's independently updated setup.
 The Linux launcher prototype now selects these paths (with bin/NAME below each
 agent directory); image packaging and complete R05 qualification remain pending.
-See docs/AGENT-LAUNCHERS.md and docs/research/R05-agents/REPORT.md for actual scope.
+See docs/AGENT-LAUNCHERS.md and docs/STATUS.md for actual scope.
 
 ## Intended interfaces (not upstream flags)
 
@@ -60,9 +60,14 @@ Kedra AGENTS.md is shared via CLAUDE.md import; repo instructions are not a sand
 
 R05 tests runtime/profile/update/distribution; R06 auth; R11 repository discovery.
 Review distribution terms and notices before baking non-RPM binaries into public
-images. Avoid custom OAuth/token synchronization. Sources: docs/SOURCES.md
-codex-config, codex-auth, codex-skills, claude-env, claude-auth, claude-skills,
-claude-distribution. Use kedra-bitwarden for credential boundaries.
+images. Avoid custom OAuth/token synchronization. Primary references:
+[Codex configuration](https://developers.openai.com/codex/config-advanced/),
+[Codex authentication](https://developers.openai.com/codex/auth/),
+[Codex skills](https://developers.openai.com/codex/skills/),
+[Claude environment](https://code.claude.com/docs/en/env-vars),
+[Claude authentication](https://code.claude.com/docs/en/authentication) and
+[Claude setup](https://code.claude.com/docs/en/setup).
+Use kedra-bitwarden for credential boundaries and THIRD_PARTY.md for distribution.
 
 ## Repository skill discovery — Codex 0.153.4
 
@@ -90,7 +95,7 @@ outside the current launcher task. Do not claim loaded-plugin/model qualificatio
 from help, schema availability or direct file access. Extra-root execution and
 actual root/crate model use remain not-run under R11.
 
-Evidence and exact source links: [R11 discovery audit](../../../../docs/research/R11-rust-workspace/REPORT.md#repository-only-codex-discovery-audit--2026-09-09),
+Evidence and exact source links: [R11 discovery audit](https://github.com/Reidond/kedra/blob/main/docs/STATUS.md),
 [pinned CLI root selection](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/cli/src/plugin_cmd.rs#L261),
 [pinned skill roots](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/ext/skills/src/host_roots.rs#L28),
 [official App Server reference](https://learn.chatgpt.com/docs/app-server).

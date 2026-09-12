@@ -106,7 +106,7 @@ can override an incoming default; a later changed value returns to normal review
 
 A successful preview does not verify an installed image, run niri validation,
 apply files or advance the accepted baseline. Its plan ID identifies the proposed
-result; this source-preview ID cannot authorize native activation. See [ADR 0020](adr/0020-text-reconciliation-preview.md).
+result; this source-preview ID cannot authorize native activation. See [architecture](ARCHITECTURE.md).
 
 After booting a new image, plan acceptance of that installed baseline:
 
@@ -126,7 +126,7 @@ Current-baseline acceptance passes native VM 34238949306 at 9802b49. The signed
 A/B/A subset also passes run 34296369019 at `6d0abcf`, including the independent
 group adoption described above. The home command does not stage an OS or turn
 advisory source preview into installed-image authority. See
-[ADR 0022](adr/0022-installed-text-baseline.md).
+[architecture](ARCHITECTURE.md).
 
 Discard of one current change passes native VM 34237287511 at 5e238c7:
 
@@ -161,14 +161,6 @@ power loss and full disk remain unqualified.
 
 Binary/non-UTF-8 files, CRLF, missing final newline, unsafe links/ownership and
 files over 128 KiB or 8192 lines are refused. Preserve an unreadable store for
-recovery; do not reset it. See [ADR 0019](adr/0019-ordinary-text-review.md).
+recovery; do not reset it. See [architecture](ARCHITECTURE.md).
 
-The independent-adoption evidence archives were downloaded, checked against
-GitHub's complete ZIP digests and inspected on 2026-09-09. The results apply to
-the named generated VM workflows, not additional files, physical hardware or
-owner-media qualification.
-
-| Workflow/source | Artifact | Verified ZIP SHA-256 |
-|---|---|---|
-| R04 `34296369019` / `6d0abcf` | `10083706747`, 514,925 bytes | `fc3632fed3b9fab2bdf41e4e3de251f2ac0e6368ac5cb2a6b1abcc312873a6e2` |
-| R07 `34296984700` / `9b4838d` | `10083816334`, 1,374,501 bytes | `0995b2c636433adddea3f33a7e4c87a60decb9c0079a87fc03217e5f4a5e5a8d` |
+See [verified status](STATUS.md) for actual CLI/VM qualification and remaining boundaries.

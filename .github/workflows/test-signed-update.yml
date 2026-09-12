@@ -1,0 +1,45 @@
+name: Test signed updates
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+    paths:
+      - .github/workflows/test-signed-update.yml
+      - tests/vm/signed-update/**
+      - tests/vm/console.toml
+      - build/inputs.json
+      - crates/**
+      - Cargo.toml
+      - Cargo.lock
+permissions:
+  contents: read
+concurrency:
+  group: test-signed-update-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  signed-vm:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Install disposable runner tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-utils ovmf openssl jq e2fsprogs
+      - name: Test temporary keys, local TLS registry and three VM boots
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          cargo test --workspace --test 'e2e_*' --locked
+          cargo build --workspace --release --locked
+          bash tests/vm/signed-update/run.sh
+      - name: Preserve public research evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r01-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/r01-evidence/
+          if-no-files-found: error
+          retention-days: 14

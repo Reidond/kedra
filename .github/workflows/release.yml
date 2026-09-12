@@ -90,7 +90,7 @@ jobs:
         id: preflight
         env:
           GH_TOKEN: ${{ github.token }}
-          APPROVED_FINGERPRINT: ${{ vars.KEDRA_DESKTOP_KEY_SHA256 }}
+          APPROVED_FINGERPRINT: ${{ steps.trust.outputs.fingerprint }}
         run: python3 build/release/refresh.py prepare --work output/image-evidence
       - name: Build changed image with signed-config identity
         if: steps.preflight.outputs.changed == 'true'
@@ -155,6 +155,7 @@ jobs:
       packages: write
     outputs:
       digest: ${{ steps.sign.outputs.digest }}
+      fingerprint: ${{ steps.sign.outputs.fingerprint }}
     steps:
       # No checkout, artifact execution or candidate process in this job.
       - name: Prepare native signer and validate public image identity
@@ -204,6 +205,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$CANDIDATE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$APPROVED_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]
           test "$BUILD_FINGERPRINT" = "$APPROVED_FINGERPRINT"
           test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
           test -n "$RELEASE_PRIVATE_KEY" && test -n "$RELEASE_PASSPHRASE"
@@ -223,6 +225,7 @@ jobs:
             "docker://ghcr.io/reidond/kedra-desktop:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           test "$(cat "$private/signed.digest")" = "$CANDIDATE_DIGEST"
           printf 'digest=%s\n' "$CANDIDATE_DIGEST" >> "$GITHUB_OUTPUT"
+          printf 'fingerprint=%s\n' "$APPROVED_FINGERPRINT" >> "$GITHUB_OUTPUT"
 
   publish-stable:
     needs: [build, sign-image]
@@ -243,7 +246,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           KEDRA_SIGNED_DIGEST: ${{ needs.sign-image.outputs.digest }}
-          APPROVED_FINGERPRINT: ${{ vars.KEDRA_DESKTOP_KEY_SHA256 }}
+          APPROVED_FINGERPRINT: ${{ needs.sign-image.outputs.fingerprint }}
         run: |
           set -euo pipefail
           sudo apt-get update

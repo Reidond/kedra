@@ -9,6 +9,7 @@ import hashlib
 import json
 import pathlib
 import subprocess
+import sys
 import time
 
 parser = argparse.ArgumentParser()
@@ -74,6 +75,26 @@ try:
         identity = json.loads(identity.stdout)
         expected = hashlib.sha256(openssl('pkey', '-pubin', '-in', public, '-outform', 'DER')).hexdigest()
         assert identity['key_fingerprint_sha256'] == expected and not identity['trust_established']
+        # The public producer validates the checked-in/explicit fingerprint;
+        # signing independently binds that value to protected environment authority.
+        repository = pathlib.Path(__file__).resolve().parents[1]
+        plan = root / 'public-source-plan.json'
+        plan.write_bytes(subprocess.check_output([str(binary), 'source', 'plan', '--host', 'desktop', '--json'], cwd=repository))
+        for name, fingerprint, accepted in [('accepted', expected, True), ('wrong', '0' * 64, False), ('missing', '', False)]:
+            destination = root / ('public-trust-' + name)
+            result = subprocess.run([sys.executable, str(repository / 'build/release/prepare-trust.py'),
+                '--source', str(plan), '--public-key', str(public), '--expected-fingerprint', fingerprint,
+                '--sysroot', str(binary), '--output', str(destination)], capture_output=True)
+            if accepted:
+                assert result.returncode == 0, result.stderr.decode(errors='replace')
+                assert (destination / 'release.pub').read_bytes() == public.read_bytes()
+                policy = json.loads((destination / 'policy.json').read_bytes())
+                assert policy['default'] == [{'type': 'reject'}]
+                assert policy['transports']['docker']['ghcr.io/reidond/kedra-desktop'][0]['signedIdentity'] == {
+                    'type': 'exactRepository', 'dockerRepository': 'ghcr.io/reidond/kedra-desktop'}
+            else:
+                assert result.returncode != 0 and not destination.exists(), 'Untrusted fingerprint produced public trust'
+        print('PASS: public trust accepts the exact key fingerprint and refuses missing/wrong authority', flush=True)
         invalid_key = subprocess.run([str(binary), 'release', 'key', '--public-key', str(private)], capture_output=True)
         assert invalid_key.returncode != 0 and not invalid_key.stdout
         # Public release tooling checks freshness using independently signed

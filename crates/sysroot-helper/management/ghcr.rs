@@ -342,16 +342,15 @@ fn load(store: &Store, trust: &Trust) -> Result<(u64, Journal)> {
         }
         super::verify(document, trust)?;
     }
-    if let Some(op) = &journal.operation {
-        if !deployment::digest_valid(&op.target_digest)
+    if let Some(op) = &journal.operation
+        && (!deployment::digest_valid(&op.target_digest)
             || !deployment::digest_valid(&op.previous_booted)
             || op
                 .previous_staged
                 .as_ref()
-                .is_some_and(|d| !deployment::digest_valid(d))
-        {
-            return Err("invalid deployment operation".into());
-        }
+                .is_some_and(|d| !deployment::digest_valid(d)))
+    {
+        return Err("invalid deployment operation".into());
     }
     Ok((record.revision, journal))
 }

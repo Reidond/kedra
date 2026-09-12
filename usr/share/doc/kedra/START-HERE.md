@@ -54,6 +54,8 @@ Use `sysroot update check`, then `sysroot update enroll --channel` once and
 commands use installed trust and the fixed signed channel; the helper verifies
 the exact bytes independently. Older-media enrollment also needs that ISO's
 signed release record; see `sysroot update enroll --help`.
+Published r2 predates these convenience commands: use the explicit four signed
+file arguments documented in the installation guide when running that release.
 Keep prior signed release metadata and recovery media. Staging does not reboot,
 and a reboot does not automatically accept a changed home baseline.
 If `sysroot update status --home` is available in this build, it reports the

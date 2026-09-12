@@ -4,7 +4,7 @@ Kedra updates replace the signed OS container image. Your writable home and pers
 
 ## Check and stage
 
-These commands require current-source `sysroot`; published r1 needs the explicit downloaded-file workflow in [INSTALL.md](INSTALL.md).
+These commands require current-source `sysroot`; published r2 needs the explicit downloaded-file workflow in [INSTALL.md](INSTALL.md).
 
 ```sh
 sysroot update status
@@ -42,7 +42,7 @@ GitHub Actions schedules production refresh at **00:00 UTC** on the default bran
 
 Before OCI production, the refresh resolves the official Fedora 44 base to an immutable platform digest and runs a disposable native package preflight for the complete installed closure. It records RPM header/payload identities, image-affecting source inputs, external pins/artifacts and build-recipe identity. Shared and target intent and inherited dependencies matter. External agent/Bitwarden/tool inputs stay separately pinned.
 
-The prior release's signed SHA256SUMS authenticates its provenance and package records before resolved-input comparison. Missing legacy comparison material conservatively requires a candidate. R1 lacks this schema, so the first midnight refresh builds a candidate and a later qualified promotion establishes the comparison baseline. Package names/versions alone, cached build layers, failed resolution or a blocked candidate never prove no-change.
+The prior release's signed SHA256SUMS authenticates its provenance and package records before resolved-input comparison. Missing legacy comparison material conservatively requires a candidate. Published r1 and r2 lack this new resolved-input schema, so the first midnight refresh builds a candidate and a later qualified promotion establishes the comparison baseline. Package names/versions alone, cached build layers, failed resolution or a blocked candidate never prove no-change.
 
 A changed build must match its package preflight before protected image signing, ISO production, exact-media qualification and protected promotion. It cannot silently replace an approved channel. Proven no-change skips OCI/ISO production and prepares a fresh checkpoint for the same release, with independent predecessor/material rechecks and protected signing before key-free publication. No signing environment protection is weakened to meet the schedule.
 

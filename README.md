@@ -4,7 +4,7 @@ Kedra is a Fedora 44 bootc desktop with niri, Noctalia and the `sysroot` managem
 
 [Install Kedra](docs/INSTALL.md) · [Update and recover](docs/UPDATES.md) · [Verify releases](docs/RELEASES.md)
 
-The published installer is [desktop-44-x86_64-r1](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r1). It passed encrypted installation and desktop boot in a two-disk VM. [Verified status](docs/STATUS.md) distinguishes shipped and implemented behavior. Physical hardware and Secure Boot are not qualified.
+The published installer is [desktop-44-x86_64-r2](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r2). It passed encrypted installation and desktop boot in a two-disk VM. [Verified status](docs/STATUS.md) distinguishes shipped and implemented behavior. Physical hardware and Secure Boot are not qualified.
 
 ## Change the system
 

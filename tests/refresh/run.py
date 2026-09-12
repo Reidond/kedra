@@ -193,7 +193,9 @@ def main():
     public = OUTPUT / "repositories"
     public.mkdir()
     try:
-        inputs = read(ROOT / "build/inputs.json")
+        resolved_base = subprocess.check_output(
+            [sys.executable, str(ROOT / "tests/resolve-fedora-base.py"),
+             "--output", str(OUTPUT / "base-resolution.json")], text=True).strip()
         source_files = ["Containerfile.tools", "Containerfile.seed", "Containerfile.case", "prepare.py", "materialize.py", "run.py"]
         source_hashes = {name: digest(CONTEXT / name) for name in source_files}
         source_intent = {"source_files": source_hashes, "requested": ["kedra-refresh-requested"],
@@ -203,7 +205,7 @@ def main():
             "schema_version": 1, "source_revision": os.environ["GITHUB_SHA"],
             "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
             "run_url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
-            "fedora_base": inputs["base"], "source_intent": source_intent,
+            "fedora_base": resolved_base, "source_intent": source_intent,
             "source_intent_sha256": intent_sha256,
             "no_production_signing_or_publication": True,
         })
@@ -211,10 +213,10 @@ def main():
         native("podman-version", [*PODMAN, "version"])
         native("runner-storage", ["df", "-h"])
         native("tools-build", [*PODMAN, "build", "--no-cache", "--pull=always", "--build-arg",
-                               f"BASE_IMAGE={inputs['base']}", "--file", str(CONTEXT / "Containerfile.tools"),
+                               f"BASE_IMAGE={resolved_base}", "--file", str(CONTEXT / "Containerfile.tools"),
                                "--tag", "localhost/kedra-refresh-tools:research", str(CONTEXT)])
         tool_id = image_identity("tools-image", "localhost/kedra-refresh-tools:research")
-        image_identity("fedora-base-image", inputs["base"])
+        image_identity("fedora-base-image", resolved_base)
         native("native-tool-packages", [*PODMAN, "run", "--rm", "--network=none", tool_id,
                                         "rpm", "-qa", "--queryformat", "%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\n"])
         native("prepare-snapshots", [*PODMAN, "run", "--rm", "--network=none", "--env", "GITHUB_ACTIONS=true",

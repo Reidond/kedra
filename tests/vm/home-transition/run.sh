@@ -10,7 +10,7 @@ mkdir "$root" "$private"
 chmod 0700 "$private"
 mkdir -p "$root/desktop" "$root/image" output/r04-evidence
 evidence="$PWD/output/r04-evidence"
-base=$(jq -er .base build/inputs.json)
+base=$(python3 tests/resolve-fedora-base.py --output "$evidence/base-resolution.json")
 builder=$(jq -er .builder build/inputs.json)
 repository=registry.kedra.test:5000/kedra/r04
 registry_image=docker.io/library/registry@sha256:7518da9b12dd746278282a729dee2e65eabdeb449db4d0b28d46ef6e90308f58

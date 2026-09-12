@@ -11,6 +11,7 @@ on:
       - build/bitwarden/**
       - tests/vm/desktop/**
       - tests/vm/console.toml
+      - tests/resolve-fedora-base.py
       - build/inputs.json
       - packages/**
       - home/**
@@ -60,7 +61,7 @@ jobs:
       - name: Build and validate Fedora desktop candidate
         run: |
           set -euo pipefail
-          base=$(jq -er .base build/inputs.json)
+          base=$(python3 tests/resolve-fedora-base.py --output output/desktop-evidence/base-resolution.json)
           {
             date --utc --iso-8601=seconds
             uname -a

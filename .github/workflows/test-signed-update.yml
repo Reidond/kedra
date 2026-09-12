@@ -7,6 +7,7 @@ on:
       - .github/workflows/test-signed-update.yml
       - tests/vm/signed-update/**
       - tests/vm/console.toml
+      - tests/resolve-fedora-base.py
       - build/inputs.json
       - crates/**
       - Cargo.toml

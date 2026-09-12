@@ -106,30 +106,14 @@ def image_identity(label, reference):
 
 
 def resolve_base():
-    pins = read(ROOT / "build/inputs.json")
-    reference = pins["base"]
-    require(re.fullmatch(r"quay\.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}", reference), "Expected reviewed Fedora base pin")
-    directory, _ = native("base-pinned-manifest", ["skopeo", "inspect", "--raw", f"docker://{reference}"])
-    pinned_hash = digest(directory / "stdout")
-    require(reference.endswith("@sha256:" + pinned_hash), "Registry manifest differs from the reviewed base pin")
-    manifest = read(directory / "stdout")
-    index_digest = None
+    directory, _ = native("base-resolution", [sys.executable, str(ROOT / "tests/resolve-fedora-base.py"),
+                                             "--output", str(OUTPUT / "base-resolution.json")])
+    reference = (directory / "stdout").read_text().strip()
+    resolved = read(OUTPUT / "base-resolution.json")
+    require(reference == resolved["reference"] and re.fullmatch(r"quay\.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}", reference),
+            "Expected the checked immutable Fedora test platform")
     platform_reference = reference
-    if "manifests" in manifest:
-        choices = [item for item in manifest["manifests"]
-                   if item.get("platform", {}).get("os") == "linux"
-                   and item.get("platform", {}).get("architecture") == "amd64"
-                   and item.get("platform", {}).get("variant", "") in ("", "v1")]
-        require(len(choices) == 1 and re.fullmatch(r"sha256:[a-f0-9]{64}", choices[0]["digest"]),
-                "Base index does not select exactly one Linux AMD64 manifest")
-        index_digest = "sha256:" + pinned_hash
-        platform_reference = reference.split("@")[0] + "@" + choices[0]["digest"]
-    directory, _ = native("base-platform-manifest", ["skopeo", "inspect", "--raw", f"docker://{platform_reference}"])
-    require(platform_reference.endswith("@sha256:" + digest(directory / "stdout")), "Base platform manifest digest changed")
-    require("manifests" not in read(directory / "stdout"), "Selected platform is still an index")
-    directory, _ = native("base-platform-config", ["skopeo", "inspect", "--config", f"docker://{platform_reference}"])
-    config = read(directory / "stdout")
-    require(config.get("architecture") == "amd64" and config.get("os") == "linux", "Base architecture differs from target")
+    index_digest = resolved["discovery_digest"] if resolved["discovery_digest"] != resolved["platform_digest"] else None
     native("base-pull", [*PODMAN, "pull", "--arch=amd64", platform_reference])
     image_id = image_identity("base-image", platform_reference)
     directory, _ = native("base-inventory", [*PODMAN, "run", "--rm", "--network=none", platform_reference,
@@ -137,7 +121,7 @@ def resolve_base():
     shutil.copyfile(directory / "stdout", OUTPUT / "base-inventory.tsv")
     record = {"pinned_reference": reference, "index_digest": index_digest,
               "platform_reference": platform_reference, "native_image_id": image_id,
-              "moving_tag_discovery": "not-run", "upstream_signature_qualification": "not-run"}
+              "moving_tag_discovery": "pass; base-resolution.json", "upstream_signature_qualification": "not-run"}
     write(OUTPUT / "base.json", record)
     return record
 

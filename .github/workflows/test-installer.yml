@@ -9,6 +9,7 @@ on:
       - build/agents/**
       - build/bitwarden/**
       - build/inputs.json
+      - tests/resolve-fedora-base.py
       - build/assemble.sh
       - Containerfile
       - crates/**
@@ -60,6 +61,7 @@ jobs:
             skopeo --version
           } > output/installer-evidence/environment.txt
       - name: Verify pinned installer-builder interface
+        # OS inputs use a per-run resolved platform; the installer tool stays pinned.
         run: |
           builder=$(jq -er .builder installer/inputs.json)
           sudo podman run --rm "$builder" --version > output/installer-evidence/builder-version.txt
@@ -79,7 +81,7 @@ jobs:
       - name: Build desktop and separate installer environment
         run: |
           set -euo pipefail
-          base=$(jq -er .base build/inputs.json)
+          base=$(python3 tests/resolve-fedora-base.py --output output/installer-evidence/base-resolution.json)
           sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
             --tag localhost/kedra-desktop:installer-research output/desktop-context \
             2>&1 | tee output/installer-evidence/desktop-build.log

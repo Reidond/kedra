@@ -9,6 +9,7 @@ on:
       - tests/vm/desktop/run_vm.py
       - tests/vm/desktop/test-profile.toml
       - tests/vm/console.toml
+      - tests/resolve-fedora-base.py
       - build/inputs.json
       - build/assemble.sh
       - build/agents/**

@@ -12,6 +12,7 @@ on:
       - tests/refresh/Containerfile.seed
       - tests/refresh/Containerfile.case
       - build/inputs.json
+      - tests/resolve-fedora-base.py
 permissions:
   contents: read
 concurrency:
@@ -29,7 +30,7 @@ jobs:
       - name: Install runner container tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman
+          sudo apt-get install -y --no-install-recommends podman skopeo
       - name: Materialize signed RPM snapshots with native Fedora tools
         run: python3 tests/refresh/run.py
       - name: Retain public native evidence, including expected refusals

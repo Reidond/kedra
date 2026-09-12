@@ -2,6 +2,9 @@
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
 
+#[cfg(target_os = "linux")]
+mod check;
+
 #[derive(Args)]
 pub struct Options {
     #[command(subcommand)]
@@ -25,6 +28,11 @@ struct FreshRelease {
 }
 #[derive(Subcommand)]
 enum Operation {
+    /// Check the installed target's published channel without staging an update.
+    Check {
+        #[arg(long)]
+        json: bool,
+    },
     /// Enroll only the exact running signed release; never overwrite enrollment.
     Enroll {
         #[command(flatten)]
@@ -84,6 +92,7 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
         }
         let mut home_assessment = None;
         let request = match options.command {
+            Operation::Check { json } => return check::run(json),
             Operation::Enroll {
                 latest: value,
                 installed_manifest,

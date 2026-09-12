@@ -191,14 +191,16 @@ with tempfile.TemporaryDirectory(prefix='kedra-release-public-') as temporary:
         for name, limit in [('release.json', 65_536), ('release.sig', 1024),
                             ('checkpoint.json', 65_536), ('checkpoint.sig', 1024)]:
             (captured / name).write_bytes(bounded(args.previous_channel / name, limit))
-        previous = cli('channel', '--manifest', captured / 'release.json', '--signature', captured / 'release.sig',
+        previous = cli('history', '--manifest', captured / 'release.json', '--signature', captured / 'release.sig',
                        '--checkpoint', captured / 'checkpoint.json', '--checkpoint-signature', captured / 'checkpoint.sig',
                        '--public-key', key, '--target', scope['target'], '--repository', scope['repository'])
+        require(previous['historical_only'] is True and previous['channel_freshness_verified'] is False
+                and previous['deployment_authorized'] is False, 'Expected authenticated predecessor ordering only')
         previous_record = document((captured / 'release.json').read_bytes())
         old_build = previous_record['build']
         require((build['run_id'], build['run_attempt']) > (old_build['run_id'], old_build['run_attempt']),
                 'Older or repeated candidate build cannot advance the channel')
-        state = previous['next_trust_state']
+        state = previous['ordering_state']
         sequence, generation = state['highest_release_sequence'] + 1, state['generation'] + 1
         prior_release, prior_checkpoint = state['highest_release_sha256'], state['checkpoint_sha256']
     else:

@@ -126,6 +126,8 @@ retained r1 VM: the helper reported enrolled, the exact booted owner digest and
 sequence/generation 1 without staging or rebooting. Status and doctor passed;
 repeating enrollment was refused with the original state preserved. Clean
 shutdown and a final comparison confirmed that the unselected disk was unchanged.
+A later no-ISO reboot also retained exactly the enrolled image/order state and
+passed desktop health and stopped-disk preservation without re-enrollment.
 See the separate
 [enrollment evidence](research/R08-release-protocol/owner-r1-enrollment/REPORT.md).
 
@@ -137,6 +139,21 @@ Rollback queues the retained verified image and places forward updates on hold;
 `--resume` on a later explicit stage clears that hold. Do not delete replay state
 to bypass a refusal. Offline current boot and retained rollback are separate from
 fresh online metadata requirements.
+
+### Development-only channel discovery
+
+The development CLI adds `sysroot update check` and `sysroot update check --json`.
+They are not included in published r1 or the frozen `0eb1cf0` candidate, and native
+qualification is pending. Run the command as the ordinary owner; it requests helper
+authorization for installed status and anonymously verifies the fixed target's
+fresh signed channel against installed trust and enrollment.
+
+It reports current/available images, pending deployments, enrollment requirements
+and rollback holds separately. It does not stage, reboot, activate home changes or
+advance update high-water. Reading helper status can reconcile an existing operation
+journal. Use the explicit workflow above on r1; see the
+[development check semantics](RELEASES.md#development-only-installed-channel-check)
+before using a later development build.
 
 ## Day-to-day changes
 

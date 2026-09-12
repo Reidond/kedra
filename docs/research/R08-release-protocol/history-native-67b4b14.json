@@ -1,0 +1,299 @@
+{
+  "source_revision": "67b4b141012f57d126d9ac9e16646d0f7bfd55b5",
+  "run_id": 34294737470,
+  "requests": {
+    "history-expired": {
+      "release_sequence": 1,
+      "checkpoint_generation": 1,
+      "image_digest": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+      "issued_at": 1788906519,
+      "expires_at": 1788910119
+    },
+    "enroll": {
+      "release_sequence": 2,
+      "checkpoint_generation": 2,
+      "image_digest": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+      "issued_at": 1788913719,
+      "expires_at": 1788917319
+    },
+    "expired": {
+      "release_sequence": 6,
+      "checkpoint_generation": 6,
+      "image_digest": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+      "issued_at": 1788906519,
+      "expires_at": 1788910119
+    },
+    "stage-b": {
+      "release_sequence": 6,
+      "checkpoint_generation": 6,
+      "image_digest": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+      "issued_at": 1788913719,
+      "expires_at": 1788917319
+    }
+  },
+  "native_observations": {
+    "stage-b.serial.log": [
+      {
+        "enrolled": true,
+        "booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+        "staged": null,
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 2,
+          "checkpoint_sha256": "1850855070ef6c7764238206cc389e9a8b23d3378db8d930a9cb240c21dff293",
+          "highest_release_sequence": 2,
+          "highest_release_sha256": "48d614d5549ac071f555b20eb5e009d0804bc629174a0cc088c8d4da6253f600",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": false,
+        "operation": null
+      },
+      {
+        "enrolled": true,
+        "booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+        "staged": null,
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 3,
+          "checkpoint_sha256": "cec00a8c974f4af28dd19ad56830a96a0f0fdf20bd46e595d3d94e78cf0926e3",
+          "highest_release_sequence": 3,
+          "highest_release_sha256": "3ba6cb0db817d1f629fa8eb355e95f1ae53c234c8ef2cb0160438f1a92f247bf",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": false,
+        "operation": {
+          "kind": "stage",
+          "target_digest": "sha256:fb192d55a8541074eb6bd717fa61406c8bda22b43f0352fd3a5bbe292a542541",
+          "release_sha256": "3ba6cb0db817d1f629fa8eb355e95f1ae53c234c8ef2cb0160438f1a92f247bf",
+          "previous_booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+          "previous_staged": null,
+          "phase": "not_applied"
+        }
+      },
+      {
+        "enrolled": true,
+        "booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+        "staged": null,
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 4,
+          "checkpoint_sha256": "22bf3fc45abc259f849f539f99cf24f1655a490e411ca349147de27bd4d48a05",
+          "highest_release_sequence": 4,
+          "highest_release_sha256": "9950bbf4034fbb8c493cf216e8ec092228cc6164154bd54b1269954dbedb69f3",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": false,
+        "operation": {
+          "kind": "stage",
+          "target_digest": "sha256:49eeca4ac469794b5a170942c53c1e46b2d3fc940cbad3ec68a16a93ca7c6d32",
+          "release_sha256": "9950bbf4034fbb8c493cf216e8ec092228cc6164154bd54b1269954dbedb69f3",
+          "previous_booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+          "previous_staged": null,
+          "phase": "not_applied"
+        }
+      },
+      {
+        "enrolled": true,
+        "booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+        "staged": null,
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 5,
+          "checkpoint_sha256": "1b0fe0e9b228412f14623ced789ddc1df983a4d83891a0bea97187357f1737f3",
+          "highest_release_sequence": 5,
+          "highest_release_sha256": "45be61c521aca8f309628f8040b0028353def65efd912031c2364c10609a8c15",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": false,
+        "operation": {
+          "kind": "stage",
+          "target_digest": "sha256:30353a742ee98491757863dae9b5fd3bb17d748e08118abc3c5b0114b4d7dbef",
+          "release_sha256": "45be61c521aca8f309628f8040b0028353def65efd912031c2364c10609a8c15",
+          "previous_booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+          "previous_staged": null,
+          "phase": "not_applied"
+        }
+      },
+      {
+        "enrolled": true,
+        "booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+        "staged": {
+          "digest": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+          "download_only": false
+        },
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 6,
+          "checkpoint_sha256": "26a40807df236ac83ddc5389354d95b89ec7c511ce0b4ca8655f128940956357",
+          "highest_release_sequence": 6,
+          "highest_release_sha256": "b3835326b066cfd01d1c0284e5798017fda5bc81ef34c05d379c73ee6b3ecccf",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": false,
+        "operation": {
+          "kind": "stage",
+          "target_digest": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+          "release_sha256": "b3835326b066cfd01d1c0284e5798017fda5bc81ef34c05d379c73ee6b3ecccf",
+          "previous_booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+          "previous_staged": null,
+          "phase": "awaiting_reboot"
+        }
+      }
+    ],
+    "boot-b.serial.log": [
+      {
+        "enrolled": true,
+        "booted": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+        "staged": null,
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 6,
+          "checkpoint_sha256": "26a40807df236ac83ddc5389354d95b89ec7c511ce0b4ca8655f128940956357",
+          "highest_release_sequence": 6,
+          "highest_release_sha256": "b3835326b066cfd01d1c0284e5798017fda5bc81ef34c05d379c73ee6b3ecccf",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": false,
+        "operation": {
+          "kind": "stage",
+          "target_digest": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+          "release_sha256": "b3835326b066cfd01d1c0284e5798017fda5bc81ef34c05d379c73ee6b3ecccf",
+          "previous_booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+          "previous_staged": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+          "phase": "booted"
+        }
+      },
+      {
+        "enrolled": true,
+        "booted": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+        "staged": null,
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 6,
+          "checkpoint_sha256": "26a40807df236ac83ddc5389354d95b89ec7c511ce0b4ca8655f128940956357",
+          "highest_release_sequence": 6,
+          "highest_release_sha256": "b3835326b066cfd01d1c0284e5798017fda5bc81ef34c05d379c73ee6b3ecccf",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": true,
+        "operation": {
+          "kind": "rollback",
+          "target_digest": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+          "release_sha256": "ad154174524c37f73b831fd305b651ddafada915b96cb50a6bafed039dcc9cbf",
+          "previous_booted": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+          "previous_staged": null,
+          "phase": "awaiting_reboot"
+        }
+      }
+    ],
+    "rollback-a.serial.log": [
+      {
+        "enrolled": true,
+        "booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+        "staged": null,
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 6,
+          "checkpoint_sha256": "26a40807df236ac83ddc5389354d95b89ec7c511ce0b4ca8655f128940956357",
+          "highest_release_sequence": 6,
+          "highest_release_sha256": "b3835326b066cfd01d1c0284e5798017fda5bc81ef34c05d379c73ee6b3ecccf",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": true,
+        "operation": {
+          "kind": "rollback",
+          "target_digest": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+          "release_sha256": "ad154174524c37f73b831fd305b651ddafada915b96cb50a6bafed039dcc9cbf",
+          "previous_booted": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+          "previous_staged": null,
+          "phase": "booted"
+        }
+      },
+      {
+        "enrolled": true,
+        "booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+        "staged": {
+          "digest": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+          "download_only": false
+        },
+        "high_water": {
+          "schema_version": 1,
+          "scope": {
+            "target": "desktop",
+            "architecture": "x86_64",
+            "fedora_release": 44,
+            "repository": "registry.kedra.test:5000/kedra/r01"
+          },
+          "generation": 6,
+          "checkpoint_sha256": "26a40807df236ac83ddc5389354d95b89ec7c511ce0b4ca8655f128940956357",
+          "highest_release_sequence": 6,
+          "highest_release_sha256": "b3835326b066cfd01d1c0284e5798017fda5bc81ef34c05d379c73ee6b3ecccf",
+          "last_successful_resolution": 1788913719
+        },
+        "rollback_hold": false,
+        "operation": {
+          "kind": "stage",
+          "target_digest": "sha256:7316c51c0f70e17c11b73a68895a392f2d25bfd075499710f0b64493ec92003e",
+          "release_sha256": "b3835326b066cfd01d1c0284e5798017fda5bc81ef34c05d379c73ee6b3ecccf",
+          "previous_booted": "sha256:a119c761c53680abcb280c222929a68a39f4b7ea8ba6051649fe500f8fdc5484",
+          "previous_staged": null,
+          "phase": "awaiting_reboot"
+        }
+      }
+    ]
+  },
+  "artifact": {
+    "artifact_id": 10082928500,
+    "archive_size_bytes": 1273061,
+    "archive_sha256": "ef213b23d2d4df9b4d6fb3fd17c9aeb2660a1f7a913a30ab2a1a760d30468063",
+    "archive_hash_verified": true
+  }
+}

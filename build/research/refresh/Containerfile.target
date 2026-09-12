@@ -1,0 +1,15 @@
+# Actual desktop payload with an evidence observer around the unchanged assembler.
+# The observer is research-only and removed before committing the final layer.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY sysroot /usr/bin/sysroot
+COPY sysroot-helper /usr/libexec/sysroot/helper
+ADD payload.tar /
+ADD agents.tar /
+ADD bitwarden.tar /
+COPY assemble.sh /tmp/kedra-assemble.sh
+COPY target-native.sh /opt/kedra-refresh/target-native.sh
+COPY target-dnf.sh /opt/kedra-refresh/bin/dnf
+RUN chmod 0755 /opt/kedra-refresh/bin/dnf && \
+    /bin/bash /opt/kedra-refresh/target-native.sh run && \
+    rm -rf /opt/kedra-refresh /tmp/kedra-assemble.sh /var/cache/kedra-refresh

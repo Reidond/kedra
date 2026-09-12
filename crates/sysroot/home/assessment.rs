@@ -170,13 +170,13 @@ fn noctalia(store: Option<&Store>, instance: &str) -> Result<Group> {
     // Reuse the state model's provenance validation without observing live data.
     State::new(instance.to_owned(), baseline.clone(), baseline.settings)?;
     let state = store
-        .map(|store| linux::load(store, instance).map(|(_, state)| state))
-        .transpose()?;
-    let pending = match (store, &state) {
-        (Some(store), Some(state)) => {
-            activation::linux::assessment_pending(store, instance, state)?
-        }
-        _ => false,
+        .map(|store| linux::load_optional(store, instance))
+        .transpose()?
+        .flatten()
+        .map(|(_, state)| state);
+    let pending = match store {
+        Some(store) => activation::linux::assessment_pending(store, instance, state.as_ref())?,
+        None => false,
     };
     Ok(Group::new(
         state
@@ -202,10 +202,20 @@ fn groups(selected: Option<&Path>, owner: u32) -> Result<[Group; 2]> {
     // Store opening may update SQLite sidecars; coordination may create its lock.
     // No logical review records, native files, capture or recovery are changed.
     let _coordination = store.as_ref().map(Store::coordinate).transpose()?;
-    Ok([
+    let groups = [
         noctalia(store.as_ref(), &instance).unwrap_or_else(|_| Group::unavailable()),
         text::assessment(store.as_ref(), &instance).unwrap_or_else(|_| Group::unavailable()),
-    ])
+    ];
+    if store.is_some()
+        && groups
+            .iter()
+            .all(|group| group.status == Status::NotAdopted)
+    {
+        return Err(
+            "existing home store has no recognized adoption; preserve it for recovery".into(),
+        );
+    }
+    Ok(groups)
 }
 
 pub(super) fn run(selected: Option<&Path>) -> serde_json::Value {

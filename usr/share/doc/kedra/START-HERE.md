@@ -38,8 +38,24 @@ Managed updates require configured release trust and enrollment. Home review and
 reconciliation support three Noctalia fields and explicit niri line/hunk review,
 discard and installed-baseline acceptance. Use `sysroot home file --help` for the
 niri workflow and review the file for secrets before adopting it. Wider file
-groups and a promoted owner installer are still being prepared.
+groups remain unfinished.
 Do not run image-building scripts as a workstation package installer.
+
+Published owner installers and the current signed channel are available from
+https://github.com/Reidond/kedra/releases. Follow the current installation and
+release instructions at https://github.com/Reidond/kedra/blob/main/docs/INSTALL.md.
+On an installed system, use `sysroot update status` to inspect enrollment and
+the running/staged image. Run management commands as your ordinary owner account;
+the installed helper requests administrator authentication when needed.
+
+Enrollment and forward staging require a freshly verified channel for this target.
+Unpack a downloaded channel with the installed public key and an independently
+confirmed fingerprint before passing its four signed files to `sysroot update`.
+Keep prior signed release metadata and recovery media. Staging does not reboot,
+and a reboot does not automatically accept a changed home baseline.
+If `sysroot update status --home` is available in this build, it reports the
+caller's adopted Noctalia/niri baseline and pending recovery state without
+applying changes. Use the explicit home review/plan/recovery commands to act on it.
 
 For recovery without a graphical session, use Ctrl+Alt+F2 and log in on the text
 console. `bootc status` distinguishes the current image from a staged one.

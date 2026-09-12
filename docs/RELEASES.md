@@ -97,14 +97,99 @@ publication with release sequence 1 and checkpoint generation 1. Fetch the curre
 channel again for later online operations; its versioned r1 copy is historical
 evidence. Automatic/no-change renewal and expired-channel recovery remain open.
 
+## Development-only installed channel check
+
+The development CLI implements `sysroot update check`. It is absent from published
+r1 and the frozen `0eb1cf0` candidate; installed native qualification is still
+pending. Run the development command as the ordinary installed owner:
+
+```sh
+sysroot update check
+sysroot update check --json
+```
+
+The command reads deployment status through the fixed installed helper, which can
+request administrator authorization. It then downloads the installed target's
+channel anonymously and verifies both signatures, exact release/checkpoint binding,
+scope, actual-clock freshness and the enrolled machine's replay high-water. Only
+desktop / Fedora 44 / x86_64 / `ghcr.io/reidond/kedra-desktop` currently has a
+configured channel. The public key, policy and source manifest come from fixed
+installed paths; there are no caller-supplied authority or download-URL overrides.
+The bounded HTTPS download uses the system certificate trust and ignores personal
+curl configuration, proxy settings and credential environment variables.
+
+The result keeps the signed channel identity separate from observed installed
+state. `current` means the fresh channel names the booted image and its exact
+installed source provenance. `available` means it names a different image.
+`staged` and `downloaded` distinguish a matching pending deployment from an image
+that has only been downloaded; `pending_other_deployment` identifies a different
+pending image. `held` preserves a rollback hold or queued rollback. An unenrolled
+installation reports `enrollment_required` and `replay_checked: false`; signature
+validity alone cannot recover earlier accepted history. Existing slots, operation
+state and high-water remain visible under JSON `installed_status`.
+
+Release sequence and checkpoint generation are separate: renewal can advance the
+checkpoint without changing the image. JSON comparison fields describe advances
+relative to enrolled high-water, or are null when enrollment is absent. They are
+advisory and never replace the helper's independent checks during explicit staging.
+Network, signature, expiry, replay or trust errors produce a nonzero exit, never a
+successful `current` result. Status and installed trust are checked again after
+download; a change causes refusal with a request to run the check again.
+
+Checking does not stage, reboot, activate home changes, save channel files or advance
+high-water. The existing helper Status operation may reconcile a previously pending
+deployment operation in its journal, so this is not a promise of byte-for-byte
+read-only storage. The command has no daemon or persistent download cache. Keep
+using the explicit download/unpack/enroll/stage workflow above with published r1.
+
+## Authenticate predecessor history for publication
+
+The development CLI now provides a separate history command. It is not included
+in r1 or the frozen `0eb1cf0` candidate. Normal installation and updates continue
+to use fresh `release channel`/`release unpack` verification.
+
+```sh
+sysroot release history --manifest previous/release.json --signature previous/release.sig --checkpoint previous/checkpoint.json --checkpoint-signature previous/checkpoint.sig --public-key release.pub --target desktop --repository ghcr.io/reidond/kedra-desktop --json
+```
+
+History verifies both signatures, supported schemas, scope, exact release/checkpoint
+binding, a valid maximum-seven-day lifetime and the normal future-clock tolerance.
+It uses the actual system clock and reports `expired` separately. An expired
+predecessor can supply authenticated ordering history; it cannot authorize an
+incoming update. Output has `historical_only: true`, `channel_freshness_verified:
+false`, `deployment_authorized: false` and `ordering_state`, with no
+`next_trust_state`. No state file or installed authority is changed.
+
+Add `--previous-state PATH` with an independently retained ordering floor to reject
+older generations/releases, changed same-number records and backwards resolution
+history. Without that floor, a signature alone cannot reveal an earlier accepted
+history. The returned `ordering_state` can be saved by the caller and passed to
+ordinary fresh channel verification for the next signed pair.
+
+Only publication's predecessor uses this historical interface. The new candidate
+still needs genuine exact-media qualification and recent resolution; the newly
+signed pair must pass ordinary actual-clock freshness and all ordering floors.
+The protected signer still executes no repository verifier and binds its exact
+previous bundle/payload hashes. There is no allow-expired flag for channel, unpack,
+enrollment or staging, and no clock override. This is not key rotation, automatic
+no-change renewal or proof that an old release is current.
+
+Windows and Linux native CLI/OpenSSL interoperability pass the historical-only
+and strict incoming-expiry boundary. Actual R01 run 34294737470 at 67b4b14 also
+passes installed history checks, refusal of expired higher-sequence metadata at
+an enrolled lower floor, fresh staging/boot and retained rollback with preserved
+high-water state. See the [native evidence](research/R08-release-protocol/REPORT.md#native-history-qualification--2026-09-09).
+Full production expired-predecessor publication remains unqualified.
+
 An old retained release can remain valid recovery media even when its checkpoint
 has expired or it is no longer current. Installed staging/rollback and persistent
 trust state pass the disposable R01 workflow. First enrollment against this
 published owner channel also passed in the retained r1 VM; see the separate
 [enrollment report](research/R08-release-protocol/owner-r1-enrollment/REPORT.md)
 for repeat-enrollment refusal with unchanged state, required desktop health and
-clean shutdown/sentinel evidence. Post-enrollment reboot persistence and an owner
-forward update were not tested in that continuation.
+clean shutdown/sentinel evidence. A separate same-r1 reboot also preserved the
+enrollment/high-water state and required session health. An owner forward update
+to a new image remains a separate qualification.
 
 For installation steps and building a trusted verifier before installing Kedra,
 see [INSTALL.md](INSTALL.md).

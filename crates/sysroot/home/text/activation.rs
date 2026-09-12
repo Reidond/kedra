@@ -1,6 +1,6 @@
 //! Journaled native discard and installed-baseline acceptance.
 use super::{
-    Git, RECORD, Result, State, TextCommand, content, hash, hex, installed, live, live_path,
+    Git, ManagedText, Result, State, TextCommand, content, hash, hex, installed, live, live_path,
     transition,
 };
 use crate::home::Recovery;
@@ -15,8 +15,12 @@ use sysroot_helper::{
     storage::Store,
 };
 
-const JOURNAL: &str = "niri-text-activation";
-const FILE: &str = "config.kdl";
+// This controller is the researched niri strategy. Adding a managed text path
+// must not silently reuse its IPC, journal or plan-approval domain.
+const MANAGED: ManagedText = ManagedText::Niri;
+const JOURNAL: &str = MANAGED.journal();
+const FILE: &str = MANAGED.file_name();
+const RECORD: &str = MANAGED.record();
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -69,7 +73,7 @@ fn plan(state: &State, parent: &Path, id: &str) -> Result<Plan> {
     if state.pending_activation.is_some() {
         return Err("niri recovery must finish before planning".into());
     }
-    let observed = live()?;
+    let observed = live(MANAGED)?;
     let changes = Git::new(parent)?.changes(&state.reference, &observed)?;
     let change = changes
         .iter()
@@ -127,7 +131,7 @@ fn plan(state: &State, parent: &Path, id: &str) -> Result<Plan> {
         id,
         hash(observed.as_bytes()),
         hash(desired.as_bytes()),
-        "activate-managed-niri-file",
+        MANAGED.activation_domain(),
     ))?);
     Ok(Plan {
         id,
@@ -141,8 +145,14 @@ fn installed_plan(state: &State, parent: &Path, repo: &Path) -> Result<Plan> {
     if state.pending_activation.is_some() {
         return Err("niri recovery must finish before planning".into());
     }
-    let baseline = installed()?;
-    let prepared = transition::prepare(state, parent, repo, Some(&baseline.source_revision))?;
+    let baseline = installed(MANAGED)?;
+    let prepared = transition::prepare(
+        state,
+        parent,
+        repo,
+        Some(&baseline.source_revision),
+        MANAGED,
+    )?;
     if prepared.after.baseline != baseline {
         return Err(
             "committed source baseline differs from the installed target, path or content".into(),
@@ -150,8 +160,8 @@ fn installed_plan(state: &State, parent: &Path, repo: &Path) -> Result<Plan> {
     }
     let id = hash(&serde_json::to_vec(&(
         prepared.id,
-        "installed-niri-baseline",
-        "activate-managed-niri-file",
+        MANAGED.installed_domain(),
+        MANAGED.activation_domain(),
     ))?);
     Ok(Plan {
         id,
@@ -163,7 +173,7 @@ fn installed_plan(state: &State, parent: &Path, repo: &Path) -> Result<Plan> {
 }
 fn check_installed(after: Option<&State>) -> Result<()> {
     if let Some(after) = after
-        && after.baseline != installed()?
+        && after.baseline != installed(MANAGED)?
     {
         return Err(
             "installed niri baseline changed; preserve pending state and review recovery".into(),
@@ -279,7 +289,7 @@ fn pending(store: &Store, state: &State) -> Result<(u64, Journal)> {
         return Err("niri journal disagrees with reserved review state".into());
     }
     if let Some(after) = &journal.after {
-        after.validate(&state.instance)?;
+        after.validate(&state.instance, MANAGED)?;
         if after.pending_activation.is_some() {
             return Err("planned niri state contains a nested reservation".into());
         }
@@ -287,7 +297,17 @@ fn pending(store: &Store, state: &State) -> Result<(u64, Journal)> {
     Ok((record.revision, journal))
 }
 
-pub(super) fn assessment_pending(store: &Store, state: Option<&State>) -> Result<bool> {
+pub(super) fn assessment_pending(
+    store: &Store,
+    state: Option<&State>,
+    managed: ManagedText,
+) -> Result<bool> {
+    match managed {
+        ManagedText::Niri => niri_assessment_pending(store, state),
+    }
+}
+
+fn niri_assessment_pending(store: &Store, state: Option<&State>) -> Result<bool> {
     if let Some(state) = state
         && state.pending_activation.is_some()
     {
@@ -313,7 +333,7 @@ pub(super) fn assessment_pending(store: &Store, state: Option<&State>) -> Result
             return Err("niri journal has no matching reservation".into());
         }
         if let Some(after) = journal.after {
-            after.validate(&state.instance)?;
+            after.validate(&state.instance, MANAGED)?;
             if after.pending_activation.is_some() {
                 return Err("planned niri state contains a nested reservation".into());
             }
@@ -358,11 +378,11 @@ fn resume(store: &mut Store, state: &State, directory: &Directory, path: &Path) 
         journal.phase = Phase::Published;
         jr = save(store, jr, &journal)?;
     }
-    if hash(live()?.as_bytes()) != journal.desired_sha256 {
+    if hash(live(MANAGED)?.as_bytes()) != journal.desired_sha256 {
         return Err("live niri file changed; checkpoint retained for recovery".into());
     }
     reload(path)?;
-    if hash(live()?.as_bytes()) != journal.desired_sha256 {
+    if hash(live(MANAGED)?.as_bytes()) != journal.desired_sha256 {
         return Err("niri file changed during reload; checkpoint retained".into());
     }
     check_installed(journal.after.as_ref())?;
@@ -396,11 +416,11 @@ fn apply(
     check_installed(plan.after.as_ref())?;
     directory.validate_bytes(&token()?, plan.desired.as_bytes(), validate)?;
     if plan.observed == plan.desired {
-        if live()? != plan.observed {
+        if live(MANAGED)? != plan.observed {
             return Err("niri file changed after planning; review a new plan".into());
         }
         reload(path)?;
-        if live()? != plan.desired {
+        if live(MANAGED)? != plan.desired {
             return Err("niri file changed during reload".into());
         }
         check_installed(plan.after.as_ref())?;
@@ -456,7 +476,14 @@ pub(super) fn run(
     parent: &Path,
     state: &State,
     command: &TextCommand,
+    managed: ManagedText,
 ) -> Result<()> {
+    match managed {
+        ManagedText::Niri => run_niri(store, parent, state, command),
+    }
+}
+
+fn run_niri(store: &mut Store, parent: &Path, state: &State, command: &TextCommand) -> Result<()> {
     if let TextCommand::Recover { action: None, .. } = command {
         let journal = store
             .read(JOURNAL)?
@@ -470,7 +497,7 @@ pub(super) fn run(
         );
         return Ok(());
     }
-    let path = live_path()?;
+    let path = live_path(MANAGED)?;
     let directory = Directory::open(path.parent().ok_or("niri parent is missing")?)?;
     let _coordination = directory.coordinate()?;
     match command {
@@ -551,13 +578,13 @@ pub(super) fn run(
                     journal.phase = Phase::Aborting;
                     jr = save(store, jr, &journal)?;
                     directory.abort(&journal.receipt)?;
-                    if hash(live()?.as_bytes()) != journal.observed_sha256 {
+                    if hash(live(MANAGED)?.as_bytes()) != journal.observed_sha256 {
                         return Err("aborted niri file differs from the checkpoint".into());
                     }
                 }
-                let observed = live()?;
+                let observed = live(MANAGED)?;
                 reload(&path)?;
-                if live()? != observed {
+                if live(MANAGED)? != observed {
                     return Err("niri file changed during recovery reload".into());
                 }
                 let phase = if matches!(action, Recovery::Abort) {
@@ -577,7 +604,7 @@ pub(super) fn run(
     }
     let after: State =
         serde_json::from_slice(&store.read(RECORD)?.ok_or("niri state disappeared")?.bytes)?;
-    after.validate(&state.instance)?;
+    after.validate(&state.instance, MANAGED)?;
     println!(
         "{}",
         serde_json::to_string_pretty(

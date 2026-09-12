@@ -57,6 +57,24 @@ helper_reject() {
     echo "KEDRA_R10_HELPER_REJECT_PASS case=$name"
 }
 
+public_pair() {
+    local name=$1
+    mkdir "$state/public-$name"
+    jq -j .request.release.payload "$state/helper-$name.json" > "$state/public-$name/release.json"
+    jq -j .request.release.signature "$state/helper-$name.json" > "$state/public-$name/release.sig"
+    jq -j .request.checkpoint.payload "$state/helper-$name.json" > "$state/public-$name/checkpoint.json"
+    jq -j .request.checkpoint.signature "$state/helper-$name.json" > "$state/public-$name/checkpoint.sig"
+}
+pair_verify() {
+    local operation=$1 name=$2
+    shift 2
+    sysroot release "$operation" --manifest "$state/public-$name/release.json" \
+        --signature "$state/public-$name/release.sig" --checkpoint "$state/public-$name/checkpoint.json" \
+        --checkpoint-signature "$state/public-$name/checkpoint.sig" \
+        --public-key /usr/lib/sysroot/trust/release.pub --target desktop \
+        --repository registry.kedra.test:5000/kedra/r01 --json "$@"
+}
+
 case "$variant:$phase" in
     A:initial)
         # Explicit fixture allowlist supplied by the runner over a read-only disk.
@@ -73,9 +91,31 @@ case "$variant:$phase" in
         if /usr/libexec/sysroot/helper < "$state/helper-enroll-mismatch.json"; then
             echo 'Enrollment accepted a different running release'; false
         fi
+        # Real CLI verification of generated expired predecessor metadata uses
+        # the guest's actual clock. It must not turn expired input into eligibility.
+        public_pair history-expired
+        public_pair enroll
+        pair_verify history history-expired > "$state/history-result.json"
+        jq -e '.signature_valid and .historical_only and .expired and
+            (.channel_freshness_verified == false) and (.deployment_authorized == false) and
+            (has("next_trust_state") | not) and .ordering_state.generation == 1 and
+            .ordering_state.highest_release_sequence == 1' "$state/history-result.json" >/dev/null
+        jq .ordering_state "$state/history-result.json" > "$state/history-ordering.json"
+        if pair_verify channel history-expired > "$state/expired-channel.json"; then
+            echo 'Expired predecessor became a fresh channel'; false
+        fi
+        test ! -s "$state/expired-channel.json"
+        pair_verify channel enroll --previous-state "$state/history-ordering.json" > "$state/higher-channel.json"
+        jq -e '.channel_freshness_verified and .replay_checked and
+            .next_trust_state.generation == 2 and .next_trust_state.highest_release_sequence == 2' \
+            "$state/higher-channel.json" >/dev/null
         helper enroll
         test "$(helper status | jq -r .journal.high_water.highest_release_sequence)" = 2
         echo KEDRA_R10_OLDER_ISO_ENROLLMENT_PASS
+        # This expired B request has a higher sequence/generation than enrollment,
+        # so replay refusal cannot conceal a regression in helper expiry checks.
+        helper_reject expired
+        echo KEDRA_R08_EXPIRED_HISTORY_BOUNDARY_PASS
         if runuser -u nobody -- /usr/libexec/sysroot/helper < "$state/helper-status.json"; then
             echo 'Unprivileged helper invocation was accepted'; false
         fi
@@ -89,7 +129,7 @@ case "$variant:$phase" in
         cp "$state/policy-original.json" /etc/containers/policy.json
         test "$policy_before" = "$(sha256sum /etc/containers/policy.json)"
         echo KEDRA_R10_POLICY_DRIFT_PASS
-        for name in wrong-key wrong-target candidate expired; do helper_reject "$name"; done
+        for name in wrong-key wrong-target candidate; do helper_reject "$name"; done
         reject initial_inherited "$(jq -er .unsigned "$state/cases.json")" inherited
         printf 'synthetic local edits before update\n' > "$state/personal-data"
         for name in unsigned wrong_key wrong_repository missing_attachment; do

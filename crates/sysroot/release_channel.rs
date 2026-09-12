@@ -4,7 +4,9 @@ use serde::Deserialize;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use sysroot_core::release::{MAX_DOCUMENT, Scope, TrustState};
+use sysroot_core::release::{MAX_DOCUMENT, Scope, TrustState, VerifiedUpdate};
+
+pub(crate) const MAX_BUNDLE: usize = 300_000;
 
 #[derive(Args)]
 pub struct Options {
@@ -39,10 +41,52 @@ struct Document {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Bundle {
+pub(crate) struct Bundle {
     schema_version: u32,
     release: Document,
     checkpoint: Document,
+}
+
+impl Bundle {
+    pub(crate) fn parse(bytes: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+        if bytes.len() > MAX_BUNDLE {
+            return Err(sysroot_core::release::Error::SizeLimit.into());
+        }
+        let bundle: Self = serde_json::from_slice(bytes)?;
+        if bundle.schema_version != 1 {
+            return Err("unsupported channel bundle version".into());
+        }
+        for document in [&bundle.release, &bundle.checkpoint] {
+            if document.payload.len() > MAX_DOCUMENT || document.signature.len() > 1024 {
+                return Err(sysroot_core::release::Error::SizeLimit.into());
+            }
+        }
+        Ok(bundle)
+    }
+
+    pub(crate) fn verify(
+        &self,
+        key: &str,
+        scope: &Scope,
+        previous: Option<&TrustState>,
+        now: u64,
+    ) -> Result<VerifiedUpdate, sysroot_core::release::Error> {
+        let release = sysroot_core::release::verify_release(
+            self.release.payload.as_bytes(),
+            self.release.signature.as_bytes(),
+            key,
+            Some(scope),
+        )?;
+        sysroot_core::release::verify_update(
+            release,
+            self.checkpoint.payload.as_bytes(),
+            self.checkpoint.signature.as_bytes(),
+            key,
+            scope,
+            previous,
+            now,
+        )
+    }
 }
 
 fn write_new(directory: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()> {
@@ -59,15 +103,7 @@ fn write_new(directory: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()> 
 }
 
 pub fn unpack(options: Options) -> Result<(), Box<dyn std::error::Error>> {
-    let bundle: Bundle = serde_json::from_slice(&super::limited_file(&options.bundle, 300_000)?)?;
-    if bundle.schema_version != 1 {
-        return Err("unsupported channel bundle version".into());
-    }
-    for document in [&bundle.release, &bundle.checkpoint] {
-        if document.payload.len() > MAX_DOCUMENT || document.signature.len() > 1024 {
-            return Err(sysroot_core::release::Error::SizeLimit.into());
-        }
-    }
+    let bundle = Bundle::parse(&super::limited_file(&options.bundle, MAX_BUNDLE)?)?;
     let key = super::limited_file(&options.public_key, 4096)?;
     let key = std::str::from_utf8(&key).map_err(|_| sysroot_core::release::Error::InvalidKey)?;
     let fingerprint = sysroot_core::release::public_key_fingerprint(key)?;
@@ -80,12 +116,6 @@ pub fn unpack(options: Options) -> Result<(), Box<dyn std::error::Error>> {
         fedora_release: 44,
         repository: options.repository,
     };
-    let release = sysroot_core::release::verify_release(
-        bundle.release.payload.as_bytes(),
-        bundle.release.signature.as_bytes(),
-        key,
-        Some(&scope),
-    )?;
     let previous: Option<TrustState> = options
         .previous_state
         .map(|path| -> Result<TrustState, Box<dyn std::error::Error>> {
@@ -98,15 +128,7 @@ pub fn unpack(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
-    let update = sysroot_core::release::verify_update(
-        release,
-        bundle.checkpoint.payload.as_bytes(),
-        bundle.checkpoint.signature.as_bytes(),
-        key,
-        &scope,
-        previous.as_ref(),
-        now,
-    )?;
+    let update = bundle.verify(key, &scope, previous.as_ref(), now)?;
     let state = serde_json::to_vec_pretty(&update.next_trust_state)?;
     let mut directory = std::fs::DirBuilder::new();
     directory.recursive(false);

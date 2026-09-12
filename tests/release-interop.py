@@ -14,6 +14,7 @@ import time
 parser = argparse.ArgumentParser()
 parser.add_argument("--workdir", type=pathlib.Path, required=True)
 parser.add_argument("--sysroot", type=pathlib.Path)
+parser.add_argument("--openssl", default="openssl")
 args = parser.parse_args()
 root = args.workdir.resolve()
 root.mkdir(parents=True, exist_ok=False)
@@ -40,7 +41,7 @@ release = {
 }
 payload.write_text(json.dumps(release, separators=(",", ":")), encoding="utf-8")
 def openssl(*arguments):
-    return subprocess.run(["openssl", *map(str, arguments)], check=True, capture_output=True).stdout
+    return subprocess.run([args.openssl, *map(str, arguments)], check=True, capture_output=True).stdout
 
 def verify(signature, key=public, manifest=payload, image=artifact, expected=True):
     result = subprocess.run([str(binary), "release", "verify", "--manifest", str(manifest),
@@ -118,6 +119,88 @@ try:
         channel(channel_record, newer, expected=False)
         assert prior.read_bytes() == prior_bytes, 'Read-only channel verification changed retained state'
         print('PASS: CLI signed channel initial/repeat/no-change checks and expiry/future/binding/replay refusal', flush=True)
+        # Authenticate an explicitly historical predecessor through the public
+        # CLI, then use its returned ordering floor for a fresh signed pair.
+        history_command = channel_command.copy()
+        history_command[2] = 'history'
+
+        def history(record, previous=None, expected=True, expired=True,
+                    manifest=payload, manifest_signature=signature, key=public,
+                    signer=private, raw=None):
+            checkpoint.write_bytes(raw if raw is not None else json.dumps(record, separators=(',', ':')).encode())
+            checkpoint_signature.write_bytes(base64.b64encode(openssl('dgst', '-sha256', '-sign', signer, checkpoint)))
+            arguments = history_command.copy()
+            for option, value in [('--manifest', manifest), ('--signature', manifest_signature), ('--public-key', key)]:
+                arguments[arguments.index(option) + 1] = str(value)
+            if previous is not None:
+                arguments += ['--previous-state', str(previous)]
+            started = int(time.time())
+            result = subprocess.run(arguments, capture_output=True)
+            if not expected:
+                assert result.returncode != 0 and not result.stdout, 'Invalid predecessor received history output'
+                return None
+            if result.returncode:
+                raise RuntimeError('CLI history verification failed: ' + result.stderr.decode())
+            value = json.loads(result.stdout)
+            assert value['signature_valid'] and value['historical_only']
+            assert not value['channel_freshness_verified'] and not value['deployment_authorized']
+            assert 'next_trust_state' not in value and value['expired'] == expired
+            assert value['replay_checked'] == (previous is not None)
+            assert started <= value['verified_at'] <= int(time.time()), 'History did not use the actual clock'
+            return value
+
+        expired_record = {**channel_record, 'generation': 8, 'issued_at': now - 120,
+                          'expires_at': now - 60, 'last_successful_resolution': now - 120}
+        historical = history(expired_record)
+        ordering = root / 'historical-ordering.json'
+        ordering.write_text(json.dumps(historical['ordering_state']), encoding='utf-8')
+        ordering_bytes = ordering.read_bytes()
+        history(expired_record, ordering)
+        history(channel_record, expired=False)
+        channel(expired_record, expected=False)
+        # The strict unpack interface must also keep refusing this same expired pair.
+        expired_bundle = root / 'expired-channel.json'
+        expired_bundle.write_text(json.dumps({'schema_version': 1,
+            'release': {'payload': payload.read_text(), 'signature': signature.read_text()},
+            'checkpoint': {'payload': checkpoint.read_text(), 'signature': checkpoint_signature.read_text()}}), encoding='utf-8')
+        expired_output = root / 'expired-unpack'
+        result = subprocess.run([str(binary), 'release', 'unpack', '--bundle', str(expired_bundle),
+            '--public-key', str(public), '--expected-fingerprint', expected, '--target', 'desktop',
+            '--repository', release['scope']['repository'], '--output-dir', str(expired_output)], capture_output=True)
+        assert result.returncode != 0 and not expired_output.exists(), 'Historical metadata became eligible for unpack'
+
+        history(expired_record, key=wrong_public, expected=False)
+        history(expired_record, signer=wrong_private, expected=False)
+        changed_release = root / 'historical-altered-release.json'
+        changed_release.write_bytes(payload.read_bytes() + b' ')
+        history(expired_record, manifest=changed_release, expected=False)
+        for changed in [
+            {'schema_version': 2}, {'unknown': True}, {'release_sha256': 'f' * 64},
+            {'scope': {**release['scope'], 'target': 'other'}}, {'generation': 0},
+            {'expires_at': now - 120},
+            {'issued_at': now - 8 * 86400, 'last_successful_resolution': now - 8 * 86400},
+            {'issued_at': now + 3600, 'expires_at': now + 7200, 'last_successful_resolution': now},
+            {'last_successful_resolution': 0}, {'last_successful_resolution': now},
+        ]:
+            history({**expired_record, **changed}, expected=False)
+        duplicate = json.dumps(expired_record, separators=(',', ':'))[:-1] + ',"generation":8}'
+        history(expired_record, raw=duplicate.encode(), expected=False)
+        history({**expired_record, 'generation': 7}, ordering, expected=False)
+        history({**expired_record, 'expires_at': now - 59}, ordering, expected=False)
+        history({**expired_record, 'generation': 9, 'last_successful_resolution': now - 121}, ordering, expected=False)
+        for name, changes in [('older-release', {'sequence': 41}), ('changed-same-release', {'source_revision': 'd' * 40})]:
+            other_manifest, other_signature = root / f'{name}.json', root / f'{name}.sig'
+            other_manifest.write_text(json.dumps({**release, **changes}), encoding='utf-8')
+            other_signature.write_bytes(base64.b64encode(openssl('dgst', '-sha256', '-sign', private, other_manifest)))
+            other_checkpoint = {**expired_record, 'generation': 9,
+                                'release_sha256': hashlib.sha256(other_manifest.read_bytes()).hexdigest()}
+            history(other_checkpoint, ordering, expected=False, manifest=other_manifest, manifest_signature=other_signature)
+        fresh_after_expiry = channel({**channel_record, 'generation': 9}, ordering)
+        assert fresh_after_expiry['next_trust_state']['generation'] == 9
+        assert fresh_after_expiry['next_trust_state']['highest_release_sequence'] == 42
+        assert ordering.read_bytes() == ordering_bytes, 'Historical verification changed the retained ordering floor'
+        print('PASS: CLI historical-only expired predecessor, fresh higher continuation, unchanged ordering and strict incoming expiry', flush=True)
+        print('PASS: history rejects wrong signatures, malformed scope/schema/binding/lifetime/future and ordering regressions', flush=True)
         # Exercise downloaded channel -> verified files -> ordinary channel CLI.
         channel(channel_record)
         bundle = {'schema_version': 1,

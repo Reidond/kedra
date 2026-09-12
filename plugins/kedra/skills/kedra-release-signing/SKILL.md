@@ -62,6 +62,18 @@ initial r1 checkpoint expires 2026-09-15 23:05:17 UTC; publication does not make
 that historical checkpoint perpetually fresh. No-change renewal remains open.
 Never use one unscoped GitHub latest-release result as authority for every host.
 
+CLI/native-qualified 2026-09-09: `sysroot release history` authenticates
+expired predecessor ordering as a distinct historical-only result. It retains
+signature/schema/scope/binding/lifetime/future-clock/replay checks and never
+grants fresh update eligibility. Producer/publisher use it only for the old pair;
+incoming channel, unpack and installed update verification still reject expiry.
+Rust 1.98.1/Windows OpenSSL 3.6.1 E2E and Linux workspace 34294737483 pass. R01
+34294737470 at 67b4b14 passes actual expired history, higher-expired incoming
+refusal above floor 2, fresh B6 stage/boot and retained-A rollback/hold/resume.
+R07 34294737457 passes desktop regressions. Full production publication after
+predecessor expiry, no-change renewal and rotation remain separate unfinished
+work. Sources: ADR 0024 and R08 history CLI/native evidence; gates R08/R10.
+
 A writer lock does not alone order workflows: recheck current desired image inputs
 and sequence under the promotion lock. Workflow recreation and rerun identities
 need explicit epoch/rank handling. Exact-byte metadata is implemented; general
@@ -142,8 +154,10 @@ native ISO assembly, then published version 385117864 and channel 385128562.
 Anonymous native channel verification and both tag-source checks pass. Initial
 public-channel enrollment, repeat-enrollment refusal with unchanged status,
 doctor, clean shutdown and final sentinel preservation also passed in the
-retained r1 VM. Post-enrollment reboot persistence and a new owner image were not
-tested. Production opt-in was restored true; main c660c58, approved
+retained r1 VM. A later no-ISO boot also passes exact enrollment/order-state
+persistence, doctor, clean shutdown and sentinel preservation without
+re-enrollment. A new owner image has not yet been staged. Production opt-in was
+restored true; main c660c58, approved
 bytes, authority and environment protections were unchanged. The owner's direct
 GitHub approval covered those metadata bytes; recovery needed no new signature
 or repeated approval of them.

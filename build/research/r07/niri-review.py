@@ -5,19 +5,61 @@ import ctypes
 import pathlib
 import select
 import signal
+import sqlite3
 import struct
 import subprocess
+import sys
 import time
 
 
-def cli(*args, success=True):
-    result = subprocess.run(["sysroot", "home", "file", *args], stdout=subprocess.PIPE,
+def home(*args, success=True, state=None):
+    command = ["sysroot", "home"] + (["--state", str(state)] if state is not None else [])
+    result = subprocess.run([*command, *args], stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, timeout=60, check=False)
     if (result.returncode == 0) != success:
         # This runs only against generated public fixture content in the VM.
         detail = result.stderr.decode(errors="replace")[:1200]
-        raise RuntimeError(f"niri review command {args[0]} returned {result.returncode}: {detail}")
+        raise RuntimeError(f"home command {args[0]} returned {result.returncode}: {detail}")
     return json.loads(result.stdout) if success else None
+
+
+def cli(*args, success=True):
+    return home("file", *args, success=success)
+
+
+def logical_records(directory):
+    with sqlite3.connect(f"file:{directory / 'state.sqlite'}?mode=ro", uri=True) as connection:
+        return (list(connection.execute("SELECT name, revision, body, sha256 FROM records ORDER BY name")),
+                list(connection.execute("SELECT name, revision, body, sha256 FROM history ORDER BY name, revision")))
+
+
+def orphaned_adoption(source, record, journal, command, *, retain_history=False):
+    # Damage a copy of a store produced by real native CLI workflows. This must
+    # never become permission to silently reinitialize an adopted application.
+    suffix = "history" if retain_history else "journal"
+    directory = pathlib.Path.home() / f"kedra-orphaned-{record}-{suffix}"
+    directory.mkdir(mode=0o700)
+    with sqlite3.connect(source / "state.sqlite") as original_store, \
+            sqlite3.connect(directory / "state.sqlite") as copy:
+        original_store.backup(copy)
+        if copy.execute("SELECT body FROM records WHERE name=?", (journal,)).fetchone() is None:
+            raise RuntimeError("native fixture did not retain its activation journal")
+        copy.execute("DELETE FROM records WHERE name=?", (record,))
+        if retain_history:
+            if copy.execute("SELECT revision FROM history WHERE name=?", (record,)).fetchone() is None:
+                raise RuntimeError("native fixture did not retain its adoption history")
+            copy.execute("DELETE FROM records WHERE name=?", (journal,))
+        else:
+            copy.execute("DELETE FROM history WHERE name=?", (record,))
+    original_store.close()
+    copy.close()
+    for item in directory.iterdir():
+        item.chmod(0o600)
+    before, live_before = logical_records(directory), native.read_bytes()
+    home(*command, state=directory, success=False)
+    if logical_records(directory) != before or native.read_bytes() != live_before:
+        raise RuntimeError("failed adoption reset damaged records or changed the native file")
+    print(f"KEDRA_HOME_ORPHANED_{record.upper().replace('-', '_')}_{suffix.upper()}_REFUSED", flush=True)
 
 
 def interrupt_discard(change, plan_id):
@@ -67,10 +109,39 @@ def interrupt_discard(change, plan_id):
 
 
 native = pathlib.Path.home() / ".config/niri/config.kdl"
+home_state = pathlib.Path.home() / ".local/state/sysroot/home"
+if len(sys.argv) != 2:
+    raise RuntimeError("the R07 native Noctalia recovery store is required")
+noctalia_recovery_state = pathlib.Path(sys.argv[1])
 original = native.read_text()
 if original.count("gaps 12") != 1 or original.count("width 2") != 1:
     raise RuntimeError("native fixture does not have the expected niri defaults")
-cli("init", "--reviewed-safe")
+if home_state.exists():
+    raise RuntimeError("independent adoption requires the fresh default review store")
+cli("--path", ".config/foot/foot.ini", "init", "--reviewed-safe", success=False)
+cli("init", success=False)
+if home_state.exists():
+    raise RuntimeError("refused path or missing review acknowledgement created a store")
+incomplete = pathlib.Path.home() / "kedra-incomplete-review-store"
+incomplete.mkdir(mode=0o700)
+home("file", "init", "--reviewed-safe", state=incomplete, success=False)
+if list(incomplete.iterdir()):
+    raise RuntimeError("text adoption initialized a pre-existing incomplete store")
+subprocess.run(["systemctl", "--user", "stop", "kedra-noctalia.service"], check=True, timeout=30)
+try:
+    cli("init", "--reviewed-safe")
+    home("status", success=False)
+    home("status", "--last-capture", success=False)
+    if subprocess.run(["systemctl", "--user", "is-active", "kedra-noctalia.service"],
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode == 0:
+        raise RuntimeError("text adoption started the unrelated Noctalia service")
+    adopted = cli("status")
+    cli("init", "--reviewed-safe", success=False)
+    if cli("status") != adopted or native.read_text() != original:
+        raise RuntimeError("repeat text adoption changed the adopted state or live file")
+finally:
+    subprocess.run(["systemctl", "--user", "start", "kedra-noctalia.service"], check=True, timeout=30)
+print("KEDRA_HOME_NIRI_WITHOUT_NOCTALIA_ADOPTION_PASS", flush=True)
 try:
     native.write_text(original.replace("gaps 12", "gaps 14").replace("width 2", "width 3"))
     subprocess.run(["niri", "validate"], check=True, timeout=20)
@@ -91,6 +162,16 @@ try:
     cli("stage", selected, success=False)
     current_width = next(row["change"]["id"] for row in state["changes"]
                          if row["change"]["after"].strip() == "width 4")
+    niri_before, live_before = cli("status"), native.read_bytes()
+    home("init")
+    noctalia_before = home("status", "--last-capture")
+    home("init", success=False)
+    if cli("status") != niri_before or native.read_bytes() != live_before \
+            or home("status", "--last-capture") != noctalia_before:
+        raise RuntimeError("Noctalia adoption or repeat refusal changed existing group decisions")
+    orphaned_adoption(noctalia_recovery_state, "noctalia", "noctalia-activation", ["init"])
+    orphaned_adoption(noctalia_recovery_state, "noctalia", "noctalia-activation", ["init"], retain_history=True)
+    print("KEDRA_HOME_LATER_NOCTALIA_ADOPTION_PASS", flush=True)
     planned = cli("discard-plan", current_width)
     before = native.stat()
     before_label = os.getxattr(native, "security.selinux")
@@ -108,6 +189,7 @@ try:
         raise RuntimeError("discard did not finish its journal")
     if cli("selection")["selection"][0]["after"].strip() != "width 3":
         raise RuntimeError("discard lost the pinned selection")
+    orphaned_adoption(home_state, "niri-text", "niri-text-activation", ["file", "init", "--reviewed-safe"])
     # A real relative include must resolve from the native configuration directory.
     included = native.parent / "discard-include.kdl"
     included.write_text('// generated relative include\n')

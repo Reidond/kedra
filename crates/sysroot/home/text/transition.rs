@@ -1,6 +1,6 @@
 //! Advisory source preflight. No home file or accepted review state is written.
 use super::{
-    Baseline, Change, DESTINATION, Git, Publication, Result, State, content, export, hash, live,
+    Baseline, Change, Git, ManagedText, Publication, Result, State, content, export, hash, live,
     source,
 };
 use std::path::Path;
@@ -113,6 +113,7 @@ pub(super) fn prepare(
     parent: &Path,
     repo: &Path,
     commit: Option<&str>,
+    managed: ManagedText,
 ) -> Result<Prepared> {
     let repo = export::checkout(repo)?;
     let plan = match commit {
@@ -134,7 +135,7 @@ pub(super) fn prepare(
     let file = plan
         .files
         .iter()
-        .find(|file| file.destination == DESTINATION && file.home_baseline)
+        .find(|file| file.destination == managed.destination() && file.home_baseline)
         .ok_or("candidate source has no niri baseline")?;
     if file.source_path != state.baseline.source_path || file.mode != "100644" {
         return Err(
@@ -174,7 +175,7 @@ pub(super) fn prepare(
     } else {
         &state.published[retired - 1].reference
     };
-    let observed = live()?;
+    let observed = live(managed)?;
     let git = Git::new(parent)?;
     let observed_changes = git.changes(&state.reference, &observed)?;
     let active_local: Vec<_> = state
@@ -218,7 +219,7 @@ pub(super) fn prepare(
         published: future,
         pending_activation: None,
     };
-    after.validate(&state.instance)?;
+    after.validate(&state.instance, managed)?;
     let state_hash = hash(&serde_json::to_vec(state)?);
     let live_hash = hash(observed.as_bytes());
     let desired_hash = hash(desired.as_bytes());
@@ -245,8 +246,9 @@ pub(super) fn preview(
     parent: &Path,
     repo: &Path,
     commit: Option<&str>,
+    managed: ManagedText,
 ) -> Result<()> {
-    let prepared = prepare(state, parent, repo, commit)?;
+    let prepared = prepare(state, parent, repo, commit, managed)?;
     let after = &prepared.after;
     println!(
         "{}",

@@ -1,5 +1,15 @@
 # R01: enforced signature path through bootc
 
+2026-09-09 follow-up: [34294737470](https://github.com/Reidond/kedra/actions/runs/34294737470)
+at `67b4b14` passes authenticated expired predecessor history, strict refusal of
+expired higher-sequence staging above an enrolled lower floor, fresh B stage/boot
+and retained-A rollback with replay floor/hold/resume preservation. Exact native
+observations and artifact verification are in the
+[R08 history record](../R08-release-protocol/REPORT.md#native-history-qualification--2026-09-09).
+Owner installation/enrollment/reboot persistence are separately qualified in
+R02/R08. Rotation and broader lifecycle gates remain open; historical scope
+statements below describe their original runs.
+
 Status: **blocked** at full installation-policy/authority gates, 2026-09-08
 (Europe/Kiev); the first strict transport/update/rollback subset passed.
 

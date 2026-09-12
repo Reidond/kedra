@@ -30,6 +30,16 @@ checkout-only; do not ship this collection as system/global agent skills.
 
 ## Release/deployment procedure
 
+Primary-source review, 2026-09-09: Fedora distinguishes the production
+Pungi/cloud-image-uploader route to `quay.io/fedora/fedora-bootc` from development
+Konflux images under `quay.io/bootc-devel/fedora-bootc-*`. A similar image name is
+not authority to substitute the development stream. Preserve the reviewed
+production scope and reject an unexpected repository during discovery. This
+publication description does not establish an upstream signature-verification
+procedure; Kedra's exact base pin and owner-image signatures remain distinct.
+Source: [Fedora RELEASE.md at 8f30db6](https://forge.fedoraproject.org/iot/base-images/src/commit/8f30db6ad355562aeaca5c547f81ca157e8ffbf4/RELEASE.md),
+last file change 2026-08-25. Gates: R01/R08 and scheduled refresh.
+
 Resolve and record base digest, RPM inventory and external artifacts. Never
 claim exact rebuildability from a source commit against changing repositories.
 On 2026-09-08 Quay stopped serving pinned Fedora 44 digest 70b8fe469fe1...

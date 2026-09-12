@@ -75,8 +75,16 @@ fn pending(store: &Store, instance: &str) -> Result<(u64, State, u64, Journal, S
 pub(in crate::home) fn assessment_pending(
     store: &Store,
     instance: &str,
-    state: &State,
+    state: Option<&State>,
 ) -> Result<bool> {
+    let Some(state) = state else {
+        if store.read(JOURNAL)?.is_some() {
+            return Err(
+                "Noctalia journal exists without an adopted state; preserve the store".into(),
+            );
+        }
+        return Ok(false);
+    };
     if state.pending_activation().is_some() {
         pending(store, instance)?;
         return Ok(true);

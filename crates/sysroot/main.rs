@@ -10,6 +10,7 @@ mod doctor;
 mod home;
 mod installer_artifact;
 mod release_channel;
+mod release_history;
 mod source;
 
 #[derive(Parser)]
@@ -58,6 +59,8 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum ReleaseCommand {
+    /// Authenticate predecessor ordering, including expired metadata; never authorize an update.
+    History(release_history::Options),
     /// Verify a downloaded channel bundle and unpack exact public update files.
     Unpack(release_channel::Options),
     /// Check signed channel freshness/replay state without enrolling or staging.
@@ -141,6 +144,9 @@ fn limited_file(
 }
 
 fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Error>> {
+    if let ReleaseCommand::History(options) = command {
+        return release_history::run(options);
+    }
     if let ReleaseCommand::Unpack(options) = command {
         return release_channel::unpack(options);
     }
@@ -421,7 +427,7 @@ fn main() -> ExitCode {
                 println!("{}", sysroot_core::STATUS_JSON);
             } else {
                 println!(
-                    "Kedra development build: source/release tools and Linux update/home workflows are implemented. Production release setup is still pending; use sysroot doctor for installed desktop checks."
+                    "Kedra capabilities: source and release tools, including historical verification, and Linux deployment and Noctalia/niri home workflows are implemented. Installed state is not checked here. Use sysroot update status, sysroot update status --home and sysroot doctor for installed checks."
                 );
             }
         }

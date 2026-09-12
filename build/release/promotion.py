@@ -340,12 +340,26 @@ def channel(directory, snapshot=None):
     return sha(bundle)
 
 
-def verify_channel(directory, cli):
-    return document(run(cli, 'release', 'channel', '--manifest', directory / 'release.json',
-                        '--signature', directory / 'release.sig', '--checkpoint', directory / 'checkpoint.json',
-                        '--checkpoint-signature', directory / 'checkpoint.sig',
-                        '--public-key', ROOT / 'build/release/authority/desktop.pub',
-                        '--target', 'desktop', '--repository', 'ghcr.io/reidond/kedra-desktop', '--json'))
+def verify_channel(directory, cli, previous_state=None):
+    command = [cli, 'release', 'channel', '--manifest', directory / 'release.json',
+               '--signature', directory / 'release.sig', '--checkpoint', directory / 'checkpoint.json',
+               '--checkpoint-signature', directory / 'checkpoint.sig',
+               '--public-key', ROOT / 'build/release/authority/desktop.pub',
+               '--target', 'desktop', '--repository', 'ghcr.io/reidond/kedra-desktop', '--json']
+    if previous_state is not None:
+        command.extend(['--previous-state', previous_state])
+    return document(run(*command))
+
+
+def verify_history(directory, cli):
+    value = document(run(cli, 'release', 'history', '--manifest', directory / 'release.json',
+                         '--signature', directory / 'release.sig', '--checkpoint', directory / 'checkpoint.json',
+                         '--checkpoint-signature', directory / 'checkpoint.sig',
+                         '--public-key', ROOT / 'build/release/authority/desktop.pub',
+                         '--target', 'desktop', '--repository', 'ghcr.io/reidond/kedra-desktop', '--json'))
+    require(value['historical_only'] is True and value['channel_freshness_verified'] is False
+            and value['deployment_authorized'] is False, 'Expected authenticated predecessor ordering only')
+    return value['ordering_state']
 
 
 def candidate_identity(run_id, attempt, source):
@@ -462,11 +476,16 @@ def publish(args):
     previous_hash = channel(previous, previous_channel)
     require(previous_hash == request['expected_previous_bundle_sha256'], 'Channel changed after review; no publication')
     if previous_hash is not None:
-        state = verify_channel(previous, args.sysroot)['next_trust_state']
+        state = verify_history(previous, args.sysroot)
         require(state['highest_release_sha256'] == request['expected_previous_release_sha256']
                 and state['checkpoint_sha256'] == request['expected_previous_checkpoint_sha256']
                 and request['sequence'] == state['highest_release_sequence'] + 1
                 and request['generation'] == state['generation'] + 1, 'Channel ordering differs from reviewed request')
+        ordering_path = args.work / 'previous-ordering-state.json'
+        ordering_path.write_text(json.dumps(state, sort_keys=True, indent=2) + '\n')
+        # Only the predecessor uses historical verification. The newly signed pair
+        # must still pass actual-clock freshness and every native ordering floor.
+        verify_channel(signed, args.sysroot, previous_state=ordering_path)
     else:
         require(request['sequence'] == 1 and request['generation'] == 1
                 and request['expected_previous_release_sha256'] is None

@@ -9,6 +9,6 @@ Read AGENTS.md, worklog.md current/latest entries, docs/STATUS.md and docs/ARCHI
 
 Use kedra-rust-workspace plus rust-router/domain-cli for Rust; kedra-bootc/release-signing/github-actions for production; kedra-home for writable configuration; kedra-agents/bitwarden for runtimes/auth; kedra-desktop/machines for sessions/targets; kedra-security for privilege/state.
 
-Source and installed release versions differ. Published r1 is c660c58; consult STATUS before claiming newer features shipped. Preserve user changes, explicit target scope, local-only home content and private credentials. OS builds belong in Actions. Never enroll or format the workstation.
+Source and installed versions differ; consult STATUS before claiming newer features shipped. Current distribution is signed GHCR images only, with local on-demand installer media. Preserve user changes, explicit target scope, local-only home content and private credentials. OS image builds belong in Actions. Never enroll or format the workstation.
 
 Skills remain checkout-local. No global installation, generated copies or OS provisioning. Record exact checks and unresolved behavior in worklog; keep logs/artifacts in Actions, not tracked research directories.

@@ -2,9 +2,6 @@
 use clap::{Args, Subcommand};
 use std::path::PathBuf;
 
-#[cfg(target_os = "linux")]
-mod check;
-
 #[derive(Args)]
 pub struct Options {
     #[command(subcommand)]
@@ -12,32 +9,32 @@ pub struct Options {
 }
 #[derive(Args)]
 struct SignedRelease {
-    #[arg(long)]
-    manifest: PathBuf,
-    #[arg(long)]
-    signature: PathBuf,
+    #[arg(long, requires = "signature")]
+    manifest: Option<PathBuf>,
+    #[arg(long, requires = "manifest")]
+    signature: Option<PathBuf>,
 }
 #[derive(Args)]
 struct FreshRelease {
-    /// Download and verify the installed target's fixed public channel.
+    /// Use the fixed signed GHCR stable channel (also the default without files).
     #[arg(long, conflicts_with_all = ["manifest", "signature", "checkpoint", "checkpoint_signature"])]
     channel: bool,
     /// Signed release JSON; supply all four files instead of --channel.
-    #[arg(long, required_unless_present = "channel")]
+    #[arg(long, requires_all = ["signature", "checkpoint", "checkpoint_signature"])]
     manifest: Option<PathBuf>,
     /// Detached signature for the release JSON.
-    #[arg(long, required_unless_present = "channel")]
+    #[arg(long, requires_all = ["manifest", "checkpoint", "checkpoint_signature"])]
     signature: Option<PathBuf>,
     /// Fresh signed channel checkpoint JSON.
-    #[arg(long, required_unless_present = "channel")]
+    #[arg(long, requires_all = ["manifest", "signature", "checkpoint_signature"])]
     checkpoint: Option<PathBuf>,
     /// Detached signature for the checkpoint JSON.
-    #[arg(long, required_unless_present = "channel")]
+    #[arg(long, requires_all = ["manifest", "signature", "checkpoint"])]
     checkpoint_signature: Option<PathBuf>,
 }
 #[derive(Subcommand)]
 enum Operation {
-    /// Check the installed target's published channel without staging an update.
+    /// Verify fixed GHCR stable and record replay high-water without staging.
     Check {
         #[arg(long)]
         json: bool,
@@ -51,9 +48,18 @@ enum Operation {
         installed_manifest: Option<PathBuf>,
         #[arg(long, requires = "installed_manifest")]
         installed_signature: Option<PathBuf>,
+        /// Explicitly import legacy enrollment after booting the reviewed bridge image.
+        #[arg(long, requires = "expected_digest", conflicts_with_all = ["manifest", "signature", "checkpoint", "checkpoint_signature", "installed_manifest", "installed_signature"])]
+        migrate_legacy: bool,
+        /// Require this exact booted digest; never accepts a repository or tag.
+        #[arg(long, conflicts_with_all = ["manifest", "signature", "checkpoint", "checkpoint_signature"])]
+        expected_digest: Option<String>,
     },
     /// Observe native bootc and reconcile an existing deployment journal.
     Status {
+        /// Emit structured installed status (currently also the default).
+        #[arg(long)]
+        json: bool,
         /// Also assess the invoking user's accepted home baselines; never activate them.
         #[arg(long)]
         home: bool,
@@ -61,7 +67,7 @@ enum Operation {
         #[arg(long, requires = "home")]
         home_state: Option<PathBuf>,
     },
-    /// Verify a fresh promoted release and stage its exact image, without rebooting.
+    /// Verify fixed GHCR stable and stage its exact signed digest, without rebooting.
     Stage {
         #[command(flatten)]
         release: FreshRelease,
@@ -71,6 +77,9 @@ enum Operation {
         /// Explicitly clear the update hold established by a previous rollback.
         #[arg(long)]
         resume: bool,
+        /// Require the verified stable channel to have this reviewed digest.
+        #[arg(long, conflicts_with_all = ["manifest", "signature", "checkpoint", "checkpoint_signature"])]
+        expected_digest: Option<String>,
     },
     /// Queue the native retained signed rollback image; preserve trust high-water state.
     Rollback {
@@ -102,9 +111,6 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
         fn fresh(
             value: FreshRelease,
         ) -> Result<(SignedDocument, SignedDocument), Box<dyn std::error::Error>> {
-            if value.channel {
-                return check::documents();
-            }
             Ok((
                 document(
                     value.manifest.ok_or("release manifest is required")?,
@@ -119,26 +125,50 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
             ))
         }
         let mut home_assessment = None;
+        let direct = |value: &FreshRelease| value.channel || value.manifest.is_none();
         let request = match options.command {
-            Operation::Check { json } => return check::run(json),
+            Operation::Check { json } => {
+                let _ = json;
+                Request::ChannelCheck {}
+            }
             Operation::Enroll {
                 latest: value,
                 installed_manifest,
                 installed_signature,
+                migrate_legacy,
+                expected_digest,
             } => {
-                let installed_release = match (installed_manifest, installed_signature) {
-                    (None, None) => None,
-                    (Some(manifest), Some(signature)) => Some(document(manifest, signature)?),
-                    _ => return Err("both installed release files are required".into()),
-                };
-                let (release, checkpoint) = fresh(value)?;
-                Request::Enroll {
-                    release,
-                    checkpoint,
-                    installed_release,
+                if direct(&value) {
+                    if installed_manifest.is_some() || installed_signature.is_some() {
+                        return Err(
+                            "installed release files apply only to legacy four-file enrollment"
+                                .into(),
+                        );
+                    }
+                    Request::ChannelEnroll {
+                        migrate_legacy,
+                        expected_digest,
+                    }
+                } else {
+                    let installed_release = match (installed_manifest, installed_signature) {
+                        (None, None) => None,
+                        (Some(manifest), Some(signature)) => Some(document(manifest, signature)?),
+                        _ => return Err("both installed release files are required".into()),
+                    };
+                    let (release, checkpoint) = fresh(value)?;
+                    Request::Enroll {
+                        release,
+                        checkpoint,
+                        installed_release,
+                    }
                 }
             }
-            Operation::Status { home, home_state } => {
+            Operation::Status {
+                home,
+                home_state,
+                json,
+            } => {
+                let _ = json;
                 if home {
                     if rustix::process::getuid().as_raw() == 0
                         || rustix::process::geteuid().as_raw() == 0
@@ -156,25 +186,52 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                 release: value,
                 replace_staged,
                 resume,
+                expected_digest,
             } => {
-                let (release, checkpoint) = fresh(value)?;
-                Request::Stage {
-                    release,
-                    checkpoint,
-                    replace_staged,
-                    resume,
+                if direct(&value) {
+                    Request::ChannelStage {
+                        expected_digest,
+                        replace_staged,
+                        resume,
+                    }
+                } else {
+                    let (release, checkpoint) = fresh(value)?;
+                    Request::Stage {
+                        release,
+                        checkpoint,
+                        replace_staged,
+                        resume,
+                    }
                 }
             }
             Operation::Rollback {
                 release: value,
                 replace_staged,
-            } => Request::Rollback {
-                release: document(value.manifest, value.signature)?,
-                replace_staged,
+            } => match (value.manifest, value.signature) {
+                (None, None) => Request::ChannelRollback { replace_staged },
+                (Some(manifest), Some(signature)) => Request::Rollback {
+                    release: document(manifest, signature)?,
+                    replace_staged,
+                },
+                _ => return Err("legacy rollback requires both signed release files".into()),
             },
         };
+        let direct_request = matches!(
+            request,
+            Request::ChannelCheck {}
+                | Request::ChannelStatus {}
+                | Request::ChannelEnroll { .. }
+                | Request::ChannelStage { .. }
+                | Request::ChannelRollback { .. }
+        );
+        if direct_request
+            && (rustix::process::getuid().as_raw() == 0
+                || rustix::process::geteuid().as_raw() != rustix::process::getuid().as_raw())
+        {
+            return Err("run channel management as the ordinary owner; the installed helper requests authorization".into());
+        }
         let bytes = serde_json::to_vec(&Envelope {
-            schema_version: 1,
+            schema_version: if direct_request { 2 } else { 1 },
             request,
         })?;
         if bytes.len() > sysroot_helper::protocol::MAX_REQUEST {
@@ -226,8 +283,12 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                 let object = response
                     .as_object_mut()
                     .ok_or("installed helper status is not an object")?;
-                if object.get("schema_version") != Some(&serde_json::json!(1))
-                    || object.contains_key("caller_home")
+                if !matches!(
+                    object
+                        .get("schema_version")
+                        .and_then(serde_json::Value::as_u64),
+                    Some(1 | 2)
+                ) || object.contains_key("caller_home")
                 {
                     return Err("installed helper status is incompatible".into());
                 }

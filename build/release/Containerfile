@@ -1,6 +1,9 @@
 # Public trust derivative. The base contains the actual unchanged source manifest.
 ARG CANDIDATE_IMAGE
 FROM ${CANDIDATE_IMAGE}
+ARG KEDRA_IDENTITY
+LABEL org.kedra.image.identity=${KEDRA_IDENTITY}
+COPY image-identity.json resolved-inputs.json /usr/share/sysroot/
 COPY trust/release.pub trust/release-policy.json /usr/lib/sysroot/trust/
 COPY trust/policy.json /etc/containers/policy.json
 COPY trust/registries.yaml /etc/containers/registries.d/kedra.yaml

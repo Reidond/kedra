@@ -13,6 +13,7 @@ on:
       - tests/vm/console.toml
       - tests/resolve-fedora-base.py
       - build/inputs.json
+      - build/release/compatibility.json
       - packages/**
       - home/**
       - etc/**

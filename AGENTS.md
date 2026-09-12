@@ -12,7 +12,7 @@ Inspect source, Git state, and CI before continuing.
 ## Settled choices
 
 - Kedra is the OS/project; `sysroot` is the command. Repo: `Reidond/kedra`.
-- Fedora 44 bootc, plain Containerfile, GitHub Actions OS/ISO builds. No BlueBuild.
+- Fedora 44 bootc, plain Containerfile, Actions signed OCI builds and local on-demand ISO construction. No BlueBuild or GitHub Release/ISO publication.
 - Rust edition 2024, Cargo workspace, one lockfile, pinned toolchain,
   rustfmt/Clippy. No first-party `src/` at any depth. Explicit `main.rs`/`lib.rs`.
   The TypeScript/Effect/Vite Plus/Oxlint/Oxfmt proposal was superseded.
@@ -153,7 +153,8 @@ Agent startup does not authorize commit/push/deployment/reboot; follow the user'
 actual task. Editing another target does not authorize installing it locally.
 Use a disposable checkout/worktree for isolated research only when necessary.
 
-OS builds belong in Actions. End-to-end CLI checks and manual experiments using
+OS image builds belong in Actions; the explicit local installer entrypoint may
+build on-demand ISO media from reviewed signed images. End-to-end CLI checks and manual experiments using
 generated fixtures can run locally. Never test enrollment, disk formatting, bootc switch, or home apply
 on the current workstation. No production signing keys in research. No arbitrary
 checkout scripts or hooks run as root. Never weaken verification to pass a test.

@@ -1,0 +1,14 @@
+[Unit]
+Description=Disposable signed GHCR native CLI workflow
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/kedra-ghcr-check.py
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=35min
+
+[Install]
+WantedBy=multi-user.target

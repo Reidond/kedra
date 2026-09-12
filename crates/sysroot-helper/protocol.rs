@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 pub const MAX_REQUEST: usize = 524_288;
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SignedDocument {
     pub payload: String,
@@ -11,6 +11,20 @@ pub struct SignedDocument {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    ChannelCheck {},
+    ChannelStatus {},
+    ChannelEnroll {
+        migrate_legacy: bool,
+        expected_digest: Option<String>,
+    },
+    ChannelStage {
+        expected_digest: Option<String>,
+        replace_staged: Option<String>,
+        resume: bool,
+    },
+    ChannelRollback {
+        replace_staged: Option<String>,
+    },
     Enroll {
         release: SignedDocument,
         checkpoint: SignedDocument,
@@ -43,7 +57,15 @@ pub fn decode(bytes: &[u8]) -> Result<Envelope, &'static str> {
     }
     let envelope: Envelope =
         serde_json::from_slice(bytes).map_err(|_| "invalid helper protocol")?;
-    if envelope.schema_version != 1 {
+    let channel = matches!(
+        envelope.request,
+        Request::ChannelCheck {}
+            | Request::ChannelStatus {}
+            | Request::ChannelEnroll { .. }
+            | Request::ChannelStage { .. }
+            | Request::ChannelRollback { .. }
+    );
+    if envelope.schema_version != if channel { 2 } else { 1 } {
         return Err("unsupported helper protocol version");
     }
     Ok(envelope)

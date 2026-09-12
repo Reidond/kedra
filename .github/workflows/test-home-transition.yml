@@ -11,6 +11,7 @@ on:
       - tests/vm/console.toml
       - tests/resolve-fedora-base.py
       - build/inputs.json
+      - build/release/compatibility.json
       - build/assemble.sh
       - build/agents/**
       - build/bitwarden/**

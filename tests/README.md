@@ -16,14 +16,18 @@ Cargo E2E exercises the public CLI with real subprocesses, Git and generated dat
 | Workflow | Coverage |
 |---|---|
 | test-agents.yml | Real agent launcher/runtime/profile behavior with generated profiles |
+| test-ghcr-update.yml | Direct signed registry v2 enrollment/check/stage, A/B/rollback, identity recovery and critical refusals; implemented, native run pending |
 | test-signed-update.yml | Signed bootc update, negative authority/replay cases and retained rollback |
 | test-desktop.yml | Native graphical session, doctor, agent packaging and home recovery |
 | test-home-transition.yml | Actual signed A/B/A home-baseline acceptance and rollback |
-| test-installer.yml | Separate installer construction, offline payload verification and diskless startup |
 | test-rpm-refresh.yml | Native signed-RPM change/no-change and failure cases |
 
-VM helpers live under vm/. OS/ISO builds run only in Actions. Manual exact-media installation must select one generated disk, preserve another sentinel disk, enable encryption, create an administrator, boot without ISO, check exact digest/policy and desktop health, then compare the untouched disk after shutdown.
+VM helpers live under vm/. OS image tests run in Actions. Local installer construction uses installer/build-local.py; optional --smoke checks offline verification and diskless Anaconda startup without uploading media. Manual exact-media installation must select one generated disk, preserve another sentinel disk, enable encryption, create an administrator, boot without ISO, check exact digest/policy and desktop health, then compare the untouched disk after shutdown.
 
-Production refresh validates complete resolved inputs against authenticated release material and requires the actual candidate RPM inventory to match its preflight. The signed-material CLI and native RPM fixtures exercise equality, changes and authentication/failure boundaries. The older experimental full-filesystem observer was superseded and removed; its historical failure is not recorded as a passing production check.
+Production refresh compares resolved inputs against the signed stable OCI image and requires the candidate RPM inventory to match its preflight. Native RPM fixtures exercise equality, changes and failure boundaries. No-change publishes nothing. Historical release-file interoperability remains only where needed for offline/legacy compatibility. The retired filesystem observer and GitHub ISO workflow are not production dependencies.
+
+`test-ghcr-update.yml` uses a disposable local TLS registry mapped to the fixed GHCR hostname, generated keys and actual signed A/B VM boots. It now invokes `identity-recovery.py` to prove that identity mismatch blocks forward work while retained rollback remains available. The workflow is implemented but native execution is not-run; historical legacy-protocol VM successes do not qualify it.
+
+Deterministic tag-race, interrupted-helper/bootc operation, legacy-state migration and native OCI-platform-mismatch cases remain explicitly not-run. The wrong-architecture identity case does not substitute for an actual wrong-platform OCI image. Shared bootc compatibility changes require native qualification before signing, even when compiler and image-input checks pass.
 
 Keep generated logs, screenshots and results in Actions artifacts or disposable output directories; do not commit research output. Never use real homes, vault material, transcripts or production signing keys as fixtures. Historical evidence remains in Git history and [STATUS](../docs/STATUS.md).

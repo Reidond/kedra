@@ -1,53 +1,68 @@
-# Updates and recovery
+# Update and recover
 
-Kedra updates replace the signed OS container image. Your writable home and persistent data remain separate. No update command automatically reboots or accepts changed home configuration.
+Kedra updates use the signed GHCR `stable` image. The tag locates a candidate; the installed helper verifies signature, repository, target, image identity and retained ordering before switching to its exact digest. No GitHub Release files or checkpoint renewal is involved.
 
-## Check and stage
+## Current-source commands
 
-These commands require current-source `sysroot`; published r2 needs the explicit downloaded-file workflow in [INSTALL.md](INSTALL.md).
+Run as the ordinary owner; the fixed installed helper requests administrator authentication:
 
 ```sh
-sysroot update status
+sysroot update enroll
 sysroot update check
-sysroot update enroll --channel
-sysroot update stage --channel
+sysroot update stage
 ```
 
-Run as your ordinary owner account; the fixed installed helper requests administrator authentication. Enroll once, then stage only after reviewing an available release. Automatic download uses the fixed target channel and installed public trust, verifies both signatures/scope/freshness and replay floors, and supplies the exact signed files to the helper for independent checking. If installing older media after a newer release was promoted, retain the ISO's signed record and follow the older-media enrollment options shown by `sysroot update enroll --help`.
+Enroll once. Review an available update before staging it. Staging changes the next boot image but does not reboot.
 
-Staging selects the next boot image. Reboot when ready, then run:
+Checking records verified image ordering and last-check state in the root-owned store; it does not stage an image. It is not proof that upstream Fedora has no newer packages. Add --expected-digest when enrollment or staging must match a digest you independently reviewed.
+
+After your chosen reboot:
 
 ```sh
 sysroot update status --home
 sysroot doctor
 ```
 
-Home reconciliation is explicit. Review new baselines and resolve conflicts through the [Noctalia](HOME-REVIEW.md) and [niri](TEXT-REVIEW.md) workflows. A successful boot does not discard local changes.
+Home baseline acceptance remains explicit through the [Noctalia](HOME-REVIEW.md) and [niri](TEXT-REVIEW.md) workflows. It does not discard local changes automatically.
 
-## Roll back
+Use `sysroot update rollback` to select the retained verified deployment. Rollback preserves persistent data and places forward updates on hold. A later reviewed `sysroot update stage --resume` clears that hold after normal verification. Never remove journals or trust state to bypass a refusal.
 
-Retain the preceding signed release record and signature:
+## One-time legacy migration
+
+Previously installed r2 software expects the old GitHub release/checkpoint protocol. Do not use its old `sysroot update` commands after those remote records are removed.
+
+Before switching, run the legacy command while the old OS/helper is still active:
 
 ```sh
-sysroot update rollback --manifest OLD_RELEASE.json --signature OLD_RELEASE.sig
+sysroot update status
 ```
 
-This selects the retained verified deployment and puts forward updates on hold. After an intentional recovery/review, a later `sysroot update stage --channel --resume` clears that hold. Never delete replay/journal state to bypass a refusal. Rollback does not rewind home, /var, credentials or application databases.
+Require no pending intent, operation awaiting reboot, staged deployment/replacement or queued rollback. Complete and reconcile any earlier operation first; do not replace it with the bridge image. Preserve the existing rollback hold, high-water and signed records. The v2 import refuses unreconciled legacy operations, and after booting v2 the ordinary status path no longer repairs a v1 journal.
 
-If the desktop is unavailable, use Ctrl+Alt+F2 and your owner account. Inspect `bootc status` and `sysroot update status`. Keep verified install media and encryption recovery information. Do not change signature policy or the system clock to make an expired update pass.
+Then obtain and independently review the exact digest of a signed image containing the new GHCR updater. From the reconciled old installed OS, use the existing strict bootc policy:
 
-## Midnight package refresh
+```sh
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/reidond/kedra-desktop@sha256:REVIEWED_DIGEST
+```
 
-GitHub Actions schedules production refresh at **00:00 UTC** on the default branch; manual dispatch uses the same release path. GitHub may delay, skip or disable inactive schedules, so this is a trigger time, not a completion-time guarantee.
+Reboot when ready. Confirm the running digest before migrating an existing legacy enrollment:
 
-Before OCI production, the refresh resolves the official Fedora 44 base to an immutable platform digest and runs a disposable native package preflight for the complete installed closure. It records RPM header/payload identities, image-affecting source inputs, external pins/artifacts and build-recipe identity. Shared and target intent and inherited dependencies matter. External agent/Bitwarden/tool inputs stay separately pinned.
+```sh
+sysroot update enroll --migrate-legacy --expected-digest sha256:REVIEWED_DIGEST
+```
 
-The prior release's signed SHA256SUMS authenticates its provenance and package records before resolved-input comparison. Missing legacy comparison material conservatively requires a candidate. Published r1 and r2 lack this new resolved-input schema, so the first midnight refresh builds a candidate and a later qualified promotion establishes the comparison baseline. Package names/versions alone, cached build layers, failed resolution or a blocked candidate never prove no-change.
+This is an explicit persistent-state migration. Retain the old records: the new helper validates legacy state and preserves its rollback hold, ordering and history, while older readers refuse the newer protocol. If the installation was never enrolled, use ordinary `sysroot update enroll`. Do not weaken signature policy, clear the hold or delete old state to bypass a refusal.
 
-A changed build must match its package preflight before protected image signing, ISO production, exact-media qualification and protected promotion. It cannot silently replace an approved channel. Proven no-change skips OCI/ISO production and prepares a fresh checkpoint for the same release, with independent predecessor/material rechecks and protected signing before key-free publication. No signing environment protection is weakened to meet the schedule.
+## Midnight package checks
 
-Channel checkpoints have a maximum seven-day lifetime. A failed check does not refresh success, and an expired channel refuses incoming enrollment/staging. Existing local boot and explicit retained rollback remain separate. Consult [status](STATUS.md) for which native release paths have actually been qualified.
+Actions starts package reconciliation at **00:00 UTC**, with manual dispatch available. It resolves the official Fedora 44 base and the complete native RPM closure, including inherited dependencies, and records image-affecting source, external inputs and recipes.
 
-## Release operations
+Changed inputs produce a new image that must match preflight and receive manual protected OCI-signing review. Only the exact verified signed digest advances `stable`. Unchanged inputs cause no publication and no renewal. A failed repository, solver or signature check is an error, not a successful no-change result.
 
-See [build/release/README.md](../build/release/README.md) for dispatch, qualification and publication. Keep immutable promoted image digests, signatures and metadata; there is no automatic cleanup of recovery assets.
+The producer and helper share `build/release/compatibility.json`, currently qualifying bootc 1.16.10. An unsupported bootc RPM change fails the public build before manual signing or stable publication. Updating that contract and helper compatibility requires deliberate review and native qualification; the workflow never silently accepts an untested bootc version.
+
+Schedules can queue, skip or be disabled by repository inactivity. No automatic machine staging/reboot or background AI service is implied.
+
+## Recovery
+
+Use Ctrl+Alt+F2 for a text login if the desktop is unavailable. Inspect `bootc status` and `sysroot update status`; retain local installer media and encryption recovery information. OS rollback does not rewind home, /var, credentials or application databases. [Status](STATUS.md) records which migration/recovery paths have actually been exercised.

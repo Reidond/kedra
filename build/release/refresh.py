@@ -93,6 +93,8 @@ def unchanged(previous):
 
 
 def host_policy(work):
+    # Build uses the already validated source fingerprint. Publication receives
+    # this value from the isolated signer, which checks protected environment authority.
     key = ROOT / 'build/release/authority/desktop.pub'
     fingerprint = m.sha(run('openssl', 'pkey', '-pubin', '-in', key, '-outform', 'DER').stdout)
     expected = (ROOT / 'build/release/authority/desktop.sha256').read_text().strip()

@@ -2,7 +2,7 @@
 
 Kedra is a personal Fedora 44 bootc desktop, maintained from one Git repository with `sysroot` as its deterministic management interface. [Architecture](docs/ARCHITECTURE.md) defines implementation and safety contracts; [status](docs/STATUS.md) identifies actual qualification.
 
-The required workflow is source editing and selected home publication, Actions image/ISO production, verified explicit staging, owner-chosen reboot, home reconciliation and health checks. Package refresh begins at 00:00 UTC. No automatic workstation installation, staging or reboot follows from a build.
+The required workflow is source editing and selected home publication, Actions signed OCI production, verified explicit staging, owner-chosen reboot, home reconciliation and health checks. Package refresh begins at 00:00 UTC; no-change does nothing. On-demand local ISO construction consumes a reviewed signed image and never uploads. No GitHub Releases, ISO assets, automatic workstation installation, staging or reboot follows from a build.
 
 Shared Linux-shaped files and explicit host overrides produce independently enrolled target images. Desktop is enabled; unknown XPS hardware stays disabled. Never guess device identifiers.
 

@@ -1,18 +1,18 @@
 ---
 name: kedra-github-actions
-description: Maintain Kedra build, midnight package refresh, signing, installer and VM workflows.
+description: Maintain Kedra signed-container CI, midnight package checks and native VM workflows.
 ---
 
 # Actions
 
-Read build/release/README.md, docs/UPDATES.md and docs/ARCHITECTURE.md. OS/ISO builds belong in Actions; local Rust/CLI checks are allowed. check.yml uses standard Cargo tools and real CLI/OpenSSL E2E. test-* workflows retain actual desktop, signed-update, home transition and installer coverage.
+Read docs/UPDATES.md, docs/RELEASES.md and docs/ARCHITECTURE.md. OS image builds run in Actions. ISO construction is explicit/local through installer/build-local.py and never uploads. Do not create GitHub Releases, machine bundles or ISO/checksum assets.
 
-The refresh trigger is 00:00 UTC. Actions can queue or skip schedules; never claim exact completion time. Package checks must execute with fresh metadata, stable reviewed repositories and complete installed closure. DNF layer cache cannot establish freshness. Failed resolution is not no-change. See references/fedora-refresh.md.
+The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure. Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
 
-Pin Actions and external inputs. Minimize permissions and disable persistent checkout credentials. Build jobs have public trust; protected signing jobs execute no checkout, candidate code or repository scripts with production keys. Never bypass environment review, current-main checks, exact digest or predecessor ordering to automate publication.
+Build jobs have public trust. Manual protected signing executes no checkout/candidate/repository code while production keys exist. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
 
-Candidate image signing, exact-media qualification, metadata signing and promotion are distinct. Keep immutable version assets and a single verified mutable channel bundle. Preserve uncertainty after partial publication; no blind overwrite.
+check.yml uses standard Cargo tools and actual CLI/OpenSSL workflows. Native tests retain signed-update, desktop, home-transition, agent and RPM coverage with disposable inputs. No unit/model/mock/doctests or repository scanners.
 
-Production image-builder is pinned in installer/inputs.json. Its generic ISO uses --bootc-installer-payload-ref; older bootc-image-builder interfaces differ. Preserve native OCI digest across registry/storage/media copies. Installer labeling and media-only permissive SELinux do not weaken installed enforcing SELinux/signature policy.
+Local installer changes retain pinned image-builder, labeling, offline payload verification and deliberate disk choice. Media permissive SELinux never weakens installed enforcing SELinux/signature policy. Record actual local smoke/fresh-install results separately from image builds.
 
-Run real changed workflow coverage and record exact source/run in STATUS/worklog. Do not add tracked research outputs or repository self-check code.
+Update STATUS/worklog with exact observed outcomes. Never call staged booted, signed installed or syntax qualified.

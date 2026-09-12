@@ -1,7 +1,5 @@
-name: Refresh and build desktop release
+name: Build signed bootc updates
 
-# Midnight is the UTC trigger time; runner queues and owner review affect delivery.
-# The repository variable alone is NOT an environment protection rule.
 on:
   workflow_dispatch:
   schedule:
@@ -21,7 +19,6 @@ on:
       - home/**
       - hosts/**
       - build/**
-      - installer/**
 
 permissions:
   contents: read
@@ -40,25 +37,21 @@ jobs:
       actions: read
       packages: write
     outputs:
+      changed: ${{ steps.preflight.outputs.changed }}
       digest: ${{ steps.publish.outputs.digest }}
       fingerprint: ${{ steps.trust.outputs.fingerprint }}
-      resolved_at: ${{ steps.compare.outputs.resolved_at }}
-      base: ${{ steps.resolve.outputs.base }}
-      changed: ${{ steps.compare.outputs.changed }}
-      checkpoint: ${{ steps.compare.outputs.checkpoint }}
-      renewal_request: ${{ steps.compare.outputs.renewal_request }}
+      identity_sha256: ${{ steps.inspect.outputs.identity_sha256 }}
     steps:
-      - name: Require existing owner-reviewed signing protection
+      - name: Require existing owner-reviewed image-signing protection
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api repos/Reidond/kedra/environments/kedra-desktop-signing --jq '.' > "$RUNNER_TEMP/signing-environment.json"
+          gh api repos/Reidond/kedra/environments/kedra-desktop-signing > "$RUNNER_TEMP/signing-environment.json"
           jq -e '.can_admins_bypass == false and .deployment_branch_policy.custom_branch_policies == true and
-            any(.protection_rules[]; .type == "required_reviewers" and
-              (.reviewers | length) == 1 and .reviewers[0].type == "User" and
-              (.reviewers[0].reviewer.login | ascii_downcase) == "reidond")' "$RUNNER_TEMP/signing-environment.json" >/dev/null
-          gh api repos/Reidond/kedra/environments/kedra-desktop-signing/deployment-branch-policies --jq '.' > "$RUNNER_TEMP/signing-branches.json"
+            any(.protection_rules[]; .type == "required_reviewers" and (.reviewers | length) == 1 and
+            .reviewers[0].type == "User" and (.reviewers[0].reviewer.login | ascii_downcase) == "reidond")' "$RUNNER_TEMP/signing-environment.json" >/dev/null
+          gh api repos/Reidond/kedra/environments/kedra-desktop-signing/deployment-branch-policies > "$RUNNER_TEMP/signing-branches.json"
           jq -e '.total_count == 1 and .branch_policies[0].name == "main" and .branch_policies[0].type == "branch"' "$RUNNER_TEMP/signing-branches.json" >/dev/null
           test "$(gh api repos/Reidond/kedra/branches/main --jq .protected)" = true
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -74,271 +67,88 @@ jobs:
           cargo build --workspace --release --locked
           python3 tests/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
           python3 tests/release-material.py --workdir target/release-material
-      - name: Prepare public inputs
+      - name: Prepare bounded image inputs and public trust
         id: trust
         run: |
           set -euo pipefail
-          mkdir -p output/candidate-evidence output/desktop-context output/release-context
-          target/release/sysroot source plan --host desktop --json > output/candidate-evidence/source-plan.json
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo rpm cpio openssl
+          mkdir -p output/image-evidence output/desktop-context output/release-context
+          target/release/sysroot source plan --host desktop --json > output/image-evidence/source-plan.json
           target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
           cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
           fingerprint=$(cat build/release/authority/desktop.sha256)
-          [[ "$fingerprint" =~ ^[a-f0-9]{64}$ ]]
-          python3 build/release/prepare-trust.py --source output/candidate-evidence/source-plan.json \
+          python3 build/release/prepare-trust.py --source output/image-evidence/source-plan.json \
             --public-key build/release/authority/desktop.pub --expected-fingerprint "$fingerprint" \
             --sysroot target/release/sysroot --output output/release-context/trust
           printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
-          bash build/agents/prepare.sh output/desktop-context "$RUNNER_TEMP/kedra-release-agent-inputs" output/candidate-evidence/agent-inputs.json
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo rpm cpio
-          python3 build/bitwarden/prepare.py --context output/desktop-context --evidence output/candidate-evidence/bitwarden-inputs.json
-          cp installer/inputs.json output/candidate-evidence/installer-inputs.json
-          sha256sum output/desktop-context/* > output/candidate-evidence/build-input-hashes.txt
-      - name: Resolve current official Fedora platform
-        id: resolve
+          sudo mkdir -p /etc/containers/registries.d
+          sudo cp output/release-context/trust/registries.yaml /etc/containers/registries.d/kedra.yaml
+          bash build/agents/prepare.sh output/desktop-context "$RUNNER_TEMP/kedra-agent-inputs" output/image-evidence/agent-inputs.json
+          python3 build/bitwarden/prepare.py --context output/desktop-context --evidence output/image-evidence/bitwarden-inputs.json
+      - name: Resolve packages and compare strictly verified stable image
+        id: preflight
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 build/release/refresh.py resolve --work output/candidate-evidence
-      - name: Resolve complete RPM material and compare authenticated released inputs
-        id: compare
+          APPROVED_FINGERPRINT: ${{ vars.KEDRA_DESKTOP_KEY_SHA256 }}
+        run: python3 build/release/refresh.py prepare --work output/image-evidence
+      - name: Build changed image with signed-config identity
+        if: steps.preflight.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 build/release/refresh.py compare --work output/candidate-evidence
-      - name: Build exact public-trust candidate
-        id: image
-        if: steps.compare.outputs.changed == 'true'
+          BASE_IMAGE: ${{ steps.preflight.outputs.base }}
         run: |
           set -euo pipefail
-          base=$(jq -er .base output/candidate-evidence/image-inputs.json)
-          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$BASE_IMAGE" \
             --tag localhost/kedra-desktop:release-base output/desktop-context \
-            2>&1 | tee output/candidate-evidence/desktop-build.log
+            2>&1 | tee output/image-evidence/desktop-build.log
+          identity=$(cat output/release-context/image-identity.json)
           sudo podman build --pull=never --build-arg CANDIDATE_IMAGE=localhost/kedra-desktop:release-base \
-            --file build/release/Containerfile --tag localhost/kedra-desktop:release-candidate output/release-context \
-            2>&1 | tee output/candidate-evidence/trust-build.log
-          sudo podman run --rm localhost/kedra-desktop:release-candidate cat /usr/share/sysroot/source.json > output/candidate-evidence/source.json
-          sudo podman run --rm localhost/kedra-desktop:release-candidate cat /usr/share/sysroot/packages.txt > output/candidate-evidence/packages.txt
-          sudo podman run --rm localhost/kedra-desktop:release-candidate cat /usr/share/sysroot/package-material.txt > output/candidate-evidence/package-material.txt
-          cmp output/candidate-evidence/resolution/package-material.txt output/candidate-evidence/package-material.txt
-          sudo podman image inspect localhost/kedra-desktop:release-candidate > output/candidate-evidence/image-inspect.json
-          cp output/release-context/trust/release.pub output/candidate-evidence/
-          sha256sum output/candidate-evidence/source.json > output/candidate-evidence/source.sha256
-          { podman --version; skopeo --version; uname -a; } > output/candidate-evidence/environment.txt
-      - name: Publish unsigned build for isolated signing
+            --build-arg "KEDRA_IDENTITY=$identity" --file build/release/Containerfile \
+            --tag localhost/kedra-desktop:release-candidate output/release-context \
+            2>&1 | tee output/image-evidence/trust-build.log
+      - name: Validate actual image identity and material without execution
+        id: inspect
+        if: steps.preflight.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 build/release/refresh.py inspect-candidate --work output/image-evidence
+      - name: Publish immutable unsigned build for isolated signing
         id: publish
-        if: steps.compare.outputs.changed == 'true'
+        if: steps.preflight.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
-          auth="$RUNNER_TEMP/kedra-build-registry-auth.json"
+          auth="$RUNNER_TEMP/kedra-build-auth.json"
+          umask 077
           trap 'rm -f -- "$auth"' EXIT
           printf '%s' "$GH_TOKEN" | skopeo login --authfile "$auth" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
           destination="ghcr.io/reidond/kedra-desktop-builds:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          # Keep the native uncompressed OCI representation through the registry.
-          # A later storage -> storage ISO copy cannot alter signed compression.
+          if skopeo inspect --authfile "$auth" --raw "docker://$destination" > /dev/null 2> "$RUNNER_TEMP/build-tag-lookup.log"; then
+            echo 'Immutable build tag already exists'; exit 1
+          fi
+          grep -q 'manifest unknown' "$RUNNER_TEMP/build-tag-lookup.log"
           native_digest="sha256:$(sudo skopeo inspect --raw containers-storage:localhost/kedra-desktop:release-candidate | sha256sum | cut -d ' ' -f 1)"
-          sudo skopeo copy --authfile "$auth" --preserve-digests --digestfile output/candidate-evidence/candidate.digest \
+          sudo skopeo copy --authfile "$auth" --preserve-digests --digestfile output/image-evidence/candidate.digest \
             containers-storage:localhost/kedra-desktop:release-candidate "docker://$destination"
-          digest=$(cat output/candidate-evidence/candidate.digest)
-          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          digest=$(cat output/image-evidence/candidate.digest)
           test "$digest" = "$native_digest"
-          # Public build-time compatibility guard before requesting a key-bearing job.
-          sudo skopeo copy --authfile "$auth" --preserve-digests \
-            "docker://ghcr.io/reidond/kedra-desktop-builds@$digest" \
-            containers-storage:localhost/kedra-desktop:registry-roundtrip \
-            > output/candidate-evidence/registry-roundtrip.log 2>&1
-          roundtrip_id=$(sudo podman image inspect localhost/kedra-desktop:registry-roundtrip --format '{{.Id}}')
-          sudo skopeo copy --preserve-digests --digestfile output/candidate-evidence/storage-roundtrip.digest \
-            "containers-storage:$roundtrip_id" \
-            "containers-storage:[overlay@$RUNNER_TEMP/kedra-installer-roundtrip+/run/containers/storage]localhost/kedra-desktop:registry-roundtrip" \
-            > output/candidate-evidence/storage-roundtrip.log 2>&1
-          test "$(cat output/candidate-evidence/storage-roundtrip.digest)" = "$digest"
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
-      - name: Preserve public build evidence
-        if: always()
+      - name: Retain changed-image review or failure evidence
+        if: always() && steps.preflight.outputs.changed != 'false'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: desktop-candidate-${{ github.run_id }}-${{ github.run_attempt }}
-          path: output/candidate-evidence/
+          name: image-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/image-evidence/
           if-no-files-found: error
           retention-days: 30
-
-  renew-checkpoint:
-    needs: build
-    if: needs.build.outputs.changed == 'false'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    environment: kedra-desktop-signing
-    permissions:
-      contents: read
-      packages: read
-    outputs:
-      signature: ${{ steps.sign.outputs.signature }}
-    steps:
-      # No checkout, artifacts, repository programs or candidate execution.
-      - name: Prepare pinned checkpoint signer
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends openssl
-          curl --fail --location --proto '=https' --tlsv1.2 --max-time 180 \
-            https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64 -o "$RUNNER_TEMP/cosign"
-          printf '4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71  %s\n' "$RUNNER_TEMP/cosign" | sha256sum --check
-          chmod 755 "$RUNNER_TEMP/cosign"
-      - name: Independently verify unchanged material and exact predecessor
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CHECKPOINT_B64: ${{ needs.build.outputs.checkpoint }}
-          REQUEST_B64: ${{ needs.build.outputs.renewal_request }}
-          PUBLIC_KEY: ${{ vars.KEDRA_DESKTOP_PUBLIC_KEY }}
-          FINGERPRINT: ${{ vars.KEDRA_DESKTOP_KEY_SHA256 }}
-        run: |
-          python3 - <<'PY'
-          import base64, hashlib, json, os, pathlib, re, subprocess, time
-          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'renewal'
-          root.mkdir()
-          def require(ok, message):
-              if not ok: raise SystemExit(message)
-          def run(*args):
-              return subprocess.check_output(args, timeout=180)
-          def sha(data): return hashlib.sha256(data).hexdigest()
-          def unique(pairs):
-              value = {}
-              for key, item in pairs:
-                  require(key not in value, 'Duplicate JSON key')
-                  value[key] = item
-              return value
-          def document(data): return json.loads(data, object_pairs_hook=unique)
-          main = document(run('gh', 'api', 'repos/Reidond/kedra/git/ref/heads/main'))
-          require(main['object']['sha'] == os.environ['GITHUB_SHA'], 'Main changed')
-          request = document(base64.b64decode(os.environ['REQUEST_B64'], validate=True))
-          payload = base64.b64decode(os.environ['CHECKPOINT_B64'], validate=True)
-          require(len(payload) <= 65536 and request['source_revision'] == os.environ['GITHUB_SHA']
-                  and sha(payload) == request['checkpoint_sha256'], 'Renewal request changed')
-          run('gh', 'release', 'download', 'desktop-44-x86_64-channel', '--repo', 'Reidond/kedra',
-              '--pattern', 'channel.json', '--dir', str(root))
-          bundle_bytes = (root / 'channel.json').read_bytes()
-          require(len(bundle_bytes) <= 300000 and sha(bundle_bytes) == request['previous_bundle_sha256'], 'Channel changed')
-          bundle = document(bundle_bytes)
-          public = root / 'release.pub'
-          public.write_text(os.environ['PUBLIC_KEY'])
-          der = run('openssl', 'pkey', '-pubin', '-in', str(public), '-outform', 'DER')
-          require(sha(der) == os.environ['FINGERPRINT'], 'Wrong signing authority')
-          for name in ('release', 'checkpoint'):
-              value = bundle[name]
-              original = value['payload'].encode()
-              expected = request['release_sha256' if name == 'release' else 'previous_checkpoint_sha256']
-              require(sha(original) == expected, 'Predecessor payload changed')
-              (root / (name + '.json')).write_bytes(original)
-              (root / (name + '.der')).write_bytes(base64.b64decode(value['signature'].strip(), validate=True))
-              run('openssl', 'dgst', '-sha256', '-verify', str(public), '-signature',
-                  str(root / (name + '.der')), str(root / (name + '.json')))
-          old = document(bundle['checkpoint']['payload'])
-          release = document(bundle['release']['payload'])
-          new = document(payload)
-          scope = {'target': 'desktop', 'architecture': 'x86_64', 'fedora_release': 44,
-                   'repository': 'ghcr.io/reidond/kedra-desktop'}
-          now = int(time.time())
-          require(release['schema_version'] == old['schema_version'] == new['schema_version'] == 1
-                  and release['project'] == old['project'] == new['project'] == 'Kedra'
-                  and release['approval'] == 'promoted' and release['scope'] == old['scope'] == new['scope'] == scope
-                  and new['release_sha256'] == old['release_sha256'] == request['release_sha256']
-                  and type(new['generation']) is int and new['generation'] == old['generation'] + 1
-                  and 0 < old['expires_at'] - old['issued_at'] <= 604800
-                  and old['issued_at'] <= now + 300
-                  and now - 3600 <= new['issued_at'] <= now
-                  and new['expires_at'] == new['issued_at'] + 604800
-                  and now - 129600 <= new['last_successful_resolution'] <= new['issued_at']
-                  and new['last_successful_resolution'] >= old['last_successful_resolution'], 'Invalid renewal scope, lifetime or ordering')
-          require(re.fullmatch(r'sha256:[a-f0-9]{64}', release['image_digest'])
-                  and release['image_digest'] == request['image_digest'], 'Invalid image identity')
-          tag = 'desktop-44-x86_64-r' + str(release['sequence'])
-          for name, limit in (('SHA256SUMS', 65536), ('SHA256SUMS.sig', 1024),
-                              ('provenance.json', 4194304), ('packages.txt', 4194304)):
-              run('gh', 'release', 'download', tag, '--repo', 'Reidond/kedra', '--pattern', name, '--dir', str(root))
-              require(0 < (root / name).stat().st_size <= limit, 'Oversized resolved-input asset')
-          checksums = (root / 'SHA256SUMS').read_bytes()
-          (root / 'checksums.der').write_bytes(base64.b64decode((root / 'SHA256SUMS.sig').read_bytes().strip(), validate=True))
-          run('openssl', 'dgst', '-sha256', '-verify', str(public), '-signature',
-              str(root / 'checksums.der'), str(root / 'SHA256SUMS'))
-          hashes = {}
-          for line in checksums.decode('ascii').splitlines():
-              match = re.fullmatch(r'([a-f0-9]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,127})', line)
-              require(match is not None and match[2] not in hashes, 'Invalid signed checksum entry')
-              hashes[match[2]] = match[1]
-          for name in ('release.json', 'packages.txt', 'provenance.json'):
-              require(hashes.get(name) == sha((root / name).read_bytes()), 'Wrong signed resolved-input asset')
-          provenance = document((root / 'provenance.json').read_bytes())
-          require(provenance['schema_version'] == 2 and provenance['image_digest'] == release['image_digest']
-                  and provenance['source_revision'] == release['source_revision']
-                  and provenance['scope'] == release['scope']
-                  and sha(checksums) == request['checksums_sha256']
-                  and hashes['provenance.json'] == request['provenance_sha256']
-                  and sha(json.dumps(provenance['resolved_inputs'], sort_keys=True, separators=(',', ':')).encode())
-                      == request['resolved_inputs_sha256'], 'Resolved inputs differ from authenticated release')
-          (root / 'new-checkpoint.json').write_bytes(payload)
-          PY
-      - name: Sign only the reviewed checkpoint
-        id: sign
-        env:
-          RELEASE_PRIVATE_KEY: ${{ secrets.KEDRA_DESKTOP_SIGNING_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.KEDRA_DESKTOP_SIGNING_PASSPHRASE }}
-        run: |
-          set -euo pipefail
-          test -n "$RELEASE_PRIVATE_KEY" && test -n "$COSIGN_PASSWORD"
-          umask 077
-          private=$(mktemp -d "$RUNNER_TEMP/kedra-renewal-key.XXXXXXXX")
-          trap 'rm -rf -- "$private"' EXIT
-          printf '%s\n' "$RELEASE_PRIVATE_KEY" > "$private/key"
-          unset RELEASE_PRIVATE_KEY
-          "$RUNNER_TEMP/cosign" sign-blob --yes --use-signing-config=false --tlog-upload=false \
-            --key "$private/key" --bundle "$private/signature.json" "$RUNNER_TEMP/renewal/new-checkpoint.json"
-          jq -er '.messageSignature.signature' "$private/signature.json" > "$private/checkpoint.sig"
-          base64 --decode "$private/checkpoint.sig" > "$private/checkpoint.der"
-          openssl dgst -sha256 -verify "$RUNNER_TEMP/renewal/release.pub" \
-            -signature "$private/checkpoint.der" "$RUNNER_TEMP/renewal/new-checkpoint.json"
-          printf 'signature=%s\n' "$(base64 -w 0 "$private/checkpoint.sig")" >> "$GITHUB_OUTPUT"
-          unset COSIGN_PASSWORD
-
-  publish-renewal:
-    needs: [build, renew-checkpoint]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          persist-credentials: false
-      - name: Build public verifier
-        run: |
-          rustup toolchain install 1.98.1 --profile minimal
-          cargo build --workspace --release --locked
-      - name: Verify and publish checkpoint renewal
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RENEWAL_REQUEST_B64: ${{ needs.build.outputs.renewal_request }}
-          CHECKPOINT_B64: ${{ needs.build.outputs.checkpoint }}
-          CHECKPOINT_SIG_B64: ${{ needs.renew-checkpoint.outputs.signature }}
-        run: python3 build/release/refresh.py publish --work output/renewal
-      - name: Retain exact public renewal and recovery bytes
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: desktop-renewal-${{ github.run_id }}-${{ github.run_attempt }}
-          path: output/renewal/
-          if-no-files-found: warn
-          retention-days: 90
 
   sign-image:
     needs: build
     if: needs.build.outputs.changed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    # Must be created/configured by the owner BEFORE enabling this workflow.
-    # Required owner review, main-only deployment branch, no admin bypass.
     environment: kedra-desktop-signing
     permissions:
       contents: read
@@ -346,15 +156,42 @@ jobs:
     outputs:
       digest: ${{ steps.sign.outputs.digest }}
     steps:
-      # No checkout, artifacts, repository scripts, or candidate execution here.
-      - name: Prepare signing tools before exposing key material
+      # No checkout, artifact execution or candidate process in this job.
+      - name: Prepare native signer and validate public image identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_DIGEST: ${{ needs.build.outputs.digest }}
+          IDENTITY_SHA256: ${{ needs.build.outputs.identity_sha256 }}
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends skopeo openssl
-          skopeo --version
           sudo mkdir -p /etc/containers/registries.d
           printf 'docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n' | sudo tee /etc/containers/registries.d/kedra.yaml >/dev/null
-      - name: Sign exact candidate with independently configured authority
+          python3 - <<'PY'
+          import hashlib, json, os, re, subprocess
+          digest = os.environ['CANDIDATE_DIGEST']
+          assert re.fullmatch(r'sha256:[a-f0-9]{64}', digest)
+          config = json.loads(subprocess.check_output(['skopeo', 'inspect', '--config', '--raw',
+              'docker://ghcr.io/reidond/kedra-desktop-builds@' + digest]))
+          raw = config['config']['Labels']['org.kedra.image.identity']
+          assert hashlib.sha256(raw.encode()).hexdigest() == os.environ['IDENTITY_SHA256']
+          identity = json.loads(raw)
+          assert config['os'] == 'linux' and config['architecture'] == 'amd64'
+          assert identity['schema_version'] == 2 and identity['project'] == 'Kedra'
+          assert identity['source_revision'] == os.environ['GITHUB_SHA']
+          assert identity['repository'] == 'ghcr.io/reidond/kedra-desktop' and identity['channel'] == 'stable'
+          assert identity['target'] == 'desktop' and identity['architecture'] == 'x86_64' and identity['fedora_release'] == 44
+          assert identity['workflow'] == '.github/workflows/release.yml' and identity['epoch'] == 1
+          assert identity['run_number'] == int(os.environ['GITHUB_RUN_NUMBER'])
+          assert identity['run_attempt'] == int(os.environ['GITHUB_RUN_ATTEMPT'])
+          PY
+          destination="ghcr.io/reidond/kedra-desktop:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if skopeo inspect --raw "docker://$destination" >/dev/null 2>"$RUNNER_TEMP/signed-tag-lookup.log"; then
+            echo 'Immutable signed run tag already exists'; exit 1
+          fi
+          grep -q 'manifest unknown' "$RUNNER_TEMP/signed-tag-lookup.log"
+      - name: Sign exact image once using owner-approved authority
         id: sign
         env:
           GH_TOKEN: ${{ github.token }}
@@ -367,7 +204,6 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$CANDIDATE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
-          [[ "$APPROVED_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]
           test "$BUILD_FINGERPRINT" = "$APPROVED_FINGERPRINT"
           test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
           test -n "$RELEASE_PRIVATE_KEY" && test -n "$RELEASE_PASSPHRASE"
@@ -381,43 +217,51 @@ jobs:
           printf '%s' "$RELEASE_PASSPHRASE" > "$private/passphrase"
           unset RELEASE_PRIVATE_KEY RELEASE_PASSPHRASE
           printf '%s' "$GH_TOKEN" | skopeo login --authfile "$private/auth.json" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
-          destination="ghcr.io/reidond/kedra-desktop:candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           skopeo copy --authfile "$private/auth.json" --preserve-digests --digestfile "$private/signed.digest" \
             --sign-by-sigstore-private-key "$private/release.private" --sign-passphrase-file "$private/passphrase" \
-            "docker://ghcr.io/reidond/kedra-desktop-builds@$CANDIDATE_DIGEST" "docker://$destination"
+            "docker://ghcr.io/reidond/kedra-desktop-builds@$CANDIDATE_DIGEST" \
+            "docker://ghcr.io/reidond/kedra-desktop:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           test "$(cat "$private/signed.digest")" = "$CANDIDATE_DIGEST"
           printf 'digest=%s\n' "$CANDIDATE_DIGEST" >> "$GITHUB_OUTPUT"
-          printf 'Signed candidate `%s@%s`; no release metadata or channel was promoted.\n' ghcr.io/reidond/kedra-desktop "$CANDIDATE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
 
-  installer:
+  publish-stable:
     needs: [build, sign-image]
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     permissions:
       contents: read
-      packages: read
+      packages: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: desktop-candidate-${{ github.run_id }}-${{ github.run_attempt }}
-          path: output/build-evidence
-      - name: Verify signed candidate and build offline installer
+          name: image-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/image-evidence
+      - name: Strictly verify signed image and advance stable
         env:
-          KEDRA_CANDIDATE_DIGEST: ${{ needs.sign-image.outputs.digest }}
-          KEDRA_PUBLIC_FINGERPRINT: ${{ needs.build.outputs.fingerprint }}
-          KEDRA_RESOLVED_AT: ${{ needs.build.outputs.resolved_at }}
-          KEDRA_BASE_IMAGE: ${{ needs.build.outputs.base }}
-        run: bash build/release/installer.sh
-      - name: Preserve installer candidate and public evidence
+          GH_TOKEN: ${{ github.token }}
+          KEDRA_SIGNED_DIGEST: ${{ needs.sign-image.outputs.digest }}
+          APPROVED_FINGERPRINT: ${{ vars.KEDRA_DESKTOP_KEY_SHA256 }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo openssl
+          sudo mkdir -p /etc/containers/registries.d
+          printf 'docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n' | sudo tee /etc/containers/registries.d/kedra.yaml >/dev/null
+          umask 077
+          auth_dir=$(mktemp -d "$RUNNER_TEMP/kedra-publish-auth.XXXXXXXX")
+          auth="$auth_dir/auth.json"
+          trap 'rm -rf -- "$auth_dir"' EXIT
+          printf '%s' "$GH_TOKEN" | skopeo login --authfile "$auth" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          export KEDRA_REGISTRY_AUTH="$auth"
+          python3 build/release/refresh.py publish --work output/image-evidence
+      - name: Preserve public stable publication receipt
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: desktop-installer-candidate-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            output/release-installer/*.part*
-            output/release-evidence/
+          name: stable-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/image-evidence/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90

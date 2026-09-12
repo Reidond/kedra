@@ -1,29 +1,28 @@
 # Kedra
 
-Kedra is a Fedora 44 bootc desktop with niri, Noctalia and the `sysroot` management command. Install a signed ISO, then update the system from signed container images. Home files stay writable; selected Noctalia settings and niri changes can be reviewed independently of local edits.
+Kedra is a Fedora 44 bootc desktop with niri, Noctalia and the `sysroot` management command. GitHub builds and publishes signed container images to **ghcr.io/reidond/kedra-desktop**. The `stable` tag discovers the approved image; installed updates verify and stage its exact digest.
 
-[Install Kedra](docs/INSTALL.md) · [Update and recover](docs/UPDATES.md) · [Verify releases](docs/RELEASES.md)
+[Install locally](docs/INSTALL.md) · [Update and recover](docs/UPDATES.md) · [Signed images](docs/RELEASES.md)
 
-The published installer is [desktop-44-x86_64-r2](https://github.com/Reidond/kedra/releases/tag/desktop-44-x86_64-r2). It passed encrypted installation and desktop boot in a two-disk VM. [Verified status](docs/STATUS.md) distinguishes shipped and implemented behavior. Physical hardware and Secure Boot are not qualified.
+Installation media is built locally when needed. No ISO, GitHub Release or release-asset publication is part of the current workflow. [Verified status](docs/STATUS.md) distinguishes implemented behavior from tested and published images.
 
 ## Change the system
 
-Edit `packages/common.list` for shared packages, `hosts/desktop/packages.list` for desktop additions, and the Linux-shaped `etc/`, `usr/`, `home/` trees for configuration. Host files override shared files explicitly. `hosts/xps` remains disabled until its hardware is known.
+Edit `packages/common.list`, `hosts/desktop/packages.list` and the Linux-shaped `etc/`, `usr/`, `home/` trees. Explicit host files override shared files. Unknown XPS hardware remains disabled.
 
-GitHub Actions builds all OS images and installers. Release refresh is scheduled for **00:00 UTC** and can be dispatched manually. Package changes produce a candidate; signing and promotion retain protected review and exact-media qualification. A scheduled trigger is not an immediate installation or reboot. See [release operations](build/release/README.md).
+Actions checks packages at **00:00 UTC** and supports manual dispatch. A changed image must pass build validation and protected manual OCI-signing review before `stable` advances. No-change does nothing: it creates no image, metadata release or renewal. Queues and review affect delivery time; installed machines never reboot automatically.
 
-`sysroot codex` uses a private bundled runtime. Personal agents, settings, MCP, skills and credentials remain independently owned. See [agent launchers](docs/AGENT-LAUNCHERS.md), [Noctalia review](docs/HOME-REVIEW.md) and [niri review](docs/TEXT-REVIEW.md).
+Home files stay writable. Review selected [Noctalia settings](docs/HOME-REVIEW.md) and [niri changes](docs/TEXT-REVIEW.md) independently of local edits. [Private agent launchers](docs/AGENT-LAUNCHERS.md) preserve personal runtimes, profiles, MCP, skills and credentials.
 
 ## Develop
 
-Read [AGENTS.md](AGENTS.md), [architecture](docs/ARCHITECTURE.md) and the current status in [worklog.md](worklog.md). Rust uses one workspace, lockfile and pinned toolchain, with explicit flat entry paths.
+Read [AGENTS.md](AGENTS.md), [architecture](docs/ARCHITECTURE.md) and [worklog](worklog.md). Rust uses a pinned workspace, one lockfile and explicit flat entry paths.
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --test 'e2e_*' --locked
 cargo build --workspace --release --locked
-python3 tests/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
 ```
 
-[Tests](tests/README.md) exercise real CLI and disposable VM workflows. [Repository skills](plugins/kedra/README.md) are checkout-local development knowledge; they are not installed into the OS or personal profiles. Third-party distribution details are in [THIRD_PARTY.md](THIRD_PARTY.md).
+[Tests](tests/README.md) use real CLI/process and disposable VM workflows. [Repository skills](plugins/kedra/README.md) remain checkout-local; [third-party notices](THIRD_PARTY.md) remain intact.

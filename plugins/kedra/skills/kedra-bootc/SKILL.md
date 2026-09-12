@@ -1,110 +1,22 @@
 ---
 name: kedra-bootc
-description: Work on Fedora 44 bootc image derivation, filesystem ownership, exact-digest updates, notify-only client checks, pending deployments, boot states or rollback.
+description: Maintain Fedora 44 image derivation, filesystem ownership, signed GHCR updates and local recovery media.
 ---
 
-# Fedora bootc operating model
+# Fedora bootc
 
-Use a plain Containerfile from Fedora 44 bootc, package lists and explicit file
-assembly. OS/installer builds run in GitHub Actions. Do not adopt BlueBuild,
-client-side RPM layering, or a live `dnf install` shortcut as the persistent Kedra
-workflow. User-installed personal agents/apps are a separate ownership choice.
+Read docs/ARCHITECTURE.md, docs/UPDATES.md and references/update-client.md. Use plain Containerfile and explicit shared/host payload assembly. OS images build in Actions; on-demand ISO media builds locally through installer/build-local.py. No BlueBuild or live host DNF shortcut.
 
-## Filesystem boundaries
+Prefer image-owned /usr defaults. /etc follows bootc persistence/merge; /var and home persist across deployments. Never author /usr/etc or overwrite writable home from an image. Ship safe baselines and use explicit home reconciliation. Repository skills remain checkout-local.
 
-Repository etc/ maps to image /etc; usr/ maps to /usr. Prefer image-owned defaults
-under /usr where applications support them, including systemd/sysctl/tmpfiles
-drop-ins. Do not author /usr/etc; it is generated/internal. Persistent /etc has
-its own three-way retention behavior, including local metadata changes; a new
-Git file need not override a locally modified /etc file. Surface drift rather
-than promise continuous enforcement. Transient /etc is not an MVP shortcut:
-first account for machine identity, credentials and networking persistence.
+Resolve only the official production Fedora 44 stream, not similarly named development images. A pin prevents substitution but cannot guarantee upstream retention: Quay retired d4b9c5e... before native tests on 2026-09-12. Current tests resolve/verify one immutable platform per run. Source: [Fedora publication](https://forge.fedoraproject.org/iot/base-images/src/commit/8f30db6ad355562aeaca5c547f81ca157e8ffbf4/RELEASE.md). New base inputs require actual qualification.
 
-Persistent /var and backed home data are shared across deployments. Baking a new
-home file into an image does not update an already-installed live home. Ship
-resolved safe home baselines under /usr/share/sysroot/home, then use the separate
-Git-backed writable-home mechanism. No blindly copying into /var/home or symlinking
-all of .config. Prefer tmpfiles/StateDirectory for required runtime directories.
-Repository knowledge skills, unlike explicitly adopted personal dotfiles, remain
-checkout-only; do not ship this collection as system/global agent skills.
+The installed helper verifies signed GHCR stable discovery and stages exact digests through enforcing bootc policy. Normal bootc upgrade does not advance a digest-pinned installation. Preserve pending slots, ordering and rollback holds; no automatic reboot or home activation.
 
-## Release/deployment procedure
+No-change CI publishes nothing. There is no checkpoint renewal in the current path. Legacy release/checkpoint state is migrated explicitly; never reset it to bypass a refusal. Keep local recovery independent of GitHub Releases.
 
-Primary-source review, 2026-09-09: Fedora distinguishes the production
-Pungi/cloud-image-uploader route to `quay.io/fedora/fedora-bootc` from development
-Konflux images under `quay.io/bootc-devel/fedora-bootc-*`. A similar image name is
-not authority to substitute the development stream. Preserve the reviewed
-production scope and reject an unexpected repository during discovery. This
-publication description does not establish an upstream signature-verification
-procedure; Kedra's exact base pin and owner-image signatures remain distinct.
-Source: [Fedora RELEASE.md at 8f30db6](https://forge.fedoraproject.org/iot/base-images/src/commit/8f30db6ad355562aeaca5c547f81ca157e8ffbf4/RELEASE.md),
-last file change 2026-08-25. Gates: R01/R08 and scheduled refresh.
+Anaconda media is separate and permissive under the pinned Fedora installer policy; installed SELinux remains enforcing. Local media requires offline signed-payload verification before disk installation. Preserve hash-guarded target scratch, selected non-API mounts before account creation and the physical /sysroot fstab normalization. Unknown upstream/source changes refuse rather than patch blindly.
 
-Resolve and record base digest, RPM inventory and external artifacts. Never
-claim exact rebuildability from a source commit against changing repositories.
-On 2026-09-08 Quay stopped serving pinned Fedora 44 digest 70b8fe469fe1...
-(registry HTTP 404; R07 34217852336 and R01 34217852250 failed before their VM
-tests). The official 44 tag resolved to AMD64 d4b9c5e156ab..., version
-44.20260908.0, verified against exact manifest/config bytes. A pin prevents
-silent substitution but does not guarantee upstream retention. Record any
-replacement as a new build input and requalify it; retain promoted Kedra digests
-independently. See build/inputs.json and the R04 report for this rerun.
-Run bootc container lint in image validation, but do not treat it as a boot test.
-All candidate references must be final registry digests, not local image IDs.
+Native tests must distinguish image build, signed update/rollback, fresh installation, graphical health and physical hardware. Key rotation, old-reader compatibility and physical devices require independent evidence.
 
-For a researched trusted update, the helper verifies release eligibility and
-uses bootc switch with signature enforcement and the exact digest. A digest-pinned
-installation needs a new switch for the next release; normal bootc upgrade does
-not advance it. Keep the installed helper as the authority boundary.
-A normal mutable Fedora installation is not automatically
-convertible through bootc switch; prove a fresh VM installer first.
-
-Read [the update-client notes](references/update-client.md), docs/UPDATES.md and
-docs/ARCHITECTURE.md. Explicit signed-channel checking and staging are implemented;
-no periodic notification service is claimed. Staging does not reboot. Audit inherited
-bootc-fetch-apply-updates automation because it can reboot. Do not assume a timer
-that only checks Kedra disables a second upstream updater. --download-only needs
-version-specific pending-slot tests, not a generic safe-prefetch assumption.
-
-Keep an existing manually staged image unless explicit replacement is requested.
-Staging can affect the next ordinary reboot; report that even without --apply.
-Rollback records a hold and never lowers channel trust high-water marks. Check
-freshness separately from image age: a no-change Fedora check can be healthy,
-while an old image with a stopped schedule or blocked candidate needs a warning.
-A dirty/missing source checkout must not be reset or required by installed updates.
-
-Status distinguishes available, verified, preflight, staged, awaiting reboot,
-booted, home-reconciled and healthy. The agent need not survive reboot. Installed
-post-boot checks finalize deterministic state. Keep preflight separate from actual
-home activation under new software. Manual rollback changes the OS deployment,
-not all persistent data or application migrations. Automatic health rollback is
-a later tested feature. Recovery must work offline without an AI service.
-
-For the separate Anaconda media, follow pinned Lorax's SELINUX=permissive and
-SELINUXTYPE=targeted environment (docs/ARCHITECTURE.md, 2026-09-08). An enforcing basic.target
-probe passed at da140ff but local UEFI testing found denied Anaconda/getty_t shell
-operations. This is media-only; R07 and actual installed-OS checks retain enforcing
-SELinux, and R01/R08 signature verification must never become permissive. Keep
-labels, require Anaconda startup, and record installed enforcement after install.
-
-Anaconda 44.30-2 bootc first-boot findings (2026-09-08, R02/docs/ARCHITECTURE.md): its native
-PrepareBootcMountTargetsTask omitted the separate home bind after /var, so useradd
-created the owner directory behind the home subvolume later mounted at boot.
-Preserve all selected non-API mounts with native bind/cleanup tracking before
-account creation. Installed fstab must address the physical root as /sysroot,
-not the logical overlay /; otherwise systemd-remount-fs fails. The fixed installer
-normalizer retains ro and all other mounts. Existing bootc-generated root/rootflags
-kargs remain authoritative. Source-hash drift or unsupported fstab input fails
-installation. See the R02 report for fresh-media results; a diagnostic repair
-does not qualify installation. Primary guidance: https://bootc.dev/bootc/bootc-install.html#finding-and-configuring-the-physical-root-filesystem.
-
-Tests: install A/update B/rollback A, /etc local drift, persistent home retention,
-interrupted staging, candidate-versus-running digest, and old journal readers.
-Use the actual signed-update/desktop/home-transition workflows in tests/ and
-docs/STATUS.md for their measured outcomes. Primary references:
-[bootc filesystems](https://bootc.dev/bootc/filesystem.html),
-[switching](https://bootc.dev/bootc/man/bootc-switch.8.html),
-[image building](https://bootc.dev/bootc/building/guidance.html),
-[kernel arguments](https://bootc.dev/bootc/building/kernel-arguments.html) and
-[runtime secrets](https://bootc.dev/bootc/building/secrets.html).
-Read kedra-home for reconciliation and maintain worklog with actual evidence.
+Primary references: [filesystems](https://bootc.dev/bootc/filesystem.html), [switch](https://bootc.dev/bootc/man/bootc-switch.8.html), [build guidance](https://bootc.dev/bootc/building/guidance.html), [physical root](https://bootc.dev/bootc/bootc-install.html#finding-and-configuring-the-physical-root-filesystem).

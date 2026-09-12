@@ -1,4 +1,4 @@
-"""Prepare public desktop trust inputs without creating keys or signing a release."""
+"""Prepare public desktop image trust without creating keys or signing images."""
 import argparse
 import json
 import pathlib
@@ -55,4 +55,4 @@ args.output.mkdir(parents=True, exist_ok=False)
 (args.output / 'registries.yaml').write_text('docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n')
 (args.output / 'install.toml').write_text('[install]\nenforce-container-sigpolicy = true\n')
 print(json.dumps({'public_trust_prepared': True, 'scope': scope, 'key_fingerprint_sha256': args.expected_fingerprint,
-                  'source_revision': source['source_revision'], 'release_signed': False, 'release_promoted': False}))
+                  'source_revision': source['source_revision'], 'image_signed': False, 'stable_updated': False}))

@@ -7,8 +7,7 @@ The current Linux commands review three effective Noctalia 5.0.1 settings:
 these projected values in a private SQLite directory. Other exported settings,
 credentials and raw application exports do not enter that store.
 
-The native R03 subset passes desktop run 34192732970 at a2c0e63. There is no promoted
-owner image yet. Selected-field patch export and source receipts are now implemented
+The native subset passed desktop run 34192732970 at a2c0e63. Selected-field patch export and source receipts are implemented
 with the actual Linux CLI/SQLite/source round trip passing run 34192732940.
 The narrow discard path passes the actual desktop/CLI workflow in 34223972271
 at a5cd96e, including stale-plan refusal and native metadata preservation. Generic file/line

@@ -280,6 +280,24 @@ impl Store {
         self.verify_identity()?;
         get(&self.connection, name)
     }
+
+    /// Bounded discovery of retained receipts; every returned record still needs read/validation.
+    pub fn names_with_prefix(&self, prefix: &str) -> Result<Vec<String>, Error> {
+        if !name_valid(prefix) {
+            return Err(Error::InvalidInput);
+        }
+        self.verify_identity()?;
+        let mut statement = self.connection.prepare(
+            "SELECT name FROM records WHERE substr(name,1,length(?1))=?1 ORDER BY name LIMIT 257",
+        )?;
+        let names = statement
+            .query_map([prefix], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        if names.len() > 256 || names.iter().any(|name| !name_valid(name)) {
+            return Err(Error::InvalidInput);
+        }
+        Ok(names)
+    }
     /// Atomically retain the previous record and replace exactly the read revision.
     /// Contending writers fail or observe a revision conflict instead of overwriting.
     pub fn compare_exchange(

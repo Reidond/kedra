@@ -18,6 +18,7 @@ const KEY: &str = "/usr/lib/sysroot/trust/release.pub";
 const DIRECTORY: &str = "/var/lib/sysroot";
 const STORE: &str = "/var/lib/sysroot/deployment";
 const RECORD: &str = "deployment";
+mod ghcr;
 mod installer;
 
 fn hash(bytes: &[u8]) -> String {
@@ -331,6 +332,21 @@ fn respond(trust: &Trust, host: &Host, journal: Option<&Journal>) -> Result<()> 
 
 /// Called only by the image-owned binary after parsing its bounded stdin protocol.
 pub fn run(request: Request) -> Result<()> {
+    if matches!(request, Request::Status {})
+        && Path::new("/usr/share/sysroot/image-identity.json").try_exists()?
+    {
+        return ghcr::run(Request::ChannelStatus {});
+    }
+    if matches!(
+        request,
+        Request::ChannelCheck {}
+            | Request::ChannelStatus {}
+            | Request::ChannelEnroll { .. }
+            | Request::ChannelStage { .. }
+            | Request::ChannelRollback { .. }
+    ) {
+        return ghcr::run(request);
+    }
     if rustix::process::getuid().as_raw() != 0 || rustix::process::geteuid().as_raw() != 0 {
         return Err("the installed helper requires explicit administrator authorization".into());
     }
@@ -339,7 +355,9 @@ pub fn run(request: Request) -> Result<()> {
         return installer::verify(&trust);
     }
     let _lock = lock()?;
-    if output(&["--version"], 4096)?.as_slice() != b"bootc 1.16.10\n" {
+    if output(&["--version"], 4096)?.as_slice()
+        != sysroot_core::compatibility::bootc_output()?.as_bytes()
+    {
         return Err("installed bootc version has not been qualified for this helper".into());
     }
     let before = observe(&trust.scope)?;

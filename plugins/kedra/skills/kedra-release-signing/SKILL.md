@@ -1,18 +1,18 @@
 ---
 name: kedra-release-signing
-description: Maintain signed OCI images, exact release records, freshness, promotion, replay and recovery.
+description: Maintain signed GHCR image identity, protected manual publication, direct updates and retained recovery.
 ---
 
-# Release signing
+# Signed OCI authority
 
-Read docs/ARCHITECTURE.md, docs/RELEASES.md, docs/UPDATES.md and build/release/README.md. A signed candidate is not a promoted release; a staged digest is not booted or healthy.
+Read docs/RELEASES.md, docs/UPDATES.md and docs/ARCHITECTURE.md. The published artifact is a signed OCI image in ghcr.io/reidond/kedra-desktop. Stable is discovery; deployment uses the exact verified digest. No GitHub Releases or ISO/metadata assets.
 
-Sign final registry manifest bytes/digest. Release protocol 1 uses P-256/SHA-256, SPKI PEM keys and detached base64 DER signatures over exact JSON bytes. Bind source/run/attempt, target/architecture/repository, image/home/ISO identities and monotonic release sequence/checkpoint generation. Never reserialize signed bytes.
+Use the dedicated OS-image authority, separate from SSH keys. The isolated protected signer runs no checkout, candidate or repository code while private keys are available. Manual review and exact current-main checks remain. Preserve signatures and native OCI digest through copies.
 
-The installed helper independently verifies fixed image trust, scope, freshness and replay floors; user-provided verification is not authority. bootc switch must preserve strict container policy and exact repository. Native registry/storage copy can rewrite compressed manifests; preserve digest and verify complete copy paths before signing.
+Image-owned identity/resolved-input records are bound by the signed image. The helper independently verifies fixed public trust, exact repository, target/architecture and retained ordering. Writable source or --verified claims are never root authority. Wrong key/repository/digest or missing attachment fails closed.
 
-The protected signer executes no checkout or candidate code with production keys. Production authority is dedicated and separate from SSH; never use fixture keys in production. Candidate/publication jobs recheck current source and previous channel under serialization. Preserve immutable versions and inspected recovery after uncertain writes.
+Changed inputs require a signed image before stable advances. No-change publishes nothing and does not renew checkpoints. Legacy release/checkpoint verification remains solely for migration/offline recovery. Before bridging, legacy update status must reconcile earlier operations with no intent/awaiting reboot/staged replacement/queued rollback; preserve hold, journals and high-water. The v2 import refuses unresolved legacy state.
 
-Fresh checkpoints have a maximum seven-day lifetime. Failed checks or blocked candidates cannot renew successful freshness. Historical-only release history may authenticate an expired predecessor's ordering; it never authorizes incoming enrollment/staging or claims current freshness. Rollback retains high-water and holds forward updates. Retain signed recovery assets; key rotation is separately qualified.
+Retain known-good digests/signatures. Rollback holds forward updates and preserves persistent data. Key rotation and older-reader migration need actual qualification. Container signatures do not establish Secure Boot.
 
-Use references/threat-matrix.md for adversarial E2E coverage. Current measured status belongs in docs/STATUS.md and exact Actions artifacts; keep this skill durable and checkout-local.
+Local ISO construction consumes a reviewed signed image and verifies the embedded payload offline. It does not upload or create a release signature for local output. Keep this skill checkout-local.

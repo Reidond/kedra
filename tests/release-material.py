@@ -1,86 +1,132 @@
-"""End-to-end published material verification with independent OpenSSL signatures."""
+"""End-to-end image-input CLI checks using real files/processes and OpenSSL.
+
+The disposable config signature seals fixture artifacts independently. Native
+Skopeo/bootc signature enforcement is qualified by the separate VM workflow.
+"""
 import argparse
-import base64
 import copy
 import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--workdir', type=Path, required=True)
 args = parser.parse_args()
-work = args.workdir.resolve()
-work.mkdir(parents=True, exist_ok=False)
+root = args.workdir.resolve()
+root.mkdir(parents=True, exist_ok=False)
 cli = Path(__file__).resolve().parents[1] / 'build/release/material.py'
-key, public = work / 'disposable.key', work / 'release.pub'
+private, public = root / 'disposable.key', root / 'public.pem'
+signature = root / 'config.sig'
+
+
+def encode(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+
+
+def put(name, value):
+    (root / name).write_bytes(encode(value))
 
 
 def native(*arguments):
     return subprocess.check_output(list(map(str, arguments)), stderr=subprocess.PIPE)
 
 
-def write(name, value):
-    (work / name).write_text(json.dumps(value, sort_keys=True) + '\n')
+def call(*arguments, expected=True):
+    result = subprocess.run([sys.executable, str(cli), *map(str, arguments)], capture_output=True)
+    if expected and result.returncode:
+        raise RuntimeError(result.stderr.decode(errors='replace'))
+    if not expected and result.returncode == 0:
+        raise RuntimeError('Unsafe artifact was accepted by the image-input CLI')
+    return json.loads(result.stdout) if expected else None
 
 
-def check(current, decision=None, valid=True, release_hash=None):
-    write('current.json', current)
-    result = subprocess.run([sys.executable, str(cli), '--release-dir', str(work), '--public-key', str(public),
-                             '--release-sha256', release_hash or expected_hash,
-                             '--current-inputs', str(work / 'current.json')], capture_output=True)
-    if valid:
-        if result.returncode or json.loads(result.stdout)['decision'] != decision:
-            raise RuntimeError('Material CLI workflow failed: ' + result.stderr.decode(errors='replace'))
-    elif result.returncode == 0:
-        raise RuntimeError('Material CLI accepted an unauthenticated release')
+source = {'schema_version': 1, 'source_revision': 'a' * 40, 'input_scope': 'committed HEAD only',
+          'target': {'id': 'desktop', 'image': 'ghcr.io/reidond/kedra-desktop',
+                     'architecture': 'x86_64', 'fedora_release': 44}, 'files': []}
+inputs = {'schema_version': 1, 'base': 'quay.io/fedora/fedora-bootc@sha256:' + 'b' * 64,
+          'source': {key: value for key, value in source.items() if key not in ('source_revision', 'input_scope')},
+          'artifacts': {'sysroot': 'c' * 64}, 'recipes': {'Containerfile': 'd' * 64},
+          'packages': [['example', '0', '1', '1.fc44', 'x86_64', 'e' * 64, 'f' * 64]]}
+identity = {'schema_version': 2, 'project': 'Kedra', 'target': 'desktop', 'architecture': 'x86_64',
+            'fedora_release': 44, 'repository': 'ghcr.io/reidond/kedra-desktop', 'channel': 'stable',
+            'source_revision': source['source_revision'], 'source_manifest_sha256': hashlib.sha256(encode(source)).hexdigest(),
+            'resolved_inputs_sha256': hashlib.sha256(encode(inputs)).hexdigest(),
+            'workflow': '.github/workflows/release.yml', 'epoch': 1, 'run_number': 10, 'run_attempt': 1,
+            'resolved_at': int(time.time()), 'minimum_protocol': 2}
+verify = ['verify', '--config', root / 'config.json', '--identity', root / 'identity.json',
+          '--inputs', root / 'inputs.json', '--source', root / 'source.json']
+
+
+def seal(value):
+    put('identity.json', value)
+    put('config.json', {'os': 'linux', 'architecture': 'amd64',
+                       'config': {'Labels': {'org.kedra.image.identity': encode(value).decode()}}})
+    native('openssl', 'dgst', '-sha256', '-sign', private, '-out', signature, root / 'config.json')
+    native('openssl', 'dgst', '-sha256', '-verify', public, '-signature', signature, root / 'config.json')
 
 
 try:
-    native('openssl', 'genpkey', '-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256', '-out', key)
-    key.chmod(0o600)
-    native('openssl', 'pkey', '-in', key, '-pubout', '-out', public)
-    release = {'project': 'Kedra', 'scope': {'target': 'desktop'}, 'source_revision': 'a' * 40,
-               'build': {'run_id': 1}, 'image_digest': 'sha256:' + 'b' * 64,
-               'home_manifest_sha256': 'c' * 64, 'installer': {'filename': 'fixture.iso'}}
-    inputs = {'schema_version': 1, 'base': 'quay.io/fedora/fedora-bootc@sha256:' + 'd' * 64,
-              'source': {'files': [{'destination': 'etc/example', 'sha256': 'e' * 64}]},
-              'artifacts': {'sysroot': 'f' * 64}, 'recipes': {'Containerfile': '1' * 64},
-              'packages': [['example', '0', '1', '1.fc44', 'x86_64', '2' * 64, '3' * 64]]}
-    write('release.json', release)
-    package_bytes = b'example-1-1.fc44.x86_64\n'
-    (work / 'packages.txt').write_bytes(package_bytes)
-    provenance = {**release, 'schema_version': 2, 'format': 'kedra-candidate-provenance',
-                  'packages_sha256': hashlib.sha256(package_bytes).hexdigest(), 'resolved_inputs': inputs}
-    write('provenance.json', provenance)
-    expected_hash = hashlib.sha256((work / 'release.json').read_bytes()).hexdigest()
-    checksum_bytes = ''.join(hashlib.sha256((work / name).read_bytes()).hexdigest() + '  ' + name + '\n'
-                             for name in ('release.json', 'provenance.json', 'packages.txt')).encode()
-    (work / 'SHA256SUMS').write_bytes(checksum_bytes)
-    signature = native('openssl', 'dgst', '-sha256', '-sign', key, work / 'SHA256SUMS')
-    (work / 'SHA256SUMS.sig').write_bytes(base64.b64encode(signature) + b'\n')
-    check(inputs, 'no-change')
+    native('openssl', 'genpkey', '-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256', '-out', private)
+    private.chmod(0o600)
+    native('openssl', 'pkey', '-in', private, '-pubout', '-out', public)
+    put('source.json', source)
+    put('inputs.json', inputs)
+    seal(identity)
+    assert call(*verify)['material_verified']
+    bootc_inputs = copy.deepcopy(inputs)
+    bootc_inputs['packages'].append(['bootc', '0', '1.16.10', '1.fc44', 'x86_64', '1' * 64, '2' * 64])
+    put('bootc-inputs.json', bootc_inputs)
+    assert call('bootc', '--inputs', root / 'bootc-inputs.json')['compatible']
+    bootc_inputs['packages'][-1][2] = '1.17.0'
+    put('bootc-inputs.json', bootc_inputs)
+    call('bootc', '--inputs', root / 'bootc-inputs.json', expected=False)
+    put('bootc-inputs.json', inputs)
+    call('bootc', '--inputs', root / 'bootc-inputs.json', expected=False)
+    put('previous-inputs.json', inputs)
+    assert call('compare', '--current', root / 'inputs.json', '--previous', root / 'previous-inputs.json')['decision'] == 'unchanged'
     for field in ('base', 'source', 'artifacts', 'recipes', 'packages'):
         changed = copy.deepcopy(inputs)
-        if field == 'packages':
-            changed[field][0][-1] = '4' * 64  # Same NEVRA, different payload.
-        elif field == 'base':
-            changed[field] = 'quay.io/fedora/fedora-bootc@sha256:' + '5' * 64
+        if field == 'base':
+            changed[field] = 'quay.io/fedora/fedora-bootc@sha256:' + '1' * 64
+        elif field == 'packages':
+            changed[field][0][-1] = '2' * 64  # Equal NEVRA does not hide changed payload.
         else:
-            changed[field]['new-content'] = '6' * 64
-        check(changed, 'candidate')
-    check(inputs, valid=False, release_hash='0' * 64)
-    original = (work / 'provenance.json').read_bytes()
-    (work / 'provenance.json').write_bytes(original + b' ')
-    check(inputs, valid=False)
-    (work / 'provenance.json').write_bytes(original)
-    (work / 'packages.txt').write_bytes(b'example-2-1.fc44.x86_64\n')
-    check(inputs, valid=False)
-    (work / 'packages.txt').write_bytes(package_bytes)
-    (work / 'SHA256SUMS.sig').write_bytes(base64.b64encode(bytes(len(signature))))
-    check(inputs, valid=False)
-    print('PASS: signed material no-change, five changed-input cases, four authentication refusals')
+            changed[field]['changed'] = '3' * 64
+        put('inputs.json', changed)
+        assert call('compare', '--current', root / 'inputs.json', '--previous', root / 'previous-inputs.json')['decision'] == 'changed'
+        call(*verify, expected=False)
+    put('inputs.json', inputs)
+    previous = dict(identity, run_number=9)
+    put('previous-identity.json', previous)
+    ordering = ['--previous-identity', root / 'previous-identity.json', '--digest', 'sha256:' + '4' * 64,
+                '--previous-digest', 'sha256:' + '5' * 64]
+    assert call(*verify, *ordering)['ordering'] == 'advance'
+    put('previous-identity.json', identity)
+    call(*verify, *ordering, expected=False)
+    ordering[-1] = 'sha256:' + '4' * 64
+    assert call(*verify, *ordering)['ordering'] == 'already-current'
+    put('previous-identity.json', dict(identity, run_number=11))
+    call(*verify, *ordering, expected=False)
+    put('previous-identity.json', identity)
+    seal(dict(identity, run_number=11, resolved_at=identity['resolved_at'] - 1))
+    call(*verify, *ordering, expected=False)
+    seal(identity)
+    for field, value in [('target', 'xps'), ('channel', 'other'), ('minimum_protocol', 3), ('resolved_at', int(time.time()) + 600)]:
+        seal(dict(identity, **{field: value}))
+        call(*verify, expected=False)
+    seal(dict(identity, resolved_at=1))
+    assert call(*verify)['material_verified']  # No fabricated checkpoint expiry.
+    seal(identity)
+    (root / 'config.json').write_bytes((root / 'config.json').read_bytes() + b' ')
+    rejected = subprocess.run(['openssl', 'dgst', '-sha256', '-verify', str(public), '-signature',
+                               str(signature), str(root / 'config.json')], capture_output=True)
+    assert rejected.returncode != 0
+    put('identity.json', dict(identity, run_attempt=2))
+    call(*verify, expected=False)
+    print('PASS: sealed image-input CLI, no-change, content changes, rank/replay and tamper/scope refusals')
 finally:
-    if key.exists():
-        key.unlink()
+    if private.exists():
+        private.unlink()

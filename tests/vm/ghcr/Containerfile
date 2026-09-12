@@ -1,0 +1,24 @@
+# Disposable native fixture; the only signing authority is a generated test key.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+RUN dnf -y --best --refresh --repo=fedora --repo=updates --setopt=*.skip_if_unavailable=False install skopeo sudo python3 jq && dnf clean all && \
+    useradd --create-home --groups wheel kedra-test
+COPY helper /usr/libexec/sysroot/helper
+COPY sysroot /usr/bin/sysroot
+COPY release.pub release-policy.json /usr/lib/sysroot/trust/
+COPY policy.json /etc/containers/policy.json
+COPY registries.yaml /etc/containers/registries.d/kedra-ghcr-test.yaml
+COPY tls.crt /etc/containers/certs.d/ghcr.io/ca.crt
+COPY source.json /usr/share/sysroot/source.json
+COPY resolved-inputs.json /usr/share/sysroot/resolved-inputs.json
+COPY check.py /usr/libexec/kedra-ghcr-check.py
+COPY identity-recovery.py /usr/libexec/kedra-ghcr-identity-recovery.py
+COPY check.service /usr/lib/systemd/system/kedra-ghcr-test.service
+COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-ghcr-test.toml
+COPY install.toml /usr/lib/bootc/install/90-kedra-ghcr-test.toml
+RUN chmod 0755 /usr/libexec/sysroot/helper /usr/bin/sysroot && \
+    printf 'Kedra generated GHCR test VM\n' > /usr/share/sysroot/disposable-ghcr-test && \
+    printf 'kedra-test ALL=(root) NOPASSWD: /usr/libexec/sysroot/helper ""\n' > /etc/sudoers.d/kedra-ghcr-test && \
+    chmod 0440 /etc/sudoers.d/kedra-ghcr-test && visudo --check --file=/etc/sudoers.d/kedra-ghcr-test && \
+    systemctl enable kedra-ghcr-test.service && systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service && \
+    bootc container lint

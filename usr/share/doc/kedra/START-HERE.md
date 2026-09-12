@@ -41,22 +41,18 @@ niri workflow and review the file for secrets before adopting it. Wider file
 groups remain unfinished.
 Do not run image-building scripts as a workstation package installer.
 
-Published owner installers and the current signed channel are available from
-https://github.com/Reidond/kedra/releases. Follow the current installation and
-release instructions at https://github.com/Reidond/kedra/blob/main/docs/INSTALL.md.
+Signed OS images are published at ghcr.io/reidond/kedra-desktop. Installation
+media is built locally on demand; no GitHub Release download is required.
+Follow https://github.com/Reidond/kedra/blob/main/docs/INSTALL.md.
 On an installed system, use `sysroot update status` to inspect enrollment and
 the running/staged image. Run management commands as your ordinary owner account;
 the installed helper requests administrator authentication when needed.
 
-Enrollment and forward staging require a freshly verified channel for this target.
-Use `sysroot update check`, then `sysroot update enroll --channel` once and
-`sysroot update stage --channel` after reviewing an available release. These
-commands use installed trust and the fixed signed channel; the helper verifies
-the exact bytes independently. Older-media enrollment also needs that ISO's
-signed release record; see `sysroot update enroll --help`.
-Published r2 predates these convenience commands: use the explicit four signed
-file arguments documented in the installation guide when running that release.
-Keep prior signed release metadata and recovery media. Staging does not reboot,
+Use `sysroot update enroll` once, `sysroot update check` to inspect the signed
+stable image and `sysroot update stage` after review. The installed helper
+verifies the exact GHCR digest independently. Legacy enrolled systems need the
+explicit migration documented in docs/UPDATES.md; never delete their old state.
+Keep known-good signed images and local recovery media. Staging does not reboot,
 and a reboot does not automatically accept a changed home baseline.
 If `sysroot update status --home` is available in this build, it reports the
 caller's adopted Noctalia/niri baseline and pending recovery state without

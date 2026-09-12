@@ -1,7 +1,11 @@
 //! Pure release/home models and capability information.
 
+/// Reviewed build/runtime compatibility, embedded from the shared repository contract.
+pub mod compatibility;
 /// Qualified bootc observations and non-mutating deployment journal transitions.
 pub mod deployment;
+/// Identity authenticated by an OCI image signature; independent of legacy release files.
+pub mod image;
 /// Narrow Noctalia effective-settings review and disposition transitions.
 pub mod noctalia;
 /// Signed release records, freshness checkpoints and replay validation.

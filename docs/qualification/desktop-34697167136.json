@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "format": "kedra-installation-qualification",
+  "method": "manual-vm",
+  "completed_at": 1789232235,
+  "candidate_run": 34697167136,
+  "candidate_attempt": 1,
+  "candidate_sha256": "efbc4f1f4ae63dce9725b03c493abc17dce2acfa73c537c7b24b85946a5ac82c",
+  "source_revision": "b4e9f781154bced4f4006a3bb0d0d9e2623fcdb0",
+  "image_digest": "sha256:88da61e9252123e78ce2bd6c36528a0a0c45937a1b394f079b90fb2058f926f2",
+  "home_manifest_sha256": "5e47a6d7b4914ae8b4d093a2bf99cc3ed90ce5ed7044fd7ad0b0ba536bb7529e",
+  "installer": {
+    "filename": "kedra-desktop-44-34697167136-1.iso",
+    "size_bytes": 2862204928,
+    "sha256": "e01393b2f64256bb489a3983eaf7fa394f0e97e958e93044aded3532896e13c2"
+  },
+  "checks": {
+    "encrypted_install": "pass",
+    "unselected_disk_preserved": "pass",
+    "iso_free_boot": "pass",
+    "owner_desktop_login": "pass",
+    "selinux_enforcing": "pass",
+    "exact_booted_image": "pass",
+    "container_policy": "pass",
+    "home_writable": "pass",
+    "root_read_only": "pass",
+    "doctor": "pass"
+  },
+  "observed": {
+    "booted_image_matches_candidate": true,
+    "installed_source_matches_candidate": true,
+    "signature_policy": "containerPolicy",
+    "image_transport": "registry",
+    "selinux": "Enforcing",
+    "physical_root_mount": "read-only",
+    "home_mount": "writable",
+    "home_write_read_remove": "pass",
+    "sudo_authentication": "pass",
+    "doctor_desktop_session_checks_passed": true,
+    "doctor_changes_performed": false,
+    "failed_system_services": 0,
+    "failed_user_services": 0,
+    "enrolled": false,
+    "installer_qemu_exit_code": 0,
+    "desktop_qemu_exit_code": 0,
+    "sentinel_after_installer": {"exit_code": 0, "identical": true},
+    "sentinel_after_desktop": {"exit_code": 0, "identical": true}
+  },
+  "scope": {
+    "target": "desktop",
+    "architecture": "x86_64",
+    "fedora_release": 44,
+    "disposable_vm": true,
+    "generated_disks_and_account": true,
+    "offline_installation_and_boot": true,
+    "host_disks_attached": false,
+    "credentials_deleted": true,
+    "guests_stopped": true,
+    "promoted": false,
+    "physical_hardware_qualified": false
+  },
+  "evidence": [
+    "https://github.com/Reidond/kedra/actions/runs/34697167136"
+  ]
+}

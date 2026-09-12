@@ -17,16 +17,15 @@ test SSH_AUTH_SOCK in the graphical session, GUI-launched terminals, systemd use
 services, TTY and sysroot launchers. environment.d applies to the user service
 manager's environment, not magically every process; prove session propagation.
 A Bitwarden Flatpak would have different packaging/sandbox details; native RPM is
-the initial research candidate, not a tested installed outcome.
+the packaged integration; actual logged-out startup passed the desktop VM. Owner login remains separate.
 
 Desktop 2026.8.0 inspection (2026-09-08, R06): the official native RPM puts
 regular application files in /opt/Bitwarden and its launcher resolves its own
 path. Build preparation relocates unchanged runtime files to /usr/lib/bitwarden
 for bootc, retaining notices/source. Never run its conditional setuid/AppArmor
-RPM scripts on the workstation. The generated enforcing Fedora VM must prove
-native sandbox startup and socket propagation; syntax/layout checks alone do
-not pass authentication. See build/bitwarden/README.md and the R06 report for
-exact source/digest and pending runtime evidence.
+RPM scripts on the workstation. Native sandbox startup and socket propagation
+have desktop VM coverage; syntax/layout checks alone do not pass authentication.
+See build/bitwarden/README.md and docs/STATUS.md for scope and pinned inputs.
 
 Select the intended GitHub identity with a public-key file and SSH IdentityAgent,
 IdentityFile and IdentitiesOnly. The private half stays with Bitwarden. This
@@ -61,5 +60,11 @@ R06 tests logged-out/locked/unlocked/relocked/restarted app, session entry point
 auth refresh, plaintext fallback, cold private pulls and offline repair with
 synthetic data. Credentials are excluded before home capture and image assembly;
 no tokens in args/logs/transcripts. Recovery remains available without the GUI or
-network. Sources: docs/SOURCES.md bitwarden-ssh, bitwarden-cli, openssh,
-environment, gh-auth, codex-auth, claude-auth, bootc-secrets.
+network. Primary references: [Bitwarden SSH](https://bitwarden.com/help/ssh-agent/),
+[Bitwarden CLI](https://bitwarden.com/help/cli/),
+[OpenSSH identity configuration](https://man.openbsd.org/ssh_config),
+[systemd environment scope](https://man7.org/linux/man-pages/man5/environment.d.5.html),
+[GitHub CLI authentication](https://cli.github.com/manual/gh_auth_login),
+[Codex authentication](https://developers.openai.com/codex/auth/),
+[Claude authentication](https://code.claude.com/docs/en/authentication) and
+[bootc runtime secrets](https://bootc.dev/bootc/building/secrets.html).

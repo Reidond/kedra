@@ -1,4 +1,0 @@
-Verified channel files: verified-channel
-Image: ghcr.io/reidond/kedra-desktop@sha256:bb4f2b68996a4fc260972d9654440f62ee078bcf92a0996a8f7e34ea0133118b
-No previous state supplied; earlier accepted history was not checked.
-The installed helper independently verifies enrollment and staging.

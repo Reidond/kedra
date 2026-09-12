@@ -10,12 +10,10 @@ GitHub environment `kedra-desktop-signing` contains the encrypted key/passphrase
 as Actions secrets, and the public key/fingerprint as environment variables. It
 requires the Reidond reviewer, permits only main, and disables administrator
 bypass. Main requires the GitHub Actions rust check and disallows force-push or
-deletion, including for administrators. After required CI and PR 1 merge, the
-manual release opt-in was enabled and candidate 34250485539 started on main
-3b1bcdf. That exact candidate passed owner-approved image signing and anonymous
-strict pull, then failed ISO assembly on compressed layer identity. No production
-installer or channel has been promoted. A corrected candidate needs its own
-exact-digest review; see the R08 owner-candidate report.
+deletion, including for administrators. This authority signed published r1 and
+its channel. Later candidates and checkpoint renewal retain the same protected
+review boundary; see [release operations](../README.md) and
+[verified status](../../../docs/STATUS.md).
 The owner confirmed on 2026-09-08 that the recovery files are saved in Bitwarden
 and retrieval is checked. This is owner-reported recovery evidence; the agent did
 not access the Bitwarden vault, recovered private material or any SSH key.

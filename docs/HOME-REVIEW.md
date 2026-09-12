@@ -127,7 +127,7 @@ operation without advancing the baseline. If startup fails or changes the
 effective settings, recovery remains pending for review. Keep-current leaves any
 private checkpoint for inspection. After validated cleanup the old
 checkpoint may be gone, so use resume or keep-current. Never delete/reset the
-review store to work around an error. See [R04 evidence](research/R04-activation/REPORT.md).
+review store to work around an error. See [verified status](STATUS.md).
 
 ## Check the caller's accepted baseline after an OS change
 

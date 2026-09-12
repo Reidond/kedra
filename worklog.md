@@ -1,45 +1,16 @@
 # Kedra worklog
 
-Shared continuation record for Codex, Claude and other authorized contributors.
-Follow the maintenance contract in `AGENTS.md`. Keep the status snapshot current;
-append completed work entries without silently rewriting history. This file is
-public: no credentials, transcripts, private home data or sensitive raw logs.
+Shared continuation record. Historical entries below are preserved; paths they name can refer to earlier revisions.
 
 ## Current project status
 
-Last updated: 2026-09-09 (Europe/Kiev).
+Last updated: 2026-09-12 (Europe/Kiev).
 
-| Area | Verified status / next boundary |
-|---|---|
-| Phase | Owner release 1 and its signed channel are published and verified. Signed update/rollback, graphical desktop, real A/B/A home transitions, exact encrypted installation, and a second candidate's fresh encrypted installation/desktop boot pass. The second candidate is not promoted. Broader release/lifecycle implementation continues. |
-| Implemented | Three-package flat Rust workspace; source planning; signed release/channel verification, unpacking and ISO assembly; private state; native Noctalia and niri review/publication/reconciliation, discard/recovery and installed-baseline acceptance; desktop diagnostics; private Codex and Bitwarden. Actual A/B/A passes; protected production candidate/promotion pipelines are being qualified. |
-| Repository knowledge | One Codex/Claude plugin with 12 Kedra and 18 selected upstream skills in plugins/kedra/skills. Ordinary files; no submodule, symlinks or duplicate discovery copies. No personal installation. |
-| Testing policy | Owner decision 2026-09-08: end-to-end and manual testing only; no unit/model/mock/doctests or codebase self-checks. AGENTS.md governs this across languages and skills. Standard build/lint tools and runtime safeguards remain. |
-| Latest verified check | Accepted main 0eb1cf0 candidate 34293133114 passes build/sign/installer, complete archive/parts/ISO verification, fresh encrypted two-disk installation, ISO-free desktop boot, exact digest/policy/source, writable home, read-only root, doctor and clean shutdown with sentinel preservation. Development 708ce9f workspace 34297663764 passes. R01 34296984697, R07 34296984700 and R04 34296369019 pass with independently verified artifacts. The installed r1 update check passes current-channel verification and exact status preservation. Full-target 34297663758 failed its new filesystem evidence reader; it made no equivalence or freshness decision. |
-| R11 | Canonical skill files readable through AGENTS routing; Codex 0.153.4 source/native-help audit explains why its normal scan/cache loading omits this tree. No direct CLI extra-root route was established. Claude authoring validation passed. App Server extra-root/model/editor checks not-run; distribution review remains open. |
-| R03 | Native Noctalia and niri review/discard/recovery pass. Niri publication, source receipts, insertion/deletion, source-ancestry reconciliation and actual signed A/B/A baseline acceptance pass. Wider groups and additional failure phases remain open. See docs/research/R03-home-review/REPORT.md. |
-| Other R01-R10 | R01 strict signing/update/rollback and older-media enrollment pass. R02 exact owner installation passes for r1 and the new candidate's manual fresh-install subset. R07 graphical session and native home recovery pass. R08 owner signing/publication recovery, current-channel update discovery and candidate-media checks pass. Repaired automated v2 publication, forward available/staged/booted update cases, renewal/rotation, wider home groups, authentication and physical hardware gates remain open. |
-| Current task | Owner requested full implementation through usable installation. Published release 1, its channel, actual enrollment and subsequent reboot persistence are verified with concrete install guidance. Candidate 34293133114 is fully installed and booted in a fresh two-disk offline VM, with the selected disk encrypted and the data disk preserved; its signed metadata is not yet promoted. The retained enrolled r1 VM ran the development update-check CLI and reported current without changing installed state. Both VMs are now stopped. Full-target filesystem evidence needs a corrected native reader run; promotion and forward update qualification remain next. |
-| Machine effects | QEMU/OVMF and graphical dependencies are installed in existing Ubuntu WSL2; existing Docker Desktop ran pinned offline key tools. Recovery files have protected owner/SYSTEM ACLs. No workstation enrollment, vault/profile edits, host-disk formatting or OS installation. A pre-existing Mise shim unexpectedly removed several installed personal tool versions during command resolution; later commands bypass it. See WL-20260908-20. |
+Published r2 (source 0eb1cf09c0eab5f4488a780552f51582d3e92bdf, candidate 34293133114) reuses the previously qualified encrypted installation/desktop media and is confirmed GitHub isLatest:true. Key-free recovery published all 17 original approved assets at 2026-09-12T12:19:49Z and verified the sequence/generation-2 channel; no signatures were regenerated. Failed promotion 34325343190 remains failed. R1 enrollment/reboot evidence remains historical; no new installation or forward update occurred during recovery. [Verified status](docs/STATUS.md) records exact identities and remaining boundaries.
 
-Evidence: [R11 report](docs/research/R11-rust-workspace/REPORT.md),
-[research index](docs/research/status.json),
-[bootstrap run 2](https://github.com/Reidond/kedra/actions/runs/34138882781),
-[baseline run 3](https://github.com/Reidond/kedra/actions/runs/34139103852),
-[documentation run 4](https://github.com/Reidond/kedra/actions/runs/34140106798),
-and [update-plan run 6](https://github.com/Reidond/kedra/actions/runs/34145002985).
-The snapshot summarizes those records; source, exact CI runs and case-level
-reports remain authoritative for what was tested.
+Implementation, r2 recovery documentation and test-base repair are pushed through 8c0ec374990c87ef1d77f3493c8dc5df64c16e83 to origin/codex/production-ready in open [PR 5](https://github.com/Reidond/kedra/pull/5): 00:00 UTC resolved-input refresh, changed-candidate production, protected no-change checkpoint renewal, fixed-channel CLI enrollment/staging, and the consolidated operational repository. Both workspace checks and all four current-head native VM/installer checks pass. Refresh compares disposable pinned-base preflight RPM identities, source/artifacts/pins and recipe identity against authenticated prior material. Published r1/r2 lack this new schema and require the first candidate/promotion baseline. Current-source production release/renewal, fresh installation and hardware qualification are not claimed.
 
-### Next concrete actions
-
-Record the complete candidate installation report, then qualify its exact media
-for the repaired v2 publisher and stage/boot it in the retained enrolled r1 VM.
-Re-run the full-target filesystem observer after diagnosing the failed reader,
-without treating equal inputs as whole-image equivalence. Retain the owner's
-confirmed recovery backup. Full-target refresh/no-change, broader home groups,
-owner credential setup, independent targets and physical qualification remain
-open.
+Latest branch evidence at 8c0ec37: PR workspace 34694002795, push workspace 34693999486, signed-update 34693999455, desktop 34693999421, home-transition 34693999423 and installer 34693999505 all pass. The stale-base failures at 103c499 were repaired by per-run verified Fedora resolution; all four native artifacts agree on immutable base 5e0d17bc… and their archive hashes were independently verified. Installer success is construction/offline verification/diskless startup, not a fresh installation. See WL-20260912-08. R2 remains published/latest and opt-in is true; checkpoint expiry is 2026-09-16T07:50:54Z. Next: commit/push this evidence update, observe exact PR checks, then accept qualified source and run the protected production path. Production renewal and physical gates remain explicit.
 
 ## Work entries
 
@@ -730,3 +701,68 @@ open.
 - Checks / evidence: pass — candidate assembly verification, installer/desktop screenshots and native JSON in `output/owner-installer-34293133114-1/`; `disk-comparison-installer.json` and `disk-comparison-desktop.json`; update-check evidence in `docs/research/R08-release-protocol/update-check-9b4838d/`. pass — GitHub workspace `34297663764`, R01 `34296984697`, R07 `34296984700` and R04 `34296369019`. Both generated guests are stopped. not-run — candidate promotion, retained-r1 forward update, available/staged/booted-new/held update states, network-down update failure and physical/Secure Boot qualification.
 - Remaining / blockers: Candidate schema 2 still says `fresh_install_qualified: false` until the public qualification/promotion record is prepared. The new release is not published or staged. Full-target run `34297663758` failed at the new native filesystem reader (`image-filesystem-baseline` exit 1) after image mount/xattr preparation; its retained result explicitly made no equivalence or freshness decision.
 - Next: Prepare the exact candidate qualification record, submit the configured protected v2 promotion flow, and use the retained enrolled r1 VM for available/staged/booted update checks. Diagnose and rerun the full-target reader without adding normalization or a no-change decision.
+
+### WL-20260912-01 — 2026-09-12 — Production repository consolidation
+- Agent / state: Codex; completed consolidation subset; production integration remains active.
+- Scope / base: main at 76abf57cff5caad48777152a996502472da887bb; owner-requested installable repository, midnight refresh and clean operational documentation.
+- Completed: Consolidated architecture/status and copyable r1/current-source install, channel, update and release operations; relocated real signed-update, desktop, home-transition and agent E2E fixtures under tests and renamed their workflows. Test path filters now cover shared inputs on main and codex branches. Removed obsolete minimal-image fixtures, tracked research reports/screenshots, ADR/session/handoff/source-reference documents and bootstrap evidence after retaining durable contracts. Removed material remains recoverable in Git history. Historical work entries and canonical plugin/notices remain intact. Refreshed first-party skills to current contracts. Production refresh and Rust work remain separately coordinated.
+- Checks / evidence: pass — initial clean Git/source inspection; Python 3 compileall for tests/installer, Bash syntax for owned shell helpers, PyYAML 6.0.1 parsing current test workflows, Git whitespace check and manual rg reference review. Generated syntax-check caches in tests/installer were removed. not-run — renamed native VM/ISO workflows and new-source publication; source syntax is not installation evidence.
+- Remaining / blockers: Current source is not published or installed by these edits; native production publication/forward update and physical qualification remain separate.
+- Next: Finish reference cleanup and operational commands, run checks, integrate and record exact results before the final commit.
+
+### WL-20260912-02 — 2026-09-12 — Reconcile accepted source and unpublished r2
+- Agent / state: Codex; completed documentation correction after independent review.
+- Scope / base: main 76abf57cff5caad48777152a996502472da887bb; follow-up to WL-20260912-01.
+- Completed: Corrected the status snapshot to latest accepted-main CI and the later failed r2 publication attempt. Retained actual upstream URLs in operational skills and clarified that candidate artifacts contain numbered ISO parts and evidence, with the complete ISO reconstructed for qualification.
+- Checks / evidence: pass — workspace run 34688808033 at 76abf57 as verified by the coordinating review. Partial/fail — promotion 34325343190 passed prepare/sign but publisher left an empty r2 draft; no publication success or recovery is inferred. Documentation reference and whitespace inspection pass.
+- Remaining / blockers: Current changes still require final integration checks; r2 draft/signatures require inspected publication recovery. No new image is installed or published by these documentation changes.
+- Next: Complete source integration and checks, retain the failed publisher outcome, and only recover exact approved publication bytes after inspecting remote state.
+
+### WL-20260912-03 — 2026-09-12 — Document pre-build resolved-input refresh
+- Agent / state: Codex; completed documentation reconciliation.
+- Scope / base: main 76abf57cff5caad48777152a996502472da887bb; current production refresh implementation.
+- Completed: Replaced interim image-layer comparison guidance with the implemented pre-build package preflight and authenticated resolved-input comparison. Prior signed SHA256SUMS authenticates provenance/packages; legacy missing material builds a candidate. A changed build must match preflight; proven no-change skips OCI/ISO and uses protected checkpoint renewal. Documented r1's missing baseline and first-candidate requirement.
+- Checks / evidence: pass — source/interface inspection and documentation/reference review; not-run — actual production no-change renewal. No comparison result or publication is inferred from these edits.
+- Remaining / blockers: First schema-bearing candidate still requires qualification/promotion; native renewal requires its own observed execution.
+- Next: Finish integration checks and preserve protected review and exact-byte publication boundaries.
+
+### WL-20260912-04 — 2026-09-12 — Complete local production integration
+- Agent / state: Codex orchestrator with GPT-6 Astra planning/implementation/cross-review agents; completed local implementation and review, ready for commit.
+- Scope / base: main 76abf57cff5caad48777152a996502472da887bb; owner-requested production repository and midnight package refresh.
+- Completed: Implemented 00:00 UTC resolved-input refresh, changed-candidate path and protected no-change checkpoint renewal; added fixed-channel enrollment/staging; migrated actual E2E fixtures/workflows and consolidated installation, release, update and architecture guidance. Independent review's volatile-layer P1 was corrected with authenticated pre-build resolved-input comparison. No workstation installation or production signing/publication was performed in this integration.
+- Checks / evidence: pass — Windows cargo +1.98.1 formatting, Clippy with -D warnings and release build; Cargo E2E command passes but executes 0 Windows cases. pass — OpenSSL 3.6.1 release-interop; signed material CLI no-change, five changes including same-NEVRA payload change and four authentication refusals. pass — Python AST parsing of 26 files, WSL bash -n, delegated PyYAML validation of current production/test workflows, git diff --check and independent cross-reviews after the P1 correction.
+- Remaining / blockers: not-run — Linux/native Actions, scheduled Fedora resolution, protected renewal/publication, renamed VM/ISO workflows, installed --channel enrollment/staging, fresh ISO installation/forward update and physical/Secure Boot qualification. The existing empty r2 draft blocks conflicting sequence-2 promotion pending explicit exact-byte recovery; do not overwrite it or infer publication success.
+- Next: Orchestrator performs final diff review, stages and commits the reviewed work. Push and run Actions separately, then qualify actual production/native behavior without weakening protected signing or replay checks.
+
+### WL-20260912-05 — 2026-09-12 — Record local implementation commit
+- Agent / state: Codex; completed commit observation.
+- Scope / base: implementation commit 3c6c876, `Make Kedra install and update workflows production ready`.
+- Completed: Observed the implementation commit and a clean working tree immediately afterward. This follow-up records that result without changing implementation.
+- Checks / evidence: pass — Git commit/status readback and documentation whitespace check. No push, new Actions run or publication occurred.
+- Remaining / blockers: Native/external gates in WL-20260912-04 remain not-run; the empty r2 draft still requires inspected exact-byte recovery.
+- Next: Push the recorded source, follow exact Actions outcomes, and resolve r2 publication through explicit recovery without overwriting approved bytes.
+
+### WL-20260912-06 — 2026-09-12 — Publish exact approved r2 by key-free recovery
+- Agent / state: Codex orchestrator with independent recovery review; completed bounded publication recovery and documentation update.
+- Scope / base: codex/production-ready; unchanged approved source 0eb1cf09c0eab5f4488a780552f51582d3e92bdf and candidate 34293133114. Implementation commit 3c6c876 remains separate.
+- Completed: Published desktop-44-x86_64-r2 at 2026-09-12T12:19:49Z using original signed bytes from failed promotion 34325343190, without re-signing. Version ID 385328126 contains all 17 exact assets. Updated primary download/verification/install guidance to r2, retaining explicit four-file enrollment/staging because --channel is current-source only. No image was rebuilt or newly installed; recovery reused the already qualified candidate.
+- Checks / evidence: pass — complete 17-asset upload/download identities, signed SHA256SUMS, ordered ISO verification (2,856,314,880 bytes; SHA-256 15ddfafb8567297220e02831b6639f0fceb7efce0cd47bcf799fae97c5a1eb4b), incoming signatures/freshness/replay, exact r2 tag/source, numeric and anonymous channel readback. Channel release 385128562 has sole asset 559221144, SHA-256 817146817f19781a18976d8de929b4651ea442ea150f102f4ad969cc3134adda; sequence/generation 2 expires 2026-09-16T07:50:54Z. Channel tag remains c660c58. KEDRA_RELEASES_ENABLED restored true and verified. Failed run 34325343190 remains failed.
+- Remaining / blockers: Installed forward update and current-source scheduled/native/renewal workflows remain not-run. Physical/Secure Boot and broader lifecycle qualification remain open; r2 does not contain the new resolved-input schema or --channel commands.
+- Next: Commit/push these r2 recovery documentation changes to the already-pushed codex/production-ready branch, open the PR and observe its exact-head Actions results, then qualify current-source production and installed workflows.
+
+### WL-20260912-07 — 2026-09-12 — Resolve retained Fedora test inputs per run
+- Agent / state: Codex release/CI worker; completed local repair; native reruns not-run.
+- Scope / base: codex/production-ready at 69f648c5575f9def7c5fbc3610d5ee1130680c08; shared test base resolution and six retained native workflows.
+- Completed: Added tests/resolve-fedora-base.py to resolve only the reviewed official Fedora 44 Linux/AMD64 stream, re-fetch and check its immutable platform digest/config, and retain exact resolution evidence. Signed-update, desktop, home-transition, installer, RPM-refresh and full-target tests reuse one reference per run. Updated path filters and the RPM fixture runner's Skopeo dependency. Removed the unavailable base field from build/inputs.json while retaining the reviewed tag/architecture and builder pin. Updated build guidance. Production signing/release code and policies are unchanged.
+- Checks / evidence: pass — exact failed logs and retained signed-update build-A.log show manifest unknown for d4b9c5e156ab0a119962aad27c5394409094cc24348846a35c78acd8e9847a4d in signed-update 34692108739 and installer 34692108742; independent desktop/home review confirms the same cause in 34692108734 and 34692108741. These fail before relocated test behavior executes. Observed cancelled doomed reruns at 69f648c: installer 34693561364, home 34693561397, desktop 34693561407. pass — helper CLI help and refusal outside Actions without output, Python/JSON/YAML parsing, Bash syntax and whitespace checks. Branch workspace 34693561422 and 34693583046 pass at 69f648c.
+- Remaining / blockers: Registry resolution and the repaired native workflows require their own Actions executions. A refreshed immutable input is not proof of boot, installer or signing correctness. No local OS build or test-key policy relaxation occurred.
+- Next: Commit/push this repair, then inspect exact-head native outcomes and retain each run's base-resolution.json.
+
+### WL-20260912-08 — 2026-09-12 — Qualify repaired native workflows
+- Agent / state: Codex orchestrator with GPT-6 Astra implementation and independent evidence-review agents; completed exact-head CI qualification subset.
+- Scope / base: codex/production-ready at 8c0ec374990c87ef1d77f3493c8dc5df64c16e83; PR 5 remains open at that head. Published/latest r2 remains source 0eb1cf0 and is unchanged.
+- Completed: Verified six successful runs after replacing the retired d4b9c5e… test-base pin with per-run official Fedora 44 Linux/AMD64 resolution. No relocated fixture/path failure was found. Four native artifacts agree on quay.io/fedora/fedora-bootc@sha256:5e0d17bc17db8b74380ff999172e044c1a8269e33ab1ef366b22f58ec3d69ac5, discovery SHA-256 2c38c5f71a43993e07577629ef8e1695420ed38143482340215abdcea85a31fd, using Skopeo 1.13.3.
+- Checks / evidence: pass — PR workspace 34694002795, push workspace 34693999486, signed-update VM 34693999455, desktop VM 34693999421, signed home-transition VM 34693999423 and installer 34693999505. Installer scope is signed disposable-payload construction, offline verification and diskless Anaconda startup, not fresh installation. Complete small ZIP downloads independently match GitHub artifact SHA-256: signed 10297489364 / 33e22c3df517abb00b3146059e0abe3dbd8a20ef2e7a904e5b4258e6a078ee61; desktop 10297887729 / b55fcdad78d4b66447ce46397a4f68414c0a483d9f5d69f6ec02e2179d2d915e; home 10298408612 / 298187e2595dafb0fe8f6c76e7bd28c94549be6ae42cb1370f507b7cff3aeb02; installer 10298960051 / 50c475c4d71acc8340b6ba3cb8ac86c84007558be3ebbd54c1bb5eb74a179b42. No complete new ISO was downloaded in this evidence review.
+- Workspace artifacts: pass — push 10298276878 / 593b904cbeae27ea19bd7f27873d56fdd11b021e6617e148b5849cde5263ee52; PR 10297488805 / 4dcfe0a1df06b66daeb30b4370cc3cf9bf0983b872e08f3c44c8130059995251. PR artifact names synthetic merge checkout b48dfab14f15070c0c6f853396fa94b0eac3e9c6; the run head is the reviewed 8c0ec37, not a claim that both checkout identities are identical.
+- Remaining / blockers: not-run — current-source production release, scheduled package resolution, protected no-change renewal/publication, installed --channel enrollment/staging, fresh installation/owner forward update and physical/Secure Boot qualification. Native test success does not promote an image or pass these separate gates.
+- Next: Commit/push this evidence update, observe exact PR checks, then accept qualified source and exercise protected production operations without weakening signature, freshness or qualification boundaries.

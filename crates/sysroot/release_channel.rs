@@ -48,6 +48,26 @@ pub(crate) struct Bundle {
 }
 
 impl Bundle {
+    #[cfg(target_os = "linux")]
+    pub(crate) fn into_documents(
+        self,
+    ) -> (
+        sysroot_helper::protocol::SignedDocument,
+        sysroot_helper::protocol::SignedDocument,
+    ) {
+        use sysroot_helper::protocol::SignedDocument;
+        (
+            SignedDocument {
+                payload: self.release.payload,
+                signature: self.release.signature,
+            },
+            SignedDocument {
+                payload: self.checkpoint.payload,
+                signature: self.checkpoint.signature,
+            },
+        )
+    }
+
     pub(crate) fn parse(bytes: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
         if bytes.len() > MAX_BUNDLE {
             return Err(sysroot_core::release::Error::SizeLimit.into());

@@ -1,7 +1,0 @@
-OpenSSL 3.6.1 27 Jan 2026 (Library: OpenSSL 3.6.1 27 Jan 2026)
-PASS: CLI signed channel initial/repeat/no-change checks and expiry/future/binding/replay refusal
-PASS: CLI historical-only expired predecessor, fresh higher continuation, unchanged ordering and strict incoming expiry
-PASS: history rejects wrong signatures, malformed scope/schema/binding/lifetime/future and ordering regressions
-PASS: CLI channel unpack and downstream verification; replay/tamper/authority/existing-output refusal
-PASS: 16 OpenSSL signatures, wrong-key/tamper/artifact rejection, advisory output
-PASS: CLI installer assembly, missing/reordered/extra parts and existing-output refusal

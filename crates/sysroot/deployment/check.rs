@@ -267,10 +267,19 @@ fn fetch(url: &'static str) -> Result<Vec<u8>> {
     capture(command, None, MAX_BUNDLE, "anonymous channel download")
 }
 
-pub(super) fn run(json: bool) -> Result<()> {
+struct Discovery {
+    status: Status,
+    trust: Trust,
+    bundle: Bundle,
+    update: release::VerifiedUpdate,
+    now: u64,
+    url: &'static str,
+}
+
+fn discover() -> Result<Discovery> {
     let uid = rustix::process::getuid().as_raw();
     if uid == 0 || rustix::process::geteuid().as_raw() != uid {
-        return Err("update checks run as the ordinary invoking user, never root".into());
+        return Err("channel operations run as the ordinary invoking user, never root".into());
     }
     eprintln!(
         "sysroot: reading installed deployment state through the helper; an existing operation may be reconciled"
@@ -282,12 +291,12 @@ pub(super) fn run(json: bool) -> Result<()> {
     let after = status()?;
     if before != after || trust != load_trust(&after)? {
         return Err(
-            "installed deployment or trust changed during the check; run update check again".into(),
+            "installed deployment or trust changed during channel verification; retry the operation".into(),
         );
     }
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    let update =
-        Bundle::parse(&bytes)?.verify(&trust.key, &trust.scope, after.high_water(), now)?;
+    let bundle = Bundle::parse(&bytes)?;
+    let update = bundle.verify(&trust.key, &trust.scope, after.high_water(), now)?;
     let release = update.release.release();
     let matches_booted = release.image_digest == after.host.booted.digest;
     if matches_booted
@@ -296,6 +305,41 @@ pub(super) fn run(json: bool) -> Result<()> {
     {
         return Err("running image provenance differs from the signed channel release".into());
     }
+    Ok(Discovery {
+        status: after,
+        trust,
+        bundle,
+        update,
+        now,
+        url,
+    })
+}
+
+/// Return the exact authenticated payloads; the helper verifies them again at mutation time.
+pub(super) fn documents() -> Result<(
+    sysroot_helper::protocol::SignedDocument,
+    sysroot_helper::protocol::SignedDocument,
+)> {
+    let discovery = discover()?;
+    eprintln!(
+        "sysroot: verified channel release {} ({}) for independent helper verification",
+        discovery.update.release.release().sequence,
+        discovery.update.release.release().image_reference()
+    );
+    Ok(discovery.bundle.into_documents())
+}
+
+pub(super) fn run(json: bool) -> Result<()> {
+    let Discovery {
+        status: after,
+        trust,
+        update,
+        now,
+        url,
+        ..
+    } = discover()?;
+    let release = update.release.release();
+    let matches_booted = release.image_digest == after.host.booted.digest;
     let matches_staged = after
         .host
         .staged

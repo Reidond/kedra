@@ -5,9 +5,10 @@ Rust skills, with supporting files. Codex reads `.codex-plugin/plugin.json`;
 Claude reads `.claude-plugin/plugin.json`. Everything is an ordinary file.
 
 Use this plugin while working in a Kedra checkout. Start with the checkout's
-AGENTS.md, worklog.md and docs/HANDOFF.md, then the `kedra-context` skill.
+AGENTS.md, worklog.md and docs/STATUS.md, then the `kedra-context` skill.
 Repository paths in skills refer to that working checkout, not an installed
-plugin cache. The sysroot agent launchers are still unimplemented.
+plugin cache. The sysroot agent launchers open the checkout without provisioning
+these skills globally; see docs/AGENT-LAUNCHERS.md for implemented runtime scope.
 
 ## Codex
 
@@ -16,7 +17,7 @@ The repository marketplace is `.agents/plugins/marketplace.json`, named
 skills/list probes found no Kedra skills at root or crate cwd. The current app
 session did not advertise them either. Read canonical skill files explicitly when
 the plugin is unavailable; a restart is not a verified remedy. See
-[discovery evidence](../../docs/research/R11-rust-workspace/discovery-20260907.md).
+[discovery evidence](https://github.com/Reidond/kedra/blob/main/docs/STATUS.md).
 These repository files have not installed the plugin or changed personal config.
 
 Codex CLI supports explicitly registering a marketplace with

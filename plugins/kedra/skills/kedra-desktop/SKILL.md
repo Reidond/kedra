@@ -8,7 +8,7 @@ description: Configure or validate Fedora niri/Noctalia, effective GUI-written s
 Fedora planning sources list niri and Noctalia packages, but verify the exact
 Fedora 44 versions resolved by CI. Do not mix latest upstream config with an
 older distribution binary or assume a package list is a working desktop.
-The root package list is a research candidate, not a complete bill of materials.
+The actual release inventory records resolved packages; package names alone do not prove a working session.
 
 ## Session checklist
 
@@ -17,14 +17,14 @@ greetd 0.10.3-6.fc44. The service account is `greetd`, not upstream's `greeter`.
 Actions 34169415857 passed a generated-password VM login, IPC, service/portal
 availability and unlocked synthetic keyring; the Fedora PAM file includes
 GNOME Keyring integration. This does not prove physical devices or owner auth.
-See R07-desktop/REPORT.md for images, harness failures and visual refinements.
+See docs/STATUS.md for later actual desktop and installer qualification.
 
 Prove niri session startup, D-Bus/systemd user environment, portal backends/file
 chooser/screen sharing, Xwayland application support, PipeWire/WirePlumber,
 NetworkManager/Wi-Fi, Bluetooth, notifications, authentication/keyring, lock/idle,
 recovery TTY and display acceleration. Use niri's supported session integration;
 a bare compositor process may not establish the expected graphical services.
-Choose the display/login manager in R07, not by blindly copying a generic setup.
+Preserve the packaged greetd session integration rather than copying a generic setup.
 Keep SELinux enforcing and inspect denials rather than disabling it.
 
 Keep common keybindings/appearance separate from host monitor/input/lid/power
@@ -40,15 +40,15 @@ v4 Quickshell/JSON commands are not interchangeable. Check the installed major
 version first. Read references/noctalia.md for the proposed narrow projection.
 Noctalia 5.0.1 native full-export/IPC projection passes R07 run 34179189185 at
 d74c4c0 (2026-09-08). The safe three-field model rejects unqualified versions and
-missing/malformed selected fields before persistence; see R03 noctalia.md/ADR 0007.
-The full export remains transient. This does not implement coordinated live writes.
+missing/malformed selected fields before persistence; see docs/HOME-REVIEW.md.
+The full export remains transient. Native activation separately coordinates writers.
 Do not decide a Git config update succeeded while a writable override still wins.
 Review/export only selected safe settings, not the entire state tree.
 
 Validate with the actual built application's validator where supported. A validator
 success is not proof that a screen-sharing portal, physical audio device or suspend
 cycle works. Preparing config for new software must not overwrite live config
-under the old software; coordinate with the home activation research.
+under the old software; coordinate with the explicit home activation workflow.
 
 ## Hardware scope
 
@@ -60,4 +60,8 @@ qualification. Laptop battery/lid/external-display behavior has separate tests.
 Document measured workarounds under the host with a reason/removal condition.
 
 Gates: R07 desktop, R03/R04 effective settings, R06 keyring/auth, R09 host isolation.
-Sources: docs/SOURCES.md niri, fedora-niri, fedora-noctalia, noctalia, environment.
+Primary references: [niri](https://niri-wm.github.io/niri/),
+[Fedora niri package](https://packages.fedoraproject.org/pkgs/niri/niri/),
+[Fedora Noctalia package](https://packages.fedoraproject.org/pkgs/noctalia/noctalia/),
+[Noctalia configuration](https://docs.noctalia.dev/noctalia/configuration/) and
+[systemd environment scope](https://man7.org/linux/man-pages/man5/environment.d.5.html).

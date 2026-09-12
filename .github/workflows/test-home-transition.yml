@@ -1,0 +1,68 @@
+name: Test signed home transition
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+    paths:
+      - .github/workflows/test-home-transition.yml
+      - tests/vm/home-transition/**
+      - tests/vm/desktop/run_vm.py
+      - tests/vm/desktop/test-profile.toml
+      - tests/vm/console.toml
+      - tests/resolve-fedora-base.py
+      - build/inputs.json
+      - build/assemble.sh
+      - build/agents/**
+      - build/bitwarden/**
+      - Containerfile
+      - crates/**
+      - Cargo.toml
+      - Cargo.lock
+      - packages/**
+      - hosts/desktop/**
+      - etc/**
+      - usr/**
+      - home/**
+permissions:
+  contents: read
+concurrency:
+  group: test-home-transition-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native-home:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prepare disposable runner tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils imagemagick xdotool rpm cpio e2fsprogs
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --test 'e2e_*' --locked
+          cargo build --workspace --release --locked
+      - name: Exercise actual signed A and B graphical boots with writable home
+        run: bash tests/vm/home-transition/run.sh
+      - name: Remove disposable private inputs
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, shutil
+          private = pathlib.Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-r04-private'
+          if private.is_dir():
+              shutil.rmtree(private)
+          PY
+      - name: Preserve public evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r04-native-transition-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/r04-evidence/
+          if-no-files-found: error
+          retention-days: 14

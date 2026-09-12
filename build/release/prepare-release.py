@@ -11,6 +11,7 @@ import re
 import subprocess
 import tempfile
 import time
+import material
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--candidate', type=pathlib.Path, required=True)
@@ -147,7 +148,7 @@ for index, name in enumerate(parts):
     assets[name] = {'sha256': hasher.hexdigest(), 'size_bytes': size}
 require(parts_hasher.hexdigest() == installer['sha256'], 'Download parts differ from the complete installer')
 packages_bytes = bounded(args.packages, 4 * 1024**2)
-provenance_bytes = bounded(args.provenance)
+provenance_bytes = bounded(args.provenance, 4 * 1024**2)
 require(digest(candidate['packages_sha256']) and digest(candidate['provenance_sha256'])
         and hashlib.sha256(packages_bytes).hexdigest() == candidate['packages_sha256']
         and hashlib.sha256(provenance_bytes).hexdigest() == candidate['provenance_sha256'],
@@ -155,17 +156,33 @@ require(digest(candidate['packages_sha256']) and digest(candidate['provenance_sh
 provenance = document(provenance_bytes)
 provenance_identity = ['project', 'scope', 'source_revision', 'build', 'image_digest',
                        'home_manifest_sha256', 'packages_sha256', 'last_successful_resolution', 'installer']
-require(set(provenance) == {'schema_version', 'format', 'installer_inputs', *provenance_identity}
-        and type(provenance['schema_version']) is int and provenance['schema_version'] == 1
+require(set(provenance) == {'schema_version', 'format', 'installer_inputs', 'resolved_inputs', *provenance_identity}
+        and type(provenance['schema_version']) is int and provenance['schema_version'] == 2
         and provenance['format'] == 'kedra-candidate-provenance'
         and all(provenance[key] == candidate[key] for key in provenance_identity),
         'Provenance identity differs from the candidate')
+resolved_inputs = provenance['resolved_inputs']
+require(isinstance(resolved_inputs, dict) and resolved_inputs.get('schema_version') == 1
+        and set(resolved_inputs) == {'schema_version', 'base', 'source', 'artifacts', 'recipes', 'packages'}
+        and resolved_inputs['source'] == {key: value for key, value in source.items()
+                                         if key not in ('source_revision', 'input_scope')},
+        'Resolved inputs do not bind the actual source payload')
+resolved_rows = resolved_inputs['packages']
+require(material.packages(('\n'.join('\t'.join(row) for row in resolved_rows) + '\n').encode()) == resolved_rows,
+        'Resolved RPM content identity is incomplete or noncanonical')
+require(sorted(f'{row[0]}-{row[2]}-{row[3]}.{row[4]}' for row in resolved_rows)
+        == sorted(line for line in packages_bytes.decode().splitlines() if not line.startswith('gpg-pubkey-')),
+        'Resolved package material differs from installed package list')
 inputs = provenance['installer_inputs']
 require(isinstance(inputs, dict) and set(inputs) == {'base_image', 'builder_image', 'builder_version'}
         and all(isinstance(inputs[key], str) and re.fullmatch('[a-z0-9./_-]+@sha256:[a-f0-9]{64}', inputs[key])
                 for key in ['base_image', 'builder_image'])
         and isinstance(inputs['builder_version'], str) and 0 < len(inputs['builder_version']) <= 4096,
         'Missing resolved installer provenance')
+require(resolved_inputs['base'] == inputs['base_image'], 'Resolved OS base differs from installer provenance')
+require(all(isinstance(resolved_inputs[section], dict) and resolved_inputs[section]
+            and all(isinstance(value, str) and digest(value) for value in resolved_inputs[section].values())
+            for section in ('artifacts', 'recipes')), 'Missing compiled/external artifact or recipe hashes')
 qualification_bytes = bounded(args.qualification)
 qualification = document(qualification_bytes)
 require(set(qualification) == {'schema_version', 'candidate_sha256', 'method', 'checks', 'evidence'}

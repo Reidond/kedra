@@ -1,42 +1,9 @@
-# Interactive installer research
+# Installer
 
-`installer/Containerfile` builds a separate Fedora Anaconda environment. The
-desktop is the separately built OCI payload; installer tooling is not added to
-the everyday desktop. The workflow now uses pinned image-builder v82.0.0's
-`bootc-generic-iso` path with explicit graphical/rescue boot entries and native
-Anaconda `bootc` interactive defaults. There are no preset partition commands.
+User instructions: [install Kedra](../docs/INSTALL.md). Build/publish instructions: [release operations](../build/release/README.md).
 
-The installation environment has Anaconda's normal privileged console/rescue
-session. Its media-only account setup is separate from the installed payload,
-whose root account remains locked and whose owner account is created interactively.
+The pinned image-builder produces a separate Anaconda environment with an embedded signed desktop OCI payload. The installer asks for disk selection, encryption and an administrative owner account; no disk or password is preset. Offline payload verification runs before installation and strict container signature policy is inherited by the installed OS.
 
-Current output is research-only. The initial desktop payload uses a localhost
-research origin and is not a promoted signed release. Do not install it on a
-physical machine. Its boot configuration must be inspected, then exercised in a
-disposable multi-disk VM with deliberate disk choice, encryption and account
-creation. Full signature/origin handoff must be joined to R01 before promotion.
+`build-iso.sh` adds the required native SELinux-labeling stage to the pinned generic-ISO manifest. `anaconda-adapter.py` applies hash-guarded compatibility fixes for target-backed import scratch storage and persistent mount preparation. `finalize-fstab.py` retains the physical `/sysroot` mount and read-only policy. Unsupported upstream/source changes fail rather than silently bypassing these checks.
 
-All media builds run in Actions. Normal installation instructions and stable
-download links will be supplied after those tests; no owner account/password,
-disk identifier or unattended erase configuration is supplied for the installed OS.
-
-See [R02 evidence](../docs/research/R02-installer/REPORT.md).
-
-The first generic ISO froze before Anaconda on SELinux permission errors. The
-pinned v82.0.0 generic `os-tree` pipeline lacks a labeling stage. `build-iso.sh`
-retains the original manifest, appends the standard `org.osbuild.selinux` stage
-using the installer's own file contexts, then exports through native osbuild with
-the same cache. The preliminary unlabeled ISO is not exported. The adjustment
-fails if the expected pipeline changes or upstream adds labeling. It does not
-modify the installed payload's verification rules. The media policy is described
-separately below and in ADR 0010.
-
-The workflow checks the packaged systemd label and boots the unchanged ISO stage2
-using its extracted kernel/initramfs with an explicit research probe and no disks.
-The initial enforcing-userspace probe passed but a local UEFI run exposed denied
-Anaconda service/rescue-shell operations. The media now follows Fedora Lorax's
-permissive SELinux environment; the separate installed desktop stays enforcing.
-The revised smoke requires Anaconda service/log startup. UEFI, UI and installed
-enforcement still require separate VM cases. See ADR 0010 for the source and
-failure evidence. The probe runs only with the research
-kernel flag and never enters the installed desktop payload.
+The media uses Fedora's permissive installer SELinux environment. The installed desktop remains enforcing. `smoke.py` boots the ISO without disks and requires offline verification and Anaconda startup; full encrypted install, data-disk preservation and ISO-free boot are separate manual VM checks. `prepare-test-trust.py` and `signed-payload.Containerfile` support disposable-authority E2E only.

@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "resolved_on": "2026-09-08",
-  "architecture": "amd64",
-  "base_tag": "quay.io/fedora/fedora-bootc:44",
-  "base": "quay.io/fedora/fedora-bootc@sha256:d4b9c5e156ab0a119962aad27c5394409094cc24348846a35c78acd8e9847a4d",
-  "builder_tag": "quay.io/centos-bootc/bootc-image-builder:latest",
-  "builder": "quay.io/centos-bootc/bootc-image-builder@sha256:afeffdb5a7ab6bb9d0593b5765412c4d821a9492dbaf26bb5a494e27181d2019"
-}

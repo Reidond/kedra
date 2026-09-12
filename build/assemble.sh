@@ -14,6 +14,11 @@ dnf -y --best --refresh "${repos[@]}" install "${packages[@]}"
 if test "${#remove[@]}" -gt 0; then dnf -y "${repos[@]}" remove "${remove[@]}"; fi
 dnf clean all
 dnf check
+if test "${1:-}" = --resolve-packages; then
+    rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
+        | LC_ALL=C sort > /resolution/package-material.txt
+    exit 0
+fi
 # Recomputable build-time caches/logs are not installed machine state.
 rm -rf /var/lib/dnf /var/cache/swcatalog /var/cache/ldconfig
 rm -f /var/log/dnf5.log /var/log/dnf5.log.1
@@ -38,5 +43,9 @@ NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \
     NOCTALIA_STATE_HOME=/tmp/kedra-noctalia-validation noctalia config validate
 sed -i 's/^NAME=.*/NAME="Kedra"/; s/^PRETTY_NAME=.*/PRETTY_NAME="Kedra (Fedora 44)"/' /usr/lib/os-release
 rpm -qa | sort > /usr/share/sysroot/packages.txt
+# Keep RPM content identity as well as display names: identical NEVRA is not
+# proof that a repository served identical signed package payloads.
+rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
+    | LC_ALL=C sort > /usr/share/sysroot/package-material.txt
 sysroot status --json
 bootc container lint

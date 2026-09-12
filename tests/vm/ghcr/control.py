@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import ssl
 import subprocess
+import time
+import urllib.error
 import urllib.request
 
 root = Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-ghcr'
@@ -20,6 +22,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if operation in ('offline', 'online'):
                 subprocess.run(['sudo', 'podman', 'stop' if operation == 'offline' else 'start', 'kedra-ghcr-registry'],
                                check=True, timeout=30, stdout=subprocess.DEVNULL)
+                if operation == 'online':
+                    # start acknowledges the container before its HTTPS listener is ready.
+                    # Poll only this read-only loopback endpoint; never repeat start or a PUT.
+                    deadline = time.monotonic() + 10
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise TimeoutError('Local registry did not become ready within 10 seconds')
+                        try:
+                            with urllib.request.urlopen('https://127.0.0.1/v2/', context=context,
+                                                        timeout=min(2, remaining)) as response:
+                                assert response.status == 200
+                            break
+                        except (urllib.error.URLError, TimeoutError):
+                            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
             else:
                 assert operation in cases['digests']
                 digest = cases['digests'][operation]

@@ -73,7 +73,15 @@ runtime fell back to built-in yellow/navy. Adding complete objects restored
 blue/charcoal in a disposable nested-niri session. Inspect the tagged
 [theme service](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/src/theme/theme_service.cpp),
 actual rendered output and managed application logs; config/UI labels alone are
-not effective-palette evidence. See WL-20260913-08 for exact Actions scope.
+not effective-palette evidence. Exact-source desktop run 34769161693 at
+71cb8c9158871f82cb38f1fa59df2e7260dd51cf passes startup/restart fallback-warning
+checks and all six native toolkit/file-chooser workflows. Independent artifact
+10321492608 screenshot review confirms blue/charcoal. This is VM evidence;
+physical/accessibility qualification is separate. See WL-20260913-08.
+The same source passes signed home-transition 34769161731 with STAGE_B,
+ACCEPT_B_ROLLBACK_STAGED and ROLLBACK_A_HOME. These exact VM/source results
+do not establish production publication, physical installation or a full
+accessibility audit.
 
 Sources: [GNOME HIG styling](https://developer.gnome.org/hig/guidelines/ui-styling.html),
 [typography](https://developer.gnome.org/hig/guidelines/typography.html), and

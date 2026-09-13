@@ -31,13 +31,35 @@ at contrast ratios above 4.5:1; this is not a full accessibility audit.
 
 Shell syntax, Git whitespace, Rust 1.98.1 formatting, Clippy with warnings denied
 and release build passed. The Windows E2E command succeeded but executed zero
-cases, so it provides no new Linux behavior coverage. A new image build,
-graphical GTK/Noctalia rendering and VM/physical desktop qualification are
-**not-run** for these changes. The earlier published image and ISO results below
-remain evidence for their original source only. See WL-20260913-07 in the
+cases, so it provides no new Linux behavior coverage. At that initial milestone,
+new-image and graphical checks were not-run; the later exact-source native/VM
+results follow below. Physical qualification remains separate. The earlier
+published image and ISO results remain evidence for their original source only.
+See WL-20260913-07 in the
 [worklog](../worklog.md) for this source task's checks and next step.
 
 ## Native GTK and Qt integration follow-up
+
+**Current exact-source result:** `71cb8c9158871f82cb38f1fa59df2e7260dd51cf`
+passes workspace [34769161713](https://github.com/Reidond/kedra/actions/runs/34769161713)
+and desktop [34769161693](https://github.com/Reidond/kedra/actions/runs/34769161693).
+Artifact `10321492608` contains 35 PNGs and passing wallpaper-source,
+no-video-bridge, managed Noctalia fallback-warning absence at startup/after
+restart, all six native GTK 3 Wayland/X11, libadwaita and Qt 5/6 KDE-dialog/user
+font workflows with exact selected-file content, KEDRA_TOOLKITS_PASS and
+KEDRA_R07_SESSION_PASS markers. Independent desktop.png/settings.png review
+confirms blue Adwaita accents and charcoal panels without yellow/navy fallback
+or the black bridge tile.
+
+Exact-head signed home-transition
+[34769161731](https://github.com/Reidond/kedra/actions/runs/34769161731) also
+passes, including STAGE_B, ACCEPT_B_ROLLBACK_STAGED and ROLLBACK_A_HOME markers
+at 17:02–17:03 UTC. Independent GPT-6 Astra read-only review found no actionable
+defects. Source and disposable-VM visual/workflow qualification are complete;
+physical hardware, scaling/high contrast and full accessibility remain separate.
+No production publication or installation is claimed. Next: review/merge a PR
+if the owner authorizes, then separately qualify the published image and physical
+target. The milestones below preserve earlier failures and their corrections.
 
 The follow-up from `4d1d0d2888a43c3ea2cdf281ab9be44ef263a582` adds KDE platform
 integration and native Breeze styles for Qt 5/6, KDE Qt Quick Controls styles,
@@ -225,9 +247,9 @@ Adwaita file omitted them, causing runtime fallback while the UI still displayed
 Custom/Adwaita. Complete terminal colors are now implemented. A disposable native
 Noctalia 5.0.1 session under nested niri renders charcoal panels/blue accents
 without a fallback warning; native config validation and whitespace pass.
-The VM workflow now has a read-only managed-journal fallback guard. The full
-Actions visual rerun remains pending; the preceding functional GUI pass retains
-its recorded visual limitation.
+The VM workflow now has a read-only managed-journal fallback guard. The later
+71cb8c9 Actions visual rerun passes as recorded above; the preceding 2653cde
+functional GUI pass retains its historical visual limitation.
 
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E

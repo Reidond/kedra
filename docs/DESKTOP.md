@@ -28,8 +28,8 @@ those objects: without them the runtime silently used its built-in yellow/navy
 palette while settings still displayed Custom/Adwaita. The tagged
 [theme service](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/src/theme/theme_service.cpp)
 and a disposable native session confirmed this requirement. The corrected palette
-renders blue accents and charcoal panels locally; its full Actions visual rerun
-is pending.
+renders blue accents and charcoal panels in the exact-source Actions VM, with
+startup/restart fallback-warning checks and independently reviewed screenshots.
 
 ## Configuration and ownership
 
@@ -44,8 +44,8 @@ through `[wallpaper.default]` to replace Noctalia's bundled illustrated wallpape
 The setting passes native Noctalia 5.0.1 validation and follows its tagged
 [wallpaper implementation](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/src/shell/wallpaper/wallpaper.cpp)
 and [configuration example](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/example.toml).
-Existing personal wallpaper overrides remain authoritative. Its new rendered
-appearance has not yet been qualified in the desktop VM.
+Existing personal wallpaper overrides remain authoritative. The charcoal
+background is visible in the qualified desktop VM screenshots.
 
 Niri uses eight-pixel gaps, rounded window corners, a blue active focus ring and
 subtle shadows while retaining its scrolling tiling layout. Common shortcuts are:
@@ -126,7 +126,7 @@ The version's [capture-window implementation](https://raw.githubusercontent.com/
 uses invisibility hints that were ineffective in this niri/Xwayland session;
 see its [README](https://raw.githubusercontent.com/KDE/xwaylandvideobridge/v0.5.2/README.md)
 and [Fedora package](https://packages.fedoraproject.org/pkgs/xwaylandvideobridge/xwaylandvideobridge/fedora-44-updates.html).
-The startup exclusion is implemented, with visual verification pending in CI.
+The startup exclusion passes VM process/window checks and screenshot review.
 
 ## Verification scope
 
@@ -139,3 +139,17 @@ not establish libadwaita accessibility conformance.
 
 See [verified status](STATUS.md) and the [worklog](../worklog.md) for actual results.
 Source changes alone do not update an existing installed image or writable home.
+
+At `71cb8c9158871f82cb38f1fa59df2e7260dd51cf`, desktop Actions
+[34769161693](https://github.com/Reidond/kedra/actions/runs/34769161693) passes
+all six native toolkit/file-chooser workflows and session checks. Artifact
+`10321492608` contains 35 screenshots; independent desktop/settings review
+confirms blue Adwaita accents and charcoal panels without palette fallback or
+the bridge tile. This qualifies the observed disposable VM appearance and
+workflows. Physical displays, scaling/high contrast and a full accessibility
+audit remain separate; no publication or user-hardware boot is implied.
+The same source also passes workspace
+[34769161713](https://github.com/Reidond/kedra/actions/runs/34769161713) and signed
+home-transition [34769161731](https://github.com/Reidond/kedra/actions/runs/34769161731),
+including staged B, accepted B/rollback staging and rollback A home checks.
+Independent source review found no actionable defects.

@@ -1,0 +1,12 @@
+# Image defaults only: explicit user preferences continue to take precedence.
+# Keep libadwaita's native styling and allow apps to choose their default style.
+[org.gnome.desktop.interface]
+color-scheme='default'
+accent-color='blue'
+gtk-theme='Adwaita'
+icon-theme='Adwaita'
+cursor-theme='Adwaita'
+cursor-size=24
+font-name='Adwaita Sans 11'
+document-font-name='Adwaita Sans 12'
+monospace-font-name='Adwaita Mono 11'

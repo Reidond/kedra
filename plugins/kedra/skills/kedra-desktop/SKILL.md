@@ -50,6 +50,26 @@ success is not proof that a screen-sharing portal, physical audio device or susp
 cycle works. Preparing config for new software must not overwrite live config
 under the old software; coordinate with the explicit home activation workflow.
 
+## Adwaita appearance baseline
+
+The 2026-09-13 desktop configuration work uses GNOME HIG styling and typography
+as the design reference; see [desktop defaults](../../../../docs/DESKTOP.md).
+Keep native GTK/libadwaita styling and user preferences intact. Noctalia's custom
+semantic palette is an approximation in a different toolkit, not libadwaita CSS
+or proof of high-contrast/accessibility behavior. GNOME Shell bar conventions and
+niri navigation are desktop design choices, not HIG app requirements.
+
+For the measured Noctalia 5.0.1 / niri 26.04 baseline, inspect native validation
+and effective exports before claiming a setting works. A valid-looking TOML key
+can still be unsupported or lose to a GUI override; never clear the entire live
+override file to force the source theme. Appearance defaults do not expand the
+three-field Noctalia home projection. Validate custom themes through the native
+application and test rendered behavior separately when changing its version.
+
+Sources: [GNOME HIG styling](https://developer.gnome.org/hig/guidelines/ui-styling.html),
+[typography](https://developer.gnome.org/hig/guidelines/typography.html), and
+[palette](https://developer.gnome.org/hig/reference/palette.html), consulted 2026-09-13.
+
 ## Hardware scope
 
 VM tests prove boot/session plumbing. The current desktop needs user-approved,

@@ -1,12 +1,77 @@
-# Curated defaults. GUI changes live separately in Noctalia's settings.toml.
+# Curated Adwaita defaults. GUI overrides live in ~/.local/state/noctalia/settings.toml.
+# Palette roles follow libadwaita; shell geometry is a GNOME-inspired adaptation.
+# Noctalia shares accent roles between text and fills, so palette blues are
+# adjusted for readable contrast in both uses instead of copying accent-bg alone.
 [theme]
-mode = "dark"
+mode = "light"
+shell_mode = "dark"
+source = "custom"
+custom_palette = "Adwaita"
+
+# Keep native GTK/libadwaita styling rather than generating app CSS.
+[theme.templates]
+enable_builtin_templates = false
+enable_community_templates = false
 
 [bar.default]
 position = "top"
+thickness = 36
+margin_ends = 0
+margin_edge = 0
+radius = 0
+radius_top_left = 0
+radius_top_right = 0
+radius_bottom_left = 0
+radius_bottom_right = 0
+concave_edge_corners = false
+background_opacity = 1.0
+shadow = false
+capsule = false
+padding = 12
+widget_spacing = 6
+start = ["workspaces"]
+center = ["clock"]
+end = ["privacy", "tray", "network", "volume", "battery", "control-center"]
+
+[widget.workspaces]
+style = "regular"
+show_labels = false
+pill_scale = 0.5
+focused_color = "on_surface"
+occupied_color = "on_surface_variant"
+empty_color = "outline"
+
+[widget.clock]
+format = "{:%a %b %-d  %H:%M}"
 
 [shell]
-button_borders = true
+font_family = "Adwaita Sans"
+button_borders = false
 input_borders = true
+card_borders = false
+popup_borders = true
+popup_shadows = true
+niri_overview_type_to_launch_enabled = true
 polkit_agent = true
 telemetry_enabled = false
+
+[shell.panel]
+transparency_mode = "solid"
+shadow = true
+launcher_placement = "floating"
+launcher_position = "center"
+control_center_placement = "attached"
+
+[shell.launcher]
+app_grid = true
+show_icons = true
+show_app_origin_indicator = false
+compact = false
+
+[notification]
+position = "top_center"
+background_opacity = 1.0
+
+[osd]
+position = "bottom_center"
+background_opacity = 1.0

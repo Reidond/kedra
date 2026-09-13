@@ -8,6 +8,35 @@ Publication artifact `10313929124` independently matches ZIP SHA-256 `122832f436
 
 Repeat run [34747330145](https://github.com/Reidond/kedra/actions/runs/34747330145) at the same exact main source succeeded after verified stable-image comparison and package preflight. Changed-image construction, signing and stable publication were all skipped; the run produced zero artifacts. Independent Docker readback confirms stable remains at the same signed digest. This demonstrates an actual production no-change run, not only a fixture result.
 
+## Adwaita desktop source configuration
+
+The `codex/adwaita-desktop` changes from `ca3ce333ac33fa17e81f6c92610e4cdca802018e`
+implement [GNOME HIG-informed desktop defaults](DESKTOP.md): a dark Adwaita-like
+Noctalia shell around native light/default GTK applications, a full-width top bar,
+Adwaita fonts/icons/cursor, rounded niri windows and familiar overview, launcher,
+lock and screenshot shortcuts. Existing user preferences remain authoritative;
+the Noctalia home projection still contains only its three supported safe fields.
+
+On 2026-09-13, native validation against the cached signed production image
+`sha256:acafed578d8431d204c1ab0d20c52202c6bbb938ccc4af31efc2ef2737fd7c14`
+passed in isolation: niri 26.04 and Noctalia 5.0.1 accepted the new configuration
+without warnings, and Noctalia's full effective export was inspected. The lock
+shortcut uses the verified v5.0.1 command `noctalia msg session lock`. GLib 2.88.3
+strict schema compilation passed with schemas 50.1; inherited deprecated-path
+warnings remained. All nine GSettings defaults read back correctly, a temporary
+user `prefer-dark` override/reset worked, and fontconfig resolved Adwaita Sans/Mono.
+The five explicitly listed Adwaita/schema packages were already present in that
+cached image. Manual palette calculations checked light and dark primary roles
+at contrast ratios above 4.5:1; this is not a full accessibility audit.
+
+Shell syntax, Git whitespace, Rust 1.98.1 formatting, Clippy with warnings denied
+and release build passed. The Windows E2E command succeeded but executed zero
+cases, so it provides no new Linux behavior coverage. A new image build,
+graphical GTK/Noctalia rendering and VM/physical desktop qualification are
+**not-run** for these changes. The earlier published image and ISO results below
+remain evidence for their original source only. See WL-20260913-07 in the
+[worklog](../worklog.md) for this source task's checks and next step.
+
 ## Removed legacy downloads
 
 At the owner’s explicit direction, GitHub Release IDs 385117864 (r1), 385328126 (r2) and 385128562 (legacy channel), including all 31 uploaded assets, were deleted. The remote Releases list is empty. Their source Git tags remain; no source tag was removed. Historical signed-image/installation results remain in Git history and worklog, not as current download availability.

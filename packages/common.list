@@ -27,6 +27,12 @@ mesa-dri-drivers
 mesa-vulkan-drivers
 google-noto-sans-fonts
 google-noto-sans-mono-fonts
+# Native GNOME appearance; Noto remains available for glyph fallback.
+adwaita-sans-fonts
+adwaita-mono-fonts
+adwaita-icon-theme
+adwaita-cursor-theme
+gsettings-desktop-schemas
 wl-clipboard
 brightnessctl
 playerctl

@@ -19,6 +19,8 @@ if test "${1:-}" = --resolve-packages; then
         | LC_ALL=C sort > /resolution/package-material.txt
     exit 0
 fi
+# Compile image-owned defaults after RPM installation; never write user dconf.
+glib-compile-schemas --strict /usr/share/glib-2.0/schemas
 # Recomputable build-time caches/logs are not installed machine state.
 rm -rf /var/lib/dnf /var/cache/swcatalog /var/cache/ldconfig
 rm -f /var/log/dnf5.log /var/log/dnf5.log.1

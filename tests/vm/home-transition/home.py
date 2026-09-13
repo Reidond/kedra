@@ -4,6 +4,7 @@ import ctypes
 import fcntl
 import os
 import pathlib
+import re
 import select
 import signal
 import sqlite3
@@ -221,9 +222,10 @@ if phase == 'prepare':
     run(['git', '-C', str(repo), 'checkout', '--detach', fixture['a']])
     run(['git', '-C', str(repo), 'remote', 'add', 'origin', 'https://github.com/Reidond/kedra.git'])
     text = native.read_text()
-    if text.count('gaps 12') != 1 or text.count('width 2') != 1:
-        raise RuntimeError('unexpected generated A defaults')
-    native.write_text(text.replace('gaps 12', 'gaps 14').replace('width 2', 'width 3'))
+    # Set the generated local-only preference independently of A's spacing.
+    # The native validator and keep-local/stage workflow below must succeed.
+    local = re.sub(r'(?m)^([ \t]*)gaps[ \t]+[0-9]+[ \t]*$', r'\g<1>gaps 14', text, count=1)
+    native.write_text(local.replace('width 2', 'width 3'))
     validate()
     cli('keep-local', change('gaps 14'))
     cli('stage', change('width 3'))

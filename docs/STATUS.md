@@ -63,9 +63,22 @@ Qt 5, Qt 6 and Qt 6 personal-preference application cases. QMP interaction opens
 native file choosers, selects generated text files and checks their returned
 content, with screenshots at each stage. The package inventory is captured before
 adding test-only bindings. Syntax and whitespace checks pass according to the
-implementation worker; execution of these new GUI cases and a new image build
-are **not-run** at this milestone. No exact-base Actions run existed when this
-follow-up began. See WL-20260913-08 for the final evidence as work proceeds.
+implementation worker; new GUI and image qualification remain pending. No
+exact-base Actions run existed when this follow-up began.
+
+Workspace run [34758096731](https://github.com/Reidond/kedra/actions/runs/34758096731)
+passed at `610da61`. Home-transition run
+[34758096745](https://github.com/Reidond/kedra/actions/runs/34758096745) failed
+because its fixture still expected niri `gaps 12` after the baseline changed to
+8. The correction in `prepare.py` and `home.py` is locally ready and passes
+native niri validation; its signed A/B/A rerun is **not-run**. Desktop run
+[34758096727](https://github.com/Reidond/kedra/actions/runs/34758096727) was
+cancelled when the test-only Qt chooser fix at `24c61b7` was pushed. At
+`24c61b7a5cfb2310b97d3c3e8439e335dd8b843e`, workspace
+[34758255401](https://github.com/Reidond/kedra/actions/runs/34758255401) passed;
+desktop [34758255393](https://github.com/Reidond/kedra/actions/runs/34758255393)
+remains in progress. Desktop GUI qualification remains pending. See
+WL-20260913-08 for the continuing evidence.
 
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E

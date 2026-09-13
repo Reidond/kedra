@@ -2,15 +2,19 @@
 
 The owner’s current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
 
-The automatic-signing source change is prepared on codex/automatic-ghcr-signing and is not yet committed or deployed. The reviewed environment change is complete: reviewer rule 64952111 was removed; environment 21492153153, administrator bypass disabled and sole main deployment rule 59436566 remain. Both signing secrets and both public variables retain their prior update timestamps; the public fingerprint is unchanged. Publication opt-in remains temporarily false. No production GHCR stable publication is claimed.
+The automatic production changed-image and no-change paths are now verified. Run [34746729066](https://github.com/Reidond/kedra/actions/runs/34746729066) at main `5dea673f6ebd3a86c44797517889e5a80ba5e78a` completed build, isolated sign-image and publish-stable successfully without a reviewer gate. Both `ghcr.io/reidond/kedra-desktop:stable` and immutable run tag `run-34746729066-1` resolve to `sha256:acafed578d8431d204c1ab0d20c52202c6bbb938ccc4af31efc2ef2737fd7c14`.
+
+Publication artifact `10313929124` independently matches ZIP SHA-256 `122832f43653688aa139bcb9cabf15c656f4c8ad1497c158ad64c54fdebfea6c`. Its receipt is `verified`, with `previous_digest: null`, and binds the exact main source and published digest. The verified image identity is protocol 2, desktop/Fedora44/x86_64, rank `(1,10,1)`. Remote Docker readback independently confirmed both tags. `KEDRA_RELEASES_ENABLED=true`; environment 21492153153 retains only its main branch restriction, with administrator bypass disabled and no required reviewers.
+
+Repeat run [34747330145](https://github.com/Reidond/kedra/actions/runs/34747330145) at the same exact main source succeeded after verified stable-image comparison and package preflight. Changed-image construction, signing and stable publication were all skipped; the run produced zero artifacts. Independent Docker readback confirms stable remains at the same signed digest. This demonstrates an actual production no-change run, not only a fixture result.
 
 ## Removed legacy downloads
 
 At the owner’s explicit direction, GitHub Release IDs 385117864 (r1), 385328126 (r2) and 385128562 (legacy channel), including all 31 uploaded assets, were deleted. The remote Releases list is empty. Their source Git tags remain; no source tag was removed. Historical signed-image/installation results remain in Git history and worklog, not as current download availability.
 
-Legacy r1/r2 online update discovery depended on the deleted channel and no longer works. Retain local signed records, journals, high-water and rollback hold. Follow the explicit [legacy migration](UPDATES.md#one-time-legacy-migration) after a compatible signed GHCR image is available. Existing local boots and saved recovery media do not depend on the deleted Release assets.
+Legacy r1/r2 online update discovery depended on the deleted channel and no longer works. Retain local signed records, journals, high-water and rollback hold. The published protocol-2 image provides the new updater, but the explicit [legacy migration](UPDATES.md#one-time-legacy-migration) still requires its own installed-system verification. Existing local boots and saved recovery media do not depend on the deleted Release assets.
 
-## Verified implementation and outstanding production execution
+## Verified implementation and remaining qualification
 
 At exact f52c9e77e17eb029a6b25c5a23807ef655484795, workspace runs 34714337528 and 34714339961, direct GHCR 34714337561, desktop 34714337517, legacy signed update 34714337526 and home transition 34714337529 pass. Direct-GHCR artifact 10304408023 independently matched ZIP SHA-256 46ba4dda3f3a3ab5b099274486d3121f3a5386c8bb49fb31659bf0ca6f6f8a2d.
 
@@ -18,8 +22,8 @@ The direct-GHCR VM test covers actual v2 enrollment/check/stage and signed A/B/A
 
 Production 34715490862 failed because the public build could not read an environment-scoped fingerprint variable. The subsequent scope fix retains source-key validation, independent signer-environment comparison and signer-output binding in the publisher. Production run 34717057402 at 7e923d4907e3b5caa28260983a0e7ef884a3dd87 passed its public build and was cancelled before signing for the final policy change. Queued schedule 34728220456 was also cancelled. Neither cancellation is successful signing or stable publication.
 
-The shared bootc compatibility contract, exact image identity/material checks and local CLI/OpenSSL interoperability pass their recorded checks. Full automatic production signing/stable publication, legacy-state migration, deterministic registry races/interruption, actual OCI-platform mismatch and full local ISO construction remain unqualified. Physical/Secure Boot, owner forward update and key rotation are separate boundaries.
+The shared bootc compatibility contract, exact image identity/material checks and local CLI/OpenSSL interoperability pass their recorded checks. Automatic production signing/publication and the no-change repeat both pass. Legacy-state migration, deterministic registry races/interruption, actual OCI-platform mismatch and full local ISO construction remain unqualified. Physical/Secure Boot, owner forward update and key rotation are separate boundaries. Publication does not mean an existing workstation was staged, rebooted or installed.
 
-The earlier signed candidate 34697167136 at b4e9f78 passed its exact fresh encrypted offline installation and ten qualification checks. That historical result does not qualify later GHCR-only source, restore deleted Release assets, or establish a current stable tag.
+The earlier signed candidate 34697167136 at b4e9f78 passed its exact fresh encrypted offline installation and ten qualification checks. That historical installation result does not qualify installation of the newly published GHCR-only image or restore deleted Release assets.
 
 [INSTALL](INSTALL.md) describes local media construction; [UPDATES](UPDATES.md) describes direct updates and migration. The [worklog](../worklog.md) retains exact historical evidence and the next operational step.

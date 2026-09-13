@@ -22,6 +22,15 @@ limited variation and respect for accessibility settings. The
 the reference colors. The Noctalia palette maps those references to its own
 semantic color roles; it cannot inherit libadwaita's adaptive CSS behavior.
 
+Noctalia 5.0.1 requires terminal-color objects in both light and dark custom
+palette variants, even when terminal theme generation is disabled. Kedra includes
+those objects: without them the runtime silently used its built-in yellow/navy
+palette while settings still displayed Custom/Adwaita. The tagged
+[theme service](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/src/theme/theme_service.cpp)
+and a disposable native session confirmed this requirement. The corrected palette
+renders blue accents and charcoal panels locally; its full Actions visual rerun
+is pending.
+
 ## Configuration and ownership
 
 The desktop uses a solid, edge-to-edge top bar with workspaces on the left, a

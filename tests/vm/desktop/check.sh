@@ -32,6 +32,33 @@ for attempt in $(seq 1 120); do
     sleep 1
 done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status
+check_palette_fallback() {
+    local palette_log_level palette_journal requested_palette palette_pid
+    palette_log_level=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg log-level-status)
+    # At these native levels warning messages are observable. This check never
+    # changes logging or palette preferences to manufacture a passing result.
+    case "$palette_log_level" in
+        trace|debug|info) ;;
+        *) echo "Palette fallback journal check cannot qualify log level $palette_log_level" >&2; false ;;
+    esac
+    requested_palette=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg color-scheme-get)
+    test "$requested_palette" = 'custom Adwaita'
+    palette_pid=$(as_user systemctl --user show kedra-noctalia.service --property=MainPID --value)
+    test "$palette_pid" -gt 0
+    timeout 10s journalctl --sync
+    # Use the running managed process identity: user-unit attribution is not
+    # guaranteed to be present on every journal transport.
+    palette_journal=$(timeout 10s journalctl -b --quiet --no-pager --output=cat "_PID=$palette_pid" "_UID=$uid")
+    test -n "$palette_journal"
+    if printf '%s\n' "$palette_journal" | grep -F "custom palette 'Adwaita' not found or invalid; falling back to builtin"; then
+        echo 'Native Noctalia rejected Adwaita and rendered a builtin fallback' >&2
+        false
+    fi
+    printf 'Native palette fallback warning absent (managed PID %s, current boot, log level %s)\n' "$palette_pid" "$palette_log_level"
+}
+# v5.0.1 config export and color-scheme-get report the request even on fallback.
+# Runtime logs catch that failure; rendered screenshots still require visual QA.
+check_palette_fallback
 # Read the resolved native source for the generated VM's actual output as well
 # as the default; this observes defaults without rewriting GUI overrides.
 wallpaper_default=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg wallpaper-get)
@@ -181,6 +208,8 @@ marker KEDRA_DOCTOR_SESSION_PASS
 # delayed autostart cannot pass solely because the first inventory was early.
 check_videobridge_absent
 marker KEDRA_NIRI_NO_VIDEOBRIDGE_PASS
+check_palette_fallback
+marker KEDRA_ADWAITA_NO_RUNTIME_FALLBACK_WARNING_PASS
 # Real graphical applications, keyboard input and native file selection.
 # GUI drivers below use only the synthetic account and generated file.
 toolkit_result="$review_home/toolkit-result.json"

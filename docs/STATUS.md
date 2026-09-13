@@ -203,7 +203,31 @@ that contains normal Qt-written files. The local cleanup fix removes only that
 rmdir; it still deletes the explicit kdeglobals override and leaves normal Qt
 files on the disposable snapshot. All six GUI/override assertions remain,
 Bash syntax/whitespace pass and the complete desktop rerun is pending. Home-transition
-[34766395330](https://github.com/Reidond/kedra/actions/runs/34766395330) remains in progress.
+[34766395330](https://github.com/Reidond/kedra/actions/runs/34766395330) passed
+at `a99553fcd4d5b27cc60352cbe9adc497e86aa587`.
+
+Latest `2653cde` changes only desktop cleanup and docs/worklog, preserving runtime
+image source; no new home workflow was triggered. Workspace
+[34767484936](https://github.com/Reidond/kedra/actions/runs/34767484936) passes.
+Desktop [34767484937](https://github.com/Reidond/kedra/actions/runs/34767484937)
+**passes** at `2653cde3b7c9b43d4e2c10a6fabcca2ee6719378`. Artifact `10320989840`
+contains 35 PNGs and passing wallpaper-source, no-video-bridge, all six
+ready/dialog/selected toolkit cases with exact file content, KEDRA_TOOLKITS_PASS
+and KEDRA_R07_SESSION_PASS markers. Measured versions are GTK 3.24.52,
+GTK 4.22.5/libadwaita 1.9.3, Qt 5.15.18, Qt 6.11.2 and KDE platform/Breeze 6.7.5.
+
+Independent visual review of desktop.png/settings.png nevertheless finds yellow
+Noctalia selected accents and dark navy panels despite the configured Adwaita
+blue/charcoal palette. Its cause is now identified in Noctalia 5.0.1's
+[theme service](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/src/theme/theme_service.cpp):
+both light/dark palette variants require terminal-color objects. The prior
+Adwaita file omitted them, causing runtime fallback while the UI still displayed
+Custom/Adwaita. Complete terminal colors are now implemented. A disposable native
+Noctalia 5.0.1 session under nested niri renders charcoal panels/blue accents
+without a fallback warning; native config validation and whitespace pass.
+The VM workflow now has a read-only managed-journal fallback guard. The full
+Actions visual rerun remains pending; the preceding functional GUI pass retains
+its recorded visual limitation.
 
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E

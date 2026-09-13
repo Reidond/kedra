@@ -66,6 +66,15 @@ override file to force the source theme. Appearance defaults do not expand the
 three-field Noctalia home projection. Validate custom themes through the native
 application and test rendered behavior separately when changing its version.
 
+Measured 2026-09-13 on Noctalia 5.0.1: both custom palette variants require
+terminal-color objects even when terminal templates are disabled. Missing objects
+passed configuration validation and displayed Custom/Adwaita in settings, but the
+runtime fell back to built-in yellow/navy. Adding complete objects restored
+blue/charcoal in a disposable nested-niri session. Inspect the tagged
+[theme service](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/src/theme/theme_service.cpp),
+actual rendered output and managed application logs; config/UI labels alone are
+not effective-palette evidence. See WL-20260913-08 for exact Actions scope.
+
 Sources: [GNOME HIG styling](https://developer.gnome.org/hig/guidelines/ui-styling.html),
 [typography](https://developer.gnome.org/hig/guidelines/typography.html), and
 [palette](https://developer.gnome.org/hig/reference/palette.html), consulted 2026-09-13.

@@ -4,7 +4,7 @@ Kedra publishes signed container images to `ghcr.io/reidond/kedra-desktop`. Inst
 
 ## Build one ISO
 
-Use a Linux x86_64 build host with Python 3.11+, sudo, rootful Podman using its default `/var/lib/containers/storage`, Skopeo and OpenSSL already installed. Allow sufficient temporary disk space for the desktop, Anaconda image and ISO. The script does not install prerequisites or change host trust policy.
+Use a Linux x86_64 build host with Python 3.11+, sudo, rootful Podman using its default `/var/lib/containers/storage`, Podman's Netavark network helper, Skopeo and OpenSSL already installed. On Ubuntu, include the `netavark` package explicitly when installing Podman with `--no-install-recommends`; omitting it can prevent cleanup of inspection containers. Allow sufficient temporary disk space for the desktop, Anaconda image and ISO. The script does not install prerequisites or change host trust policy.
 
 Use a trusted Kedra checkout and independently confirm the public-key fingerprint:
 
@@ -36,6 +36,6 @@ For an additional diskless startup check, install xorriso and QEMU with usable K
 
 The installed desktop uses enforcing SELinux; installer-media policy is separate. Check `sysroot doctor` and `sysroot update status` after login. Home remains writable and system root read-only.
 
-Fresh current-source installations use `sysroot update enroll`, then the [update workflow](UPDATES.md). Existing installations using the old release/checkpoint protocol require its explicit migration procedure first.
+After a fresh installation, use `sysroot update enroll`, then the [update workflow](UPDATES.md).
 
 Physical hardware and Secure Boot require separate qualification. See [status](STATUS.md) for actual tested media and remaining limits.

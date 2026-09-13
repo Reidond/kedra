@@ -21,8 +21,7 @@ not require Noctalia initialization, capture or a running Noctalia service. Run
 `sysroot home init` separately when choosing to adopt Noctalia. That later command
 adds its own record while preserving existing niri selections, local policy,
 publication state and recovery journals. Repeating either adoption refuses rather
-than replacing the existing group. This change is not in r1 or the frozen
-`0eb1cf0` candidate, which require the earlier `sysroot home init` prerequisite.
+than replacing the existing group.
 Signed native A/B/A run
 [34296369019](https://github.com/Reidond/kedra/actions/runs/34296369019) at
 `6d0abcf` passes niri-first adoption, caller-home reporting of unadopted Noctalia,

@@ -15,9 +15,19 @@ clock in the right-side status group immediately before Control Center and
 leaves the center empty. Cached native Noctalia 5.0.1 validation passes without
 warnings; full effective export confirms the exact order and no default clock
 reinserted. Local 5.1 validation is not-run because that binary is unavailable.
-Exact-source Actions VM/screenshot qualification is pending; older `4d030519`
-GUI evidence covers the centered-clock layout. No user-machine apply occurred.
-See WL-20260914-02.
+Exact source `b4c942d88f6be1fdfcf21c83267f7afb2fd66e1c` now passes desktop
+[34786061737](https://github.com/Reidond/kedra/actions/runs/34786061737), signed
+home [34786061738](https://github.com/Reidond/kedra/actions/runs/34786061738) and
+workspace [34786061733](https://github.com/Reidond/kedra/actions/runs/34786061733) /
+[34786063461](https://github.com/Reidond/kedra/actions/runs/34786063461).
+Independent review of artifact `10327410805`'s `vm/desktop.png` and
+`vm/settings.png` confirms the clock after battery and immediately before
+Control Center, an empty center and no collision at 1280×768. The requested
+layout is qualified in the disposable VM. Physical displays/other scaling remain
+separate; no user-machine apply or production publication occurred. Earlier
+`4d030519` GUI evidence retains its centered-clock scope. See WL-20260914-02.
+Home artifact `10327097877` records passing stage B, accepted B/rollback staging
+and retained-A home rollback markers at 22:48–22:49 UTC.
 
 ## adw-gtk3 follow-up
 

@@ -9,7 +9,7 @@ Read docs/UPDATES.md, docs/RELEASES.md and docs/ARCHITECTURE.md. OS image builds
 
 The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure. Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
 
-Build jobs have public trust. Manual protected signing executes no checkout/candidate/repository code while production keys exist. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
+Build jobs have public trust. Automatic isolated signing executes no checkout/candidate/repository code while production keys exist. The main-only environment has no human approval gate. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
 
 check.yml uses standard Cargo tools and actual CLI/OpenSSL workflows. Native tests retain signed-update, desktop, home-transition, agent and RPM coverage with disposable inputs. No unit/model/mock/doctests or repository scanners.
 

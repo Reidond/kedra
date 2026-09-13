@@ -42,15 +42,14 @@ jobs:
       fingerprint: ${{ steps.trust.outputs.fingerprint }}
       identity_sha256: ${{ steps.inspect.outputs.identity_sha256 }}
     steps:
-      - name: Require existing owner-reviewed image-signing protection
+      - name: Require main-only unattended signing environment
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh api repos/Reidond/kedra/environments/kedra-desktop-signing > "$RUNNER_TEMP/signing-environment.json"
           jq -e '.can_admins_bypass == false and .deployment_branch_policy.custom_branch_policies == true and
-            any(.protection_rules[]; .type == "required_reviewers" and (.reviewers | length) == 1 and
-            .reviewers[0].type == "User" and (.reviewers[0].reviewer.login | ascii_downcase) == "reidond")' "$RUNNER_TEMP/signing-environment.json" >/dev/null
+            all(.protection_rules[]; .type == "branch_policy")' "$RUNNER_TEMP/signing-environment.json" >/dev/null
           gh api repos/Reidond/kedra/environments/kedra-desktop-signing/deployment-branch-policies > "$RUNNER_TEMP/signing-branches.json"
           jq -e '.total_count == 1 and .branch_policies[0].name == "main" and .branch_policies[0].type == "branch"' "$RUNNER_TEMP/signing-branches.json" >/dev/null
           test "$(gh api repos/Reidond/kedra/branches/main --jq .protected)" = true
@@ -192,7 +191,7 @@ jobs:
             echo 'Immutable signed run tag already exists'; exit 1
           fi
           grep -q 'manifest unknown' "$RUNNER_TEMP/signed-tag-lookup.log"
-      - name: Sign exact image once using owner-approved authority
+      - name: Automatically sign exact validated image with isolated authority
         id: sign
         env:
           GH_TOKEN: ${{ github.token }}

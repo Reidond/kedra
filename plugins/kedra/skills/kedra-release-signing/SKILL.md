@@ -1,13 +1,13 @@
 ---
 name: kedra-release-signing
-description: Maintain signed GHCR image identity, protected manual publication, direct updates and retained recovery.
+description: Maintain automatically signed GHCR image identity, isolated publication, direct updates and retained recovery.
 ---
 
 # Signed OCI authority
 
 Read docs/RELEASES.md, docs/UPDATES.md and docs/ARCHITECTURE.md. The published artifact is a signed OCI image in ghcr.io/reidond/kedra-desktop. Stable is discovery; deployment uses the exact verified digest. No GitHub Releases or ISO/metadata assets.
 
-Use the dedicated OS-image authority, separate from SSH keys. The isolated protected signer runs no checkout, candidate or repository code while private keys are available. Manual review and exact current-main checks remain. Preserve signatures and native OCI digest through copies.
+Use the dedicated OS-image authority, separate from SSH keys. The isolated automatic signer runs no checkout, candidate or repository code while private keys are available. There is no human-review/signing gate; main-only environment restrictions, exact current-main/rank checks and strict signature verification remain. Preserve signatures and native OCI digest through copies.
 
 Image-owned identity/resolved-input records are bound by the signed image. The helper independently verifies fixed public trust, exact repository, target/architecture and retained ordering. Writable source or --verified claims are never root authority. Wrong key/repository/digest or missing attachment fails closed.
 

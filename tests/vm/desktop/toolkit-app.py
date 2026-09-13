@@ -126,14 +126,26 @@ else:
 
     def open_file():
         def dialog_ready():
-            # Runtime loaded libraries identify the real native KDE dialog;
-            # a generic Qt fallback must not silently count as KDE integration.
-            mappings = pathlib.Path("/proc/self/maps").read_text()
-            if "libKF5KIOFileWidgets" not in mappings and "libKF6KIOFileWidgets" not in mappings:
-                report("failed", reason="KDE native file dialog library not loaded")
+            # Plasma integration v6.7.5 (qt5 and qt6) constructs a
+            # KDEPlatformFileDialog containing a KFileWidget. Inspect the
+            # actual displayed objects; loading the plugin library alone does
+            # not establish which file chooser is on screen.
+            # https://github.com/KDE/plasma-integration/blob/v6.7.5/qt6/src/platformtheme/kdeplatformfiledialoghelper.cpp
+            visible = [widget for widget in app.topLevelWidgets() if widget.isVisible()]
+            dialogs = [widget for widget in visible if widget.inherits("KDEPlatformFileDialog")]
+            file_widgets = []
+            if len(dialogs) == 1:
+                file_widgets = [widget for widget in dialogs[0].findChildren(QtWidgets.QWidget)
+                                if widget.inherits("KFileWidget") and widget.isVisibleTo(dialogs[0])
+                                and widget.width() > 0 and widget.height() > 0]
+            if len(dialogs) != 1 or len(file_widgets) != 1:
+                report("failed", reason="Visible KDE native file chooser was not found",
+                       visible_window_classes=[widget.metaObject().className() for widget in visible])
                 app.exit(1)
                 return
-            report("dialog", kde_file_dialog=True)
+            report("dialog", kde_file_dialog=True,
+                   dialog_class=dialogs[0].metaObject().className(),
+                   file_widget_class=file_widgets[0].metaObject().className())
         QtCore.QTimer.singleShot(1000, dialog_ready)
         filename, _filter = QtWidgets.QFileDialog.getOpenFileName(window, "Select toolkit-sample.txt", str(pathlib.Path.home()))
         if not filename:

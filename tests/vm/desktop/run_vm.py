@@ -146,9 +146,15 @@ with (work / "qemu.log").open("w") as output:
                     elif stage == "dialog":
                         qmp.call("send-key", {"keys": [{"type": "qcode", "data": "ctrl"}, {"type": "qcode", "data": "l"}], "hold-time": 80})
                         time.sleep(0.3)
-                        qmp.type_text("/home/kedra-test/toolkit-sample.txt\n")
+                        qmp.type_text("/home/kedra-test/toolkit-sample.txt")
+                        # GTK debounces location edits before enabling Open;
+                        # Return immediately after the last character is lost.
+                        # Resolve the path before the one deliberate acceptance.
                         time.sleep(1)
                         qmp.screenshot(f"toolkit-{case}-submitted.png")
+                        qmp.type_text("\n")
+                        time.sleep(1)
+                        qmp.screenshot(f"toolkit-{case}-confirmed.png")
                     markers.add(marker)
                     print(f"Captured and drove {marker}", flush=True)
             time.sleep(1)

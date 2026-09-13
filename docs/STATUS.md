@@ -145,6 +145,17 @@ screenshot follows trap poweroff and does not establish a compositor failure.
 The six-case toolkit suite remains incomplete. Passing home-transition at
 runtime-equivalent `e0e1031` and workspace CI retain their recorded scopes.
 
+The subsequent desktop run
+[34762761532](https://github.com/Reidond/kedra/actions/runs/34762761532) at
+`e8f3272` corrects that diagnosis: artifact `10319314507` shows the path correctly
+entered, the Open button enabled after one second, stage still dialog and no
+callback error. The path-alias comparison was a latent fixture bug, not this
+observed timeout. GTK 3's [chooser source](https://raw.githubusercontent.com/GNOME/gtk/gtk-3-24/gtk/gtkfilechooserwidget.c)
+debounces location changes for 150ms; QMP had sent Return after 80ms. The fixture
+now types the path, waits one second, captures it, then sends one Return and
+captures again. That corrected GUI rerun remains pending, with no full toolkit
+pass claimed.
+
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E
 command passes with zero cases, providing no new Linux behavioral coverage.

@@ -33,6 +33,14 @@ adwaita-mono-fonts
 adwaita-icon-theme
 adwaita-cursor-theme
 gsettings-desktop-schemas
+# Native KDE styles and platform integration for both Qt generations.
+plasma-integration
+plasma-integration-qt5
+plasma-breeze
+plasma-breeze-qt5
+breeze-icon-theme
+kf6-qqc2-desktop-style
+kf5-qqc2-desktop-style
 wl-clipboard
 brightnessctl
 playerctl

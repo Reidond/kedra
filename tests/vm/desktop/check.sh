@@ -147,6 +147,53 @@ as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.s
 test "$(as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked)" = 'b false'
 as_user sysroot doctor --json | jq -e '.desktop_session_checks_passed and (.changes_performed | not)' >/dev/null
 marker KEDRA_DOCTOR_SESSION_PASS
+# Real graphical applications, keyboard input and native file selection.
+# GUI drivers below use only the synthetic account and generated file.
+toolkit_result="$review_home/toolkit-result.json"
+for toolkit_case in gtk3-wayland gtk3-xwayland libadwaita qt5 qt6 qt6-override; do
+    as_user rm -f "$toolkit_result"
+    toolkit_unit="kedra-toolkit-$toolkit_case"
+    backend_env=()
+    case "$toolkit_case" in
+        gtk3-wayland|libadwaita) backend_env=(GDK_BACKEND=wayland) ;;
+        gtk3-xwayland) backend_env=(GDK_BACKEND=x11) ;;
+        qt*) backend_env=(QT_QPA_PLATFORM=wayland) ;;
+    esac
+    if test "$toolkit_case" = qt6-override; then
+        override_config=$(as_user mktemp -d "$review_home/kedra-qt-preference.XXXXXX")
+        printf '[General]\nfont=Adwaita Mono,12,-1,5,50,0,0,0,0,0\n' | as_user tee "$override_config/kdeglobals" >/dev/null
+        backend_env+=("XDG_CONFIG_HOME=$override_config")
+    fi
+    as_user systemd-run --user --unit="$toolkit_unit" --collect --service-type=exec \
+        /usr/bin/env "${backend_env[@]}" /usr/bin/python3 /usr/libexec/kedra-research-toolkit-app.py "$toolkit_case" "$toolkit_result"
+    for toolkit_stage in ready dialog selected; do
+        for attempt in $(seq 1 45); do
+            toolkit_service_state=$(as_user systemctl --user show "$toolkit_unit.service" --property=ActiveState --value)
+            case "$toolkit_service_state" in
+                active|activating) ;;
+                *)
+                    journalctl -b "_SYSTEMD_USER_UNIT=$toolkit_unit.service" --no-pager -n 40
+                    echo "Toolkit $toolkit_case exited before $toolkit_stage (state=$toolkit_service_state)" >&2
+                    false
+                    ;;
+            esac
+            if test -f "$toolkit_result" && jq -e --arg stage "$toolkit_stage" '.stage == $stage' "$toolkit_result" >/dev/null; then break; fi
+            if test -f "$toolkit_result" && jq -e '.stage == "failed"' "$toolkit_result" >/dev/null; then cat "$toolkit_result"; false; fi
+            sleep 1
+        done
+        jq -e --arg stage "$toolkit_stage" '.stage == $stage' "$toolkit_result"
+        marker "KEDRA_TOOLKIT_${toolkit_case}_${toolkit_stage}"
+    done
+    # Preserve runtime facts in serial evidence and allow the host to capture
+    # the selected-file result before closing the real application.
+    sleep 4
+    as_user systemctl --user stop "$toolkit_unit.service"
+    if test "$toolkit_case" = qt6-override; then
+        as_user rm "$override_config/kdeglobals"
+        as_user rmdir "$override_config"
+    fi
+done
+marker KEDRA_TOOLKITS_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg panel-toggle launcher
 marker KEDRA_R07_SESSION_READY
 sleep 15

@@ -80,6 +80,13 @@ jobs:
             'niri --version; noctalia --version; noctalia msg --help; cat /etc/pam.d/greetd; test "$(systemctl is-enabled greetd)" = enabled; test "$(systemctl is-enabled bootc-fetch-apply-updates.timer || true)" = masked' \
             > output/desktop-evidence/session-interfaces.txt
           sudo podman run --rm localhost/kedra-desktop:research find /var -type f > output/desktop-evidence/image-var-files.txt
+          # Inspect the actual candidate before adding test-only GUI bindings.
+          sudo podman run --rm localhost/kedra-desktop:research rpm -q \
+            gtk3 gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme \
+            > output/desktop-evidence/toolkit-candidate-rpms.txt
+          sudo podman run --rm localhost/kedra-desktop:research rpm -ql \
+            plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 \
+            > output/desktop-evidence/toolkit-candidate-plugin-paths.txt
       - name: Prepare disposable graphical login fixture
         run: |
           mkdir -p output/desktop-test-context output/desktop-image output/desktop-evidence/vm
@@ -87,6 +94,7 @@ jobs:
           cp tests/vm/desktop/agents.py output/desktop-test-context/
           cp tests/vm/desktop/recovery.py output/desktop-test-context/
           cp tests/vm/desktop/niri-review.py output/desktop-test-context/
+          cp tests/vm/desktop/toolkit-app.py output/desktop-test-context/
           git bundle create output/desktop-test-context/source.bundle HEAD
           sudo podman build --pull=never --tag localhost/kedra-desktop-test:r07 output/desktop-test-context \
             > output/desktop-evidence/test-image-build.log 2>&1

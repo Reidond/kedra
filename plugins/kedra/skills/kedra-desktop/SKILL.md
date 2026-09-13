@@ -70,6 +70,30 @@ Sources: [GNOME HIG styling](https://developer.gnome.org/hig/guidelines/ui-styli
 [typography](https://developer.gnome.org/hig/guidelines/typography.html), and
 [palette](https://developer.gnome.org/hig/reference/palette.html), consulted 2026-09-13.
 
+## Native GTK and KDE styles
+
+The 2026-09-13 integration uses KDE platform-theme plugins and Breeze for both
+Qt generations, with KDE Qt Quick Controls desktop styles and Breeze icons.
+Native disposable Xvfb QApplications with Qt 5.15.18 / 6.11.2 and Plasma
+integration/Breeze 6.7.5 resolved Breeze, Adwaita Sans 11 and Breeze icons. See
+`docs/DESKTOP.md` and WL-20260913-08 for scope and later graphical evidence.
+`/etc/xdg/kdeglobals` supplies defaults; personal `~/.config/kdeglobals` wins.
+Keep the platform-theme default in systemd `environment.d`, preserving an
+explicit value. Fedora systemd 259.8's generator was checked for unset and
+explicit `qt6ct` cases; a duplicate session-wrapper default can overwrite the
+manager's user preference during environment import.
+
+GTK 3 Xwayland reads `/etc/gtk-3.0/settings.ini` without an XSettings provider,
+with personal settings taking precedence. Restart those applications after
+changes. A disposable GNOME XSettings 50.1 experiment outside GNOME published
+startup values but failed live font propagation, so it is not a supported
+session service. Do not add it merely to claim dynamic synchronization.
+GTK settings behavior is documented in the upstream
+[GtkSettings reference](https://docs.gtk.org/gtk3/class.Settings.html), consulted
+2026-09-13. Avoid forcing `GTK_THEME` or `QT_STYLE_OVERRIDE`; retain native
+application preferences and niri's portal/session identity. Independently bundled
+and sandboxed Qt runtimes need their own compatible integration plugins.
+
 ## Hardware scope
 
 VM tests prove boot/session plumbing. The current desktop needs user-approved,

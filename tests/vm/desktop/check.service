@@ -8,7 +8,7 @@ Type=oneshot
 ExecStart=/usr/libexec/kedra-research-r07
 StandardOutput=journal+console
 StandardError=journal+console
-TimeoutStartSec=8min
+TimeoutStartSec=15min
 
 [Install]
 WantedBy=graphical.target

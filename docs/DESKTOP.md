@@ -66,6 +66,35 @@ the appearance work does not expand that safe projection to palette, typography,
 bar layout or GTK settings. Niri's adopted main file has its own
 [line review and activation workflow](TEXT-REVIEW.md).
 
+## GTK and Qt applications
+
+GTK 4/libadwaita and GTK 3 use native Adwaita defaults. Legacy GTK 3 applications
+also have `/etc/gtk-3.0/settings.ini` for settings lookup without an XSettings
+provider; personal `~/.config/gtk-3.0/settings.ini` can override those fallbacks.
+The Xwayland fallback is read when an application starts; restart legacy GTK 3
+applications after editing it. No GNOME XSettings daemon runs in this niri
+session, so live propagation from GNOME settings to existing X11 clients is not
+provided.
+Applications that follow the GNOME color-scheme setting can be switched with
+`gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'`; reset it
+with `gsettings reset org.gnome.desktop.interface color-scheme`. GTK 3 applications
+do not all follow that preference, and retain their own supported theme controls.
+
+Qt 5 and Qt 6 applications use KDE's platform integration with the native Breeze
+widget style, Breeze icons and KDE Qt Quick Controls desktop styles. The default
+color scheme is Breeze Light. Adwaita Sans and Mono keep text consistent across
+the desktop while Qt controls retain their KDE appearance. Image defaults live
+in `/etc/xdg/kdeglobals`; personal `~/.config/kdeglobals` settings take precedence.
+The `[KDE]` `widgetStyle`, `[General]` `ColorScheme` and `[Icons]` `Theme` entries
+control those preferences. Restart applications after changing their settings.
+
+The systemd user environment defaults `QT_QPA_PLATFORMTHEME` to `kde`, retaining
+an explicit personal selection. The session remains niri with
+its existing portal routing. Noctalia theme templates remain disabled, so changing
+the shell palette does not rewrite GTK or KDE application settings. Native Qt
+integration applies to applications using the image's Qt libraries/plugins;
+sandboxed or independently bundled runtimes require their own compatible plugins.
+
 ## Verification scope
 
 Use the exact packaged niri and Noctalia versions to validate these defaults.

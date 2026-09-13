@@ -1,5 +1,14 @@
 # Test-only observer layered over the desktop; never promote this derivative.
 FROM localhost/kedra-desktop:research
+# Bindings are only in this non-promotable GUI fixture, not the OS baseline.
+# Refuse a fixture install that supplies or upgrades the native integration
+# being qualified: it must already exist in the candidate, unchanged.
+RUN mkdir -p /usr/share/kedra-research && \
+    rpm -q gtk3 gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme > /usr/share/kedra-research/toolkit-candidate-rpms.txt && \
+    dnf -y --best --setopt=install_weak_deps=False --repo=fedora --repo=updates install python3-gobject python3-qt5-base python3-pyqt6-base && \
+    rpm -q gtk3 gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme > /tmp/toolkit-fixture-rpms.txt && \
+    diff -u /usr/share/kedra-research/toolkit-candidate-rpms.txt /tmp/toolkit-fixture-rpms.txt && \
+    rm /tmp/toolkit-fixture-rpms.txt && dnf clean all
 COPY check.sh /usr/libexec/kedra-research-r07
 COPY check.service /usr/lib/systemd/system/kedra-research-r07.service
 COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
@@ -7,6 +16,7 @@ COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
 COPY agents.py /usr/libexec/kedra-research-agents.py
 COPY recovery.py /usr/libexec/kedra-research-recovery.py
 COPY niri-review.py /usr/libexec/kedra-research-niri-review.py
+COPY toolkit-app.py /usr/libexec/kedra-research-toolkit-app.py
 COPY source.bundle /usr/share/kedra-research/source.bundle
 RUN chmod 0755 /usr/libexec/kedra-research-r07 && \
     printf '\noutput "Virtual-1" {\n    mode "1280x768"\n    scale 1\n}\n' >> /etc/skel/.config/niri/config.kdl && \

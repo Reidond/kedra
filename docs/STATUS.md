@@ -37,6 +37,40 @@ graphical GTK/Noctalia rendering and VM/physical desktop qualification are
 remain evidence for their original source only. See WL-20260913-07 in the
 [worklog](../worklog.md) for this source task's checks and next step.
 
+## Native GTK and Qt integration follow-up
+
+The follow-up from `4d1d0d2888a43c3ea2cdf281ab9be44ef263a582` adds KDE platform
+integration and native Breeze styles for Qt 5/6, KDE Qt Quick Controls styles,
+Breeze icons and system `kdeglobals` defaults. The systemd user environment
+selects the KDE platform theme while retaining explicit user choices.
+GTK/libadwaita Adwaita defaults and niri's desktop/portal identity remain intact.
+See [desktop integration](DESKTOP.md#gtk-and-qt-applications).
+
+Disposable native Xvfb application probes pass for Qt 5.15.18 and Qt 6.11.2:
+both resolve Breeze, Adwaita Sans 11, Breeze icons and the document-open icon.
+The measured KDE packages are Plasma integration/Breeze 6.7.5, KF6 styles/icons
+6.30.0 and the KF5 desktop style 5.116.1. Fedora systemd 259.8 environment
+generation defaults to `kde` and preserves an explicit `qt6ct` value. GTK 3
+also resolved Adwaita/Adwaita Sans 11 in a real Xvfb client without the GNOME
+daemon. Both Qt versions honored a personal `kdeglobals` override to Fusion and
+Adwaita Mono 12. GTK 3 Xwayland uses the static settings fallback and requires application restart after
+changes. An isolated GNOME XSettings 50.1 experiment published initial settings
+but failed dynamic font propagation outside GNOME; that daemon is not shipped
+or enabled by this follow-up.
+
+The desktop VM workflow now prepares real GTK 3 Wayland/Xwayland, libadwaita,
+Qt 5, Qt 6 and Qt 6 personal-preference application cases. QMP interaction opens
+native file choosers, selects generated text files and checks their returned
+content, with screenshots at each stage. The package inventory is captured before
+adding test-only bindings. Syntax and whitespace checks pass according to the
+implementation worker; execution of these new GUI cases and a new image build
+are **not-run** at this milestone. No exact-base Actions run existed when this
+follow-up began. See WL-20260913-08 for the final evidence as work proceeds.
+
+Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
+build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E
+command passes with zero cases, providing no new Linux behavioral coverage.
+
 ## Removed legacy downloads
 
 At the owner’s explicit direction, GitHub Release IDs 385117864 (r1), 385328126 (r2) and 385128562 (legacy channel), including all 31 uploaded assets, were deleted. The remote Releases list is empty. Their source Git tags remain; no source tag was removed. Historical signed-image/installation results remain in Git history and worklog, not as current download availability.

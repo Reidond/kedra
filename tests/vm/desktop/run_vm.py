@@ -74,7 +74,7 @@ class Qmp:
 
     def type_text(self, value):
         for character in value:
-            code = {"-": "minus", "\n": "ret"}.get(character, character)
+            code = {"-": "minus", "/": "slash", ".": "dot", "\n": "ret"}.get(character, character)
             self.call("send-key", {"keys": [{"type": "qcode", "data": code}], "hold-time": 40})
             time.sleep(0.08)
 
@@ -111,7 +111,7 @@ with (work / "qemu.log").open("w") as output:
         (work / "window-geometry.log").write_bytes(subprocess.check_output([
             "xdotool", "getwindowgeometry", windows[0],
         ], timeout=10))
-        deadline = time.monotonic() + 480
+        deadline = time.monotonic() + 900
         while time.monotonic() < deadline and process.poll() is None:
             if qmp is None and qmp_path.exists():
                 qmp = Qmp()
@@ -136,6 +136,19 @@ with (work / "qemu.log").open("w") as output:
                     qmp.screenshot(name)
                     markers.add(marker)
                     print(f"Captured {name}", flush=True)
+            for case, stage in re.findall(r"^KEDRA_TOOLKIT_(gtk3-wayland|gtk3-xwayland|libadwaita|qt5|qt6|qt6-override)_(ready|dialog|selected)$", text, re.MULTILINE):
+                marker = f"toolkit-{case}-{stage}"
+                if qmp and marker not in markers:
+                    time.sleep(1)
+                    qmp.screenshot(marker + ".png")
+                    if stage == "ready":
+                        qmp.type_text("\n")
+                    elif stage == "dialog":
+                        qmp.call("send-key", {"keys": [{"type": "qcode", "data": "ctrl"}, {"type": "qcode", "data": "l"}], "hold-time": 80})
+                        time.sleep(0.3)
+                        qmp.type_text("/home/kedra-test/toolkit-sample.txt\n")
+                    markers.add(marker)
+                    print(f"Captured and drove {marker}", flush=True)
             time.sleep(1)
         if process.poll() is None:
             if qmp:

@@ -82,11 +82,14 @@ jobs:
           sudo podman run --rm localhost/kedra-desktop:research find /var -type f > output/desktop-evidence/image-var-files.txt
           # Inspect the actual candidate before adding test-only GUI bindings.
           sudo podman run --rm localhost/kedra-desktop:research rpm -q \
-            gtk3 gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme \
+            gtk3 adw-gtk3-theme gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme \
             > output/desktop-evidence/toolkit-candidate-rpms.txt
           sudo podman run --rm localhost/kedra-desktop:research rpm -ql \
             plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 \
             > output/desktop-evidence/toolkit-candidate-plugin-paths.txt
+          sudo podman run --rm localhost/kedra-desktop:research rpm -ql adw-gtk3-theme \
+            > output/desktop-evidence/toolkit-candidate-gtk3-theme-paths.txt
+          sudo podman run --rm localhost/kedra-desktop:research test -r /usr/share/themes/adw-gtk3/gtk-3.0/gtk.css
       - name: Prepare disposable graphical login fixture
         run: |
           mkdir -p output/desktop-test-context output/desktop-image output/desktop-evidence/vm

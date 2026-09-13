@@ -109,6 +109,23 @@ Sources: [GNOME HIG styling](https://developer.gnome.org/hig/guidelines/ui-styli
 
 ## Native GTK and KDE styles
 
+The 2026-09-13 adw-gtk3 follow-up selects official Fedora 44
+`adw-gtk3-theme` (6.4-3.fc44 at evaluation), GNOME `gtk-theme=adw-gtk3` and the
+same GTK 3 Xwayland settings.ini fallback. Keep RPM-owned GTK 4 CSS intact for
+package/material integrity: plain GTK 4 may consume it through the shared theme
+setting, whereas libadwaita uses its native Adwaita-empty stylesheet. Dark GTK 3
+requires explicit `adw-gtk3-dark` selection in GSettings and the personal
+settings.ini fallback; color-scheme alone is insufficient. Consult
+[Fedora](https://packages.fedoraproject.org/pkgs/adw-gtk3-theme/adw-gtk3-theme/fedora-44.html),
+[upstream](https://github.com/lassekongo83/adw-gtk3) and WL-20260913-10 for actual
+validation scope; the earlier Adwaita GUI pass does not qualify this new theme.
+The disposable native probe ADW_GTK3_RUNTIME_PASS verifies GTK 3.24.52 X11 and
+nested-niri Wayland widgets, user dark/reset in new Wayland clients and strict
+schema compilation. Libadwaita 1.9.3/PyGObject 3.56.3 Adw.init selects
+Adwaita-empty and per-display StyleManager light/default values. Use
+StyleManager.get_for_display for the display-level dark/high-contrast checks;
+retain version-correct calls. Full Actions GUI qualification remains pending.
+
 The 2026-09-13 integration uses KDE platform-theme plugins and Breeze for both
 Qt generations, with KDE Qt Quick Controls desktop styles and Breeze icons.
 Native disposable Xvfb QApplications with Qt 5.15.18 / 6.11.2 and Plasma

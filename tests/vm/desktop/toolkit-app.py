@@ -79,8 +79,20 @@ if case.startswith("gtk") or case == "libadwaita":
         theme = settings.get_property("gtk-theme-name")
         font = settings.get_property("gtk-font-name")
         icons = settings.get_property("gtk-icon-theme-name")
-        if not theme.startswith("Adwaita") or "Adwaita Sans" not in font or icons != "Adwaita":
+        if "Adwaita Sans" not in font or icons != "Adwaita":
             raise RuntimeError(f"Unexpected GTK appearance: {theme}, {font}, {icons}")
+        adwaita_style = None
+        if gtk4:
+            # Libadwaita supplies its own styling; Gtk.Settings may still
+            # expose the independently configured legacy GTK3 theme name.
+            style_manager = Adw.StyleManager.get_for_display(display)
+            adwaita_style = {"dark": style_manager.get_dark(),
+                             "high_contrast": style_manager.get_high_contrast(),
+                             "color_scheme": int(style_manager.get_color_scheme())}
+            if adwaita_style["dark"]:
+                raise RuntimeError("Native libadwaita did not retain the light application default")
+        elif theme != "adw-gtk3":
+            raise RuntimeError(f"GTK3 did not activate adw-gtk3: {theme}")
         icon_theme = Gtk.IconTheme.get_for_display(display) if gtk4 else Gtk.IconTheme.get_default()
         if not icon_theme.has_icon("document-open"):
             raise RuntimeError("Adwaita document-open icon unavailable")
@@ -110,7 +122,7 @@ if case.startswith("gtk") or case == "libadwaita":
             window.show_all()
         window.present()
         button.grab_focus()
-        report("ready", backend=backend, theme=theme, font=font, icons=icons,
+        report("ready", backend=backend, theme=theme, font=font, icons=icons, adwaita_style=adwaita_style,
                gtk_version=f"{Gtk.get_major_version()}.{Gtk.get_minor_version()}.{Gtk.get_micro_version()}",
                libadwaita_version=f"{Adw.get_major_version()}.{Adw.get_minor_version()}.{Adw.get_micro_version()}" if gtk4 else None)
 

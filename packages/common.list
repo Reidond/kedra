@@ -33,6 +33,7 @@ adwaita-mono-fonts
 adwaita-icon-theme
 adwaita-cursor-theme
 gsettings-desktop-schemas
+adw-gtk3-theme
 # Native KDE styles and platform integration for both Qt generations.
 plasma-integration
 plasma-integration-qt5

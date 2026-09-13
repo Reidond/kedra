@@ -85,8 +85,13 @@ bar layout or GTK settings. Niri's adopted main file has its own
 
 ## GTK and Qt applications
 
-GTK 4/libadwaita and GTK 3 use native Adwaita defaults. Legacy GTK 3 applications
-also have `/etc/gtk-3.0/settings.ini` for settings lookup without an XSettings
+GTK 3 uses [adw-gtk3](https://github.com/lassekongo83/adw-gtk3) to match the
+modern Adwaita appearance, supplied by Fedora's official
+[adw-gtk3-theme package](https://packages.fedoraproject.org/pkgs/adw-gtk3-theme/adw-gtk3-theme/fedora-44.html)
+(6.4-3.fc44 at evaluation). Libadwaita retains native Adwaita styling. The package's
+GTK 4 CSS assets remain intact; plain GTK 4 applications without libadwaita may
+also use them through the shared GNOME `gtk-theme` setting. Legacy GTK 3 applications
+have `/etc/gtk-3.0/settings.ini` for settings lookup without an XSettings
 provider; personal `~/.config/gtk-3.0/settings.ini` can override those fallbacks.
 The Xwayland fallback is read when an application starts; restart legacy GTK 3
 applications after editing it. No GNOME XSettings daemon runs in this niri
@@ -94,8 +99,17 @@ session, so live propagation from GNOME settings to existing X11 clients is not
 provided.
 Applications that follow the GNOME color-scheme setting can be switched with
 `gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'`; reset it
-with `gsettings reset org.gnome.desktop.interface color-scheme`. GTK 3 applications
-do not all follow that preference, and retain their own supported theme controls.
+with `gsettings reset org.gnome.desktop.interface color-scheme`. For dark
+adw-gtk3, also set `gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark'`
+and set `gtk-theme-name=adw-gtk3-dark` under `[Settings]` in personal
+`~/.config/gtk-3.0/settings.ini` for Xwayland applications. Color-scheme alone
+does not select that GTK 3 variant. The default is light; fonts, icons and cursor
+remain Adwaita, and native KDE/Breeze styling remains independent.
+
+The new theme passes disposable GTK 3.24.52 X11/Wayland application and personal
+dark/reset checks. Libadwaita 1.9.3 retains native Adwaita-empty and light mode;
+plain GTK 4.22.5 uses the retained package CSS. The full Actions GUI rerun is
+pending; see [status](STATUS.md#adw-gtk3-follow-up) for this theme's exact scope.
 
 Qt 5 and Qt 6 applications use KDE's platform integration with the native Breeze
 widget style, Breeze icons and KDE Qt Quick Controls desktop styles. The default

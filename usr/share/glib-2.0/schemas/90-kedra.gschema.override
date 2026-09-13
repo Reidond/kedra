@@ -3,7 +3,7 @@
 [org.gnome.desktop.interface]
 color-scheme='default'
 accent-color='blue'
-gtk-theme='Adwaita'
+gtk-theme='adw-gtk3'
 icon-theme='Adwaita'
 cursor-theme='Adwaita'
 cursor-size=24

@@ -4,9 +4,9 @@ FROM localhost/kedra-desktop:research
 # Refuse a fixture install that supplies or upgrades the native integration
 # being qualified: it must already exist in the candidate, unchanged.
 RUN mkdir -p /usr/share/kedra-research && \
-    rpm -q gtk3 gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme > /usr/share/kedra-research/toolkit-candidate-rpms.txt && \
+    rpm -q gtk3 adw-gtk3-theme gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme > /usr/share/kedra-research/toolkit-candidate-rpms.txt && \
     dnf -y --best --setopt=install_weak_deps=False --repo=fedora --repo=updates install python3-gobject python3-qt5-base python3-pyqt6-base && \
-    rpm -q gtk3 gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme > /tmp/toolkit-fixture-rpms.txt && \
+    rpm -q gtk3 adw-gtk3-theme gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme > /tmp/toolkit-fixture-rpms.txt && \
     diff -u /usr/share/kedra-research/toolkit-candidate-rpms.txt /tmp/toolkit-fixture-rpms.txt && \
     rm /tmp/toolkit-fixture-rpms.txt && dnf clean all
 COPY check.sh /usr/libexec/kedra-research-r07

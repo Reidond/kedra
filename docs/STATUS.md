@@ -8,6 +8,26 @@ Publication artifact `10313929124` independently matches ZIP SHA-256 `122832f436
 
 Repeat run [34747330145](https://github.com/Reidond/kedra/actions/runs/34747330145) at the same exact main source succeeded after verified stable-image comparison and package preflight. Changed-image construction, signing and stable publication were all skipped; the run produced zero artifacts. Independent Docker readback confirms stable remains at the same signed digest. This demonstrates an actual production no-change run, not only a fixture result.
 
+## adw-gtk3 follow-up
+
+The follow-up from `3dd56e9254a5b531d71b4ff7e177cb3c3160f42f` implements official
+Fedora 44 `adw-gtk3-theme` 6.4-3.fc44 with GNOME and GTK 3 fallback defaults.
+Disposable native GTK 3.24.52 applications on X11 and nested-niri Wayland render
+with adw-gtk3/Adwaita Sans 11. New Wayland clients honor a personal adw-gtk3-dark
+GSettings selection and reset. Strict schema compilation passes with inherited
+deprecated-path warnings. The runtime probe records ADW_GTK3_RUNTIME_PASS and
+its disposable container was removed.
+
+Libadwaita 1.9.3/PyGObject 3.56.3 initializes Adwaita-empty with dark=false,
+high_contrast=false and color_scheme=0 in a real Xvfb application. Plain GTK
+4.22.5 can use the package's GTK 4 CSS through the shared theme setting; all
+RPM-owned assets remain intact. Qt/Breeze is unchanged. The VM fixture now
+checks candidate/fixture RPM/CSS consistency, exact GTK 3 theme on both backends
+and native Adw StyleManager behavior; the full Actions VM run is not-run.
+See [desktop guidance](DESKTOP.md#gtk-and-qt-applications) for package/upstream
+sources and explicit dark-variant selection. WL-20260913-10 remains in-progress;
+earlier full Adwaita GUI evidence does not qualify this theme change.
+
 ## Noctalia Greeter evaluation
 
 Evaluation at `7f76857f0e903b61891f7bf1584bece98c5c73cc` recommends Noctalia

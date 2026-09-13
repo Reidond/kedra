@@ -73,7 +73,7 @@ because its fixture still expected niri `gaps 12` after the baseline changed to
 8. The correction in `prepare.py` and `home.py` is locally ready and passes
 native niri validation. Its signed A/B/A rerun
 [34758449303](https://github.com/Reidond/kedra/actions/runs/34758449303) at
-`076814d` is in progress. Desktop run
+`076814d0a68933d0a384b7db02ba4598ffa4fe88` passed the full workflow, including STAGE_B, ACCEPT_B_ROLLBACK_STAGED and ROLLBACK_A_HOME graphical VM markers. Desktop run
 [34758096727](https://github.com/Reidond/kedra/actions/runs/34758096727) was
 cancelled when the test-only Qt chooser fix at `24c61b7` was pushed. At
 `24c61b7a5cfb2310b97d3c3e8439e335dd8b843e`, workspace
@@ -84,13 +84,34 @@ before the toolkit cases. Artifact `10317828820` shows that the old fixture set
 the already-selected light mode, so home staging correctly refused an unchanged
 value. A dynamic mode choice is being implemented in `check.sh` and `recovery.py`.
 The failure screenshot shows the rendered shell/bar, a cartoon wallpaper and a
-large black focused window of unknown identity. The next source iteration adds
+large black focused window of unknown identity. The current source adds
 the native-validated Noctalia 5.0.1 wallpaper default `color:#222226`, preserving
 personal overrides, and adds wallpaper readback plus niri window inventory to
 the VM evidence. The [desktop design](DESKTOP.md) links the tagged wallpaper
-implementation and example. The black client remains unresolved; visual
-investigation and GUI qualification remain pending. See WL-20260913-08 for the
+implementation and example. Later startup inventory identifies the black client
+as `xwaylandvideobridge`; niri-specific autostart exclusion is now implemented,
+with GUI qualification pending.
+See WL-20260913-08 for the
 continuing evidence.
+
+At current source `711bdf223120efab675c7fd2dff73618c7573cf1`, workspace
+[34759390627](https://github.com/Reidond/kedra/actions/runs/34759390627) passes
+with matching head/status/conclusion independently checked. Desktop
+[34759390621](https://github.com/Reidond/kedra/actions/runs/34759390621) failed
+after passing candidate/disk creation, wallpaper readback and Noctalia
+projection/recovery markers: `niri-review.py:118` still expected the historical
+`gaps 12` baseline. Artifact `10318453176` records that failure and identifies
+the focused 628×716 black tile as `xwaylandvideobridge` (Wayland to X Recording
+bridge). The fixture is being corrected. `build/assemble.sh` now adds
+`NotShowIn=niri;` to the packaged bridge autostart entry, retaining its package
+and manual launcher. New VM checks require no bridge process/window at startup
+and after the session workflow; execution of this correction is pending.
+Native Wayland portal sharing remains configured; legacy X11 bridge capture is
+opt-in and separately unqualified. See [desktop sharing](DESKTOP.md#screen-sharing-and-the-x11-bridge).
+the toolkit cases have not run. Home-transition
+[34759390618](https://github.com/Reidond/kedra/actions/runs/34759390618) remains in progress.
+The earlier signed home-transition pass does not qualify this exact source or
+the new graphical workflows.
 
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E

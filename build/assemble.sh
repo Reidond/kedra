@@ -19,6 +19,34 @@ if test "${1:-}" = --resolve-packages; then
         | LC_ALL=C sort > /resolution/package-material.txt
     exit 0
 fi
+# Its invisible capture window becomes a focused black tile under niri.
+# Keep the native launcher, but exclude this session from bridge autostart.
+bridge_autostart=/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop
+test -f "$bridge_autostart" && test ! -L "$bridge_autostart"
+bridge_updated=$(mktemp)
+# desktop-file-edit 0.28 rejects niri as an unregistered desktop name.
+awk '
+    /^\[/ {
+        if (entry && !excluded) print "NotShowIn=niri;"
+        entry = ($0 == "[Desktop Entry]")
+        if (entry) found = 1
+    }
+    entry && /^OnlyShowIn=/ { exit 1 }
+    entry && /^NotShowIn=/ {
+        if ($0 !~ /[=;]niri(;|$)/) {
+            if ($0 !~ /[=;]$/) $0 = $0 ";"
+            $0 = $0 "niri;"
+        }
+        excluded = 1
+    }
+    { print }
+    END {
+        if (!found) exit 1
+        if (entry && !excluded) print "NotShowIn=niri;"
+    }
+' "$bridge_autostart" > "$bridge_updated"
+cat "$bridge_updated" > "$bridge_autostart"
+rm "$bridge_updated"
 # Compile image-owned defaults after RPM installation; never write user dconf.
 glib-compile-schemas --strict /usr/share/glib-2.0/schemas
 # Recomputable build-time caches/logs are not installed machine state.

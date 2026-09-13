@@ -30,7 +30,7 @@ shadows. The launcher displays an app grid; notifications appear at the top
 center and volume/brightness indicators at the bottom center. Adwaita Sans and
 the custom Adwaita palette supply the shell's typography and colors.
 
-The next source iteration selects a quiet charcoal background (`color:#222226`)
+The desktop selects a quiet charcoal background (`color:#222226`)
 through `[wallpaper.default]` to replace Noctalia's bundled illustrated wallpaper.
 The setting passes native Noctalia 5.0.1 validation and follows its tagged
 [wallpaper implementation](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/src/shell/wallpaper/wallpaper.cpp)
@@ -102,6 +102,22 @@ its existing portal routing. Noctalia theme templates remain disabled, so changi
 the shell palette does not rewrite GTK or KDE application settings. Native Qt
 integration applies to applications using the image's Qt libraries/plugins;
 sandboxed or independently bundled runtimes require their own compatible plugins.
+
+## Screen sharing and the X11 bridge
+
+Niri retains its native Wayland portal sharing integration. Automatic startup of
+the optional `xwaylandvideobridge` is excluded for niri: the Fedora 44 version
+0.5.2 created a focused black tile in the desktop VM. The image edits only its
+packaged autostart entry with `NotShowIn=niri;`; the package and manual launcher
+remain available. Legacy X11 applications needing this bridge can start
+`xwaylandvideobridge` explicitly, with the current black-window behavior still
+possible. That legacy capture workflow requires separate qualification.
+
+The version's [capture-window implementation](https://raw.githubusercontent.com/KDE/xwaylandvideobridge/v0.5.2/src/contentswindow.cpp)
+uses invisibility hints that were ineffective in this niri/Xwayland session;
+see its [README](https://raw.githubusercontent.com/KDE/xwaylandvideobridge/v0.5.2/README.md)
+and [Fedora package](https://packages.fedoraproject.org/pkgs/xwaylandvideobridge/xwaylandvideobridge/fedora-44-updates.html).
+The startup exclusion is implemented, with visual verification pending in CI.
 
 ## Verification scope
 

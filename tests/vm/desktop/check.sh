@@ -41,7 +41,19 @@ test "$wallpaper_default" = 'color:#222226'
 test "$wallpaper_output" = 'color:#222226'
 marker KEDRA_ADWAITA_WALLPAPER_SOURCE_PASS
 # Synthetic VM window inventory helps correlate startup screenshots with apps.
-as_user env NIRI_SOCKET="$niri_socket" timeout 10s niri msg --json windows
+check_videobridge_absent() {
+    local session_windows
+    session_windows=$(as_user env NIRI_SOCKET="$niri_socket" timeout 10s niri msg --json windows)
+    printf '%s\n' "$session_windows"
+    printf '%s' "$session_windows" | jq -e 'all(.[]; (.app_id // "" | ascii_downcase | contains("xwaylandvideobridge") | not))' >/dev/null
+    # The executable name exceeds Linux comm's 15-character limit, so match its
+    # actual command line, scoped to this account and executable token.
+    if pgrep -u "$uid" -f '(^|/)xwaylandvideobridge([[:space:]]|$)' >/dev/null; then
+        echo 'xwaylandvideobridge unexpectedly autostarted in the niri session' >&2
+        false
+    fi
+}
+check_videobridge_absent
 review_home=$(getent passwd kedra-test | cut -d: -f6)
 review_state="$review_home/kedra-noctalia-review"
 as_user sysroot home --state "$review_state" init
@@ -165,6 +177,10 @@ as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.s
 test "$(as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked)" = 'b false'
 as_user sysroot doctor --json | jq -e '.desktop_session_checks_passed and (.changes_performed | not)' >/dev/null
 marker KEDRA_DOCTOR_SESSION_PASS
+# Repeat after the review/recovery and portal workflows have settled, so a
+# delayed autostart cannot pass solely because the first inventory was early.
+check_videobridge_absent
+marker KEDRA_NIRI_NO_VIDEOBRIDGE_PASS
 # Real graphical applications, keyboard input and native file selection.
 # GUI drivers below use only the synthetic account and generated file.
 toolkit_result="$review_home/toolkit-result.json"

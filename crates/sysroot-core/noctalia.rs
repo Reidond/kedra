@@ -1,4 +1,4 @@
-//! A bounded Noctalia 5.0.1 projection and pure review state machine.
+//! A bounded Noctalia projection and pure review state machine.
 //!
 //! Input is `noctalia config export full`, not a home/state directory walk.
 //! Only three explicitly supported safe fields survive projection. Filesystem
@@ -8,7 +8,10 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+/// Persisted projection identity, not the running binary version. Keep existing
+/// records readable across qualified runtime upgrades and image rollback.
 pub const APP_VERSION: &str = "5.0.1";
+const QUALIFIED_RUNTIME_VERSIONS: [&str; 2] = ["5.0.1", "5.1.0"];
 pub const MAX_EXPORT: usize = 1024 * 1024;
 const MAX_STATE: usize = 65_536;
 const KEYS: [Key; 3] = [Key::ThemeMode, Key::ButtonBorders, Key::InputBorders];
@@ -108,7 +111,7 @@ impl Settings {
 
 /// Parse only the safe projection. Never retain raw export data or parser excerpts.
 pub fn project(version: &str, export: &str) -> Result<Settings, Error> {
-    if version != APP_VERSION {
+    if !QUALIFIED_RUNTIME_VERSIONS.contains(&version) {
         return Err(Error::UnsupportedVersion);
     }
     if export.len() > MAX_EXPORT {

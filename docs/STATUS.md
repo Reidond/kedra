@@ -10,6 +10,32 @@ Repeat run [34747330145](https://github.com/Reidond/kedra/actions/runs/347473301
 
 ## adw-gtk3 follow-up
 
+At `f9d46a79462bb433d3120071ad44e6e2dbe511dc`, desktop
+[34782406383](https://github.com/Reidond/kedra/actions/runs/34782406383) builds
+the candidate with adw-gtk3-theme 6.4-3.fc44, but refreshed Fedora packages supply
+Noctalia 5.1.0-1.fc44. The VM correctly refuses unqualified Noctalia home review
+shortly after login, before toolkit cases. This is a compatibility safety guard,
+not an adw-gtk3 failure. Native 5.1 export/IPC/override comparison is in progress;
+exact-version compatibility support is now implemented from native evidence,
+without blanket acceptance or a package pin. Home-transition
+[34782406358](https://github.com/Reidond/kedra/actions/runs/34782406358) also fails
+on stage-B boot: artifact `10325981426`, stage-b/serial.log line 67, records the
+same unqualified-version refusal in `sysroot home init`. Workspace push
+[34782406364](https://github.com/Reidond/kedra/actions/runs/34782406364) and PR
+[34782409405](https://github.com/Reidond/kedra/actions/runs/34782409405) pass.
+Prior full Noctalia 5.0.1 GUI evidence does not qualify the new runtime.
+See WL-20260914-01 for the continuation across local midnight.
+
+The source now accepts runtime versions exactly 5.0.1/5.1.0, mapping their
+measured CLI version strings to the existing safe projection. Persisted
+APP_VERSION/state identity remains 5.0.1, preserving old records; unknown
+versions still refuse. The native 5.1 probe passes config/export, IPC dark/light,
+settings-path and stopped-writer/restart checks with clean RPM verification.
+Local Rust 1.98.1 formatting, all-target Clippy, release build and whitespace
+pass. Managed Linux desktop/home Actions after the edit are not-run, and
+independent review is in progress. No new GUI qualification or publication
+is inferred from source compatibility alone.
+
 The follow-up from `3dd56e9254a5b531d71b4ff7e177cb3c3160f42f` implements official
 Fedora 44 `adw-gtk3-theme` 6.4-3.fc44 with GNOME and GTK 3 fallback defaults.
 Disposable native GTK 3.24.52 applications on X11 and nested-niri Wayland render

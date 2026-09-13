@@ -30,8 +30,8 @@ capsule = false
 padding = 12
 widget_spacing = 6
 start = ["workspaces"]
-center = ["clock"]
-end = ["privacy", "tray", "network", "volume", "battery", "control-center"]
+center = []
+end = ["privacy", "tray", "network", "volume", "battery", "clock", "control-center"]
 
 [widget.workspaces]
 style = "regular"

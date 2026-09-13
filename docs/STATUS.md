@@ -8,6 +8,17 @@ Publication artifact `10313929124` independently matches ZIP SHA-256 `122832f436
 
 Repeat run [34747330145](https://github.com/Reidond/kedra/actions/runs/34747330145) at the same exact main source succeeded after verified stable-image comparison and package preflight. Changed-image construction, signing and stable publication were all skipped; the run produced zero artifacts. Independent Docker readback confirms stable remains at the same signed digest. This demonstrates an actual production no-change run, not only a fixture result.
 
+## Right-side bar clock
+
+The layout follow-up from `308b03f467a50df91aca20930857122ed471785b` places the
+clock in the right-side status group immediately before Control Center and
+leaves the center empty. Cached native Noctalia 5.0.1 validation passes without
+warnings; full effective export confirms the exact order and no default clock
+reinserted. Local 5.1 validation is not-run because that binary is unavailable.
+Exact-source Actions VM/screenshot qualification is pending; older `4d030519`
+GUI evidence covers the centered-clock layout. No user-machine apply occurred.
+See WL-20260914-02.
+
 ## adw-gtk3 follow-up
 
 **Latest exact-source result:** `4d0305194341b702f3e39fb6abba6a1f6b3f29a0`

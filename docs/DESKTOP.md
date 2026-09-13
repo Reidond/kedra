@@ -33,8 +33,9 @@ startup/restart fallback-warning checks and independently reviewed screenshots.
 
 ## Configuration and ownership
 
-The desktop uses a solid, edge-to-edge top bar with workspaces on the left, a
-centered clock and status controls on the right. Popovers are opaque with modest
+The desktop uses a solid, edge-to-edge top bar with workspaces on the left and
+status controls on the right, with the clock immediately before Control Center.
+The center is empty. Popovers are opaque with modest
 shadows. The launcher displays an app grid; notifications appear at the top
 center and volume/brightness indicators at the bottom center. Adwaita Sans and
 the custom Adwaita palette supply the shell's typography and colors.

@@ -21,9 +21,19 @@ def report(stage, **values):
 
 
 def selected(filename):
-    if pathlib.Path(filename) != sample or pathlib.Path(filename).read_text() != "Kedra native file selection\n":
-        raise RuntimeError("Native dialog did not return the selected fixture file")
-    report("selected", selected_file=pathlib.Path(filename).name)
+    try:
+        chosen = pathlib.Path(filename)
+        # Fedora's /home aliases /var/home. Compare the actual selected file,
+        # not the spelling returned by the native chooser.
+        if not chosen.samefile(sample) or chosen.read_text() != "Kedra native file selection\n":
+            raise RuntimeError("Native dialog did not return the selected fixture file")
+    except (OSError, TypeError, ValueError, RuntimeError) as error:
+        # GTK callbacks otherwise print exceptions but leave the application
+        # running, causing an opaque timeout with the old dialog stage.
+        report("failed", reason=str(error))
+        return False
+    report("selected", selected_file=chosen.name)
+    return True
 
 
 if case.startswith("gtk") or case == "libadwaita":
@@ -85,7 +95,10 @@ if case.startswith("gtk") or case == "libadwaita":
                     report("failed", reason="file selection cancelled")
                     application.quit()
                     return
-                selected(chooser.get_file().get_path())
+                chosen = chooser.get_file()
+                if not selected(chosen.get_path() if chosen is not None else None):
+                    application.quit()
+                    return
                 label.set_text("Opened toolkit-sample.txt successfully")
                 chooser.destroy()
             dialog.connect("response", response)
@@ -156,7 +169,9 @@ else:
             report("failed", reason="file selection cancelled")
             app.exit(1)
             return
-        selected(filename)
+        if not selected(filename):
+            app.exit(1)
+            return
         label.setText("Opened toolkit-sample.txt successfully")
 
     button.clicked.connect(open_file)

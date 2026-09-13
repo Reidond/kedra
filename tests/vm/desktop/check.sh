@@ -206,6 +206,7 @@ for toolkit_case in gtk3-wayland gtk3-xwayland libadwaita qt5 qt6 qt6-override; 
             case "$toolkit_service_state" in
                 active|activating) ;;
                 *)
+                    if test -f "$toolkit_result"; then cat "$toolkit_result"; fi
                     journalctl -b "_SYSTEMD_USER_UNIT=$toolkit_unit.service" --no-pager -n 40
                     echo "Toolkit $toolkit_case exited before $toolkit_stage (state=$toolkit_service_state)" >&2
                     false
@@ -215,7 +216,13 @@ for toolkit_case in gtk3-wayland gtk3-xwayland libadwaita qt5 qt6 qt6-override; 
             if test -f "$toolkit_result" && jq -e '.stage == "failed"' "$toolkit_result" >/dev/null; then cat "$toolkit_result"; false; fi
             sleep 1
         done
-        jq -e --arg stage "$toolkit_stage" '.stage == $stage' "$toolkit_result"
+        if ! jq -e --arg stage "$toolkit_stage" '.stage == $stage' "$toolkit_result"; then
+            if test -f "$toolkit_result"; then cat "$toolkit_result"; fi
+            journalctl -b "_SYSTEMD_USER_UNIT=$toolkit_unit.service" --no-pager -n 40
+            as_user env NIRI_SOCKET="$niri_socket" timeout 10s niri msg --json windows
+            false
+        fi
+        cat "$toolkit_result"
         marker "KEDRA_TOOLKIT_${toolkit_case}_${toolkit_stage}"
     done
     # Preserve runtime facts in serial evidence and allow the host to capture

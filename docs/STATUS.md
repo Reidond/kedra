@@ -125,9 +125,25 @@ KEDRA_NIRI_NO_VIDEOBRIDGE_PASS, Noctalia projection/recovery, niri line
 review/recovery and portal/keyring/doctor passes. The independently inspected
 failure screenshot shows an uncluttered charcoal desktop/top bar without the
 black bridge tile. Toolkit GUI behavior remains unqualified. Home-transition
-[34760607435](https://github.com/Reidond/kedra/actions/runs/34760607435) is in
-progress. The home run's exact head/status was independently checked. Current
-toolkit qualification remains pending.
+[34760607435](https://github.com/Reidond/kedra/actions/runs/34760607435) passed
+at `e0e1031a92b189ae30e419ac1211196930445f8c`.
+
+Latest source `a165312` changes only the GTK GUI fixture and documentation/worklog;
+runtime image/home source is unchanged from that passing home-transition run.
+Workspace [34761609811](https://github.com/Reidond/kedra/actions/runs/34761609811)
+passes. Desktop [34761609814](https://github.com/Reidond/kedra/actions/runs/34761609814)
+failed waiting 45 seconds for the first GTK 3 Wayland chooser's selected marker.
+Artifact `10319930862` shows the ready app and native Adwaita chooser; GTK 3
+theme/icon/backend checks passed. The fixture lexically compares `/var/home`
+from `Path.home()` against the `/home` symlink path typed through QMP, a possible
+callback failure. The source now uses `samefile(sample)` and exact content
+verification, explicitly reports callback failures and captures a post-submit
+screenshot plus toolkit journal/result/window inventory on timeout. Disposable
+Fedora alias, syntax and whitespace checks pass; the corrected VM rerun is
+pending and the exact historical timeout trigger is not yet proven. Its final failure
+screenshot follows trap poweroff and does not establish a compositor failure.
+The six-case toolkit suite remains incomplete. Passing home-transition at
+runtime-equivalent `e0e1031` and workspace CI retain their recorded scopes.
 
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E

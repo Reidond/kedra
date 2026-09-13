@@ -147,6 +147,8 @@ with (work / "qemu.log").open("w") as output:
                         qmp.call("send-key", {"keys": [{"type": "qcode", "data": "ctrl"}, {"type": "qcode", "data": "l"}], "hold-time": 80})
                         time.sleep(0.3)
                         qmp.type_text("/home/kedra-test/toolkit-sample.txt\n")
+                        time.sleep(1)
+                        qmp.screenshot(f"toolkit-{case}-submitted.png")
                     markers.add(marker)
                     print(f"Captured and drove {marker}", flush=True)
             time.sleep(1)

@@ -128,6 +128,31 @@ see its [README](https://raw.githubusercontent.com/KDE/xwaylandvideobridge/v0.5.
 and [Fedora package](https://packages.fedoraproject.org/pkgs/xwaylandvideobridge/xwaylandvideobridge/fedora-44-updates.html).
 The startup exclusion passes VM process/window checks and screenshot review.
 
+## Noctalia Greeter evaluation
+
+Noctalia Greeter 1.5.0 is recommended as a separately qualified follow-up to
+[PR #14](https://github.com/Reidond/kedra/pull/14). The current branch retains
+greetd/tuigreet; this evaluation does not implement or enable the Greeter.
+The [upstream overview](https://docs.noctalia.dev/greeter/),
+[installation](https://docs.noctalia.dev/greeter/installation/),
+[source build](https://docs.noctalia.dev/greeter/building-from-source/),
+[configuration](https://docs.noctalia.dev/greeter/configuration/) and
+[sync](https://docs.noctalia.dev/greeter/sync/) were evaluated for this follow-up.
+
+Fedora 44's default repositories lack the package. The selected future approach
+is a pinned source/archive/hash build in Actions using official Fedora
+dependencies, preserving the existing greetd account, PAM/keyring integration
+and niri session. Use an administrator-owned static Adwaita palette, without
+automatic synchronization with the current Noctalia 5.0.1 profile. Upstream's
+Terra/Copr installation route and root setup scripts are outside that approach.
+
+Before adoption, review the 1.5.0 [packaging instructions](https://raw.githubusercontent.com/noctalia-dev/noctalia-greeter/v1.5.0/PACKAGING.md)
+and [session wrapper](https://raw.githubusercontent.com/noctalia-dev/noctalia-greeter/v1.5.0/scripts/noctalia-greeter-session),
+including predictable `/tmp` runtime-directory handling and portable compilation
+instead of `-march=native`. Qualify wrong/correct login, session selection,
+recovery TTY, 1×/1.5× display scaling and SELinux behavior in a disposable VM.
+These Greeter checks are not-run; existing desktop evidence does not cover them.
+
 ## Verification scope
 
 Use the exact packaged niri and Noctalia versions to validate these defaults.

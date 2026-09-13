@@ -33,6 +33,26 @@ merge. Verify niri include/output-rule semantics before spreading the same monit
 across layers. Connector names and refresh strings require actual inventory.
 Earlier display/GPU context is not a live hardware probe.
 
+## Greeter adoption boundary
+
+The 2026-09-13 evaluation of Noctalia Greeter 1.5.0 recommends a separate
+qualified follow-up; PR #14 retains greetd/tuigreet. Fedora 44 default repos
+lack the Greeter package. Use a pinned source/archive/hash build in Actions
+with official Fedora dependencies if adopted. Do not follow the documented
+Terra bootstrap with `--nogpgcheck`, add Copr, or run upstream root setup scripts
+as an incidental step. Preserve Fedora's greetd user, PAM/keyring and niri
+session. Start with static administrator-owned Adwaita settings; automatic sync
+with Noctalia 5.0.1 is not qualified.
+
+Review predictable `/tmp` runtime-directory handling in the tagged session
+wrapper and replace `-march=native` assumptions with portable build settings
+before adoption. Require wrong/correct login, session selection, TTY recovery,
+1×/1.5× scaling and enforcing-SELinux VM evidence. These checks are not-run.
+Sources: [Greeter docs](https://docs.noctalia.dev/greeter/),
+[1.5.0 packaging](https://raw.githubusercontent.com/noctalia-dev/noctalia-greeter/v1.5.0/PACKAGING.md),
+[session wrapper](https://raw.githubusercontent.com/noctalia-dev/noctalia-greeter/v1.5.0/scripts/noctalia-greeter-session).
+See docs/DESKTOP.md and WL-20260913-09 for the completed evaluation scope.
+
 ## Noctalia effective settings
 
 Current v5 docs describe curated TOML and separate GUI-generated overrides. Older

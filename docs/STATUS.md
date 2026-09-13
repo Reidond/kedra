@@ -8,6 +8,19 @@ Publication artifact `10313929124` independently matches ZIP SHA-256 `122832f436
 
 Repeat run [34747330145](https://github.com/Reidond/kedra/actions/runs/34747330145) at the same exact main source succeeded after verified stable-image comparison and package preflight. Changed-image construction, signing and stable publication were all skipped; the run produced zero artifacts. Independent Docker readback confirms stable remains at the same signed digest. This demonstrates an actual production no-change run, not only a fixture result.
 
+## Noctalia Greeter evaluation
+
+Evaluation at `7f76857f0e903b61891f7bf1584bece98c5c73cc` recommends Noctalia
+Greeter 1.5.0 as a separately qualified follow-up. [PR #14](https://github.com/Reidond/kedra/pull/14)
+remains open with its existing greetd/tuigreet implementation and green checks;
+no Greeter implementation, merge or production publication occurred. The
+[desktop evaluation](DESKTOP.md#noctalia-greeter-evaluation) records sources and
+the proposed pinned Actions build using official Fedora dependencies, static
+administrator-owned Adwaita styling and preserved PAM/keyring/niri integration.
+Greeter login, session selection, TTY recovery, scaling and SELinux checks are
+not-run. Runtime-directory handling and portable compiler flags require review
+before adoption. This is a completed evaluation, not a blocked implementation.
+
 ## Adwaita desktop source configuration
 
 The `codex/adwaita-desktop` changes from `ca3ce333ac33fa17e81f6c92610e4cdca802018e`

@@ -108,8 +108,13 @@ remain Adwaita, and native KDE/Breeze styling remains independent.
 
 The new theme passes disposable GTK 3.24.52 X11/Wayland application and personal
 dark/reset checks. Libadwaita 1.9.3 retains native Adwaita-empty and light mode;
-plain GTK 4.22.5 uses the retained package CSS. The full Actions GUI rerun is
-pending; see [status](STATUS.md#adw-gtk3-follow-up) for this theme's exact scope.
+plain GTK 4.22.5 uses the retained package CSS. Exact-source desktop
+[34784038994](https://github.com/Reidond/kedra/actions/runs/34784038994) at
+`4d0305194341b702f3e39fb6abba6a1f6b3f29a0` passes GTK 3 Wayland/X11 and native
+libadwaita/Qt chooser workflows. Independent artifact `10325794069` screenshot
+review confirms rounded adw-gtk3 controls. Workspace, signed home and update
+checks pass at that source; see [status](STATUS.md#adw-gtk3-follow-up).
+Physical displays/high contrast remain separately unqualified.
 
 Qt 5 and Qt 6 applications use KDE's platform integration with the native Breeze
 widget style, Breeze icons and KDE Qt Quick Controls desktop styles. The default

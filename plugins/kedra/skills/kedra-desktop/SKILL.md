@@ -124,7 +124,14 @@ nested-niri Wayland widgets, user dark/reset in new Wayland clients and strict
 schema compilation. Libadwaita 1.9.3/PyGObject 3.56.3 Adw.init selects
 Adwaita-empty and per-display StyleManager light/default values. Use
 StyleManager.get_for_display for the display-level dark/high-contrast checks;
-retain version-correct calls. Full Actions GUI qualification remains pending.
+retain version-correct calls. Exact-source desktop 34784038994 at
+4d0305194341b702f3e39fb6abba6a1f6b3f29a0 passes the GTK 3 Wayland/X11, native
+libadwaita and Qt/KDE chooser workflows; independent artifact 10325794069 review
+confirms adw-gtk3 controls. Signed home 34784039080 also passes under Noctalia
+5.1.0. Runtime allowlisting is exactly 5.0.1/5.1.0; persisted APP_VERSION remains
+5.0.1 at source level. A historical 5.0.1-created record to 5.1 CLI migration
+E2E is not-run; do not infer it from same-source signed A/B/A. Unknown versions
+still refuse. Physical/high-contrast qualification remains separate.
 
 The 2026-09-13 integration uses KDE platform-theme plugins and Breeze for both
 Qt generations, with KDE Qt Quick Controls desktop styles and Breeze icons.

@@ -10,6 +10,28 @@ Repeat run [34747330145](https://github.com/Reidond/kedra/actions/runs/347473301
 
 ## adw-gtk3 follow-up
 
+**Latest exact-source result:** `4d0305194341b702f3e39fb6abba6a1f6b3f29a0`
+passes desktop [34784038994](https://github.com/Reidond/kedra/actions/runs/34784038994),
+workspace [34784039095](https://github.com/Reidond/kedra/actions/runs/34784039095) /
+[34784041029](https://github.com/Reidond/kedra/actions/runs/34784041029), direct
+GHCR [34784039027](https://github.com/Reidond/kedra/actions/runs/34784039027) and
+signed-update regression [34784039089](https://github.com/Reidond/kedra/actions/runs/34784039089).
+Desktop artifact `10325794069` contains 35 PNGs: GTK 3 Wayland/X11 report
+adw-gtk3, Adwaita Sans 11/icons and successful exact-content file selection;
+libadwaita 1.9.3 retains Adwaita-empty/native light StyleManager behavior; Qt 5/6
+KDE/Breeze and personal-font workflows also pass through KEDRA_R07_SESSION_PASS.
+Candidate adw-gtk3-theme 6.4-3.fc44/CSS path are verified. Independent screenshot
+review confirms rounded GTK 3 controls and preserved native libadwaita.
+Signed home [34784039080](https://github.com/Reidond/kedra/actions/runs/34784039080)
+also passes, with STAGE_B, ACCEPT_B_ROLLBACK_STAGED and ROLLBACK_A_HOME at
+21:57–21:58 UTC. Source and disposable-VM qualification are complete; PR #14
+remains open, with no production publication or installation. Physical displays,
+high contrast and dynamic GTK 3 Xwayland dark-mode propagation remain separate.
+Persisted State.app_version=5.0.1 is preserved at source level; migration of a
+record created by the old 5.0.1 CLI into the 5.1 runtime is not-run as an E2E.
+The signed A/B/A pass qualifies the current 5.1 managed workflow.
+The earlier failures below retain their original source scope.
+
 At `f9d46a79462bb433d3120071ad44e6e2dbe511dc`, desktop
 [34782406383](https://github.com/Reidond/kedra/actions/runs/34782406383) builds
 the candidate with adw-gtk3-theme 6.4-3.fc44, but refreshed Fedora packages supply
@@ -32,9 +54,15 @@ APP_VERSION/state identity remains 5.0.1, preserving old records; unknown
 versions still refuse. The native 5.1 probe passes config/export, IPC dark/light,
 settings-path and stopped-writer/restart checks with clean RPM verification.
 Local Rust 1.98.1 formatting, all-target Clippy, release build and whitespace
-pass. Managed Linux desktop/home Actions after the edit are not-run, and
-independent review is in progress. No new GUI qualification or publication
-is inferred from source compatibility alone.
+pass. The orchestrator committed/pushed exact source
+`4d0305194341b702f3e39fb6abba6a1f6b3f29a0`; workspace
+[34784041029](https://github.com/Reidond/kedra/actions/runs/34784041029) /
+[34784039095](https://github.com/Reidond/kedra/actions/runs/34784039095), desktop
+[34784038994](https://github.com/Reidond/kedra/actions/runs/34784038994), signed home
+[34784039080](https://github.com/Reidond/kedra/actions/runs/34784039080), direct GHCR
+[34784039027](https://github.com/Reidond/kedra/actions/runs/34784039027) and legacy
+signed updates [34784039089](https://github.com/Reidond/kedra/actions/runs/34784039089)
+are in progress. No outcome, new GUI qualification or publication is inferred.
 
 The follow-up from `3dd56e9254a5b531d71b4ff7e177cb3c3160f42f` implements official
 Fedora 44 `adw-gtk3-theme` 6.4-3.fc44 with GNOME and GTK 3 fallback defaults.
@@ -49,10 +77,10 @@ high_contrast=false and color_scheme=0 in a real Xvfb application. Plain GTK
 4.22.5 can use the package's GTK 4 CSS through the shared theme setting; all
 RPM-owned assets remain intact. Qt/Breeze is unchanged. The VM fixture now
 checks candidate/fixture RPM/CSS consistency, exact GTK 3 theme on both backends
-and native Adw StyleManager behavior; the full Actions VM run is not-run.
+and native Adw StyleManager behavior; the final Actions VM run passes above.
 See [desktop guidance](DESKTOP.md#gtk-and-qt-applications) for package/upstream
-sources and explicit dark-variant selection. WL-20260913-10 remains in-progress;
-earlier full Adwaita GUI evidence does not qualify this theme change.
+sources and explicit dark-variant selection. WL-20260913-10 and WL-20260914-01
+are completed; earlier full Adwaita evidence remains scoped to its original theme.
 
 ## Noctalia Greeter evaluation
 

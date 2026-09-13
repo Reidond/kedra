@@ -156,6 +156,30 @@ now types the path, waits one second, captures it, then sends one Return and
 captures again. That corrected GUI rerun remains pending, with no full toolkit
 pass claimed.
 
+Signed home-transition
+[34762761530](https://github.com/Reidond/kedra/actions/runs/34762761530) passed
+at `e8f32722eff2419c802660c67d77798000978db0`. Latest source
+`6cb1b87d794707c6130338ad5bfe4041d50bcc1f` changes only the GUI keyboard timing
+and documentation/worklog. Its workspace
+[34763954122](https://github.com/Reidond/kedra/actions/runs/34763954122) and desktop
+[34763954151](https://github.com/Reidond/kedra/actions/runs/34763954151) are in
+progress; home-transition
+[34763954121](https://github.com/Reidond/kedra/actions/runs/34763954121) is pending.
+The prior signed workflow success does not establish latest-source GUI success.
+
+Desktop [34763954151](https://github.com/Reidond/kedra/actions/runs/34763954151)
+at `6cb1b87` passes both GTK 3 Wayland and Xwayland ready/dialog/selected workflows
+with exact selected-file content; artifact `10319744781` records the results.
+Libadwaita reaches its ready/dialog stages through GTK 4 FileChooserNative and
+the Nautilus portal, then times out. The confirmed screenshot shows the first
+Return navigated to the directory and selected the 28-byte sample with Open
+enabled, but had not confirmed opening it. The source now adds a libadwaita-only
+second Return after checking for completion/failure, with an additional
+open-confirmed screenshot and unchanged strict file/content assertions. This
+follows the [Nautilus 50 chooser](https://raw.githubusercontent.com/GNOME/nautilus/50.0/src/resources/ui/nautilus-file-chooser.blp).
+The corrected rerun and remaining cases are pending; no full six-case pass is
+claimed. Home-transition 34763954121 remains in progress.
+
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E
 command passes with zero cases, providing no new Linux behavioral coverage.

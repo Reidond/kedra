@@ -149,12 +149,30 @@ with (work / "qemu.log").open("w") as output:
                         qmp.type_text("/home/kedra-test/toolkit-sample.txt")
                         # GTK debounces location edits before enabling Open;
                         # Return immediately after the last character is lost.
-                        # Resolve the path before the one deliberate acceptance.
+                        # Resolve the path before confirming it.
                         time.sleep(1)
                         qmp.screenshot(f"toolkit-{case}-submitted.png")
                         qmp.type_text("\n")
                         time.sleep(1)
                         qmp.screenshot(f"toolkit-{case}-confirmed.png")
+                        if case == "libadwaita":
+                            # Nautilus' portal navigates to the parent and
+                            # selects the file on the first Return. A second
+                            # user confirmation opens that selection. Wait for
+                            # an already-completed response first so a portal
+                            # that accepts immediately is not activated again.
+                            selected_marker = "KEDRA_TOOLKIT_libadwaita_selected"
+                            confirmation_deadline = time.monotonic() + 2
+                            while time.monotonic() < confirmation_deadline:
+                                confirmation_events = events.read_text(errors="replace")
+                                if selected_marker in confirmation_events or args.failure_marker in confirmation_events:
+                                    break
+                                time.sleep(0.25)
+                            confirmation_events = events.read_text(errors="replace")
+                            if selected_marker not in confirmation_events and args.failure_marker not in confirmation_events:
+                                qmp.type_text("\n")
+                                time.sleep(1)
+                                qmp.screenshot("toolkit-libadwaita-open-confirmed.png")
                     markers.add(marker)
                     print(f"Captured and drove {marker}", flush=True)
             time.sleep(1)

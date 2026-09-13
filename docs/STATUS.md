@@ -180,6 +180,18 @@ follows the [Nautilus 50 chooser](https://raw.githubusercontent.com/GNOME/nautil
 The corrected rerun and remaining cases are pending; no full six-case pass is
 claimed. Home-transition 34763954121 remains in progress.
 
+Desktop [34765138011](https://github.com/Reidond/kedra/actions/runs/34765138011)
+at `12c17e1`, artifact `10320836651`, passes GTK 3 Wayland/Xwayland and
+libadwaita ready/dialog/selected workflows with exact file content. Qt 5 passes
+native Wayland, Breeze, Adwaita Sans and Breeze-icon readbacks and renders its
+KDEPlatformFileDialog/KFileWidget. Its chooser then times out: Ctrl+L/full
+path/Return navigates to `/home/kedra-test/` but does not select the sample.
+The fixture now uses KDE's Name editor with Alt+N, Ctrl+A, full
+path and delayed Return. Local syntax/whitespace pass; the VM rerun is pending.
+Qt 5 selection and Qt 6 cases remain incomplete;
+the desktop workflow has no overall pass. Home-transition
+[34765138099](https://github.com/Reidond/kedra/actions/runs/34765138099) is in progress.
+
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E
 command passes with zero cases, providing no new Linux behavioral coverage.

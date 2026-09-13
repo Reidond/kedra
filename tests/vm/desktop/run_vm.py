@@ -144,8 +144,15 @@ with (work / "qemu.log").open("w") as output:
                     if stage == "ready":
                         qmp.type_text("\n")
                     elif stage == "dialog":
-                        qmp.call("send-key", {"keys": [{"type": "qcode", "data": "ctrl"}, {"type": "qcode", "data": "l"}], "hold-time": 80})
+                        # KDE's Ctrl+L edits the directory navigator. Its
+                        # English &Name mnemonic targets the file-entry field
+                        # in both KF5 and KF6, whose Return accepts the file.
+                        modifier, key = ("alt", "n") if case.startswith("qt") else ("ctrl", "l")
+                        qmp.call("send-key", {"keys": [{"type": "qcode", "data": modifier}, {"type": "qcode", "data": key}], "hold-time": 80})
                         time.sleep(0.3)
+                        if case.startswith("qt"):
+                            qmp.call("send-key", {"keys": [{"type": "qcode", "data": "ctrl"}, {"type": "qcode", "data": "a"}], "hold-time": 80})
+                            time.sleep(0.2)
                         qmp.type_text("/home/kedra-test/toolkit-sample.txt")
                         # GTK debounces location edits before enabling Open;
                         # Return immediately after the last character is lost.

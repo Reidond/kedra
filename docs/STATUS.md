@@ -109,9 +109,25 @@ and after the session workflow; execution of this correction is pending.
 Native Wayland portal sharing remains configured; legacy X11 bridge capture is
 opt-in and separately unqualified. See [desktop sharing](DESKTOP.md#screen-sharing-and-the-x11-bridge).
 the toolkit cases have not run. Home-transition
-[34759390618](https://github.com/Reidond/kedra/actions/runs/34759390618) remains in progress.
+[34759390618](https://github.com/Reidond/kedra/actions/runs/34759390618) passed
+at `711bdf223120efab675c7fd2dff73618c7573cf1`.
 The earlier signed home-transition pass does not qualify this exact source or
 the new graphical workflows.
+
+Current source `e0e1031a92b189ae30e419ac1211196930445f8c` includes the bridge
+autostart exclusion and desktop fixture corrections. Workspace
+[34760607440](https://github.com/Reidond/kedra/actions/runs/34760607440) passes.
+Desktop [34760607452](https://github.com/Reidond/kedra/actions/runs/34760607452)
+failed in the new gtk3-wayland fixture because `toolkit-app.py` imported Gdk 4
+before Gtk 3, causing a GI namespace conflict; a fixture correction is underway.
+Artifact `10319262013` confirms wallpaper-get, empty startup window inventory,
+KEDRA_NIRI_NO_VIDEOBRIDGE_PASS, Noctalia projection/recovery, niri line
+review/recovery and portal/keyring/doctor passes. The independently inspected
+failure screenshot shows an uncluttered charcoal desktop/top bar without the
+black bridge tile. Toolkit GUI behavior remains unqualified. Home-transition
+[34760607435](https://github.com/Reidond/kedra/actions/runs/34760607435) is in
+progress. The home run's exact head/status was independently checked. Current
+toolkit qualification remains pending.
 
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E

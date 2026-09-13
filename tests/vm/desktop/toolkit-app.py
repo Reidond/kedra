@@ -30,7 +30,11 @@ if case.startswith("gtk") or case == "libadwaita":
     import gi
 
     gtk4 = case == "libadwaita"
-    gi.require_version("Gtk", "4.0" if gtk4 else "3.0")
+    gtk_version = "4.0" if gtk4 else "3.0"
+    # Gdk imports before Gtk below; pin both namespaces before either loads so
+    # the installed GTK4 typelib cannot contaminate the GTK3 application.
+    gi.require_version("Gdk", gtk_version)
+    gi.require_version("Gtk", gtk_version)
     if gtk4:
         gi.require_version("Adw", "1")
         from gi.repository import Adw

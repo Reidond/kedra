@@ -192,6 +192,19 @@ Qt 5 selection and Qt 6 cases remain incomplete;
 the desktop workflow has no overall pass. Home-transition
 [34765138099](https://github.com/Reidond/kedra/actions/runs/34765138099) is in progress.
 
+Desktop [34766395233](https://github.com/Reidond/kedra/actions/runs/34766395233)
+at `a99553f`, artifact `10320693521`, passes all six native GUI
+ready/dialog/selected cases through QMP keyboard interaction and exact file
+content: GTK 3 Wayland/Xwayland Adwaita, libadwaita through Nautilus, Qt 5/6
+native Wayland Breeze with visible KDEPlatformFileDialog/KFileWidget, and
+the Qt 6 Adwaita Mono 12 user override. The overall workflow nevertheless
+**fails** afterward: fixture cleanup uses `rmdir` on a generated XDG_CONFIG_HOME
+that contains normal Qt-written files. The local cleanup fix removes only that
+rmdir; it still deletes the explicit kdeglobals override and leaves normal Qt
+files on the disposable snapshot. All six GUI/override assertions remain,
+Bash syntax/whitespace pass and the complete desktop rerun is pending. Home-transition
+[34766395330](https://github.com/Reidond/kedra/actions/runs/34766395330) remains in progress.
+
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E
 command passes with zero cases, providing no new Linux behavioral coverage.

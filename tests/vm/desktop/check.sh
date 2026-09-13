@@ -231,7 +231,9 @@ for toolkit_case in gtk3-wayland gtk3-xwayland libadwaita qt5 qt6 qt6-override; 
     as_user systemctl --user stop "$toolkit_unit.service"
     if test "$toolkit_case" = qt6-override; then
         as_user rm "$override_config/kdeglobals"
-        as_user rmdir "$override_config"
+        # KDE may persist additional normal settings here. Leave that generated
+        # directory on the disposable snapshot; only our explicit override is
+        # removed, and no later case inherits this process-local config path.
     fi
 done
 marker KEDRA_TOOLKITS_PASS

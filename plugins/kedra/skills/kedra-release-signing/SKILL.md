@@ -11,8 +11,8 @@ Use the dedicated OS-image authority, separate from SSH keys. The isolated autom
 
 Image-owned identity/resolved-input records are bound by the signed image. The helper independently verifies fixed public trust, exact repository, target/architecture and retained ordering. Writable source or --verified claims are never root authority. Wrong key/repository/digest or missing attachment fails closed.
 
-Changed inputs require a signed image before stable advances. No-change publishes nothing and does not renew checkpoints. Legacy release/checkpoint verification remains solely for migration/offline recovery. Before bridging, legacy update status must reconcile earlier operations with no intent/awaiting reboot/staged replacement/queued rollback; preserve hold, journals and high-water. The v2 import refuses unresolved legacy state.
+Changed inputs require a signed image before stable advances. No-change publishes nothing and does not renew checkpoints. The owner confirmed on 2026-09-13 that nobody installed r1/r2 (docs/STATUS.md); legacy migration is not a publication or installation prerequisite. Retained compatibility verification must still refuse unresolved state and preserve hold, journals and high-water.
 
-Retain known-good digests/signatures. Rollback holds forward updates and preserves persistent data. Key rotation and older-reader migration need actual qualification. Container signatures do not establish Secure Boot.
+Retain known-good digests/signatures. Rollback holds forward updates and preserves persistent data. Key rotation needs actual qualification. Container signatures do not establish Secure Boot.
 
 Local ISO construction consumes a reviewed signed image and verifies the embedded payload offline. It does not upload or create a release signature for local output. Keep this skill checkout-local.

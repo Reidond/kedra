@@ -15,6 +15,6 @@ Exclude agent auth, keyrings, vault contents, private SSH keys, tokens, transcri
 
 Rollback shares persistent data. Version protocols/journals and refuse unknown or corrupt records. Test stale locks/CAS, interruption, full disk, concurrent operations and older readers with real CLI/VM flows. Bundled SQLite follows Cargo updates, independently of Fedora packages.
 
-Before an explicit v1-to-v2 bridge switch, require legacy update status to show no pending intent, awaiting-reboot operation, staged replacement or queued rollback. Reconcile while the old helper still runs. Migration preserves hold/high-water and refuses unreconciled legacy state; the new status path must not silently repair or reset an old journal.
+The owner confirmed on 2026-09-13 that nobody installed r1/r2 (docs/STATUS.md); a legacy bridge is not a delivery requirement. Retained compatibility code still refuses unreconciled legacy operations. This scope correction never authorizes clearing journals, rollback holds or high-water state, or silently repairing unknown schemas.
 
 Retain local TTY/boot-menu recovery without GitHub, an AI subscription or the Bitwarden GUI. Distinguish staged/booted/healthy. Automatic health rollback requires separate qualification. Keep tests disposable and production private keys out of fixtures.

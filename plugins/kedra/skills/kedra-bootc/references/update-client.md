@@ -4,7 +4,7 @@ Read docs/UPDATES.md. Current source enrolls with sysroot update enroll, discove
 
 The fixed installed helper validates native OCI signature/repository/target, image-owned identity and retained ordering. User checkouts are irrelevant to authority. Rollback holds forward updates; explicit stage --resume clears the hold after normal checks. Persistent home and /var are not rewound.
 
-Old r2 software requires deliberate migration. First run legacy sysroot update status on the old OS and require no pending intent, awaiting-reboot operation, staged deployment/replacement or queued rollback. Complete/reconcile prior work before switching; preserve rollback hold/high-water and signed records. Then use the owner-reviewed exact signed bootc switch with --enforce-container-sigpolicy, chosen reboot and enroll --migrate-legacy --expected-digest. Import refuses unreconciled legacy operations; the v2 status path cannot repair a v1 journal. Older readers refuse newer state. Never delete journals or clear a hold to make migration succeed.
+The owner confirmed on 2026-09-13 that nobody installed r1/r2 (docs/STATUS.md). Fresh installations enroll directly; no legacy bridge is required for delivery. Retained compatibility code refuses unreconciled legacy operations, and older readers refuse newer state. Never delete journals or clear a hold to bypass a refusal.
 
 Do not claim signed checkpoint freshness for the new path; there are no channel/release assets or renewal. No-change CI does nothing. Image/signing age, publication and actual successful package resolution remain distinct observations.
 

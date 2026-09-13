@@ -31,6 +31,6 @@ No separate promotion workflow or release/checkpoint signing remains. Consumers 
 
 Build one local ISO from a reviewed exact signed digest with [INSTALL.md](../../docs/INSTALL.md). Offline payload verification, deliberate disk selection, encryption and account creation remain mandatory. Nothing uploads from the local builder.
 
-Previously installed r1/r2 uses a different enrollment/update protocol. Their GitHub Releases and all uploaded assets have been deleted; source tags remain. Legacy online discovery is therefore unavailable. Preserve locally retained records and follow the explicit [legacy migration](../../docs/UPDATES.md#one-time-legacy-migration) once a compatible signed GHCR image is available.
+Fresh installations enroll directly in the signed GHCR update workflow. Nobody installed the removed r1/r2 releases, so no deployed-system migration is required.
 
 For failures or uncertain registry writes, inspect exact source/tag/digest/signature and current stable readback before retrying. Do not re-sign or move a tag blindly. [STATUS](../../docs/STATUS.md) distinguishes current implementation from observed native qualification.

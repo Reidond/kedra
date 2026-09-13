@@ -13,7 +13,7 @@ Resolve only the official production Fedora 44 stream, not similarly named devel
 
 The installed helper verifies signed GHCR stable discovery and stages exact digests through enforcing bootc policy. Normal bootc upgrade does not advance a digest-pinned installation. Preserve pending slots, ordering and rollback holds; no automatic reboot or home activation.
 
-No-change CI publishes nothing. There is no checkpoint renewal in the current path. Legacy release/checkpoint state is migrated explicitly; never reset it to bypass a refusal. Keep local recovery independent of GitHub Releases.
+No-change CI publishes nothing. There is no checkpoint renewal in the current path. Keep local recovery independent of GitHub Releases. The owner confirmed on 2026-09-13 that nobody installed r1/r2 (docs/STATUS.md); do not make legacy migration a delivery prerequisite. Unknown or corrupt state must still refuse; never reset it to bypass a refusal.
 
 Anaconda media is separate and permissive under the pinned Fedora installer policy; installed SELinux remains enforcing. Local media requires offline signed-payload verification before disk installation. Preserve hash-guarded target scratch, selected non-API mounts before account creation and the physical /sysroot fstab normalization. Unknown upstream/source changes refuse rather than patch blindly.
 

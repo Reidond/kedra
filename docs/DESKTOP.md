@@ -30,6 +30,14 @@ shadows. The launcher displays an app grid; notifications appear at the top
 center and volume/brightness indicators at the bottom center. Adwaita Sans and
 the custom Adwaita palette supply the shell's typography and colors.
 
+The next source iteration selects a quiet charcoal background (`color:#222226`)
+through `[wallpaper.default]` to replace Noctalia's bundled illustrated wallpaper.
+The setting passes native Noctalia 5.0.1 validation and follows its tagged
+[wallpaper implementation](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/src/shell/wallpaper/wallpaper.cpp)
+and [configuration example](https://raw.githubusercontent.com/noctalia-dev/noctalia/v5.0.1/example.toml).
+Existing personal wallpaper overrides remain authoritative. Its new rendered
+appearance has not yet been qualified in the desktop VM.
+
 Niri uses eight-pixel gaps, rounded window corners, a blue active focus ring and
 subtle shadows while retaining its scrolling tiling layout. Common shortcuts are:
 

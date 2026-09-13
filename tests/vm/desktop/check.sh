@@ -32,48 +32,66 @@ for attempt in $(seq 1 120); do
     sleep 1
 done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status
+# Read the resolved native source for the generated VM's actual output as well
+# as the default; this observes defaults without rewriting GUI overrides.
+wallpaper_default=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg wallpaper-get)
+wallpaper_output=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg wallpaper-get Virtual-1)
+printf 'Native wallpaper default=%s Virtual-1=%s\n' "$wallpaper_default" "$wallpaper_output"
+test "$wallpaper_default" = 'color:#222226'
+test "$wallpaper_output" = 'color:#222226'
+marker KEDRA_ADWAITA_WALLPAPER_SOURCE_PASS
+# Synthetic VM window inventory helps correlate startup screenshots with apps.
+as_user env NIRI_SOCKET="$niri_socket" timeout 10s niri msg --json windows
 review_home=$(getent passwd kedra-test | cut -d: -f6)
 review_state="$review_home/kedra-noctalia-review"
 as_user sysroot home --state "$review_state" init
 review=$(as_user sysroot home --state "$review_state" status)
 original_theme=$(printf '%s' "$review" | jq -er '.fields[0].live.value')
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+# Keep the selected value and the later edit distinct from the adopted baseline.
+# All three native modes participate regardless of the desktop's default.
+case "$original_theme" in
+    light) selected_theme=dark; later_theme=auto ;;
+    dark) selected_theme=light; later_theme=auto ;;
+    auto) selected_theme=light; later_theme=dark ;;
+    *) echo "Unexpected native theme mode: $original_theme" >&2; false ;;
+esac
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$selected_theme"
 for attempt in $(seq 1 20); do
     review=$(as_user sysroot home --state "$review_state" status)
-    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light; then break; fi
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = "$selected_theme"; then break; fi
     sleep 1
 done
-test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light
+test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = "$selected_theme"
 as_user sysroot home --state "$review_state" stage theme.mode
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$later_theme"
 for attempt in $(seq 1 20); do
     review=$(as_user sysroot home --state "$review_state" status)
-    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = auto; then break; fi
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = "$later_theme"; then break; fi
     sleep 1
 done
-printf '%s' "$review" | jq -e '.fields[0].live.value == "auto" and .fields[0].selected.value == "light"'
-as_user sysroot home --state "$review_state" selection | jq -e '.selection[0].after.value == "light" and .activation_performed == false and .checkout_changed == false'
+printf '%s' "$review" | jq -e --arg later "$later_theme" --arg selected "$selected_theme" '.fields[0].live.value == $later and .fields[0].selected.value == $selected'
+as_user sysroot home --state "$review_state" selection | jq -e --arg selected "$selected_theme" '.selection[0].after.value == $selected and .activation_performed == false and .checkout_changed == false'
 as_user sysroot home --state "$review_state" unstage theme.mode
 as_user sysroot home --state "$review_state" keep-local theme.mode | jq -e '.fields[0].local_only and (.fields[0].visible_change | not)'
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$selected_theme"
 for attempt in $(seq 1 20); do
     review=$(as_user sysroot home --state "$review_state" status)
-    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light; then break; fi
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = "$selected_theme"; then break; fi
     sleep 1
 done
-printf '%s' "$review" | jq -e '.fields[0].live.value == "light" and .fields[0].visible_change and (.fields[0].local_only | not)'
+printf '%s' "$review" | jq -e --arg selected "$selected_theme" '.fields[0].live.value == $selected and .fields[0].visible_change and (.fields[0].local_only | not)'
 as_user sysroot home --state "$review_state" app-own theme.mode | jq -e '.fields[0].app_owned and (.fields[0].visible_change | not)'
 as_user sysroot home --state "$review_state" clear-local theme.mode
 marker KEDRA_R03_DURABLE_REVIEW_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R03_NATIVE_PROJECTION_PASS
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$selected_theme"
 as_user systemctl --user stop kedra-noctalia.service
 if pgrep -u "$uid" -x noctalia >/dev/null; then
     echo 'Noctalia writer remained after the managed service stopped' >&2
     false
 fi
-as_user sysroot home --state "$review_state" status | jq -e '.fields[0].live.value == "light"' >/dev/null
+as_user sysroot home --state "$review_state" status | jq -e --arg selected "$selected_theme" '.fields[0].live.value == $selected' >/dev/null
 as_user systemctl --user start kedra-noctalia.service
 for attempt in $(seq 1 30); do
     if as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status >/dev/null 2>&1; then break; fi
@@ -82,21 +100,21 @@ done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_WRITER_LIFECYCLE_PASS
 as_user systemctl --user show kedra-noctalia.service --property=FragmentPath --property=DropInPaths
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$selected_theme"
 as_user sysroot home --state "$review_state" stage theme.mode >/dev/null
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$later_theme"
 activation_plan=$(as_user sysroot home --state "$review_state" plan --discard theme.mode)
 activation_id=$(printf '%s' "$activation_plan" | jq -er .plan_id)
-printf '%s' "$activation_plan" | jq -e '.plan.observed.theme_mode == "auto" and .plan.desired.theme_mode == "light"' >/dev/null
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set dark
+printf '%s' "$activation_plan" | jq -e --arg later "$later_theme" --arg selected "$selected_theme" '.plan.observed.theme_mode == $later and .plan.desired.theme_mode == $selected' >/dev/null
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 if as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" >/dev/null 2>&1; then
     echo 'Stale home plan unexpectedly succeeded' >&2
     false
 fi
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$later_theme"
 native_settings="$review_home/.local/state/noctalia/settings.toml"
 native_metadata=$(stat -c '%u:%g:%a:%C' "$native_settings")
-as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" | jq -e '.operation_completed and .pending == null and .fields[0].live.value == "light" and .fields[0].selected.value == "light"' >/dev/null
+as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" | jq -e --arg selected "$selected_theme" '.operation_completed and .pending == null and .fields[0].live.value == $selected and .fields[0].selected.value == $selected' >/dev/null
 test "$(stat -c '%u:%g:%a:%C' "$native_settings")" = "$native_metadata"
 as_user systemctl --user is-active kedra-noctalia.service
 as_user sysroot home --state "$review_state" recover | jq -e '.pending == null and .journal.phase == "completed" and (.native_file_contents_stored | not)' >/dev/null
@@ -104,7 +122,7 @@ test -z "$(find "$review_home/.local/state/noctalia" -maxdepth 1 -name '.sysroot
 as_user sysroot home --state "$review_state" unstage theme.mode >/dev/null
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_NATIVE_DISCARD_PASS
-as_user env WAYLAND_DISPLAY="$wayland" python3 /usr/libexec/kedra-research-recovery.py "$review_state"
+as_user env WAYLAND_DISPLAY="$wayland" python3 /usr/libexec/kedra-research-recovery.py "$review_state" "$selected_theme" "$later_theme" "$original_theme"
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_NATIVE_RECOVERY_PASS
 as_user env NIRI_SOCKET="$niri_socket" WAYLAND_DISPLAY="$wayland" python3 /usr/libexec/kedra-research-niri-review.py "$review_state"

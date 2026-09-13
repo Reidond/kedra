@@ -71,14 +71,26 @@ passed at `610da61`. Home-transition run
 [34758096745](https://github.com/Reidond/kedra/actions/runs/34758096745) failed
 because its fixture still expected niri `gaps 12` after the baseline changed to
 8. The correction in `prepare.py` and `home.py` is locally ready and passes
-native niri validation; its signed A/B/A rerun is **not-run**. Desktop run
+native niri validation. Its signed A/B/A rerun
+[34758449303](https://github.com/Reidond/kedra/actions/runs/34758449303) at
+`076814d` is in progress. Desktop run
 [34758096727](https://github.com/Reidond/kedra/actions/runs/34758096727) was
 cancelled when the test-only Qt chooser fix at `24c61b7` was pushed. At
 `24c61b7a5cfb2310b97d3c3e8439e335dd8b843e`, workspace
 [34758255401](https://github.com/Reidond/kedra/actions/runs/34758255401) passed;
 desktop [34758255393](https://github.com/Reidond/kedra/actions/runs/34758255393)
-remains in progress. Desktop GUI qualification remains pending. See
-WL-20260913-08 for the continuing evidence.
+failed after candidate build/validation, disposable-disk creation and login,
+before the toolkit cases. Artifact `10317828820` shows that the old fixture set
+the already-selected light mode, so home staging correctly refused an unchanged
+value. A dynamic mode choice is being implemented in `check.sh` and `recovery.py`.
+The failure screenshot shows the rendered shell/bar, a cartoon wallpaper and a
+large black focused window of unknown identity. The next source iteration adds
+the native-validated Noctalia 5.0.1 wallpaper default `color:#222226`, preserving
+personal overrides, and adds wallpaper readback plus niri window inventory to
+the VM evidence. The [desktop design](DESKTOP.md) links the tagged wallpaper
+implementation and example. The black client remains unresolved; visual
+investigation and GUI qualification remain pending. See WL-20260913-08 for the
+continuing evidence.
 
 Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E

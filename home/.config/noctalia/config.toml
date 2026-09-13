@@ -75,3 +75,7 @@ background_opacity = 1.0
 [osd]
 position = "bottom_center"
 background_opacity = 1.0
+
+# Quiet Adwaita backdrop; personal wallpaper overrides remain authoritative.
+[wallpaper.default]
+path = "color:#222226"

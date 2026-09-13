@@ -29,7 +29,7 @@ Use `sysroot update rollback` to select the retained verified deployment. Rollba
 
 ## One-time legacy migration
 
-Previously installed r2 software expects the old GitHub release/checkpoint protocol. Do not use its old `sysroot update` commands after those remote records are removed.
+Previously installed r1/r2 software expects the old GitHub release/checkpoint protocol. Those Releases and all 31 uploaded assets have been deleted at the owner's direction; online legacy channel discovery no longer works. Source Git tags remain. Preserve locally retained signed records and ordering state, and follow this explicit migration after a compatible signed GHCR image is available.
 
 Before switching, run the legacy command while the old OS/helper is still active:
 
@@ -57,9 +57,9 @@ This is an explicit persistent-state migration. Retain the old records: the new 
 
 Actions starts package reconciliation at **00:00 UTC**, with manual dispatch available. It resolves the official Fedora 44 base and the complete native RPM closure, including inherited dependencies, and records image-affecting source, external inputs and recipes.
 
-Changed inputs produce a new image that must match preflight and receive manual protected OCI-signing review. Only the exact verified signed digest advances `stable`. Unchanged inputs cause no publication and no renewal. A failed repository, solver or signature check is an error, not a successful no-change result.
+Changed inputs produce a new image that must match preflight, pass isolated automatic OCI signing and verify strictly before its exact digest advances `stable`. There is no human approval or manual signing step. Unchanged inputs cause no publication and no renewal. A failed repository, solver or signature check is an error, not a successful no-change result.
 
-The producer and helper share `build/release/compatibility.json`, currently qualifying bootc 1.16.10. An unsupported bootc RPM change fails the public build before manual signing or stable publication. Updating that contract and helper compatibility requires deliberate review and native qualification; the workflow never silently accepts an untested bootc version.
+The producer and helper share `build/release/compatibility.json`, currently qualifying bootc 1.16.10. An unsupported bootc RPM change fails the public build before signing or stable publication. Updating that contract and helper compatibility requires deliberate source review and native qualification; the workflow never silently accepts an untested bootc version.
 
 Schedules can queue, skip or be disabled by repository inactivity. No automatic machine staging/reboot or background AI service is implied.
 

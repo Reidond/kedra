@@ -1,7 +1,7 @@
 """Actions-only GHCR image resolution, comparison and stable publication.
 
 No GitHub Releases, ISO artifacts, metadata signatures or checkpoints are used.
-Only the manually signed OCI manifest authorizes an update.
+Only the automatically signed, validated OCI manifest authorizes an update.
 """
 import argparse
 import hashlib

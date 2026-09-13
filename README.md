@@ -10,7 +10,7 @@ Installation media is built locally when needed. No ISO, GitHub Release or relea
 
 Edit `packages/common.list`, `hosts/desktop/packages.list` and the Linux-shaped `etc/`, `usr/`, `home/` trees. Explicit host files override shared files. Unknown XPS hardware remains disabled.
 
-Actions checks packages at **00:00 UTC** and supports manual dispatch. A changed image must pass build validation and protected manual OCI-signing review before `stable` advances. No-change does nothing: it creates no image, metadata release or renewal. Queues and review affect delivery time; installed machines never reboot automatically.
+Actions checks packages at **00:00 UTC**, with optional on-demand runs. A changed image passes build validation, isolated automatic OCI signing and strict verification before `stable` advances. No approval or manual signing step is required. No-change does nothing: it creates no image, metadata release or renewal. Runner queues affect delivery time; installed machines never reboot automatically.
 
 Home files stay writable. Review selected [Noctalia settings](docs/HOME-REVIEW.md) and [niri changes](docs/TEXT-REVIEW.md) independently of local edits. [Private agent launchers](docs/AGENT-LAUNCHERS.md) preserve personal runtimes, profiles, MCP, skills and credentials.
 

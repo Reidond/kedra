@@ -1,5 +1,5 @@
 // Kedra defaults. This becomes a normal writable file when a new account is made.
-// Super+Return opens a terminal. Super+D opens Noctalia's launcher.
+// Super+Tab opens the overview. Super+A opens applications. Super+Return opens a terminal.
 input {
     keyboard {
         xkb {}
@@ -11,12 +11,19 @@ input {
 }
 
 layout {
-    gaps 12
+    gaps 8
     default-column-width { proportion 0.5; }
     focus-ring {
         width 2
-        active-color "#89b4fa"
-        inactive-color "#45475a"
+        active-color "#3584e4"
+        inactive-color "#00000000"
+    }
+    shadow {
+        on
+        softness 20
+        spread 0
+        offset x=0 y=4
+        color "#00000033"
     }
 }
 
@@ -27,11 +34,24 @@ hotkey-overlay {
 }
 
 window-rule {
+    geometry-corner-radius 12
+    clip-to-geometry true
+}
+
+window-rule {
     match app-id="dev.noctalia.Noctalia"
     open-floating true
 }
 
 binds {
+    // A chord keeps overview activation separate from other Super shortcuts.
+    Mod+Tab repeat=false { toggle-overview; }
+    Mod+A { spawn "noctalia" "msg" "panel-toggle" "launcher"; }
+    Alt+F4 { close-window; }
+    Mod+L { spawn "noctalia" "msg" "session" "lock"; }
+    Print { screenshot; }
+    Alt+Print { screenshot-window; }
+    Shift+Print { screenshot-screen; }
     Mod+Shift+Slash { show-hotkey-overlay; }
     Mod+Return { spawn "foot"; }
     Mod+T { spawn "foot"; }

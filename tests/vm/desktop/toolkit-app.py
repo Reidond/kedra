@@ -1,0 +1,195 @@
+"""Native GUI fixture: select a real file through each toolkit's own dialog.
+
+QEMU sends the keyboard input. No widget methods simulate user activation.
+Only the disposable VM account runs this program.
+"""
+import json
+import pathlib
+import sys
+
+case = sys.argv[1]
+result = pathlib.Path(sys.argv[2])
+sample = pathlib.Path.home() / "toolkit-sample.txt"
+sample.write_text("Kedra native file selection\n")
+metadata = {"case": case}
+
+
+def report(stage, **values):
+    metadata.update(values)
+    metadata["stage"] = stage
+    result.write_text(json.dumps(metadata) + "\n")
+
+
+def selected(filename):
+    try:
+        chosen = pathlib.Path(filename)
+        # Fedora's /home aliases /var/home. Compare the actual selected file,
+        # not the spelling returned by the native chooser.
+        if not chosen.samefile(sample) or chosen.read_text() != "Kedra native file selection\n":
+            raise RuntimeError("Native dialog did not return the selected fixture file")
+    except (OSError, TypeError, ValueError, RuntimeError) as error:
+        # GTK callbacks otherwise print exceptions but leave the application
+        # running, causing an opaque timeout with the old dialog stage.
+        report("failed", reason=str(error))
+        return False
+    report("selected", selected_file=chosen.name)
+    return True
+
+
+if case.startswith("gtk") or case == "libadwaita":
+    import gi
+
+    gtk4 = case == "libadwaita"
+    gtk_version = "4.0" if gtk4 else "3.0"
+    # Gdk imports before Gtk below; pin both namespaces before either loads so
+    # the installed GTK4 typelib cannot contaminate the GTK3 application.
+    gi.require_version("Gdk", gtk_version)
+    gi.require_version("Gtk", gtk_version)
+    if gtk4:
+        gi.require_version("Adw", "1")
+        from gi.repository import Adw
+    from gi.repository import Gdk, GLib, Gtk
+
+    app = Adw.Application(application_id="org.kedra.ToolkitFixture") if gtk4 else Gtk.Application(application_id="org.kedra.ToolkitFixture")
+
+    def activate(application):
+        window = Adw.ApplicationWindow(application=application) if gtk4 else Gtk.ApplicationWindow(application=application)
+        window.set_title("Kedra " + case)
+        window.set_default_size(640, 420)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        for edge in ("top", "bottom", "start", "end"):
+            getattr(box, "set_margin_" + edge)(24)
+        label = Gtk.Label(label="Native " + case + " appearance\nOpen a file with the system dialog")
+        button = Gtk.Button(label="Open File")
+        if gtk4:
+            box.append(Adw.HeaderBar())
+            box.append(label)
+            box.append(button)
+            window.set_content(box)
+        else:
+            box.pack_start(label, True, True, 0)
+            box.pack_start(button, False, False, 0)
+            window.add(box)
+        settings = Gtk.Settings.get_default()
+        display = Gdk.Display.get_default()
+        backend = type(display).__name__
+        expected = "X11" if case == "gtk3-xwayland" else "Wayland"
+        if expected not in backend:
+            raise RuntimeError(f"Expected {expected}, got {backend}")
+        theme = settings.get_property("gtk-theme-name")
+        font = settings.get_property("gtk-font-name")
+        icons = settings.get_property("gtk-icon-theme-name")
+        if "Adwaita Sans" not in font or icons != "Adwaita":
+            raise RuntimeError(f"Unexpected GTK appearance: {theme}, {font}, {icons}")
+        adwaita_style = None
+        if gtk4:
+            # Libadwaita supplies its own styling; Gtk.Settings may still
+            # expose the independently configured legacy GTK3 theme name.
+            style_manager = Adw.StyleManager.get_for_display(display)
+            adwaita_style = {"dark": style_manager.get_dark(),
+                             "high_contrast": style_manager.get_high_contrast(),
+                             "color_scheme": int(style_manager.get_color_scheme())}
+            if adwaita_style["dark"]:
+                raise RuntimeError("Native libadwaita did not retain the light application default")
+        elif theme != "adw-gtk3":
+            raise RuntimeError(f"GTK3 did not activate adw-gtk3: {theme}")
+        icon_theme = Gtk.IconTheme.get_for_display(display) if gtk4 else Gtk.IconTheme.get_default()
+        if not icon_theme.has_icon("document-open"):
+            raise RuntimeError("Adwaita document-open icon unavailable")
+
+        def open_file(_button):
+            dialog = Gtk.FileChooserNative.new("Select toolkit-sample.txt", window, Gtk.FileChooserAction.OPEN, "Open", "Cancel")
+            # Retain the real asynchronous native dialog until its response.
+            window.fixture_dialog = dialog
+
+            def response(chooser, response_id):
+                if response_id != Gtk.ResponseType.ACCEPT:
+                    report("failed", reason="file selection cancelled")
+                    application.quit()
+                    return
+                chosen = chooser.get_file()
+                if not selected(chosen.get_path() if chosen is not None else None):
+                    application.quit()
+                    return
+                label.set_text("Opened toolkit-sample.txt successfully")
+                chooser.destroy()
+            dialog.connect("response", response)
+            dialog.show()
+            GLib.timeout_add(1000, lambda: (report("dialog"), False)[1])
+
+        button.connect("clicked", open_file)
+        if not gtk4:
+            window.show_all()
+        window.present()
+        button.grab_focus()
+        report("ready", backend=backend, theme=theme, font=font, icons=icons, adwaita_style=adwaita_style,
+               gtk_version=f"{Gtk.get_major_version()}.{Gtk.get_minor_version()}.{Gtk.get_micro_version()}",
+               libadwaita_version=f"{Adw.get_major_version()}.{Adw.get_minor_version()}.{Adw.get_micro_version()}" if gtk4 else None)
+
+    app.connect("activate", activate)
+    app.run([])
+else:
+    if case == "qt5":
+        from PyQt5 import QtCore, QtGui, QtWidgets
+    elif case in ("qt6", "qt6-override"):
+        from PyQt6 import QtCore, QtGui, QtWidgets
+    else:
+        raise RuntimeError("Unknown toolkit case")
+    app = QtWidgets.QApplication([])
+    window = QtWidgets.QWidget()
+    window.setWindowTitle("Kedra " + case)
+    window.resize(640, 420)
+    layout = QtWidgets.QVBoxLayout(window)
+    label = QtWidgets.QLabel("Native KDE " + case + " appearance\nOpen a file with the KDE dialog")
+    button = QtWidgets.QPushButton(QtGui.QIcon.fromTheme("document-open"), "Open File")
+    layout.addWidget(label)
+    layout.addWidget(button)
+    style = app.style().objectName()
+    icons = QtGui.QIcon.themeName()
+    if style.lower() != "breeze" or icons != "breeze" or button.icon().isNull():
+        raise RuntimeError(f"Expected native Breeze style/icons, got {style}/{icons}")
+    if app.platformName() != "wayland":
+        raise RuntimeError("Qt fixture is not using native Wayland")
+    if case == "qt6-override" and (app.font().family() != "Adwaita Mono" or app.font().pointSize() != 12):
+        raise RuntimeError("Explicit KDE user font preference was not honored")
+
+    def open_file():
+        def dialog_ready():
+            # Plasma integration v6.7.5 (qt5 and qt6) constructs a
+            # KDEPlatformFileDialog containing a KFileWidget. Inspect the
+            # actual displayed objects; loading the plugin library alone does
+            # not establish which file chooser is on screen.
+            # https://github.com/KDE/plasma-integration/blob/v6.7.5/qt6/src/platformtheme/kdeplatformfiledialoghelper.cpp
+            visible = [widget for widget in app.topLevelWidgets() if widget.isVisible()]
+            dialogs = [widget for widget in visible if widget.inherits("KDEPlatformFileDialog")]
+            file_widgets = []
+            if len(dialogs) == 1:
+                file_widgets = [widget for widget in dialogs[0].findChildren(QtWidgets.QWidget)
+                                if widget.inherits("KFileWidget") and widget.isVisibleTo(dialogs[0])
+                                and widget.width() > 0 and widget.height() > 0]
+            if len(dialogs) != 1 or len(file_widgets) != 1:
+                report("failed", reason="Visible KDE native file chooser was not found",
+                       visible_window_classes=[widget.metaObject().className() for widget in visible])
+                app.exit(1)
+                return
+            report("dialog", kde_file_dialog=True,
+                   dialog_class=dialogs[0].metaObject().className(),
+                   file_widget_class=file_widgets[0].metaObject().className())
+        QtCore.QTimer.singleShot(1000, dialog_ready)
+        filename, _filter = QtWidgets.QFileDialog.getOpenFileName(window, "Select toolkit-sample.txt", str(pathlib.Path.home()))
+        if not filename:
+            report("failed", reason="file selection cancelled")
+            app.exit(1)
+            return
+        if not selected(filename):
+            app.exit(1)
+            return
+        label.setText("Opened toolkit-sample.txt successfully")
+
+    button.clicked.connect(open_file)
+    button.setDefault(True)
+    window.show()
+    button.setFocus()
+    report("ready", backend=app.platformName(), theme=style, font=app.font().toString(),
+           icons=icons, qt_version=QtCore.QT_VERSION_STR)
+    sys.exit(app.exec())

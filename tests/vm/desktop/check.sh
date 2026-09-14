@@ -32,48 +32,105 @@ for attempt in $(seq 1 120); do
     sleep 1
 done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status
+check_palette_fallback() {
+    local palette_log_level palette_journal requested_palette palette_pid
+    palette_log_level=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg log-level-status)
+    # At these native levels warning messages are observable. This check never
+    # changes logging or palette preferences to manufacture a passing result.
+    case "$palette_log_level" in
+        trace|debug|info) ;;
+        *) echo "Palette fallback journal check cannot qualify log level $palette_log_level" >&2; false ;;
+    esac
+    requested_palette=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg color-scheme-get)
+    test "$requested_palette" = 'custom Adwaita'
+    palette_pid=$(as_user systemctl --user show kedra-noctalia.service --property=MainPID --value)
+    test "$palette_pid" -gt 0
+    timeout 10s journalctl --sync
+    # Use the running managed process identity: user-unit attribution is not
+    # guaranteed to be present on every journal transport.
+    palette_journal=$(timeout 10s journalctl -b --quiet --no-pager --output=cat "_PID=$palette_pid" "_UID=$uid")
+    test -n "$palette_journal"
+    if printf '%s\n' "$palette_journal" | grep -F "custom palette 'Adwaita' not found or invalid; falling back to builtin"; then
+        echo 'Native Noctalia rejected Adwaita and rendered a builtin fallback' >&2
+        false
+    fi
+    printf 'Native palette fallback warning absent (managed PID %s, current boot, log level %s)\n' "$palette_pid" "$palette_log_level"
+}
+# v5.0.1 config export and color-scheme-get report the request even on fallback.
+# Runtime logs catch that failure; rendered screenshots still require visual QA.
+check_palette_fallback
+# Read the resolved native source for the generated VM's actual output as well
+# as the default; this observes defaults without rewriting GUI overrides.
+wallpaper_default=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg wallpaper-get)
+wallpaper_output=$(as_user env WAYLAND_DISPLAY="$wayland" timeout 10s noctalia msg wallpaper-get Virtual-1)
+printf 'Native wallpaper default=%s Virtual-1=%s\n' "$wallpaper_default" "$wallpaper_output"
+test "$wallpaper_default" = 'color:#222226'
+test "$wallpaper_output" = 'color:#222226'
+marker KEDRA_ADWAITA_WALLPAPER_SOURCE_PASS
+# Synthetic VM window inventory helps correlate startup screenshots with apps.
+check_videobridge_absent() {
+    local session_windows
+    session_windows=$(as_user env NIRI_SOCKET="$niri_socket" timeout 10s niri msg --json windows)
+    printf '%s\n' "$session_windows"
+    printf '%s' "$session_windows" | jq -e 'all(.[]; (.app_id // "" | ascii_downcase | contains("xwaylandvideobridge") | not))' >/dev/null
+    # The executable name exceeds Linux comm's 15-character limit, so match its
+    # actual command line, scoped to this account and executable token.
+    if pgrep -u "$uid" -f '(^|/)xwaylandvideobridge([[:space:]]|$)' >/dev/null; then
+        echo 'xwaylandvideobridge unexpectedly autostarted in the niri session' >&2
+        false
+    fi
+}
+check_videobridge_absent
 review_home=$(getent passwd kedra-test | cut -d: -f6)
 review_state="$review_home/kedra-noctalia-review"
 as_user sysroot home --state "$review_state" init
 review=$(as_user sysroot home --state "$review_state" status)
 original_theme=$(printf '%s' "$review" | jq -er '.fields[0].live.value')
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+# Keep the selected value and the later edit distinct from the adopted baseline.
+# All three native modes participate regardless of the desktop's default.
+case "$original_theme" in
+    light) selected_theme=dark; later_theme=auto ;;
+    dark) selected_theme=light; later_theme=auto ;;
+    auto) selected_theme=light; later_theme=dark ;;
+    *) echo "Unexpected native theme mode: $original_theme" >&2; false ;;
+esac
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$selected_theme"
 for attempt in $(seq 1 20); do
     review=$(as_user sysroot home --state "$review_state" status)
-    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light; then break; fi
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = "$selected_theme"; then break; fi
     sleep 1
 done
-test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light
+test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = "$selected_theme"
 as_user sysroot home --state "$review_state" stage theme.mode
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$later_theme"
 for attempt in $(seq 1 20); do
     review=$(as_user sysroot home --state "$review_state" status)
-    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = auto; then break; fi
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = "$later_theme"; then break; fi
     sleep 1
 done
-printf '%s' "$review" | jq -e '.fields[0].live.value == "auto" and .fields[0].selected.value == "light"'
-as_user sysroot home --state "$review_state" selection | jq -e '.selection[0].after.value == "light" and .activation_performed == false and .checkout_changed == false'
+printf '%s' "$review" | jq -e --arg later "$later_theme" --arg selected "$selected_theme" '.fields[0].live.value == $later and .fields[0].selected.value == $selected'
+as_user sysroot home --state "$review_state" selection | jq -e --arg selected "$selected_theme" '.selection[0].after.value == $selected and .activation_performed == false and .checkout_changed == false'
 as_user sysroot home --state "$review_state" unstage theme.mode
 as_user sysroot home --state "$review_state" keep-local theme.mode | jq -e '.fields[0].local_only and (.fields[0].visible_change | not)'
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$selected_theme"
 for attempt in $(seq 1 20); do
     review=$(as_user sysroot home --state "$review_state" status)
-    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = light; then break; fi
+    if test "$(printf '%s' "$review" | jq -er '.fields[0].live.value')" = "$selected_theme"; then break; fi
     sleep 1
 done
-printf '%s' "$review" | jq -e '.fields[0].live.value == "light" and .fields[0].visible_change and (.fields[0].local_only | not)'
+printf '%s' "$review" | jq -e --arg selected "$selected_theme" '.fields[0].live.value == $selected and .fields[0].visible_change and (.fields[0].local_only | not)'
 as_user sysroot home --state "$review_state" app-own theme.mode | jq -e '.fields[0].app_owned and (.fields[0].visible_change | not)'
 as_user sysroot home --state "$review_state" clear-local theme.mode
 marker KEDRA_R03_DURABLE_REVIEW_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R03_NATIVE_PROJECTION_PASS
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$selected_theme"
 as_user systemctl --user stop kedra-noctalia.service
 if pgrep -u "$uid" -x noctalia >/dev/null; then
     echo 'Noctalia writer remained after the managed service stopped' >&2
     false
 fi
-as_user sysroot home --state "$review_state" status | jq -e '.fields[0].live.value == "light"' >/dev/null
+as_user sysroot home --state "$review_state" status | jq -e --arg selected "$selected_theme" '.fields[0].live.value == $selected' >/dev/null
 as_user systemctl --user start kedra-noctalia.service
 for attempt in $(seq 1 30); do
     if as_user env WAYLAND_DISPLAY="$wayland" noctalia msg log-level-status >/dev/null 2>&1; then break; fi
@@ -82,21 +139,21 @@ done
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_WRITER_LIFECYCLE_PASS
 as_user systemctl --user show kedra-noctalia.service --property=FragmentPath --property=DropInPaths
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set light
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$selected_theme"
 as_user sysroot home --state "$review_state" stage theme.mode >/dev/null
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$later_theme"
 activation_plan=$(as_user sysroot home --state "$review_state" plan --discard theme.mode)
 activation_id=$(printf '%s' "$activation_plan" | jq -er .plan_id)
-printf '%s' "$activation_plan" | jq -e '.plan.observed.theme_mode == "auto" and .plan.desired.theme_mode == "light"' >/dev/null
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set dark
+printf '%s' "$activation_plan" | jq -e --arg later "$later_theme" --arg selected "$selected_theme" '.plan.observed.theme_mode == $later and .plan.desired.theme_mode == $selected' >/dev/null
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 if as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" >/dev/null 2>&1; then
     echo 'Stale home plan unexpectedly succeeded' >&2
     false
 fi
-as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set auto
+as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$later_theme"
 native_settings="$review_home/.local/state/noctalia/settings.toml"
 native_metadata=$(stat -c '%u:%g:%a:%C' "$native_settings")
-as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" | jq -e '.operation_completed and .pending == null and .fields[0].live.value == "light" and .fields[0].selected.value == "light"' >/dev/null
+as_user sysroot home --state "$review_state" discard theme.mode --plan "$activation_id" | jq -e --arg selected "$selected_theme" '.operation_completed and .pending == null and .fields[0].live.value == $selected and .fields[0].selected.value == $selected' >/dev/null
 test "$(stat -c '%u:%g:%a:%C' "$native_settings")" = "$native_metadata"
 as_user systemctl --user is-active kedra-noctalia.service
 as_user sysroot home --state "$review_state" recover | jq -e '.pending == null and .journal.phase == "completed" and (.native_file_contents_stored | not)' >/dev/null
@@ -104,7 +161,7 @@ test -z "$(find "$review_home/.local/state/noctalia" -maxdepth 1 -name '.sysroot
 as_user sysroot home --state "$review_state" unstage theme.mode >/dev/null
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_NATIVE_DISCARD_PASS
-as_user env WAYLAND_DISPLAY="$wayland" python3 /usr/libexec/kedra-research-recovery.py "$review_state"
+as_user env WAYLAND_DISPLAY="$wayland" python3 /usr/libexec/kedra-research-recovery.py "$review_state" "$selected_theme" "$later_theme" "$original_theme"
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg theme-mode-set "$original_theme"
 marker KEDRA_R04_NATIVE_RECOVERY_PASS
 as_user env NIRI_SOCKET="$niri_socket" WAYLAND_DISPLAY="$wayland" python3 /usr/libexec/kedra-research-niri-review.py "$review_state"
@@ -147,6 +204,68 @@ as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.s
 test "$(as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked)" = 'b false'
 as_user sysroot doctor --json | jq -e '.desktop_session_checks_passed and (.changes_performed | not)' >/dev/null
 marker KEDRA_DOCTOR_SESSION_PASS
+# Repeat after the review/recovery and portal workflows have settled, so a
+# delayed autostart cannot pass solely because the first inventory was early.
+check_videobridge_absent
+marker KEDRA_NIRI_NO_VIDEOBRIDGE_PASS
+check_palette_fallback
+marker KEDRA_ADWAITA_NO_RUNTIME_FALLBACK_WARNING_PASS
+# Real graphical applications, keyboard input and native file selection.
+# GUI drivers below use only the synthetic account and generated file.
+toolkit_result="$review_home/toolkit-result.json"
+for toolkit_case in gtk3-wayland gtk3-xwayland libadwaita qt5 qt6 qt6-override; do
+    as_user rm -f "$toolkit_result"
+    toolkit_unit="kedra-toolkit-$toolkit_case"
+    backend_env=()
+    case "$toolkit_case" in
+        gtk3-wayland|libadwaita) backend_env=(GDK_BACKEND=wayland) ;;
+        gtk3-xwayland) backend_env=(GDK_BACKEND=x11) ;;
+        qt*) backend_env=(QT_QPA_PLATFORM=wayland) ;;
+    esac
+    if test "$toolkit_case" = qt6-override; then
+        override_config=$(as_user mktemp -d "$review_home/kedra-qt-preference.XXXXXX")
+        printf '[General]\nfont=Adwaita Mono,12,-1,5,50,0,0,0,0,0\n' | as_user tee "$override_config/kdeglobals" >/dev/null
+        backend_env+=("XDG_CONFIG_HOME=$override_config")
+    fi
+    as_user systemd-run --user --unit="$toolkit_unit" --collect --service-type=exec \
+        /usr/bin/env "${backend_env[@]}" /usr/bin/python3 /usr/libexec/kedra-research-toolkit-app.py "$toolkit_case" "$toolkit_result"
+    for toolkit_stage in ready dialog selected; do
+        for attempt in $(seq 1 45); do
+            toolkit_service_state=$(as_user systemctl --user show "$toolkit_unit.service" --property=ActiveState --value)
+            case "$toolkit_service_state" in
+                active|activating) ;;
+                *)
+                    if test -f "$toolkit_result"; then cat "$toolkit_result"; fi
+                    journalctl -b "_SYSTEMD_USER_UNIT=$toolkit_unit.service" --no-pager -n 40
+                    echo "Toolkit $toolkit_case exited before $toolkit_stage (state=$toolkit_service_state)" >&2
+                    false
+                    ;;
+            esac
+            if test -f "$toolkit_result" && jq -e --arg stage "$toolkit_stage" '.stage == $stage' "$toolkit_result" >/dev/null; then break; fi
+            if test -f "$toolkit_result" && jq -e '.stage == "failed"' "$toolkit_result" >/dev/null; then cat "$toolkit_result"; false; fi
+            sleep 1
+        done
+        if ! jq -e --arg stage "$toolkit_stage" '.stage == $stage' "$toolkit_result"; then
+            if test -f "$toolkit_result"; then cat "$toolkit_result"; fi
+            journalctl -b "_SYSTEMD_USER_UNIT=$toolkit_unit.service" --no-pager -n 40
+            as_user env NIRI_SOCKET="$niri_socket" timeout 10s niri msg --json windows
+            false
+        fi
+        cat "$toolkit_result"
+        marker "KEDRA_TOOLKIT_${toolkit_case}_${toolkit_stage}"
+    done
+    # Preserve runtime facts in serial evidence and allow the host to capture
+    # the selected-file result before closing the real application.
+    sleep 4
+    as_user systemctl --user stop "$toolkit_unit.service"
+    if test "$toolkit_case" = qt6-override; then
+        as_user rm "$override_config/kdeglobals"
+        # KDE may persist additional normal settings here. Leave that generated
+        # directory on the disposable snapshot; only our explicit override is
+        # removed, and no later case inherits this process-local config path.
+    fi
+done
+marker KEDRA_TOOLKITS_PASS
 as_user env WAYLAND_DISPLAY="$wayland" noctalia msg panel-toggle launcher
 marker KEDRA_R07_SESSION_READY
 sleep 15

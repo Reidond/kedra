@@ -213,13 +213,16 @@ pub(super) fn output_in(
 pub(super) fn live() -> Result<Settings> {
     let bytes = output(&["--version"], 256)?;
     let version = std::str::from_utf8(&bytes).map_err(|_| "Noctalia version is malformed")?;
-    // Exact native Fedora build output recorded by the passing R07 probe.
-    if version.trim() != "noctalia v5.0.1 (v5.0.1)" {
-        return Err("installed Noctalia version is not qualified for home review".into());
-    }
+    // Exact native Fedora outputs; qualify each runtime independently of the
+    // persisted projection identity so existing records survive image rollback.
+    let runtime_version = match version.trim() {
+        "noctalia v5.0.1 (v5.0.1)" => "5.0.1",
+        "noctalia v5.1.0" => "5.1.0",
+        _ => return Err("installed Noctalia version is not qualified for home review".into()),
+    };
     let bytes = output(&["config", "export", "full"], noctalia::MAX_EXPORT)?;
     let text = std::str::from_utf8(&bytes).map_err(|_| "Noctalia export is not UTF-8")?;
-    Ok(noctalia::project(noctalia::APP_VERSION, text)?)
+    Ok(noctalia::project(runtime_version, text)?)
 }
 
 pub(super) fn load_optional(store: &Store, instance: &str) -> Result<Option<(u64, State)>> {

@@ -74,7 +74,7 @@ class Qmp:
 
     def type_text(self, value):
         for character in value:
-            code = {"-": "minus", "\n": "ret"}.get(character, character)
+            code = {"-": "minus", "/": "slash", ".": "dot", "\n": "ret"}.get(character, character)
             self.call("send-key", {"keys": [{"type": "qcode", "data": code}], "hold-time": 40})
             time.sleep(0.08)
 
@@ -111,7 +111,7 @@ with (work / "qemu.log").open("w") as output:
         (work / "window-geometry.log").write_bytes(subprocess.check_output([
             "xdotool", "getwindowgeometry", windows[0],
         ], timeout=10))
-        deadline = time.monotonic() + 480
+        deadline = time.monotonic() + 900
         while time.monotonic() < deadline and process.poll() is None:
             if qmp is None and qmp_path.exists():
                 qmp = Qmp()
@@ -136,6 +136,52 @@ with (work / "qemu.log").open("w") as output:
                     qmp.screenshot(name)
                     markers.add(marker)
                     print(f"Captured {name}", flush=True)
+            for case, stage in re.findall(r"^KEDRA_TOOLKIT_(gtk3-wayland|gtk3-xwayland|libadwaita|qt5|qt6|qt6-override)_(ready|dialog|selected)$", text, re.MULTILINE):
+                marker = f"toolkit-{case}-{stage}"
+                if qmp and marker not in markers:
+                    time.sleep(1)
+                    qmp.screenshot(marker + ".png")
+                    if stage == "ready":
+                        qmp.type_text("\n")
+                    elif stage == "dialog":
+                        # KDE's Ctrl+L edits the directory navigator. Its
+                        # English &Name mnemonic targets the file-entry field
+                        # in both KF5 and KF6, whose Return accepts the file.
+                        modifier, key = ("alt", "n") if case.startswith("qt") else ("ctrl", "l")
+                        qmp.call("send-key", {"keys": [{"type": "qcode", "data": modifier}, {"type": "qcode", "data": key}], "hold-time": 80})
+                        time.sleep(0.3)
+                        if case.startswith("qt"):
+                            qmp.call("send-key", {"keys": [{"type": "qcode", "data": "ctrl"}, {"type": "qcode", "data": "a"}], "hold-time": 80})
+                            time.sleep(0.2)
+                        qmp.type_text("/home/kedra-test/toolkit-sample.txt")
+                        # GTK debounces location edits before enabling Open;
+                        # Return immediately after the last character is lost.
+                        # Resolve the path before confirming it.
+                        time.sleep(1)
+                        qmp.screenshot(f"toolkit-{case}-submitted.png")
+                        qmp.type_text("\n")
+                        time.sleep(1)
+                        qmp.screenshot(f"toolkit-{case}-confirmed.png")
+                        if case == "libadwaita":
+                            # Nautilus' portal navigates to the parent and
+                            # selects the file on the first Return. A second
+                            # user confirmation opens that selection. Wait for
+                            # an already-completed response first so a portal
+                            # that accepts immediately is not activated again.
+                            selected_marker = "KEDRA_TOOLKIT_libadwaita_selected"
+                            confirmation_deadline = time.monotonic() + 2
+                            while time.monotonic() < confirmation_deadline:
+                                confirmation_events = events.read_text(errors="replace")
+                                if selected_marker in confirmation_events or args.failure_marker in confirmation_events:
+                                    break
+                                time.sleep(0.25)
+                            confirmation_events = events.read_text(errors="replace")
+                            if selected_marker not in confirmation_events and args.failure_marker not in confirmation_events:
+                                qmp.type_text("\n")
+                                time.sleep(1)
+                                qmp.screenshot("toolkit-libadwaita-open-confirmed.png")
+                    markers.add(marker)
+                    print(f"Captured and drove {marker}", flush=True)
             time.sleep(1)
         if process.poll() is None:
             if qmp:

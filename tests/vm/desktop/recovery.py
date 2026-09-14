@@ -17,6 +17,11 @@ import time
 
 
 state = sys.argv[1]
+# The caller chooses two changed values from the actual adopted baseline.
+# The third value is distinct and is used for the later keep-current edit.
+selected_theme, later_theme, competing_theme = sys.argv[2:5]
+if {selected_theme, later_theme, competing_theme} != {"light", "dark", "auto"}:
+    raise RuntimeError("Recovery requires three distinct native theme modes")
 native = pathlib.Path.home() / ".local/state/noctalia"
 service = ["systemctl", "--user"]
 home = ["sysroot", "home", "--state", state]
@@ -87,9 +92,9 @@ def interrupt_publication(plan):
 
 
 for action in ("abort", "resume", "keep-current"):
-    theme("light")
+    theme(selected_theme)
     response("stage", "theme.mode")
-    theme("auto")
+    theme(later_theme)
     plan = response("plan", "--discard", "theme.mode")["plan_id"]
     metadata = run(["stat", "-c", "%u:%g:%a:%C", str(native / "settings.toml")])
     interrupt_publication(plan)
@@ -104,16 +109,16 @@ for action in ("abort", "resume", "keep-current"):
             if ping.returncode == 0:
                 break
             time.sleep(0.2)
-        theme("dark")
+        theme(competing_theme)
         run(service + ["stop", "kedra-noctalia.service"])
         run(home + ["recover", "abort"], success=False)
         if not response("recover")["pending"]:
             raise RuntimeError("conflicting abort cleared the pending operation")
     result = response("recover", action)
-    expected = {"abort": "auto", "resume": "light", "keep-current": "dark"}[action]
+    expected = {"abort": later_theme, "resume": selected_theme, "keep-current": competing_theme}[action]
     if not (result["operation_completed"] and result["pending"] is None
             and result["fields"][0]["live"]["value"] == expected
-            and result["fields"][0]["selected"]["value"] == "light"):
+            and result["fields"][0]["selected"]["value"] == selected_theme):
         raise RuntimeError(f"{action} did not preserve live/selected state")
     run(service + ["is-active", "kedra-noctalia.service"])
     if run(["stat", "-c", "%u:%g:%a:%C", str(native / "settings.toml")]) != metadata:

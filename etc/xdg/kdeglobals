@@ -1,0 +1,14 @@
+# Native KDE defaults. Personal ~/.config/kdeglobals entries take precedence.
+[General]
+ColorScheme=BreezeLight
+font=Adwaita Sans,11,-1,5,50,0,0,0,0,0
+fixed=Adwaita Mono,11,-1,5,50,0,0,0,0,0
+menuFont=Adwaita Sans,11,-1,5,50,0,0,0,0,0
+toolBarFont=Adwaita Sans,11,-1,5,50,0,0,0,0,0
+smallestReadableFont=Adwaita Sans,9,-1,5,50,0,0,0,0,0
+
+[KDE]
+widgetStyle=Breeze
+
+[Icons]
+Theme=breeze

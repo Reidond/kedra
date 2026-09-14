@@ -3,6 +3,7 @@ import json
 import os
 import ctypes
 import pathlib
+import re
 import select
 import signal
 import sqlite3
@@ -114,8 +115,6 @@ if len(sys.argv) != 2:
     raise RuntimeError("the R07 native Noctalia recovery store is required")
 noctalia_recovery_state = pathlib.Path(sys.argv[1])
 original = native.read_text()
-if original.count("gaps 12") != 1 or original.count("width 2") != 1:
-    raise RuntimeError("native fixture does not have the expected niri defaults")
 if home_state.exists():
     raise RuntimeError("independent adoption requires the fresh default review store")
 cli("--path", ".config/foot/foot.ini", "init", "--reviewed-safe", success=False)
@@ -143,15 +142,21 @@ finally:
     subprocess.run(["systemctl", "--user", "start", "kedra-noctalia.service"], check=True, timeout=30)
 print("KEDRA_HOME_NIRI_WITHOUT_NOCTALIA_ADOPTION_PASS", flush=True)
 try:
-    native.write_text(original.replace("gaps 12", "gaps 14").replace("width 2", "width 3"))
+    local_fixture = re.sub(r'(?m)^([ \t]*)gaps[ \t]+[0-9]+[ \t]*$', r'\g<1>gaps 14', original, count=1)
+    native.write_text(local_fixture.replace("width 2", "width 3"))
     subprocess.run(["niri", "validate"], check=True, timeout=20)
     rows = cli("status")["changes"]
     selected = next(row["change"]["id"] for row in rows if row["change"]["after"].strip() == "width 3")
-    local = next(row["change"]["id"] for row in rows if row["change"]["after"].strip() == "gaps 14")
+    local_change = next(row["change"] for row in rows if row["change"]["after"].strip() == "gaps 14")
+    local = local_change["id"]
+    # The public review reports the actual adopted line, regardless of the
+    # desktop's current default spacing. Discard must restore that exact value.
+    baseline_gap = local_change["before"].strip()
     cli("stage", selected)
     cli("keep-local", local)
     cli("stage", local, success=False)
-    native.write_text(original.replace("gaps 12", "gaps 16").replace("width 2", "width 4"))
+    later_fixture = re.sub(r'(?m)^([ \t]*)gaps[ \t]+[0-9]+[ \t]*$', r'\g<1>gaps 16', original, count=1)
+    native.write_text(later_fixture.replace("width 2", "width 4"))
     subprocess.run(["niri", "validate"], check=True, timeout=20)
     state = cli("status")
     if state["selection"][0]["after"].strip() != "width 3":
@@ -198,7 +203,7 @@ try:
                if row["change"]["after"].strip() == "gaps 16")
     planned = cli("discard-plan", gap)
     cli("discard", gap, "--plan", planned["plan_id"], "--activate-managed-file")
-    if "gaps 12" not in native.read_text() or "include" not in native.read_text():
+    if baseline_gap not in native.read_text() or "include" not in native.read_text():
         raise RuntimeError("relative-include discard changed unrelated content")
     print("KEDRA_R04_NATIVE_NIRI_DISCARD_PASS", flush=True)
     accepted = cli("status")["accepted_baseline"]

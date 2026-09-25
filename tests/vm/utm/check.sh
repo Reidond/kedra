@@ -82,6 +82,11 @@ state=$(timeout 60m systemctl is-system-running --wait || true)
 printf 'system state: %s\n' "$state" > "$events"
 evidence systemctl list-jobs --no-pager
 evidence systemctl list-units --state=failed --no-pager --plain
+# Keep each failed unit's own diagnosis before the strict gate below.
+for unit in $(systemctl list-units --state=failed --no-legend --plain | cut -d ' ' -f 1); do
+    evidence systemctl status --no-pager --full "$unit" || true
+    evidence journalctl -b --no-pager --output=short-monotonic -u "$unit" || true
+done
 test "$state" = running
 test -z "$(systemctl list-units --state=failed --no-legend --plain)"
 # The host exposes UTM's guest-agent channel; the package's own unit must bind to it.

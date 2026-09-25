@@ -1,1 +1,1 @@
-# Intentionally empty. Removal policy is applied only during future image builds.
+# Intentionally empty. build/assemble.sh applies any listed removals during image builds.

@@ -18,6 +18,7 @@ args = parser.parse_args()
 root = args.workdir.resolve()
 root.mkdir(parents=True, exist_ok=False)
 cli = Path(__file__).resolve().parents[1] / 'build/release/material.py'
+qualified_bootc = json.loads(cli.with_name('compatibility.json').read_text())['bootc_version']
 private, public = root / 'disposable.key', root / 'public.pem'
 signature = root / 'config.sig'
 
@@ -77,7 +78,7 @@ try:
     seal(identity)
     assert call(*verify)['material_verified']
     bootc_inputs = copy.deepcopy(inputs)
-    bootc_inputs['packages'].append(['bootc', '0', '1.16.10', '1.fc44', 'x86_64', '1' * 64, '2' * 64])
+    bootc_inputs['packages'].append(['bootc', '0', qualified_bootc, '1.fc44', 'x86_64', '1' * 64, '2' * 64])
     put('bootc-inputs.json', bootc_inputs)
     assert call('bootc', '--inputs', root / 'bootc-inputs.json')['compatible']
     bootc_inputs['packages'][-1][2] = '1.17.0'

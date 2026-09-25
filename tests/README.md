@@ -16,7 +16,7 @@ Cargo E2E exercises the public CLI with real subprocesses, Git and generated dat
 | Workflow | Coverage |
 |---|---|
 | test-agents.yml | Real agent launcher/runtime/profile behavior with generated profiles |
-| test-ghcr-update.yml | Direct signed registry v2 enrollment/check/stage, A/B/rollback, identity recovery and critical refusals; implemented, native run pending |
+| test-ghcr-update.yml | Direct signed registry v2 enrollment/check/stage, A/B/rollback, identity recovery and critical refusals |
 | test-signed-update.yml | Signed bootc update, negative authority/replay cases and retained rollback |
 | test-desktop.yml | Native graphical session, doctor, agent packaging and home recovery |
 | test-home-transition.yml | Actual signed A/B/A home-baseline acceptance and rollback |
@@ -26,8 +26,8 @@ VM helpers live under vm/. OS image tests run in Actions. Local installer constr
 
 Production refresh compares resolved inputs against the signed stable OCI image and requires the candidate RPM inventory to match its preflight. Native RPM fixtures exercise equality, changes and failure boundaries. No-change publishes nothing. Historical release-file interoperability remains only where needed for offline/legacy compatibility. The retired filesystem observer and GitHub ISO workflow are not production dependencies.
 
-`test-ghcr-update.yml` uses a disposable local TLS registry mapped to the fixed GHCR hostname, generated keys and actual signed A/B VM boots. It now invokes `identity-recovery.py` to prove that identity mismatch blocks forward work while retained rollback remains available. The workflow is implemented but native execution is not-run; historical legacy-protocol VM successes do not qualify it.
+`test-ghcr-update.yml` uses a disposable local TLS registry mapped to the fixed GHCR hostname, generated keys and actual signed A/B VM boots. It invokes `identity-recovery.py` to prove that identity mismatch blocks forward work while retained rollback remains available. Native runs pass (for example 34820938156 at `17105c5`); the fixture image is a Fedora bootc base with test files, not the full desktop image.
 
-Deterministic tag-race, interrupted-helper/bootc operation, legacy-state migration and native OCI-platform-mismatch cases remain explicitly not-run. The wrong-architecture identity case does not substitute for an actual wrong-platform OCI image. Shared bootc compatibility changes require native qualification before signing, even when compiler and image-input checks pass.
+Deterministic tag-race, interrupted-helper/bootc operation and native OCI-platform-mismatch cases remain explicitly not-run. Legacy-state migration is not required: the owner confirmed no r1/r2 system was installed. The wrong-architecture identity case does not substitute for an actual wrong-platform OCI image. Shared bootc compatibility changes require native qualification before signing, even when compiler and image-input checks pass.
 
 Keep generated logs, screenshots and results in Actions artifacts or disposable output directories; do not commit research output. Never use real homes, vault material, transcripts or production signing keys as fixtures. Historical evidence remains in Git history and [STATUS](../docs/STATUS.md).

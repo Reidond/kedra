@@ -1,6 +1,50 @@
 # Verified status
 
-The owner’s current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
+The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
+
+## Current summary (2026-09-25)
+
+- **Production.** `ghcr.io/reidond/kedra-desktop:stable` resolves to `sha256:fe61a11d37b97ca04b58d87cd98fc5e95bb33af69e1c84d0d7fdda26041d7675`, published by release run [36077781275](https://github.com/Reidond/kedra/actions/runs/36077781275) (schedule, run #25) from main `17105c5d57a355852999f0be39c8c3548b9c0c8c`. Its receipt is `verified`. Thirteen signed stable publications exist in total; see the table below. Anonymous registry readback on 2026-09-25 confirms the digest.
+- **Desktop source.** PR #14 (Adwaita desktop, adw-gtk3, Noctalia 5.1 compatibility, right-side clock) merged on 2026-09-14 as `17105c5`. On that exact commit, workspace [34820938028](https://github.com/Reidond/kedra/actions/runs/34820938028), desktop [34820938007](https://github.com/Reidond/kedra/actions/runs/34820938007), signed home [34820938085](https://github.com/Reidond/kedra/actions/runs/34820938085), direct GHCR [34820938156](https://github.com/Reidond/kedra/actions/runs/34820938156) and signed updates [34820938031](https://github.com/Reidond/kedra/actions/runs/34820938031) pass. Push release [34820938097](https://github.com/Reidond/kedra/actions/runs/34820938097) published it.
+- **Daily images are not VM-tested at their exact digests.** Publication does not wait for the VM workflows; each nightly image differs from the tested source build only in refreshed Fedora inputs.
+- **bootc compatibility.** Fedora 44 moved `bootc-1.16.13-1.fc44` to stable on 2026-09-25. The shared contract still qualifies 1.16.10, so builds that resolve 1.16.13 fail closed before signing until the contract is deliberately updated and requalified. PR #15 (`89edf80`) bumps the contract to 1.16.13 and passes workspace, agents, signed updates, direct GHCR, desktop and signed home workflows (runs 36130170372–36130170636); a fresh Anaconda installation with 1.16.13 is not-run.
+- **Not qualified:** Secure Boot (all VMs so far booted non-Secure-Boot OVMF), physical hardware, production-image forward update on an installed system, deterministic registry race/interruption, native OCI-platform mismatch, key rotation, VM suspend/resume, scaling/high contrast/accessibility, authenticated agent and Bitwarden use. The local ISO was built and installed only from `acafed57…` (2026-09-13).
+
+## Production publications
+
+| Run | # | Date (UTC) | Source | Published stable digest |
+|---|---|---|---|---|
+| [34746729066](https://github.com/Reidond/kedra/actions/runs/34746729066) | 10 | 09-13 dispatch | `5dea673` | `sha256:acafed578d8431d204c1ab0d20c52202c6bbb938ccc4af31efc2ef2737fd7c14` |
+| [34747330145](https://github.com/Reidond/kedra/actions/runs/34747330145) | 11 | 09-13 dispatch | `5dea673` | none (no-change) |
+| [34752129104](https://github.com/Reidond/kedra/actions/runs/34752129104) | 12 | 09-13 push | `9b5005a` | none (no-change) |
+| [34792981175](https://github.com/Reidond/kedra/actions/runs/34792981175) | 13 | 09-14 | `ca3ce33` | `sha256:5e2dd1bb589574dac2175e52f643be0b879f2e2ae0a1c4de3a61b409a35f12a9` |
+| [34820938097](https://github.com/Reidond/kedra/actions/runs/34820938097) | 14 | 09-14 push | `17105c5` | `sha256:528b0faa074dce510b9a8662693347fbe3547e3a44aa52cb87849867aee31867` |
+| [34913413931](https://github.com/Reidond/kedra/actions/runs/34913413931) | 15 | 09-15 | `17105c5` | none: failed closed on a transient HTTP 500 downloading cosign; fetches now retry |
+| [35040133877](https://github.com/Reidond/kedra/actions/runs/35040133877) | 16 | 09-16 | `17105c5` | `sha256:c6d1535259d2495b135eb10b892a279550ef52015ee201f4cc0fd6c356e63113` |
+| [35166692228](https://github.com/Reidond/kedra/actions/runs/35166692228) | 17 | 09-17 | `17105c5` | `sha256:1dc46b761e246e1c1b91568fdc93b20615f59b14c30bf598e62b86a13cd03927` |
+| [35291343086](https://github.com/Reidond/kedra/actions/runs/35291343086) | 18 | 09-18 | `17105c5` | `sha256:f5f99c74b62d0f95a8e584d5ed4597ed936d16def47657c3e11ff9da2fac7201` |
+| [35409458319](https://github.com/Reidond/kedra/actions/runs/35409458319) | 19 | 09-19 | `17105c5` | `sha256:9c1ebf0140cf630a9c3c294e8618f0017643f7c8e62daf946877183b99844868` |
+| [35479024601](https://github.com/Reidond/kedra/actions/runs/35479024601) | 20 | 09-20 | `17105c5` | `sha256:b3e6c74686ad0deba7b211c66c8057575ce99cfe3984cd3daee7c30a12375f27` |
+| [35547977428](https://github.com/Reidond/kedra/actions/runs/35547977428) | 21 | 09-21 | `17105c5` | `sha256:36885fd9c2d1eba6a1bf52ff93e797ae451d06669aaa78559590526a62f718eb` |
+| [35672122067](https://github.com/Reidond/kedra/actions/runs/35672122067) | 22 | 09-22 | `17105c5` | `sha256:77374239346a677ec5fc6df30a98570a98ef174369d4fe0942e53ede1501d6b0` |
+| [35802122457](https://github.com/Reidond/kedra/actions/runs/35802122457) | 23 | 09-23 | `17105c5` | `sha256:7c64834abd21dc92d1a3a5ac6b8326c5d2a0970446f6f066bc33091b761563b8` |
+| [35938559348](https://github.com/Reidond/kedra/actions/runs/35938559348) | 24 | 09-24 | `17105c5` | `sha256:64a118939ba59d43930cc50936c205eada3d0d35f48eb273be17f721c1fe44c8` |
+| [36077781275](https://github.com/Reidond/kedra/actions/runs/36077781275) | 25 | 09-25 | `17105c5` | `sha256:fe61a11d37b97ca04b58d87cd98fc5e95bb33af69e1c84d0d7fdda26041d7675` |
+
+Each nightly rebuild is driven by a new `quay.io/fedora/fedora-bootc:44` base digest and, on most days, changed Fedora packages. Every published receipt is `verified` and chains `previous_digest` to the row above it. Immutable `run-<id>-1` tags and signatures are retained; there is no garbage collection.
+
+## Agents, credentials and repository skills
+
+- **Codex** 0.153.4 (x86_64) is bundled under `/usr/libexec/sysroot/agents/codex` from the pinned official archive with Sigstore verification. [test-agents 34695674783](https://github.com/Reidond/kedra/actions/runs/34695674783) and the desktop VM (`KEDRA_R05_IMAGE_RUNTIME_PASS`) pass for runtime selection, profiles and `--version`/`--help`. Authenticated model use, MCP, skills and hooks are not qualified.
+- **Claude** is not bundled: `public_preinstallation_approved` remains false pending the owner's Commercial Terms decision. `sysroot claude --runtime user` is the only path.
+- **Repository skill discovery (R11):** on 2026-09-07 Codex CLI 0.153.4 marketplace and fresh-profile probes found no Kedra skills at the root or crate cwd. Read the canonical `plugins/kedra/skills/*/SKILL.md` files explicitly; no global installation is authorized.
+- **Bitwarden Desktop** 2026.8.0 is bundled at `/usr/lib/bitwarden`. The desktop VM covers native sandbox startup while logged out (`KEDRA_R06_LOGGED_OUT_PASS`) and `SSH_AUTH_SOCK` propagation. Vault login/unlock, key serving, signing approval and Git over SSH are not-run.
+
+## History
+
+The sections below are the chronological qualification record, newest first. Each keeps its original source scope.
+
+### First automatic production publication (2026-09-13)
 
 The automatic production changed-image and no-change paths are now verified. Run [34746729066](https://github.com/Reidond/kedra/actions/runs/34746729066) at main `5dea673f6ebd3a86c44797517889e5a80ba5e78a` completed build, isolated sign-image and publish-stable successfully without a reviewer gate. Both `ghcr.io/reidond/kedra-desktop:stable` and immutable run tag `run-34746729066-1` resolve to `sha256:acafed578d8431d204c1ab0d20c52202c6bbb938ccc4af31efc2ef2737fd7c14`.
 
@@ -8,7 +52,7 @@ Publication artifact `10313929124` independently matches ZIP SHA-256 `122832f436
 
 Repeat run [34747330145](https://github.com/Reidond/kedra/actions/runs/34747330145) at the same exact main source succeeded after verified stable-image comparison and package preflight. Changed-image construction, signing and stable publication were all skipped; the run produced zero artifacts. Independent Docker readback confirms stable remains at the same signed digest. This demonstrates an actual production no-change run, not only a fixture result.
 
-## Right-side bar clock
+### Right-side bar clock
 
 The layout follow-up from `308b03f467a50df91aca20930857122ed471785b` places the
 clock in the right-side status group immediately before Control Center and
@@ -29,7 +73,7 @@ separate; no user-machine apply or production publication occurred. Earlier
 Home artifact `10327097877` records passing stage B, accepted B/rollback staging
 and retained-A home rollback markers at 22:48–22:49 UTC.
 
-## adw-gtk3 follow-up
+### adw-gtk3 follow-up
 
 **Latest exact-source result:** `4d0305194341b702f3e39fb6abba6a1f6b3f29a0`
 passes desktop [34784038994](https://github.com/Reidond/kedra/actions/runs/34784038994),
@@ -103,7 +147,7 @@ See [desktop guidance](DESKTOP.md#gtk-and-qt-applications) for package/upstream
 sources and explicit dark-variant selection. WL-20260913-10 and WL-20260914-01
 are completed; earlier full Adwaita evidence remains scoped to its original theme.
 
-## Noctalia Greeter evaluation
+### Noctalia Greeter evaluation
 
 Evaluation at `7f76857f0e903b61891f7bf1584bece98c5c73cc` recommends Noctalia
 Greeter 1.5.0 as a separately qualified follow-up. [PR #14](https://github.com/Reidond/kedra/pull/14)
@@ -116,7 +160,7 @@ Greeter login, session selection, TTY recovery, scaling and SELinux checks are
 not-run. Runtime-directory handling and portable compiler flags require review
 before adoption. This is a completed evaluation, not a blocked implementation.
 
-## Adwaita desktop source configuration
+### Adwaita desktop source configuration
 
 The `codex/adwaita-desktop` changes from `ca3ce333ac33fa17e81f6c92610e4cdca802018e`
 implement [GNOME HIG-informed desktop defaults](DESKTOP.md): a dark Adwaita-like
@@ -146,7 +190,7 @@ published image and ISO results remain evidence for their original source only.
 See WL-20260913-07 in the
 [worklog](../worklog.md) for this source task's checks and next step.
 
-## Native GTK and Qt integration follow-up
+### Native GTK and Qt integration follow-up
 
 **Current exact-source result:** `71cb8c9158871f82cb38f1fa59df2e7260dd51cf`
 passes workspace [34769161713](https://github.com/Reidond/kedra/actions/runs/34769161713)
@@ -363,13 +407,13 @@ Local Rust 1.98.1 formatting, all-target Clippy with warnings denied, release
 build, WSL Bash syntax and Git whitespace pass. The Windows workspace E2E
 command passes with zero cases, providing no new Linux behavioral coverage.
 
-## Removed legacy downloads
+### Removed legacy downloads
 
 At the owner’s explicit direction, GitHub Release IDs 385117864 (r1), 385328126 (r2) and 385128562 (legacy channel), including all 31 uploaded assets, were deleted. The remote Releases list is empty. Their source Git tags remain; no source tag was removed. Historical signed-image/installation results remain in Git history and worklog, not as current download availability.
 
 The owner confirmed on 2026-09-13 that nobody installed r1/r2. No deployed-system migration is required; earlier migration blockers assumed installations that do not exist. Fresh installations enroll directly in the signed GHCR workflow. Historical disposable-VM results remain valid only within their recorded scope.
 
-## Verified implementation and remaining qualification
+### Verified implementation and remaining qualification
 
 At exact f52c9e77e17eb029a6b25c5a23807ef655484795, workspace runs 34714337528 and 34714339961, direct GHCR 34714337561, desktop 34714337517, legacy signed update 34714337526 and home transition 34714337529 pass. Direct-GHCR artifact 10304408023 independently matched ZIP SHA-256 46ba4dda3f3a3ab5b099274486d3121f3a5386c8bb49fb31659bf0ca6f6f8a2d.
 

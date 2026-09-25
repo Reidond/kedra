@@ -219,7 +219,7 @@ mod linux {
             next_action: Some(if release_trust && !research {
                 "Run sysroot update status to inspect the signed deployment."
             } else {
-                "Use a promoted owner installer when it becomes available."
+                "Install from local media built from a signed image; see docs/INSTALL.md."
             }),
         });
         let passed = checks

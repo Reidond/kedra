@@ -1,9 +1,12 @@
 """Fetch pinned official Codex packages for image assembly or isolated research."""
 import argparse
 import hashlib
+import http.client
 import json
 import pathlib
 import tarfile
+import time
+import urllib.error
 import urllib.request
 
 parser = argparse.ArgumentParser()
@@ -14,10 +17,15 @@ args = parser.parse_args()
 pins = json.loads(pathlib.Path(__file__).with_name('inputs.json').read_text())
 args.output.mkdir(parents=True, exist_ok=False)
 
-def fetch(url, destination, digest, size=None):
+def transient(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException))
+
+def download(url, destination, digest, size):
     hashed = hashlib.sha256()
     received = 0
-    with urllib.request.urlopen(url, timeout=60) as response, destination.open('xb') as output:
+    with destination.open('xb') as output, urllib.request.urlopen(url, timeout=60) as response:
         while chunk := response.read(1024 * 1024):
             received += len(chunk)
             if received > (size if size is not None else 65536):
@@ -26,6 +34,20 @@ def fetch(url, destination, digest, size=None):
             output.write(chunk)
     if (size is not None and received != size) or hashed.hexdigest() != digest:
         raise RuntimeError(f'Pinned artifact identity mismatch: {destination.name}')
+
+def fetch(url, destination, digest, size=None):
+    # Retry only transport failures. The pinned size and digest checks stay final,
+    # and the partial file created by a failed attempt is removed before retrying.
+    for attempt in range(1, 5):
+        try:
+            download(url, destination, digest, size)
+            return
+        except (OSError, http.client.HTTPException) as error:
+            if isinstance(error, FileExistsError) or not transient(error) or attempt == 4:
+                raise
+            destination.unlink()
+            print(f'Transient download failure for {destination.name}: {error}; retrying', flush=True)
+            time.sleep(15 * attempt)
 
 def package(record, name):
     version, target = record['version'], record['target']

@@ -15,7 +15,7 @@ Runner queues affect delivery time. The workflow resolves the reviewed official 
 
 No-change does nothing: no new image or freshness renewal. Changed inputs build one candidate whose actual RPM material must match preflight. Failures never become a successful no-change result.
 
-`build/release/compatibility.json` is shared with the compiled helper and currently qualifies bootc 1.16.10. Preflight and actual-image checks reject an unsupported bootc RPM before signing; publication repeats the compatibility check. A version change requires deliberately updating the contract/helper compatibility and passing native qualification, not bypassing the gate.
+`build/release/compatibility.json` is shared with the compiled helper and currently qualifies bootc 1.16.13. Preflight and actual-image checks reject an unsupported bootc RPM before signing; publication repeats the compatibility check. A version change requires deliberately updating the contract/helper compatibility and passing native qualification, not bypassing the gate.
 
 ## Automatic image signing
 

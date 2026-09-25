@@ -1,6 +1,7 @@
 """Prepare pinned native Bitwarden files for image construction in Actions."""
 import argparse
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -8,6 +9,8 @@ import pathlib
 import subprocess
 import tarfile
 import tempfile
+import time
+import urllib.error
 import urllib.request
 
 parser = argparse.ArgumentParser()
@@ -18,9 +21,14 @@ if os.environ.get('GITHUB_ACTIONS') != 'true' or not args.context.is_dir():
     raise SystemExit('Use an explicit Actions build context')
 pins = json.loads(pathlib.Path(__file__).with_name('inputs.json').read_text())
 
-def fetch(record, path):
+def transient(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException))
+
+def download(record, path):
     digest, size = hashlib.sha256(), 0
-    with urllib.request.urlopen(record['url'], timeout=60) as response, path.open('xb') as output:
+    with path.open('xb') as output, urllib.request.urlopen(record['url'], timeout=60) as response:
         while chunk := response.read(1024 * 1024):
             size += len(chunk)
             if size > record['size']:
@@ -29,6 +37,19 @@ def fetch(record, path):
             output.write(chunk)
     if size != record['size'] or digest.hexdigest() != record['sha256']:
         raise RuntimeError('Pinned Bitwarden input mismatch')
+
+def fetch(record, path):
+    # Retry only transport failures; the pinned size and digest checks stay final.
+    for attempt in range(1, 5):
+        try:
+            download(record, path)
+            return
+        except (OSError, http.client.HTTPException) as error:
+            if isinstance(error, FileExistsError) or not transient(error) or attempt == 4:
+                raise
+            path.unlink()
+            print(f'Transient download failure for {path.name}: {error}; retrying', flush=True)
+            time.sleep(15 * attempt)
 
 with tempfile.TemporaryDirectory(prefix='kedra-bitwarden-', dir=os.environ['RUNNER_TEMP']) as temporary:
     root = pathlib.Path(temporary)

@@ -1,6 +1,6 @@
 # Kedra
 
-Kedra is a Fedora 44 bootc desktop with niri, Noctalia and the `sysroot` management command. GitHub builds and publishes signed container images to **ghcr.io/reidond/kedra-desktop**. The `stable` tag discovers the approved image; installed updates verify and stage its exact digest.
+Kedra is a Fedora 44 bootc desktop with niri, Noctalia and the `sysroot` management command. GitHub builds and publishes separately signed container images per target: **ghcr.io/reidond/kedra-desktop** (x86_64) and **ghcr.io/reidond/kedra-utm** (aarch64, a UTM virtual machine on an Apple Silicon Mac). Each target's `stable` tag discovers its approved image; installed updates verify and stage its exact digest. UEFI Secure Boot is required.
 
 [Install locally](docs/INSTALL.md) · [Update and recover](docs/UPDATES.md) · [Signed images](docs/RELEASES.md)
 
@@ -8,7 +8,7 @@ Installation media is built locally when needed. No ISO, GitHub Release or relea
 
 ## Change the system
 
-Edit `packages/common.list`, `hosts/desktop/packages.list` and the Linux-shaped `etc/`, `usr/`, `home/` trees. Explicit host files override shared files. Unknown XPS hardware remains disabled.
+Edit `packages/common.list`, `hosts/<target>/packages.list` (`desktop` or `utm`) and the Linux-shaped `etc/`, `usr/`, `home/` trees. Explicit host files override shared files. Unknown XPS hardware remains disabled.
 
 Actions checks packages at **00:00 UTC**, with optional on-demand runs. A changed image passes build validation, isolated automatic OCI signing and strict verification before `stable` advances. No approval or manual signing step is required. No-change does nothing: it creates no image, metadata release or renewal. Runner queues affect delivery time; installed machines never reboot automatically.
 

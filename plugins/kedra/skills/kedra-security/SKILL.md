@@ -17,4 +17,17 @@ Rollback shares persistent data. Version protocols/journals and refuse unknown o
 
 The owner confirmed on 2026-09-13 that nobody installed r1/r2 (docs/STATUS.md); a legacy bridge is not a delivery requirement. Retained compatibility code still refuses unreconciled legacy operations. This scope correction never authorizes clearing journals, rollback holds or high-water state, or silently repairing unknown schemas.
 
+UEFI Secure Boot (owner decision, 2026-09-25) is required at install time and by doctor. It is never a boot-time hard stop, so local recovery stays available.
+
+Scope limits:
+- It covers firmware → shim → GRUB → kernel, plus kernel lockdown. The initramfs, kernel command line and composefs root are not signed.
+- On QEMU `virt`/Arm there is no SMM, so a malicious guest kernel could alter the variable store.
+- The UTM host controls `Data/tpmdata` and the VM.
+
+The efivar reader (`crates/sysroot-helper/firmware.rs`) makes bounded reads, requires exactly 5 bytes (4 attribute bytes and the value) and requires the efivarfs magic. SecureBoot must be 1 and SetupMode 0. Ordinary users can read efivarfs variables and `/sys/kernel/security/lockdown`: both are 0644 in kernel v7.0 source, and an unprivileged doctor passed in the aarch64 TCG rehearsal.
+
+Guest-agent exposure: Fedora 44 qemu-ga filters nothing by default. The utm drop-in's `--block-rpcs` is defense in depth. It is a block list, so RPCs added later by qemu-ga stay enabled.
+
+Serial-console exposure (2026-09-25): the utm PL011 carries the UEFI firmware console, GRUB (one-second menu, no superuser; `fedora-bootc:44` `grub-static-pre.cfg` and `01_users.cfg`) and a login prompt. Whoever reaches it has physical-console access: firmware setup can disable Secure Boot, and the unsigned command line accepts `systemd.debug_shell=ttyAMA0` for a root shell after unlock. UTM's `TcpServer` mode listens unauthenticated on 127.0.0.1 (UTM v5.0.6 `serialArguments`), reachable by other local accounts, network-capable apps and containers without Automation consent. `installer/utm/kedra-utm.py create` therefore defaults to UTM's built-in terminal and adds TCP only with an explicit `--serial-port`. A GRUB password would be a separate owner decision.
+
 Retain local TTY/boot-menu recovery without GitHub, an AI subscription or the Bitwarden GUI. Distinguish staged/booted/healthy. Automatic health rollback requires separate qualification. Keep tests disposable and production private keys out of fixtures.

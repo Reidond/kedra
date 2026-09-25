@@ -41,8 +41,10 @@ niri workflow and review the file for secrets before adopting it. Wider file
 groups remain unfinished.
 Do not run image-building scripts as a workstation package installer.
 
-Signed OS images are published at ghcr.io/reidond/kedra-desktop. Installation
-media is built locally on demand; no GitHub Release download is required.
+Signed OS images are published per target: ghcr.io/reidond/kedra-desktop
+(x86_64) and ghcr.io/reidond/kedra-utm (aarch64 UTM virtual machine). Each
+system follows only its own target. Installation media is built locally on
+demand; no GitHub Release download is required. UEFI Secure Boot is required.
 Follow https://github.com/Reidond/kedra/blob/main/docs/INSTALL.md.
 On an installed system, use `sysroot update status` to inspect enrollment and
 the running/staged image. Run management commands as your ordinary owner account;

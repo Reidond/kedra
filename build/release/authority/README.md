@@ -33,7 +33,7 @@ The `kedra-<target>-signing` GitHub environment must allow only the `main` deplo
 | `desktop` | `KEDRA_DESKTOP_SIGNING_KEY`, `KEDRA_DESKTOP_SIGNING_PASSPHRASE` | `KEDRA_DESKTOP_PUBLIC_KEY`, `KEDRA_DESKTOP_KEY_SHA256` |
 | `utm` | `KEDRA_UTM_SIGNING_KEY`, `KEDRA_UTM_SIGNING_PASSPHRASE` | `KEDRA_UTM_PUBLIC_KEY`, `KEDRA_UTM_KEY_SHA256` |
 
-The key secret is the encrypted OCI signing key and the passphrase secret its passphrase. The variables are independently reviewed public values that must match the checkout's `<target>.pub`/`<target>.sha256`. Do not store these as repository secrets: `release.yml` passes and inherits no secrets, so the reusable signer job reads only the values of the environment it declares.
+The key secret is the encrypted OCI signing key and the passphrase secret its passphrase. The variables are independently reviewed public values that must match the checkout's `<target>.pub`/`<target>.sha256`. Do not store these as repository secrets. `release.yml` uses `secrets: inherit`, which a called job needs to see its environment's secrets (probe run 36191986665); with no repository-level secrets, the reusable signer job still reads only the values of the environment it declares.
 
 The repository variable `KEDRA_RELEASES_ENABLED=true` enables image publication only with those protections. An environment name alone is insufficient; do not let auto-created unprotected environments replace the configured boundary. The build job verifies the target's environment policy through the API before a signer job can reference it.
 

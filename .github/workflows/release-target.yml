@@ -151,8 +151,8 @@ jobs:
     if: needs.build.outputs.changed == 'true'
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 25
-    # Environment secrets reach a called workflow only through this job-level
-    # environment; release.yml passes no secrets and does not inherit them.
+    # Only this job declares the signing environment, so only it resolves the
+    # environment secrets that release.yml's inherited context makes visible.
     environment: kedra-${{ inputs.target }}-signing
     permissions:
       contents: read
@@ -224,7 +224,9 @@ jobs:
           [[ "$APPROVED_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]
           test "$BUILD_FINGERPRINT" = "$APPROVED_FINGERPRINT"
           test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
-          test -n "$RELEASE_PRIVATE_KEY" && test -n "$RELEASE_PASSPHRASE"
+          # Separate commands: under bash -e a failing left side of && does not stop the step.
+          test -n "$RELEASE_PRIVATE_KEY"
+          test -n "$RELEASE_PASSPHRASE"
           umask 077
           private=$(mktemp -d "$RUNNER_TEMP/kedra-signing.XXXXXXXX")
           trap 'rm -rf -- "$private"' EXIT

@@ -50,8 +50,7 @@ the installed helper requests administrator authentication when needed.
 
 Use `sysroot update enroll` once, `sysroot update check` to inspect the signed
 stable image and `sysroot update stage` after review. The installed helper
-verifies the exact GHCR digest independently. Legacy enrolled systems need the
-explicit migration documented in docs/UPDATES.md; never delete their old state.
+verifies the exact GHCR digest independently.
 Keep known-good signed images and local recovery media. Staging does not reboot,
 and a reboot does not automatically accept a changed home baseline.
 If `sysroot update status --home` is available in this build, it reports the

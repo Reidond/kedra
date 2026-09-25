@@ -42,7 +42,7 @@ with official Fedora dependencies if adopted. Do not follow the documented
 Terra bootstrap with `--nogpgcheck`, add Copr, or run upstream root setup scripts
 as an incidental step. Preserve Fedora's greetd user, PAM/keyring and niri
 session. Start with static administrator-owned Adwaita settings; automatic sync
-with Noctalia 5.0.1 is not qualified.
+with Noctalia 5.1 is not qualified.
 
 Review predictable `/tmp` runtime-directory handling in the tagged session
 wrapper and replace `-march=native` assumptions with portable build settings

@@ -151,8 +151,8 @@ The startup exclusion passes VM process/window checks and screenshot review.
 ## Noctalia Greeter evaluation
 
 Noctalia Greeter 1.5.0 is recommended as a separately qualified follow-up to
-[PR #14](https://github.com/Reidond/kedra/pull/14). The current branch retains
-greetd/tuigreet; this evaluation does not implement or enable the Greeter.
+[PR #14](https://github.com/Reidond/kedra/pull/14), which merged on 2026-09-14.
+Main retains greetd/tuigreet; this evaluation does not implement or enable the Greeter.
 The [upstream overview](https://docs.noctalia.dev/greeter/),
 [installation](https://docs.noctalia.dev/greeter/installation/),
 [source build](https://docs.noctalia.dev/greeter/building-from-source/),
@@ -163,7 +163,7 @@ Fedora 44's default repositories lack the package. The selected future approach
 is a pinned source/archive/hash build in Actions using official Fedora
 dependencies, preserving the existing greetd account, PAM/keyring integration
 and niri session. Use an administrator-owned static Adwaita palette, without
-automatic synchronization with the current Noctalia 5.0.1 profile. Upstream's
+automatic synchronization with the current Noctalia 5.1 profile. Upstream's
 Terra/Copr installation route and root setup scripts are outside that approach.
 
 Before adoption, review the 1.5.0 [packaging instructions](https://raw.githubusercontent.com/noctalia-dev/noctalia-greeter/v1.5.0/PACKAGING.md)

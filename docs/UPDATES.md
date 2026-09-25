@@ -33,7 +33,7 @@ Actions starts package reconciliation at **00:00 UTC**, with manual dispatch ava
 
 Changed inputs produce a new image that must match preflight, pass isolated automatic OCI signing and verify strictly before its exact digest advances `stable`. There is no human approval or manual signing step. Unchanged inputs cause no publication and no renewal. A failed repository, solver or signature check is an error, not a successful no-change result.
 
-The producer and helper share `build/release/compatibility.json`, currently qualifying bootc 1.16.10. An unsupported bootc RPM change fails the public build before signing or stable publication. Updating that contract and helper compatibility requires deliberate source review and native qualification; the workflow never silently accepts an untested bootc version.
+The producer and helper share `build/release/compatibility.json`, currently qualifying bootc 1.16.13. An unsupported bootc RPM change fails the public build before signing or stable publication. Updating that contract and helper compatibility requires deliberate source review and native qualification; the workflow never silently accepts an untested bootc version.
 
 Schedules can queue, skip or be disabled by repository inactivity. No automatic machine staging/reboot or background AI service is implied.
 

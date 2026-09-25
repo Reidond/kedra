@@ -9,8 +9,10 @@ Bundled official CLIs are OS-management tools under
 /usr/libexec/sysroot/agents/, invoked by absolute path through sysroot. They must
 not install /usr/bin/codex or /usr/bin/claude, add aliases or shadow personal PATH
 commands. Ordinary codex/claude belong to the user's independently updated setup.
-The Linux launcher prototype now selects these paths (with bin/NAME below each
-agent directory); image packaging and complete R05 qualification remain pending.
+The Linux launcher selects these paths (with bin/NAME below each agent
+directory). Codex 0.153.4 is packaged in the image and VM-tested; Claude is not
+bundled until the owner accepts its preinstallation terms. Authenticated model
+use, MCP and skills remain unqualified.
 See docs/AGENT-LAUNCHERS.md and docs/STATUS.md for actual scope.
 
 ## Intended interfaces (not upstream flags)

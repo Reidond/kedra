@@ -1,4 +1,4 @@
-# Design metadata only; no image assembly or installer reads this yet.
+# Target metadata read by `sysroot source plan|archive`; hardware remains unverified.
 id = "desktop"
 architecture = "x86_64"
 image = "ghcr.io/reidond/kedra-desktop"

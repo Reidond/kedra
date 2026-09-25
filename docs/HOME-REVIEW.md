@@ -2,7 +2,7 @@
 
 For the separate niri line-selection workflow, see [ordinary text review](TEXT-REVIEW.md).
 
-The current Linux commands review three effective Noctalia 5.0.1 settings:
+The current Linux commands review three effective Noctalia settings (runtime 5.0.1 or 5.1.0 exactly):
 `theme.mode`, `shell.button_borders` and `shell.input_borders`. They store only
 these projected values in a private SQLite directory. Other exported settings,
 credentials and raw application exports do not enter that store.
@@ -99,8 +99,10 @@ does not guess ancestry or change branches.
 ## Review activation and discard
 
 These commands support the default Noctalia profile and the installed managed
-service. Native discard is qualified; the broader interruption and image-baseline
-transition cases remain under qualification before a complete owner home workflow.
+service. Native discard, interrupted publication recovery and signed A/B/A
+image-baseline transitions pass in disposable VMs (for example 34820938085).
+Noctalia installed-baseline activation after an image change, power loss and
+full-disk cases are not exercised by any workflow yet.
 
 ```sh
 sysroot home plan

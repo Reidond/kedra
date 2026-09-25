@@ -1,6 +1,8 @@
 [Unit]
 Description=Explicit disposable installer boot probe
-ConditionKernelCommandLine=kedra.research=1
+# Only an explicit system credential activates it, for example QEMU
+# -smbios type=11,value=io.systemd.credential:kedra.research=1 (smbios-type-11(7)).
+ConditionCredential=kedra.research
 After=basic.target
 
 [Service]

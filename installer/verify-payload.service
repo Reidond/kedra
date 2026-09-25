@@ -1,11 +1,17 @@
 [Unit]
-Description=Verify the embedded Kedra payload before installation
+Description=Verify UEFI Secure Boot and the embedded Kedra payload before installation
+# The helper refuses first without UEFI Secure Boot and prints why on the console.
+# The Anaconda drop-in (require-verification.conf) requires this unit and asserts
+# AssertSecurity=uefi-secureboot itself; an assertion here would stop the helper
+# before it could explain the refusal.
 After=local-fs.target anaconda-pre.service
-Before=anaconda.service
+Before=anaconda.service anaconda-direct.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/sysroot/helper
 StandardInput=file:/usr/lib/sysroot/trust/installer-request.json
 RemainAfterExit=yes
+# Show a refusal on the installer console as well as in the journal.
+StandardError=journal+console
 TimeoutStartSec=330

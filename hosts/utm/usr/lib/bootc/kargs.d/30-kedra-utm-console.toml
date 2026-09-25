@@ -1,0 +1,4 @@
+# PL011 serial console for recovery and evidence capture (UTM serial port);
+# tty0 stays last so /dev/console remains the graphical console.
+kargs = ["console=ttyAMA0,115200", "console=tty0"]
+match-architectures = ["aarch64"]

@@ -3,7 +3,15 @@
 set -euo pipefail
 test -f /run/.containerenv
 manifest=/usr/share/sysroot/source.json
-jq -e '.schema_version == 1 and .target.fedora_release == 44 and .target.architecture == "x86_64" and .target.candidate_target == true' "$manifest" >/dev/null
+# Build natively: the target's architecture must be this build's machine, and
+# only the closed (target, architecture) pairs are accepted.
+architecture=$(uname -m)
+case "$architecture" in
+    x86_64) bitwarden_napi=linux-x64-gnu ;;
+    aarch64) bitwarden_napi=linux-arm64-gnu ;;
+    *) echo "Unsupported image architecture: $architecture" >&2; exit 1 ;;
+esac
+jq -e --arg architecture "$architecture" '.schema_version == 1 and .target.fedora_release == 44 and .target.architecture == $architecture and .target.candidate_target == true and ([.target.id, .target.architecture] | IN(["desktop", "x86_64"], ["utm", "aarch64"]))' "$manifest" >/dev/null
 jq -e '(.packages + .remove_packages) | all(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9+._-]*$"))' "$manifest" >/dev/null
 mapfile -t packages < <(jq -r '.packages[]' "$manifest")
 mapfile -t remove < <(jq -r '.remove_packages[]' "$manifest")
@@ -56,7 +64,7 @@ chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper
 chmod 0755 /usr/libexec/kedra-session
 test -x /usr/bin/bitwarden
 test -x /usr/lib/bitwarden/bitwarden-app
-runtime_dependencies=$(ldd /usr/lib/bitwarden/bitwarden-app /usr/lib/bitwarden/desktop_proxy /usr/lib/bitwarden/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi/desktop_napi.linux-x64-gnu.node)
+runtime_dependencies=$(ldd /usr/lib/bitwarden/bitwarden-app /usr/lib/bitwarden/desktop_proxy "/usr/lib/bitwarden/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi/desktop_napi.$bitwarden_napi.node")
 if printf '%s\n' "$runtime_dependencies" | grep 'not found'; then
     echo 'Bitwarden runtime dependency missing' >&2
     exit 1

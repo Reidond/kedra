@@ -1,29 +1,53 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "codex": {
     "version": "0.153.4",
-    "target": "x86_64-unknown-linux-musl",
-    "archive_size": 126196303,
-    "archive_sha256": "a822187e1a2420c61c5926721bfbd878701ed95547c9bb0d4de4498a16ba1821",
     "source_revision": "3d2ee51ca2d5db578f328aa75e20aa22c0197c9a",
     "source_size": 13330433,
     "source_sha256": "bbbf66ffa30846f1e9bc3ae8a87a5aa0bb768efee8dbb94759dc9eb64bb4aa3a",
-    "signatures": {
-      "codex": "0dc1cab06eade46e05659b84289751a9425f7bb7886c5a10ddc3d6f5735cfaa2",
-      "codex-code-mode-host": "a31c6bc2aa530b98986207d67e61061096ba384f623b49ed9992bb628145900f",
-      "bwrap": "4e0e55799310ed3655041bc06246b3ab4b7917a04fc821b8b010d73c23fd53f0"
+    "targets": {
+      "x86_64-unknown-linux-musl": {
+        "archive_size": 126196303,
+        "archive_sha256": "a822187e1a2420c61c5926721bfbd878701ed95547c9bb0d4de4498a16ba1821",
+        "signatures": {
+          "codex": "0dc1cab06eade46e05659b84289751a9425f7bb7886c5a10ddc3d6f5735cfaa2",
+          "codex-code-mode-host": "a31c6bc2aa530b98986207d67e61061096ba384f623b49ed9992bb628145900f",
+          "bwrap": "4e0e55799310ed3655041bc06246b3ab4b7917a04fc821b8b010d73c23fd53f0"
+        }
+      },
+      "aarch64-unknown-linux-musl": {
+        "archive_size": 117238842,
+        "archive_sha256": "fc395cb043a1093ab0db34f44aba3199bfaa9ce640cd9be7fd588f44b0da64a4",
+        "signatures": {
+          "codex": "847b47e73068f86635c23ab5501647a93fab9ad0c450d6661a88481dfcd6d759",
+          "codex-code-mode-host": "def3aaaf54077d58f2aa41667d374c4b9c0695ef4d6fb0b7645fdbf0badbe408",
+          "bwrap": "de750905a97468d3fca09304dddf26fefe4427692a316a1486b7eb6f74273f6e"
+        }
+      }
     }
   },
   "personal_test_codex": {
     "version": "0.153.3",
-    "target": "x86_64-unknown-linux-musl",
-    "archive_size": 126189723,
-    "archive_sha256": "47bb1fb36fb1dbd5fe1af3eb0db422ffb4c3c38d9c1762c7618a9bed46c44a63"
+    "targets": {
+      "x86_64-unknown-linux-musl": {
+        "archive_size": 126189723,
+        "archive_sha256": "47bb1fb36fb1dbd5fe1af3eb0db422ffb4c3c38d9c1762c7618a9bed46c44a63"
+      },
+      "aarch64-unknown-linux-musl": {
+        "archive_size": 117230996,
+        "archive_sha256": "53d4604d339cdc87f1c396aca80c2addc8e092987b1b15c5f34dcda1fa54748a"
+      }
+    }
   },
   "cosign_test_tool": {
     "version": "3.1.3",
     "size": 141178250,
     "sha256": "4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71"
+  },
+  "cosign_test_tool_aarch64": {
+    "version": "3.1.3",
+    "size": 132747403,
+    "sha256": "c5d324e091826b0d7a78eb16fef316450b4eb9aaec045611c08ba06f5e73220a"
   },
   "claude": {
     "version": "2.1.236",

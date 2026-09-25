@@ -1,10 +1,19 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "version": "2026.8.0",
-  "rpm": {
-    "url": "https://github.com/bitwarden/clients/releases/download/desktop-v2026.8.0/Bitwarden-2026.8.0-x86_64.rpm",
-    "size": 102553277,
-    "sha256": "5537e0ae5b1d3a2a3aff560362f6689d9f45c4584bb271e3cedff482f01f237a"
+  "packages": {
+    "x86_64": {
+      "format": "rpm",
+      "url": "https://github.com/bitwarden/clients/releases/download/desktop-v2026.8.0/Bitwarden-2026.8.0-x86_64.rpm",
+      "size": 102553277,
+      "sha256": "5537e0ae5b1d3a2a3aff560362f6689d9f45c4584bb271e3cedff482f01f237a"
+    },
+    "aarch64": {
+      "format": "tarball",
+      "url": "https://github.com/bitwarden/clients/releases/download/desktop-v2026.8.0/bitwarden_2026.8.0_arm64.tar.gz",
+      "size": 150532005,
+      "sha256": "5962b5dd1bfe19b3c198a6b4157c4431efe078e573217bffcaafa71147476ebe"
+    }
   },
   "source": {
     "revision": "f60a4606b7581c338d18091a98640ee71392f015",

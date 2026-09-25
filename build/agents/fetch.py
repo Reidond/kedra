@@ -9,12 +9,15 @@ import time
 import urllib.error
 import urllib.request
 
+from pins import PINS, TARGETS, codex, cosign
+
 parser = argparse.ArgumentParser()
+parser.add_argument('--target', choices=sorted(TARGETS), required=True)
 parser.add_argument('--output', type=pathlib.Path, required=True)
 parser.add_argument('--research-tools', action='store_true')
 parser.add_argument('--verification-tools', action='store_true')
 args = parser.parse_args()
-pins = json.loads(pathlib.Path(__file__).with_name('inputs.json').read_text())
+record = codex('codex', args.target)
 args.output.mkdir(parents=True, exist_ok=False)
 
 def transient(error):
@@ -72,8 +75,7 @@ def package(record, name):
         fetch(f'{base}/{binary}-{target}.sigstore', args.output / f'{binary}.sigstore', digest)
     print(f'Pinned package verified: {name} {version}', flush=True)
 
-package(pins['codex'], 'codex')
-record = pins['codex']
+package(record, 'codex')
 fetch(f'https://codeload.github.com/openai/codex/tar.gz/{record["source_revision"]}',
       args.output / 'codex-corresponding-source.tar.gz', record['source_sha256'], record['source_size'])
 # Keep upstream notices beside the unmodified package, including the vendored
@@ -95,14 +97,15 @@ with tarfile.open(args.output / 'codex-corresponding-source.tar.gz') as source:
             raise RuntimeError('Missing upstream notice/source bytes')
         with stream:
             (notices / name).write_bytes(stream.read())
-for notice in pins['component_notices']:
+for notice in PINS['component_notices']:
     if pathlib.PurePosixPath(notice['filename']).name != notice['filename']:
         raise RuntimeError('Notice name must be a basename')
     fetch(notice['url'], notices / notice['filename'], notice['sha256'], notice['size'])
 if args.research_tools:
-    package(pins['personal_test_codex'], 'personal-codex')
+    package(codex('personal_test_codex', args.target), 'personal-codex')
 if args.research_tools or args.verification_tools:
-    tool = pins['cosign_test_tool']
-    fetch(f'https://github.com/sigstore/cosign/releases/download/v{tool["version"]}/cosign-linux-amd64',
+    # The verifier runs here, so it matches this runner rather than the target.
+    tool = cosign()
+    fetch(f'https://github.com/sigstore/cosign/releases/download/v{tool["version"]}/{tool["asset"]}',
           args.output / 'cosign', tool['sha256'], tool['size'])
     (args.output / 'cosign').chmod(0o755)

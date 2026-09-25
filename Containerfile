@@ -1,5 +1,5 @@
 # Build only in Actions using a generated, reviewed context; no whole-repo COPY.
-# Desktop payload; public trust and signed update identity are added by release builds.
+# Target payload (desktop or utm); public trust and signed update identity are added by release builds.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 COPY sysroot /usr/bin/sysroot

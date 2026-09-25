@@ -1,0 +1,11 @@
+# UTM 5.0.6 QEMU-backend guest integration. Both agents start only through their
+# udev rules when UTM exposes the matching virtio-serial port. Fedora 44 ships
+# /etc/sysconfig/qemu-ga with QEMU_GA_ARGS commented out (no RPCs blocked), so
+# usr/lib/systemd/system/qemu-guest-agent.service.d/50-kedra-block-rpcs.conf blocks
+# the exec, file, password and SSH-key RPCs. Clipboard/resize under niri is
+# unqualified until measured in UTM.
+qemu-guest-agent
+spice-vdagent
+# Venus/VirGL qualification diagnostics: vulkaninfo, vkcube and eglinfo.
+vulkan-tools
+egl-utils

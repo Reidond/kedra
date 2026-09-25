@@ -8,13 +8,15 @@ import re
 import subprocess
 import tarfile
 
+from pins import PINS, TARGETS, codex, cosign
+
 parser = argparse.ArgumentParser()
+parser.add_argument('--target', choices=sorted(TARGETS), required=True)
 parser.add_argument('--inputs', type=pathlib.Path, required=True)
 parser.add_argument('--output', type=pathlib.Path, required=True)
 parser.add_argument('--evidence', type=pathlib.Path, required=True)
 args = parser.parse_args()
-pins = json.loads(pathlib.Path(__file__).with_name('inputs.json').read_text())
-record = pins['codex']
+record = codex('codex', args.target)
 
 def verify(path, digest, size=None):
     if not path.is_file() or path.is_symlink():
@@ -32,9 +34,10 @@ archive = args.inputs / 'codex.tar.gz'
 source_archive = args.inputs / 'codex-corresponding-source.tar.gz'
 verify(archive, record['archive_sha256'], record['archive_size'])
 verify(source_archive, record['source_sha256'], record['source_size'])
-tool = pins['cosign_test_tool']
-cosign = args.inputs / 'cosign'
-verify(cosign, tool['sha256'], tool['size'])
+# Recheck the runner's pinned verifier before executing it.
+tool = cosign()
+verifier = args.inputs / 'cosign'
+verify(verifier, tool['sha256'], tool['size'])
 identity = f'https://github.com/openai/codex/.github/workflows/rust-release.yml@refs/tags/rust-v{record["version"]}'
 if set(record['signatures']) != {'codex', 'codex-code-mode-host', 'bwrap'}:
     raise RuntimeError('Signature set changed; review the package layout')
@@ -42,7 +45,7 @@ for binary, digest in record['signatures'].items():
     bundle = args.inputs / f'{binary}.sigstore'
     verify(bundle, digest)
     relative = 'codex-resources/bwrap' if binary == 'bwrap' else f'bin/{binary}'
-    result = subprocess.run([str(cosign), 'verify-blob', '--bundle', str(bundle),
+    result = subprocess.run([str(verifier), 'verify-blob', '--bundle', str(bundle),
                     '--certificate-identity', identity,
                     '--certificate-oidc-issuer', 'https://token.actions.githubusercontent.com',
                     str(args.inputs / 'codex' / relative)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -63,7 +66,7 @@ with tarfile.open(source_archive) as source:
             raise RuntimeError('Unexpected source notice entry')
         with source.extractfile(member) as stream:
             notices[name] = stream.read()
-for notice in pins['component_notices']:
+for notice in PINS['component_notices']:
     if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', notice['filename']) is None:
         raise RuntimeError('Notice name must be a safe basename')
     path = args.inputs / 'notices' / notice['filename']

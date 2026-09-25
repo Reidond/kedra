@@ -1,6 +1,6 @@
 # Update and recover
 
-Kedra updates use the signed GHCR `stable` image. The tag locates a candidate; the installed helper verifies signature, repository, target, image identity and retained ordering before switching to its exact digest. No GitHub Release files or checkpoint renewal is involved.
+Kedra updates use the signed GHCR `stable` image of the installed target: `ghcr.io/reidond/kedra-desktop` for desktop (x86_64) and `ghcr.io/reidond/kedra-utm` for the utm virtual machine (aarch64). The tag locates a candidate; the installed helper verifies signature, repository, target, architecture, image identity and retained ordering before switching to its exact digest. It never follows another target's repository. No GitHub Release files or checkpoint renewal is involved.
 
 ## Current-source commands
 
@@ -29,9 +29,9 @@ Use `sysroot update rollback` to select the retained verified deployment. Rollba
 
 ## Midnight package checks
 
-Actions starts package reconciliation at **00:00 UTC**, with manual dispatch available. It resolves the official Fedora 44 base and the complete native RPM closure, including inherited dependencies, and records image-affecting source, external inputs and recipes.
+Actions starts package reconciliation at **00:00 UTC**, with manual dispatch available. For each enabled target, on its native runner, it resolves the official Fedora 44 base for that architecture and the complete native RPM closure, including inherited dependencies, and records image-affecting source, external inputs and recipes. The targets are independent: one target failing does not stop the other from publishing.
 
-Changed inputs produce a new image that must match preflight, pass isolated automatic OCI signing and verify strictly before its exact digest advances `stable`. There is no human approval or manual signing step. Unchanged inputs cause no publication and no renewal. A failed repository, solver or signature check is an error, not a successful no-change result.
+Changed inputs produce a new image that must match preflight, pass isolated automatic OCI signing with that target's own key and verify strictly before its exact digest advances that target's `stable`. There is no human approval or manual signing step. Unchanged inputs cause no publication and no renewal. A failed repository, solver or signature check is an error, not a successful no-change result.
 
 The producer and helper share `build/release/compatibility.json`, currently qualifying bootc 1.16.13. An unsupported bootc RPM change fails the public build before signing or stable publication. Updating that contract and helper compatibility requires deliberate source review and native qualification; the workflow never silently accepts an untested bootc version.
 

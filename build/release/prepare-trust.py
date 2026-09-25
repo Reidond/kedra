@@ -1,10 +1,12 @@
-"""Prepare public desktop image trust without creating keys or signing images."""
+"""Prepare public target image trust without creating keys or signing images."""
 import argparse
 import json
 import pathlib
 import re
 import subprocess
 import tempfile
+
+from material import TARGETS, enabled
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--source', type=pathlib.Path, required=True)
@@ -26,11 +28,13 @@ def bounded(path, limit):
 source = json.loads(bounded(args.source, 1_048_576))
 public_key = bounded(args.public_key, 4096)
 target = source.get('target', {})
+spec = enabled(target.get('id'), target.get('architecture'))
 if (source.get('schema_version') != 1 or source.get('input_scope') != 'committed HEAD only'
         or not re.fullmatch('[a-f0-9]{40}', source.get('source_revision', ''))
-        or target.get('id') != 'desktop' or target.get('architecture') != 'x86_64'
-        or target.get('fedora_release') != 44 or target.get('image') != 'ghcr.io/reidond/kedra-desktop'):
-    raise SystemExit('Expected the actual committed desktop source plan and owner registry scope')
+        or spec is None or target.get('fedora_release') != 44 or target.get('image') != spec['repository']
+        or target.get('candidate_target') is not True):
+    raise SystemExit('Expected the actual committed source plan of an enabled target (' + ', '.join(sorted(TARGETS))
+                     + ') and its owner registry scope')
 with tempfile.TemporaryDirectory(prefix='kedra-public-key-') as temporary:
     captured = pathlib.Path(temporary) / 'release.pub'
     captured.write_bytes(public_key)

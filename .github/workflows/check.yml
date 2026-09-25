@@ -14,7 +14,17 @@ concurrency:
 
 jobs:
   rust:
-    runs-on: ubuntu-24.04
+    # The x86_64 leg keeps the plain "rust" name required by main's branch protection.
+    name: ${{ matrix.architecture == 'x86_64' && 'rust' || format('rust-{0}', matrix.architecture) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            architecture: x86_64
+          - runner: ubuntu-24.04-arm
+            architecture: aarch64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     env:
       CARGO_TERM_COLOR: always
@@ -26,7 +36,10 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
       - name: Report toolchain
+        env:
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
         run: |
+          test "$(uname -m)" = "$EXPECTED_ARCHITECTURE"
           rustc --version --verbose
           cargo --version
           git --version
@@ -48,7 +61,7 @@ jobs:
       - name: Retain checked CLI for manual disposable-guest workflows
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: sysroot-linux-x86_64-${{ github.sha }}
+          name: sysroot-linux-${{ matrix.architecture }}-${{ github.sha }}
           path: |
             target/release/sysroot
             target/release/sysroot.sha256

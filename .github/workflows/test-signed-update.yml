@@ -7,8 +7,10 @@ on:
       - .github/workflows/test-signed-update.yml
       - tests/vm/signed-update/**
       - tests/vm/console.toml
+      - tests/vm/desktop/secure_boot.py
       - tests/resolve-fedora-base.py
       - build/inputs.json
+      - build/agents/inputs.json
       - build/release/compatibility.json
       - crates/**
       - Cargo.toml
@@ -30,7 +32,7 @@ jobs:
       - name: Install disposable runner tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-utils ovmf openssl jq e2fsprogs
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-utils ovmf python3-virt-firmware openssl jq e2fsprogs
       - name: Test temporary keys, local TLS registry and three VM boots
         run: |
           rustup toolchain install 1.98.1 --profile minimal

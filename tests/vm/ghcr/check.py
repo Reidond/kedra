@@ -8,6 +8,25 @@ import urllib.request
 
 state = Path('/var/lib/kedra-ghcr-test')
 state.mkdir(mode=0o700, exist_ok=True)
+EFI_GLOBAL = '8be4df61-93ca-11d2-aa0d-00e098032b8c'
+
+
+def check_secure_boot():
+    """UEFI Secure Boot as seen by shim, firmware variables, lockdown and kernel."""
+    shim = subprocess.run(['mokutil', '--sb-state'], capture_output=True, text=True, timeout=60, check=True)
+    assert shim.stdout.rstrip('\n') == 'SecureBoot enabled', shim.stdout
+    for name, value in (('SecureBoot', 1), ('SetupMode', 0)):
+        # efivarfs prefixes each value with 4 attribute bytes.
+        with open(f'/sys/firmware/efi/efivars/{name}-{EFI_GLOBAL}', 'rb') as stream:
+            data = stream.read(6)
+        assert len(data) == 5 and data[4] == value, (name, data.hex())
+    lockdown = Path('/sys/kernel/security/lockdown').read_text()
+    print('LOCKDOWN', lockdown.strip(), flush=True)
+    assert '[integrity]' in lockdown or '[confidentiality]' in lockdown, lockdown
+    kernel = subprocess.run(['journalctl', '-k', '-b', '--no-pager', '-o', 'cat'],
+                            capture_output=True, text=True, timeout=120, check=True).stdout
+    assert 'secureboot: Secure boot enabled' in kernel.splitlines()
+    print('KEDRA_SECUREBOOT_PASS', flush=True)
 
 
 def control(name):
@@ -35,6 +54,7 @@ def cli(label, *arguments, success=True):
 def main():
     assert os.geteuid() == 0
     assert Path('/usr/share/sysroot/disposable-ghcr-test').read_text() == 'Kedra generated GHCR test VM\n'
+    check_secure_boot()
     hosts=Path('/etc/hosts')
     if '10.0.2.2 ghcr.io' not in hosts.read_text():
         with hosts.open('a') as stream:

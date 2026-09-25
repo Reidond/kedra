@@ -3,6 +3,19 @@ set -Eeuo pipefail
 marker() { printf '%s\n' "$1" | tee /dev/ttyS1; }
 trap 'code=$?; marker "KEDRA_R07_FAIL line=$LINENO code=$code"; journalctl -b -u greetd --no-pager -n 50; systemctl poweroff --no-block; exit "$code"' ERR
 test "$(getenforce)" = Enforcing
+# UEFI Secure Boot as seen by shim, the firmware variables (efivarfs prefixes
+# each value with 4 attribute bytes), kernel lockdown and the kernel's report.
+# The journal keeps the kernel line that the image's quiet karg hides.
+check_secure_boot() {
+    local efi=/sys/firmware/efi/efivars global=8be4df61-93ca-11d2-aa0d-00e098032b8c
+    test "$(mokutil --sb-state)" = 'SecureBoot enabled'
+    test "$(od -An -tx1 -v "$efi/SecureBoot-$global" | awk 'NR == 1 && NF == 5 { print $5 }')" = 01
+    test "$(od -An -tx1 -v "$efi/SetupMode-$global" | awk 'NR == 1 && NF == 5 { print $5 }')" = 00
+    grep -E '\[(integrity|confidentiality)\]' /sys/kernel/security/lockdown
+    journalctl -k -b --no-pager -o cat | grep -Fx 'secureboot: Secure boot enabled'
+}
+check_secure_boot
+marker KEDRA_SECUREBOOT_PASS
 uid=$(id -u kedra-test)
 for attempt in $(seq 1 60); do
     if pgrep -u greetd -x tuigreet >/dev/null; then break; fi
@@ -202,7 +215,12 @@ marker KEDRA_R07_SECRET_SERVICE_PING_PASS
 # Prove normal password login unlocked this synthetic account's keyring.
 as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked
 test "$(as_user timeout --kill-after=2s 20s busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked)" = 'b false'
-as_user sysroot doctor --json | jq -e '.desktop_session_checks_passed and (.changes_performed | not)' >/dev/null
+# Keep the JSON of a failing doctor too; the assertion below still requires success.
+doctor=$(as_user sysroot doctor --json || true)
+# Record what the ordinary user observed for Secure Boot and kernel lockdown.
+printf '%s\n' "$doctor" | jq -c '.checks[] | select(.name == "secure_boot")' | tee /dev/ttyS1
+printf '%s\n' "$doctor" | jq -e '.desktop_session_checks_passed and (.changes_performed | not)
+    and any(.checks[]; .name == "secure_boot" and .passed and .required_for_session)' >/dev/null
 marker KEDRA_DOCTOR_SESSION_PASS
 # Repeat after the review/recovery and portal workflows have settled, so a
 # delayed autostart cannot pass solely because the first inventory was early.

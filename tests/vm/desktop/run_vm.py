@@ -3,10 +3,11 @@ import argparse
 import json
 import pathlib
 import re
-import shutil
 import socket
 import subprocess
 import time
+
+import secure_boot
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--disk", type=pathlib.Path, required=True)
@@ -30,10 +31,17 @@ if not re.fullmatch(r"[0-9a-f]{32}", password):
 work = args.work.resolve()
 work.mkdir(parents=True, exist_ok=True)
 firmware = args.firmware_vars.resolve() if args.firmware_vars else work / "OVMF_VARS.fd"
-if not firmware.exists():
-    shutil.copyfile("/usr/share/OVMF/OVMF_VARS_4M.fd", firmware)
-elif not args.firmware_vars:
-    raise SystemExit("Existing VM firmware state requires an explicit --firmware-vars path")
+try:
+    if not firmware.exists():
+        secure_boot.create("microsoft", firmware)
+    elif not args.firmware_vars:
+        raise SystemExit("Existing VM firmware state requires an explicit --firmware-vars path")
+    else:
+        # Persisted state must still carry the Microsoft-enrolled Secure Boot
+        # trust; a store in setup mode or with other keys is never reused.
+        secure_boot.verify(firmware)
+except secure_boot.FirmwareError as error:
+    raise SystemExit(f"Refusing VM firmware variables: {error}") from None
 qmp_path = work / "qmp.sock"
 log = work / "serial.log"
 events = work / "events.log"
@@ -79,10 +87,13 @@ class Qmp:
             time.sleep(0.08)
 
 command = [
-    "qemu-system-x86_64", "-machine", "q35,accel=kvm", "-cpu", "host",
+    "qemu-system-x86_64", "-machine", "q35,smm=on,accel=kvm", "-cpu", "host",
     "-smp", "4", "-m", "4096", "-device", "virtio-rng-pci",
-    "-drive", "if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
-    "-drive", f"if=pflash,format=raw,file={firmware}",
+    # The Secure Boot build requires SMM and an SMM-only writable varstore.
+    # No -no-reboot: shim's fallback may reset after adding a boot entry.
+    "-global", "driver=cfi.pflash01,property=secure,value=on",
+    "-drive", f"if=pflash,format=raw,unit=0,readonly=on,file={secure_boot.CODE}",
+    "-drive", f"if=pflash,format=raw,unit=1,file={firmware}",
     "-drive", f"file={disk},if=virtio,format=qcow2,snapshot={'off' if args.persistent_disk else 'on'}",
     "-vga", "none", "-device", "virtio-vga-gl,xres=1280,yres=768", "-display", "gtk,gl=on", "-full-screen",
     "-audiodev", "none,id=audio0", "-device", "ich9-intel-hda", "-device", "hda-duplex,audiodev=audio0",
@@ -190,7 +201,9 @@ with (work / "qemu.log").open("w") as output:
         text = events.read_text(errors="replace") if events.exists() else ""
         if process.returncode != 0 or args.success_marker not in text:
             raise RuntimeError("Desktop VM did not pass; inspect QEMU/serial evidence")
-        print(f"PASS: generated graphical VM reported {args.success_marker}", flush=True)
+        if "KEDRA_SECUREBOOT_PASS" not in text:
+            raise RuntimeError("Guest did not prove UEFI Secure Boot; inspect serial evidence")
+        print(f"PASS: generated graphical VM reported {args.success_marker} under UEFI Secure Boot", flush=True)
     finally:
         if process.poll() is None:
             process.terminate()

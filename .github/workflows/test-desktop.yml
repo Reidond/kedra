@@ -9,6 +9,7 @@ on:
       - build/assemble.sh
       - build/agents/**
       - build/bitwarden/**
+      - build/release/material.py
       - tests/vm/desktop/**
       - tests/vm/console.toml
       - tests/resolve-fedora-base.py
@@ -51,13 +52,13 @@ jobs:
           target/release/sysroot source archive --host desktop --output output/desktop-context/payload.tar
           cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/desktop-context/
           cp build/inputs.json output/desktop-evidence/
-          bash build/agents/prepare.sh output/desktop-context "$RUNNER_TEMP/kedra-agent-inputs" output/desktop-evidence/agent-inputs.json
+          bash build/agents/prepare.sh desktop output/desktop-context "$RUNNER_TEMP/kedra-agent-inputs" output/desktop-evidence/agent-inputs.json
           sha256sum output/desktop-context/* > output/desktop-evidence/build-input-hashes.txt
       - name: Install runner container tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils imagemagick xdotool rpm cpio
-          python3 build/bitwarden/prepare.py --context output/desktop-context --evidence output/desktop-evidence/bitwarden-inputs.json
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf python3-virt-firmware xvfb xauth mesa-utils imagemagick xdotool rpm cpio
+          python3 build/bitwarden/prepare.py --target desktop --context output/desktop-context --evidence output/desktop-evidence/bitwarden-inputs.json
           sha256sum output/desktop-context/* > output/desktop-evidence/build-input-hashes.txt
       - name: Build and validate Fedora desktop candidate
         run: |
@@ -114,16 +115,17 @@ jobs:
           PY
       - name: Build disposable desktop disk
         run: |
-          builder=$(jq -er .builder build/inputs.json)
+          builder=$(jq -er .platforms.amd64.builder build/inputs.json)
           sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
             -v "$PWD/output/desktop-image:/output" \
             -v "$RUNNER_TEMP/kedra-r07-private/blueprint.toml:/config.toml:ro" \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
             "$builder" --type qcow2 --rootfs ext4 --use-librepo=True localhost/kedra-desktop-test:r07 \
             > "$RUNNER_TEMP/kedra-r07-private/builder.log" 2>&1
-      - name: Test graphical login and session
+      - name: Test graphical login and session under UEFI Secure Boot
         run: |
           set -euo pipefail
+          python3 tests/vm/desktop/secure_boot.py provenance --evidence output/desktop-evidence
           mapfile -t disks < <(find "$PWD/output/desktop-image" -name '*.qcow2' -type f)
           test "${#disks[@]}" -eq 1
           sudo xvfb-run -a -s '-screen 0 1280x768x24' env LIBGL_ALWAYS_SOFTWARE=1 \

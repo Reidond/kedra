@@ -7,6 +7,7 @@ on:
       - .github/workflows/test-home-transition.yml
       - tests/vm/home-transition/**
       - tests/vm/desktop/run_vm.py
+      - tests/vm/desktop/secure_boot.py
       - tests/vm/desktop/test-profile.toml
       - tests/vm/console.toml
       - tests/resolve-fedora-base.py
@@ -15,6 +16,7 @@ on:
       - build/assemble.sh
       - build/agents/**
       - build/bitwarden/**
+      - build/release/material.py
       - Containerfile
       - crates/**
       - Cargo.toml
@@ -42,7 +44,7 @@ jobs:
       - name: Prepare disposable runner tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf xvfb xauth mesa-utils imagemagick xdotool rpm cpio e2fsprogs
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-x86 qemu-system-gui qemu-utils ovmf python3-virt-firmware xvfb xauth mesa-utils imagemagick xdotool rpm cpio e2fsprogs
           rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets --locked -- -D warnings

@@ -32,8 +32,10 @@ concurrency:
 
 jobs:
   # Independent callers: a failure in one target never blocks the other.
-  # No secrets are passed or inherited; each signer job reads only its own
-  # protected environment's secrets inside release-target.yml.
+  # A called job sees its environment's secrets only when the caller inherits
+  # secrets (probe run 36191986665: empty without inherit, present with it).
+  # The repository has no repository-level secrets; each signer job still reads
+  # only its own protected environment inside release-target.yml.
   desktop:
     if: github.repository == 'Reidond/kedra' && github.ref == 'refs/heads/main' && vars.KEDRA_RELEASES_ENABLED == 'true'
     uses: ./.github/workflows/release-target.yml
@@ -41,6 +43,7 @@ jobs:
       contents: read
       actions: read
       packages: write
+    secrets: inherit
     with:
       target: desktop
       runner: ubuntu-24.04
@@ -52,6 +55,7 @@ jobs:
       contents: read
       actions: read
       packages: write
+    secrets: inherit
     with:
       target: utm
       runner: ubuntu-24.04-arm

@@ -14,7 +14,7 @@ Build jobs have public trust. Automatic isolated signing executes no checkout/ca
 Per-target releases (2026-09-25; none of this has run in Actions yet):
 - release.yml keeps one non-cancelling `release-44` group. It calls reusable `release-target.yml` independently for desktop (`ubuntu-24.04`) and utm (`ubuntu-24.04-arm`).
 - Each target uses its own `kedra-<target>-signing` environment, secrets, builds repository and artifacts.
-- No `secrets: inherit`; the signer alone has the environment.
+- The callers use `secrets: inherit`, and only the signer job declares the environment. Observed 2026-09-25 (release run 36190624411 failed closed with empty signing secrets; probe run 36191986665): a called job that declares `environment:` sees that environment's secrets as empty unless the caller inherits secrets, despite the reusable-workflow docs. The repository has no repository-level secrets, so inheriting exposes nothing else.
 - check.yml adds a native `rust-aarch64` leg next to the required `rust` leg.
 - Hosted arm64 runners expose no `/dev/kvm`. test-utm-image.yml therefore boots its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. A full-image TCG boot took 2–4 min locally on an M2; runner speed is unmeasured.
 - The four x86 VM workflows boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd`, and require the guest's `KEDRA_SECUREBOOT_PASS`. test-signed-update adds a snakeoil-keys refusal case.

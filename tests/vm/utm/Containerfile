@@ -1,0 +1,6 @@
+# Test-only Secure Boot observer layered over the utm candidate; never promote this derivative.
+FROM localhost/kedra-utm:research
+COPY check.sh /usr/libexec/kedra-research-utm
+COPY check.service /usr/lib/systemd/system/kedra-research-utm.service
+RUN chmod 0755 /usr/libexec/kedra-research-utm && \
+    systemctl enable kedra-research-utm.service && bootc container lint

@@ -1,0 +1,14 @@
+[Unit]
+Description=Disposable Kedra utm Secure Boot boot observer
+Wants=dev-virtio\x2dports-org.kedra.events.device
+After=dev-virtio\x2dports-org.kedra.events.device
+
+[Service]
+# exec, not oneshot: the observer waits for the finished boot transaction.
+Type=exec
+ExecStart=/usr/libexec/kedra-research-utm
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

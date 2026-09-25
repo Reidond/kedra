@@ -1,0 +1,161 @@
+name: Test UTM image
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+    paths:
+      - .github/workflows/test-utm-image.yml
+      - Containerfile
+      - build/assemble.sh
+      - build/agents/**
+      - build/bitwarden/**
+      - build/release/material.py
+      - tests/vm/utm/**
+      - tests/resolve-fedora-base.py
+      - build/inputs.json
+      - build/release/compatibility.json
+      - packages/**
+      - home/**
+      - etc/**
+      - usr/**
+      - hosts/utm/**
+      - crates/**
+      - Cargo.lock
+      - Cargo.toml
+      - rust-toolchain.toml
+permissions:
+  contents: read
+concurrency:
+  group: test-utm-image-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  utm:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    # Native aarch64 image build; hosted arm64 runners expose no /dev/kvm, so the
+    # Secure Boot boot below is TCG emulation with generous bounds.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Build checked Rust tooling
+        run: |
+          test "$(uname -m)" = aarch64
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --test 'e2e_*' --locked
+          cargo build --workspace --release --locked
+      - name: Prepare explicit committed payload
+        run: |
+          mkdir -p output/utm-evidence output/utm-context
+          target/release/sysroot source plan --host utm --json > output/utm-evidence/source.json
+          jq -e '.target.id == "utm" and .target.architecture == "aarch64" and .target.candidate_target' \
+            output/utm-evidence/source.json > /dev/null
+          target/release/sysroot source archive --host utm --output output/utm-context/payload.tar
+          cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/utm-context/
+          cp build/inputs.json output/utm-evidence/
+          bash build/agents/prepare.sh utm output/utm-context "$RUNNER_TEMP/kedra-agent-inputs" output/utm-evidence/agent-inputs.json
+          sha256sum output/utm-context/* > output/utm-evidence/build-input-hashes.txt
+      - name: Install runner container and firmware tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo jq qemu-system-arm qemu-efi-aarch64 qemu-utils python3-virt-firmware
+          python3 build/bitwarden/prepare.py --target utm --context output/utm-context --evidence output/utm-evidence/bitwarden-inputs.json
+          sha256sum output/utm-context/* > output/utm-evidence/build-input-hashes.txt
+      - name: Build and validate Fedora utm candidate
+        run: |
+          set -euo pipefail
+          base=$(python3 tests/resolve-fedora-base.py --architecture arm64 --output output/utm-evidence/base-resolution.json)
+          {
+            date --utc --iso-8601=seconds
+            uname -a
+            nproc
+            free -h
+            df -h
+            podman --version
+            skopeo --version
+          } > output/utm-evidence/environment.txt
+          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
+            --tag localhost/kedra-utm:research output/utm-context \
+            2>&1 | tee output/utm-evidence/build.log
+          # assemble.sh ends with bootc container lint; keep its positive result.
+          grep -E '^Checks passed: [0-9]+' output/utm-evidence/build.log
+          sudo podman image inspect localhost/kedra-utm:research > output/utm-evidence/image-inspect.json
+          jq -e '.[0].Os == "linux" and .[0].Architecture == "arm64"' output/utm-evidence/image-inspect.json > /dev/null
+          sudo podman run --rm localhost/kedra-utm:research cat /usr/share/sysroot/packages.txt > output/utm-evidence/packages.txt
+          sudo podman run --rm localhost/kedra-utm:research find /var -type f > output/utm-evidence/image-var-files.txt
+          contract=$(jq -er .bootc_version build/release/compatibility.json)
+          sudo podman run --rm -i localhost/kedra-utm:research bash -s -- "$contract" \
+            < tests/vm/utm/image-check.sh > output/utm-evidence/image-checks.txt 2>&1 \
+            || { tail -n 40 output/utm-evidence/image-checks.txt; exit 1; }
+          tail -n 1 output/utm-evidence/image-checks.txt
+      - name: Prepare disposable Secure Boot observer fixture
+        run: |
+          mkdir -p output/utm-test-context output/utm-image output/utm-evidence/vm
+          cp tests/vm/utm/Containerfile tests/vm/utm/check.sh tests/vm/utm/check.service output/utm-test-context/
+          sudo podman build --pull=never --tag localhost/kedra-utm-test:secureboot output/utm-test-context \
+            > output/utm-evidence/test-image-build.log 2>&1
+          python3 - <<'PY'
+          import json, os, pathlib, secrets, subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'kedra-utm-private'
+          root.mkdir(mode=0o700)
+          # Headless run: the account only lets the observer run doctor as a
+          # non-root user, so the generated password is never written down.
+          password = secrets.token_hex(16)
+          hashed = subprocess.check_output(['openssl', 'passwd', '-6', '-stdin'], input=password.encode()).decode().strip()
+          (root / 'blueprint.toml').write_text('[[customizations.user]]\nname = "kedra-test"\npassword = ' + json.dumps(hashed) + '\ngroups = ["wheel"]\n')
+          (root / 'blueprint.toml').chmod(0o600)
+          PY
+      - name: Build disposable utm disk
+        run: |
+          set -euo pipefail
+          builder=$(jq -er .platforms.arm64.builder build/inputs.json)
+          sudo podman pull "$builder" > output/utm-evidence/builder-pull.log 2>&1
+          test "$(sudo podman image inspect "$builder" --format '{{.Os}}/{{.Architecture}}')" = linux/arm64
+          sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
+            -v "$PWD/output/utm-image:/output" \
+            -v "$RUNNER_TEMP/kedra-utm-private/blueprint.toml:/config.toml:ro" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            "$builder" --type qcow2 --rootfs ext4 --use-librepo=True localhost/kedra-utm-test:secureboot \
+            > "$RUNNER_TEMP/kedra-utm-private/builder.log" 2>&1
+          # The emulator needs no privilege: hand only the generated disk to the runner user.
+          sudo chown -R "$(id -u):$(id -g)" output/utm-image
+          df -h > output/utm-evidence/disk-space.txt
+      - name: Boot through UEFI Secure Boot under TCG
+        timeout-minutes: 100
+        run: |
+          set -euo pipefail
+          mapfile -t disks < <(find "$PWD/output/utm-image" -name '*.qcow2' -type f)
+          test "${#disks[@]}" -eq 1
+          digest=$(sudo podman image inspect localhost/kedra-utm-test:secureboot --format '{{.Digest}}')
+          bash tests/vm/utm/boot.sh "${disks[0]}" "$RUNNER_TEMP/kedra-utm-vm" output/utm-evidence/vm "$digest" \
+            | tee output/utm-evidence/vm-result.txt
+      - name: Sanitize builder evidence and remove disposable account secret
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'kedra-utm-private'
+          log = root / 'builder.log'
+          if log.exists():
+              text = re.sub(r'\$6\$[^\s"\x27]+', '<synthetic-password-hash-redacted>', log.read_text(errors='replace'))
+              pathlib.Path('output/utm-evidence/qcow2-build.log').write_text(text)
+          for name in ['blueprint.toml', 'builder.log']:
+              (root / name).unlink(missing_ok=True)
+          PY
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: utm-secureboot-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/utm-evidence/*.txt
+            output/utm-evidence/*.json
+            output/utm-evidence/*.log
+            output/utm-evidence/vm/*.txt
+            output/utm-evidence/vm/*.log
+          if-no-files-found: error
+          retention-days: 14

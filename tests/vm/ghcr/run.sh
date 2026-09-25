@@ -20,8 +20,9 @@ cleanup() {
 trap cleanup EXIT
 base=$(python3 tests/resolve-fedora-base.py --output "$evidence/base-resolution.json")
 printf '%s\n' "$base" > "$root/base.txt"
-builder=$(jq -er .builder build/inputs.json)
+builder=$(jq -er .platforms.amd64.builder build/inputs.json)
 registry=docker.io/library/registry@sha256:7518da9b12dd746278282a729dee2e65eabdeb449db4d0b28d46ef6e90308f58
+python3 tests/vm/desktop/secure_boot.py provenance --evidence "$evidence"
 # Resolve/pull external build tools before introducing the local-only GHCR test domain.
 sudo podman pull "$base" > "$evidence/base-pull.log" 2>&1
 sudo podman pull "$builder" > "$evidence/builder-pull.log" 2>&1
@@ -106,25 +107,32 @@ mapfile -t disks < <(find "$root/image" -type f -name '*.qcow2')
 test "${#disks[@]}" -eq 1
 truncate -s 16M "$root/cases.raw"
 mkfs.ext4 -q -L KEDRA_GHCR_CASES -d "$root/cases" "$root/cases.raw"
-cp /usr/share/OVMF/OVMF_VARS_4M.fd "$root/OVMF_VARS.fd"
+# Microsoft-enrolled UEFI Secure Boot variables persist across the three boots
+# (shim's fallback may add a boot entry and reset once; no -no-reboot).
+python3 tests/vm/desktop/secure_boot.py vars --template microsoft --output "$root/OVMF_VARS.fd"
 for phase in A B ROLLBACK; do
-    sudo timeout 2400 qemu-system-x86_64 -machine q35,accel=kvm -cpu host -smp 2 -m 4096 \
-        -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
-        -drive "if=pflash,format=raw,file=$root/OVMF_VARS.fd" \
+    python3 tests/vm/desktop/secure_boot.py verify --vars "$root/OVMF_VARS.fd"
+    sudo timeout 2400 qemu-system-x86_64 -machine q35,smm=on,accel=kvm -cpu host -smp 2 -m 4096 \
+        -global driver=cfi.pflash01,property=secure,value=on \
+        -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
+        -drive "if=pflash,format=raw,unit=1,file=$root/OVMF_VARS.fd" \
         -drive "file=${disks[0]},if=virtio,format=qcow2" \
         -drive "file=$root/cases.raw,if=virtio,format=raw,readonly=on" \
         -nic user,model=virtio-net-pci -display none -serial stdio -monitor none > "$evidence/$phase.serial.log" 2>&1
-    ! grep -q KEDRA_GHCR_FAIL "$evidence/$phase.serial.log"
+    # `! grep` never trips errexit; refuse a failure marker explicitly.
+    if grep -q KEDRA_GHCR_FAIL "$evidence/$phase.serial.log"; then exit 1; fi
+    grep -q KEDRA_SECUREBOOT_PASS "$evidence/$phase.serial.log"
     grep -q "KEDRA_GHCR_${phase}_PASS" "$evidence/$phase.serial.log"
 done
-printf 'PASS: native v2 enrollment/check/stage/boot/identity recovery/rollback/hold/resume and critical refusals.\n' > "$evidence/result.txt"
+printf 'PASS: native v2 enrollment/check/stage/boot/identity recovery/rollback/hold/resume and critical refusals under UEFI Secure Boot.\n' > "$evidence/result.txt"
 python3 - <<'PY'
 import json,pathlib
 pathlib.Path('output/ghcr-evidence/scope.json').write_text(json.dumps({
     'implemented_cases':['enroll/current','unsigned','wrong-key','wrong-repository','missing-signature',
         'wrong-target','wrong-architecture-identity','wrong-channel','malformed-identity','same-rank-equivocation',
         'offline','available','stage','pending-preservation','idempotent-stage','boot-B','lower-rank-replay',
-        'identity-health-refusal-and-retained-rollback','boot-A','persistent-data','hold','resume'],
+        'identity-health-refusal-and-retained-rollback','boot-A','persistent-data','hold','resume',
+        'uefi-secure-boot-microsoft-keys'],
     'not_run_cases':['deterministic-tag-race','interrupted-helper-or-bootc-operation','legacy-state-migration',
         'native-OCI-platform-mismatch'],
     'production_registry_writes':False,'production_keys_used':False},indent=2)+'\n')

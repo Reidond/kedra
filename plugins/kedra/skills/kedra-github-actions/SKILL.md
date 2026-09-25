@@ -11,6 +11,15 @@ The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and comple
 
 Build jobs have public trust. Automatic isolated signing executes no checkout/candidate/repository code while production keys exist. The main-only environment has no human approval gate. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
 
+Per-target releases (2026-09-25; none of this has run in Actions yet):
+- release.yml keeps one non-cancelling `release-44` group. It calls reusable `release-target.yml` independently for desktop (`ubuntu-24.04`) and utm (`ubuntu-24.04-arm`).
+- Each target uses its own `kedra-<target>-signing` environment, secrets, builds repository and artifacts.
+- No `secrets: inherit`; the signer alone has the environment.
+- check.yml adds a native `rust-aarch64` leg next to the required `rust` leg.
+- Hosted arm64 runners expose no `/dev/kvm`. test-utm-image.yml therefore boots its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. A full-image TCG boot took 2–4 min locally on an M2; runner speed is unmeasured.
+- The four x86 VM workflows boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd`, and require the guest's `KEDRA_SECUREBOOT_PASS`. test-signed-update adds a snakeoil-keys refusal case.
+- SMM under KVM on hosted runners is unverified until those runs.
+
 check.yml uses standard Cargo tools and actual CLI/OpenSSL workflows. Native tests retain signed-update, desktop, home-transition, agent and RPM coverage with disposable inputs. No unit/model/mock/doctests or repository scanners.
 
 Local installer changes retain pinned image-builder, labeling, offline payload verification and deliberate disk choice. Media permissive SELinux never weakens installed enforcing SELinux/signature policy. Record actual local smoke/fresh-install results separately from image builds.

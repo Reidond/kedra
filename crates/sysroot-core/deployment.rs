@@ -1,5 +1,6 @@
 //! Narrow bootc observations and deployment-journal transitions. No ambient I/O.
 use crate::release::{Scope, TrustState};
+use crate::targets;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -124,8 +125,7 @@ impl ImageReference {
 impl RawSlot {
     fn validate(self, scope: &Scope) -> Result<Slot, Error> {
         let digest = self.image.image.validate(scope)?;
-        if self.image.architecture != "amd64"
-            || scope.architecture != "x86_64"
+        if targets::oci_architecture(&scope.architecture) != Some(self.image.architecture.as_str())
             || self.image.image_digest != digest
             || self.incompatible
         {

@@ -3,6 +3,19 @@ set -Eeuo pipefail
 marker() { printf '%s\n' "$1" | tee /dev/ttyS1; }
 trap 'code=$?; marker "KEDRA_R04_FAIL line=$LINENO code=$code"; systemctl poweroff --no-block; exit "$code"' ERR
 test "$(getenforce)" = Enforcing
+# UEFI Secure Boot as seen by shim, the firmware variables (efivarfs prefixes
+# each value with 4 attribute bytes), kernel lockdown and the kernel's report.
+# The journal keeps the kernel line that the image's quiet karg hides.
+check_secure_boot() {
+    local efi=/sys/firmware/efi/efivars global=8be4df61-93ca-11d2-aa0d-00e098032b8c
+    test "$(mokutil --sb-state)" = 'SecureBoot enabled'
+    test "$(od -An -tx1 -v "$efi/SecureBoot-$global" | awk 'NR == 1 && NF == 5 { print $5 }')" = 01
+    test "$(od -An -tx1 -v "$efi/SetupMode-$global" | awk 'NR == 1 && NF == 5 { print $5 }')" = 00
+    grep -E '\[(integrity|confidentiality)\]' /sys/kernel/security/lockdown
+    journalctl -k -b --no-pager -o cat | grep -Fx 'secureboot: Secure boot enabled'
+}
+check_secure_boot
+marker KEDRA_SECUREBOOT_PASS
 test "$(bootc status --json | jq -er .spec.image.signature)" = containerPolicy
 state=/var/lib/kedra-r04
 mkdir -p "$state" /var/lib/sysroot

@@ -78,23 +78,53 @@ try:
         # The public producer validates the checked-in/explicit fingerprint;
         # signing independently binds that value to protected environment authority.
         repository = pathlib.Path(__file__).resolve().parents[1]
-        plan = root / 'public-source-plan.json'
-        plan.write_bytes(subprocess.check_output([str(binary), 'source', 'plan', '--host', 'desktop', '--json'], cwd=repository))
-        for name, fingerprint, accepted in [('accepted', expected, True), ('wrong', '0' * 64, False), ('missing', '', False)]:
+        desktop_plan = json.loads(subprocess.check_output([str(binary), 'source', 'plan', '--host', 'desktop', '--json'],
+                                                          cwd=repository))
+        # The utm plan is generated from the actual committed desktop plan so this
+        # exercises trust preparation independently of which hosts are committed.
+        utm_plan = dict(desktop_plan, target=dict(desktop_plan['target'], id='utm', architecture='aarch64',
+                                                  image='ghcr.io/reidond/kedra-utm', hardware_status='virtual'))
+
+        def prepare_trust(name, plan_value, fingerprint):
+            plan = root / ('public-source-plan-' + name + '.json')
+            plan.write_text(json.dumps(plan_value), encoding='utf-8')
             destination = root / ('public-trust-' + name)
             result = subprocess.run([sys.executable, str(repository / 'build/release/prepare-trust.py'),
                 '--source', str(plan), '--public-key', str(public), '--expected-fingerprint', fingerprint,
                 '--sysroot', str(binary), '--output', str(destination)], capture_output=True)
-            if accepted:
-                assert result.returncode == 0, result.stderr.decode(errors='replace')
-                assert (destination / 'release.pub').read_bytes() == public.read_bytes()
-                policy = json.loads((destination / 'policy.json').read_bytes())
-                assert policy['default'] == [{'type': 'reject'}]
-                assert policy['transports']['docker']['ghcr.io/reidond/kedra-desktop'][0]['signedIdentity'] == {
-                    'type': 'exactRepository', 'dockerRepository': 'ghcr.io/reidond/kedra-desktop'}
-            else:
-                assert result.returncode != 0 and not destination.exists(), 'Untrusted fingerprint produced public trust'
-        print('PASS: public trust accepts the exact key fingerprint and refuses missing/wrong authority', flush=True)
+            return result, destination
+
+        for plan_value in (desktop_plan, utm_plan):
+            scope = plan_value['target']
+            for name, fingerprint, accepted in [('accepted', expected, True), ('wrong', '0' * 64, False), ('missing', '', False)]:
+                result, destination = prepare_trust(scope['id'] + '-' + name, plan_value, fingerprint)
+                if accepted:
+                    assert result.returncode == 0, result.stderr.decode(errors='replace')
+                    assert (destination / 'release.pub').read_bytes() == public.read_bytes()
+                    policy = json.loads((destination / 'policy.json').read_bytes())
+                    assert policy['default'] == [{'type': 'reject'}]
+                    assert list(policy['transports']['docker']) == [scope['image']]
+                    assert policy['transports']['docker'][scope['image']][0]['signedIdentity'] == {
+                        'type': 'exactRepository', 'dockerRepository': scope['image']}
+                    release_policy = json.loads((destination / 'release-policy.json').read_bytes())
+                    assert release_policy['scope'] == {'target': scope['id'], 'architecture': scope['architecture'],
+                                                       'fedora_release': 44, 'repository': scope['image']}
+                else:
+                    assert result.returncode != 0 and not destination.exists(), 'Untrusted fingerprint produced public trust'
+        print('PASS: desktop and utm public trust accept the exact key fingerprint and refuse missing/wrong authority', flush=True)
+        for name, target_changes in [
+            ('utm-x86_64', {'id': 'utm', 'architecture': 'x86_64', 'image': 'ghcr.io/reidond/kedra-utm'}),
+            ('utm-desktop-repository', {'id': 'utm', 'architecture': 'aarch64', 'image': 'ghcr.io/reidond/kedra-desktop'}),
+            ('desktop-aarch64', {'architecture': 'aarch64'}),
+            ('desktop-utm-repository', {'image': 'ghcr.io/reidond/kedra-utm'}),
+            ('disabled-xps', {'id': 'xps', 'image': 'ghcr.io/reidond/kedra-xps'}),
+            ('utm-not-candidate', {'id': 'utm', 'architecture': 'aarch64', 'image': 'ghcr.io/reidond/kedra-utm',
+                                   'candidate_target': False}),
+        ]:
+            refused = dict(desktop_plan, target=dict(desktop_plan['target'], **target_changes))
+            result, destination = prepare_trust(name, refused, expected)
+            assert result.returncode != 0 and not destination.exists(), 'Unsupported target scope produced public trust: ' + name
+        print('PASS: public trust refuses wrong-architecture, wrong-repository, disabled and unknown target scopes', flush=True)
         invalid_key = subprocess.run([str(binary), 'release', 'key', '--public-key', str(private)], capture_output=True)
         assert invalid_key.returncode != 0 and not invalid_key.stdout
         # Public release tooling checks freshness using independently signed
@@ -264,6 +294,11 @@ try:
         assert prior.read_bytes() == prior_bytes, 'Unpack changed caller replay history'
         print('PASS: CLI channel unpack and downstream verification; replay/tamper/authority/existing-output refusal', flush=True)
         verify(signature, key=wrong_public, expected=False)
+        # Desktop-scoped legacy protocol-1 metadata is never accepted for another target.
+        legacy_utm = subprocess.run([str(binary), "release", "verify", "--manifest", str(payload),
+            "--signature", str(signature), "--public-key", str(public), "--artifact", str(artifact),
+            "--target", "utm", "--json"], capture_output=True)
+        assert legacy_utm.returncode != 0 and not legacy_utm.stdout, "Desktop legacy metadata verified as utm"
         altered = root / "altered.json"
         altered.write_bytes(payload.read_bytes() + b" ")
         verify(signature, manifest=altered, expected=False)

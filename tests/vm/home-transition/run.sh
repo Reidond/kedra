@@ -11,7 +11,7 @@ chmod 0700 "$private"
 mkdir -p "$root/desktop" "$root/image" output/r04-evidence
 evidence="$PWD/output/r04-evidence"
 base=$(python3 tests/resolve-fedora-base.py --output "$evidence/base-resolution.json")
-builder=$(jq -er .builder build/inputs.json)
+builder=$(jq -er .platforms.amd64.builder build/inputs.json)
 repository=registry.kedra.test:5000/kedra/r04
 registry_image=docker.io/library/registry@sha256:7518da9b12dd746278282a729dee2e65eabdeb449db4d0b28d46ef6e90308f58
 cleanup() {
@@ -39,6 +39,7 @@ trap cleanup EXIT
     skopeo --version
     printf '%s\n' "$base" "$builder" "$registry_image"
 } > "$evidence/environment.txt"
+python3 tests/vm/desktop/secure_boot.py provenance --evidence "$evidence"
 openssl rand -base64 32 > "$private/passphrase"
 chmod 0600 "$private/passphrase"
 skopeo generate-sigstore-key --output-prefix "$private/allowed" --passphrase-file "$private/passphrase"
@@ -61,8 +62,8 @@ done
 curl --silent --fail --cacert "$root/tls.crt" https://registry.kedra.test:5000/v2/ > /dev/null
 target/release/sysroot source archive --host desktop --output "$root/desktop/payload.tar"
 cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh "$root/desktop/"
-bash build/agents/prepare.sh "$root/desktop" "$private/agent-inputs" "$evidence/agent-inputs.json"
-python3 build/bitwarden/prepare.py --context "$root/desktop" --evidence "$evidence/bitwarden-inputs.json"
+bash build/agents/prepare.sh desktop "$root/desktop" "$private/agent-inputs" "$evidence/agent-inputs.json"
+python3 build/bitwarden/prepare.py --target desktop --context "$root/desktop" --evidence "$evidence/bitwarden-inputs.json"
 sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
     --tag localhost/kedra-r04-desktop:base "$root/desktop" > "$evidence/desktop-build.log" 2>&1
 for variant in A B; do
@@ -100,6 +101,8 @@ mkfs.ext4 -q -L KEDRA_R04_CASES -d "$root/cases" "$root/cases.raw"
 sudo chown "$(id -u):$(id -g)" "$root/image" "$(dirname "${disks[0]}")" "${disks[0]}"
 sudo chgrp "$(id -g)" /dev/kvm
 sudo chmod g+rw /dev/kvm
+# run_vm.py creates the Microsoft-enrolled UEFI Secure Boot variables on the
+# first boot and refuses to reuse them unless that trust is still intact.
 for phase in stage-b accept-b rollback-a; do
     login_options=()
     if test "$phase" != stage-b; then login_options+=(--remembered-login); fi
@@ -116,4 +119,4 @@ for phase in stage-b accept-b rollback-a; do
         --login-marker KEDRA_R04_LOGIN_READY --failure-marker KEDRA_R04_FAIL --success-marker "$success" \
         | tee "$evidence/$phase.txt"
 done
-printf 'PASS: signed A-to-B native home acceptance and retained-A rollback.\n' | tee "$evidence/result.txt"
+printf 'PASS: signed A-to-B native home acceptance and retained-A rollback under UEFI Secure Boot.\n' | tee "$evidence/result.txt"

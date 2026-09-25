@@ -24,13 +24,16 @@ def native(*arguments):
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, required=True)
+parser.add_argument('--architecture', choices=('amd64', 'arm64'), default='amd64',
+                    help='OCI platform of the reviewed Fedora stream (default: amd64)')
 args = parser.parse_args()
 require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_OS') == 'Linux'
         and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra', 'Use only a disposable Kedra Actions runner')
 root = Path(__file__).resolve().parents[1]
 inputs = json.loads((root / 'build/inputs.json').read_bytes())
 tag = inputs['base_tag']
-require(tag == 'quay.io/fedora/fedora-bootc:44' and inputs['architecture'] == 'amd64',
+require(inputs.get('schema_version') == 2 and tag == 'quay.io/fedora/fedora-bootc:44'
+        and isinstance(inputs.get('platforms'), dict) and args.architecture in inputs['platforms'],
         'Unreviewed Fedora stream or platform')
 raw = native('skopeo', 'inspect', '--raw', 'docker://' + tag)
 manifest = json.loads(raw)
@@ -38,9 +41,10 @@ discovery_digest = 'sha256:' + hashlib.sha256(raw).hexdigest()
 if 'manifests' in manifest:
     choices = [item for item in manifest['manifests']
                if item.get('platform', {}).get('os') == 'linux'
-               and item.get('platform', {}).get('architecture') == 'amd64'
+               and item.get('platform', {}).get('architecture') == args.architecture
                and not item.get('platform', {}).get('variant')]
-    require(len(choices) == 1, 'Fedora index does not select exactly one Linux/AMD64 platform without variant')
+    require(len(choices) == 1, 'Fedora index does not select exactly one Linux/' + args.architecture
+            + ' platform without variant')
     digest = choices[0]['digest']
 else:
     digest = discovery_digest
@@ -51,9 +55,10 @@ require('sha256:' + hashlib.sha256(platform_raw).hexdigest() == digest, 'Immutab
 platform = json.loads(platform_raw)
 require('manifests' not in platform and isinstance(platform.get('config'), dict), 'Selected image is not a platform manifest')
 config = json.loads(native('skopeo', 'inspect', '--config', 'docker://' + reference))
-require(config.get('os') == 'linux' and config.get('architecture') == 'amd64', 'Fedora image config platform differs')
+require(config.get('os') == 'linux' and config.get('architecture') == args.architecture,
+        'Fedora image config platform differs')
 evidence = {'schema_version': 1, 'source_tag': tag, 'discovery_digest': discovery_digest,
-            'platform_digest': digest, 'reference': reference, 'os': 'linux', 'architecture': 'amd64',
+            'platform_digest': digest, 'reference': reference, 'os': 'linux', 'architecture': args.architecture,
             'resolved_at': int(time.time()), 'skopeo': native('skopeo', '--version').decode().strip()}
 with args.output.open('x', encoding='utf-8', newline='\n') as stream:
     json.dump(evidence, stream, sort_keys=True, indent=2)

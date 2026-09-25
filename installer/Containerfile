@@ -1,13 +1,21 @@
-# Separate Anaconda environment. The installed desktop is a distinct OCI payload.
+# Separate Anaconda environment. The installed system is a distinct OCI payload.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG PAYLOAD_IMAGE
 ARG SOURCE_DATE_EPOCH
-RUN dnf -y --best --refresh --repo=fedora --repo=updates \
+# The installer's native architecture selects the signed cdboot GRUB (gcdx64.efi or
+# gcdaa64.efi). image-builder v82 always adds the i386-pc El Torito stage, which
+# reads grub2-pc-modules from this build root on every architecture.
+RUN case "$(uname -m)" in \
+      x86_64) cdboot=grub2-efi-x64-cdboot ;; \
+      aarch64) cdboot=grub2-efi-aa64-cdboot ;; \
+      *) echo "Unsupported installer architecture" >&2; exit 1 ;; \
+    esac && \
+    dnf -y --best --refresh --repo=fedora --repo=updates \
       '--setopt=*.skip_if_unavailable=False' '--setopt=*.gpgcheck=True' \
       install anaconda anaconda-install-img-deps anaconda-dracut \
       dracut-config-generic dracut-network net-tools squashfs-tools \
-      grub2-efi-x64-cdboot grub2-pc-modules xorrisofs isomd5sum \
+      "$cdboot" grub2-pc-modules xorrisofs isomd5sum \
       python-unversioned-command plymouth default-fonts-core-sans \
       default-fonts-other-sans google-noto-sans-cjk-fonts && \
     dnf clean all && \
@@ -22,7 +30,9 @@ COPY finalize-fstab.py /usr/libexec/kedra-installer-finalize-fstab.py
 COPY helper /usr/libexec/sysroot/helper
 COPY trust/ /tmp/kedra-installer-trust/
 COPY verify-payload.service /usr/lib/systemd/system/kedra-installer-verify.service
+# Gate both Anaconda entry points: the tmux session and the inst.notmux path.
 COPY require-verification.conf /usr/lib/systemd/system/anaconda.service.d/20-kedra-verify.conf
+COPY require-verification.conf /usr/lib/systemd/system/anaconda-direct.service.d/20-kedra-verify.conf
 RUN test -n "$PAYLOAD_IMAGE" && \
     mkdir -p /usr/lib/sysroot/trust /usr/share/sysroot /etc/containers/registries.d /usr/lib/bootc/install && \
     cp /tmp/kedra-installer-trust/release.pub /tmp/kedra-installer-trust/release-policy.json /usr/lib/sysroot/trust/ && \

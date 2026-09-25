@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "resolved_on": "2026-09-25",
+  "build_container_tag": "quay.io/fedora/fedora:44",
+  "build_container_index": "sha256:94e175d9796d3582d4d3cdcff1004bd67cc51dc45df452d3b16f76f071c7c487",
+  "build_container": "quay.io/fedora/fedora@sha256:c61b46d9d6a76b37a765368fb78149e220bccf14019605846cb8558e983dc131",
+  "architecture": "arm64",
+  "minimum_utm_version": "5.0.6"
+}

@@ -1,6 +1,8 @@
 //! Storage and the narrow protocol for image-owned management code.
 //! No agent runtime or Git engine is linked into the helper.
 #[cfg(target_os = "linux")]
+pub mod firmware;
+#[cfg(target_os = "linux")]
 pub mod management;
 pub mod protocol;
 #[cfg(target_os = "linux")]

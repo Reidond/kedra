@@ -1,6 +1,6 @@
 # Fedora package checks
 
-Resolve only the reviewed official Fedora 44 Linux/AMD64 stream to an immutable digest. Reconcile the complete installed native package closure with stable fedora/updates repositories and signature verification. Use fresh metadata and bypass cached package layers. Missing repositories, invalid RPMs or solver failures are errors.
+Resolve only the reviewed official Fedora 44 Linux stream, for the target's own OCI architecture (amd64 for desktop, arm64 for utm, no variant), to an immutable digest. Each target resolves and builds natively on its own runner; `build/inputs.json` schema 2 pins one bootc-image-builder manifest per architecture (2026-09-25). Reconcile the complete installed native package closure with stable fedora/updates repositories and signature verification. Use fresh metadata and bypass cached package layers. Missing repositories, invalid RPMs or solver failures are errors.
 
 Compare source, base, complete RPM header/payload identities, external artifacts and recipes against the signed stable image's resolved-input record. Same package version is not proof of same bytes. The changed image must agree with preflight.
 

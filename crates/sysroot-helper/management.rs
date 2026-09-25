@@ -354,6 +354,12 @@ pub fn run(request: Request) -> Result<()> {
     if matches!(request, Request::VerifyInstaller {}) {
         return installer::verify(&trust);
     }
+    if !trust.scope.legacy() {
+        return Err(
+            "protocol-1 release management exists only for desktop x86_64; use the signed-image channel"
+                .into(),
+        );
+    }
     let _lock = lock()?;
     if output(&["--version"], 4096)?.as_slice()
         != sysroot_core::compatibility::bootc_output()?.as_bytes()

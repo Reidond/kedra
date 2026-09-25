@@ -1,9 +1,8 @@
 //! Bounded signed-image identity and monotonically ordered deployment receipts.
-use crate::{deployment::digest_valid, release::Scope};
+use crate::{deployment::digest_valid, release::Scope, targets};
 use serde::{Deserialize, Serialize};
 
 pub const LABEL: &str = "org.kedra.image.identity";
-pub const REPOSITORY: &str = "ghcr.io/reidond/kedra-desktop";
 pub const CHANNEL: &str = "stable";
 pub const MAX_IDENTITY: usize = 16_384;
 
@@ -41,15 +40,15 @@ impl Identity {
     }
 
     pub fn validate(&self, scope: &Scope, now: u64) -> Result<(), &'static str> {
+        let production =
+            targets::enabled(&scope.target, &scope.architecture).map(|spec| spec.repository);
         if self.schema_version != 2
             || self.project != "Kedra"
-            || self.target != "desktop"
             || self.target != scope.target
-            || self.architecture != "x86_64"
             || self.architecture != scope.architecture
             || self.fedora_release != 44
             || self.fedora_release != scope.fedora_release
-            || self.repository != REPOSITORY
+            || production != Some(self.repository.as_str())
             || self.repository != scope.repository
             || self.channel != CHANNEL
             || self.workflow != ".github/workflows/release.yml"

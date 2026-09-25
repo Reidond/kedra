@@ -12,7 +12,7 @@ chmod 0700 "$private"
 mkdir -p output/r01-evidence "$root/context/public" "$root/image" "$root/cases"
 evidence="$PWD/output/r01-evidence"
 base=$(python3 tests/resolve-fedora-base.py --output "$evidence/base-resolution.json")
-builder=$(jq -er .builder build/inputs.json)
+builder=$(jq -er .platforms.amd64.builder build/inputs.json)
 registry_image=docker.io/library/registry@sha256:7518da9b12dd746278282a729dee2e65eabdeb449db4d0b28d46ef6e90308f58
 repository=registry.kedra.test:5000/kedra/r01
 {
@@ -28,6 +28,7 @@ repository=registry.kedra.test:5000/kedra/r01
     qemu-system-x86_64 --version
     printf '%s\n' "$base" "$builder" "$registry_image"
 } > "$evidence/environment.txt"
+python3 tests/vm/desktop/secure_boot.py provenance --evidence "$evidence"
 cleanup() {
     sudo podman logs kedra-r01-registry > "$evidence/registry.log" 2>&1 || true
     sudo podman stop kedra-r01-registry >/dev/null 2>&1 || true
@@ -128,15 +129,38 @@ mapfile -t disks < <(find "$root/image" -type f -name '*.qcow2')
 test "${#disks[@]}" -eq 1
 truncate -s 16M "$root/cases.raw"
 mkfs.ext4 -q -L KEDRA_CASES -d "$root/cases" "$root/cases.raw"
-cp /usr/share/OVMF/OVMF_VARS_4M.fd "$root/OVMF_VARS.fd"
+# Negative UEFI Secure Boot case on the same disk (snapshot, no network): the
+# same firmware with a db trusting only Ubuntu's snakeoil test key must refuse
+# Fedora's Microsoft-signed shim and remain at its boot menu until the timeout.
+python3 tests/vm/desktop/secure_boot.py vars --template snakeoil --output "$root/OVMF_VARS.snakeoil.fd"
+untrusted=0
+sudo timeout 120 qemu-system-x86_64 -machine q35,smm=on,accel=kvm -cpu host -smp 2 -m 4096 \
+    -global driver=cfi.pflash01,property=secure,value=on \
+    -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
+    -drive "if=pflash,format=raw,unit=1,file=$root/OVMF_VARS.snakeoil.fd" \
+    -drive "file=${disks[0]},if=virtio,format=qcow2,snapshot=on" \
+    -nic none -display none -serial stdio -monitor none > "$evidence/untrusted-keys.serial.log" 2>&1 || untrusted=$?
+test "$untrusted" = 124
+grep -a -E 'BdsDxe: failed to load Boot[0-9A-F]{4} .*: Access Denied' "$evidence/untrusted-keys.serial.log"
+if grep -a -E 'Linux version|KEDRA_' "$evidence/untrusted-keys.serial.log"; then
+    echo 'Firmware without Microsoft keys started the operating system' >&2
+    exit 1
+fi
+# Positive phases: Microsoft-enrolled variables persist across the three boots
+# (shim's fallback may add a boot entry and reset once; no -no-reboot).
+python3 tests/vm/desktop/secure_boot.py vars --template microsoft --output "$root/OVMF_VARS.fd"
 for phase in stage-b boot-b rollback-a; do
-    sudo timeout 900 qemu-system-x86_64 -machine q35,accel=kvm -cpu host -smp 2 -m 4096 \
-        -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
-        -drive "if=pflash,format=raw,file=$root/OVMF_VARS.fd" \
+    python3 tests/vm/desktop/secure_boot.py verify --vars "$root/OVMF_VARS.fd"
+    sudo timeout 900 qemu-system-x86_64 -machine q35,smm=on,accel=kvm -cpu host -smp 2 -m 4096 \
+        -global driver=cfi.pflash01,property=secure,value=on \
+        -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
+        -drive "if=pflash,format=raw,unit=1,file=$root/OVMF_VARS.fd" \
         -drive "file=${disks[0]},if=virtio,format=qcow2" \
         -drive "file=$root/cases.raw,if=virtio,format=raw,readonly=on" \
         -nic user,model=virtio-net-pci -display none -serial stdio -monitor none > "$evidence/$phase.serial.log" 2>&1
-    ! grep -q KEDRA_R01_FAIL "$evidence/$phase.serial.log"
+    # `! grep` never trips errexit; refuse a failure marker explicitly.
+    if grep -q KEDRA_R01_FAIL "$evidence/$phase.serial.log"; then exit 1; fi
+    grep -q KEDRA_SECUREBOOT_PASS "$evidence/$phase.serial.log"
     case "$phase" in
         stage-b)
             grep -q KEDRA_R01_STAGE_PASS "$evidence/$phase.serial.log"
@@ -146,4 +170,4 @@ for phase in stage-b boot-b rollback-a; do
         rollback-a) grep -q KEDRA_R01_ROLLBACK_PRESERVES_DATA_PASS "$evidence/$phase.serial.log" ;;
     esac
 done
-echo 'PASS: disposable signature negative cases, A-to-B boot and retained-A rollback.' | tee "$evidence/result.txt"
+echo 'PASS: untrusted-key Secure Boot refusal; disposable signature negative cases, A-to-B boot and retained-A rollback under UEFI Secure Boot.' | tee "$evidence/result.txt"

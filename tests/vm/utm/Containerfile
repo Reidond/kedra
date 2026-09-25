@@ -1,0 +1,10 @@
+# Test-only Secure Boot observer layered over the utm candidate; never promote this derivative.
+FROM localhost/kedra-utm:research
+COPY check.sh /usr/libexec/kedra-research-utm
+COPY check.service /usr/lib/systemd/system/kedra-research-utm.service
+# TCG only: full emulation runs Python-based units (tuned) far slower than
+# HVF, past Fedora's default start timeout (run 36186175108). Every unit must still start.
+RUN mkdir -p /usr/lib/systemd/system.conf.d && \
+    printf '[Manager]\nDefaultTimeoutStartSec=10min\n' > /usr/lib/systemd/system.conf.d/90-kedra-research-tcg.conf && \
+    chmod 0755 /usr/libexec/kedra-research-utm && \
+    systemctl enable kedra-research-utm.service && bootc container lint

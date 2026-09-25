@@ -89,6 +89,27 @@ mod linux {
             next_action: if passed { None } else { Some(next) },
         }
     }
+    fn secure_boot() -> Check {
+        use sysroot_helper::firmware;
+        let (passed, observed) = match firmware::secure_boot() {
+            Ok(state) => (state.enforced(), state.to_string()),
+            Err(error) => (false, error.to_string()),
+        };
+        Check {
+            name: "secure_boot",
+            passed,
+            required_for_session: true,
+            detail: match firmware::lockdown() {
+                Some(mode) => format!("{observed}; kernel lockdown: {mode}"),
+                None => format!("{observed}; kernel lockdown mode is not readable"),
+            },
+            next_action: if passed {
+                None
+            } else {
+                Some(firmware::GUIDANCE)
+            },
+        }
+    }
     pub(super) fn run(json: bool) -> Result<bool> {
         if rustix::process::geteuid().as_raw() == 0 {
             return Err("run doctor as the ordinary logged-in desktop user, without sudo".into());
@@ -112,6 +133,7 @@ mod linux {
                 "SELinux is not enforcing or could not be read",
                 "Inspect getenforce and the boot configuration.",
             ),
+            secure_boot(),
             check(
                 "system_services",
                 "/usr/bin/systemctl",

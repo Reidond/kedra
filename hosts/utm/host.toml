@@ -1,0 +1,8 @@
+# Target metadata read by `sysroot source plan|archive`. Apple Silicon UTM
+# QEMU-backend virtual machine; not a physical-hardware claim.
+id = "utm"
+architecture = "aarch64"
+image = "ghcr.io/reidond/kedra-utm"
+fedora_release = 44
+candidate_target = true
+hardware_status = "virtual"

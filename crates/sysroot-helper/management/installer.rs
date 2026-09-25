@@ -1,5 +1,6 @@
 //! Read-only-to-disks media precheck. Native storage may add a deduplicated alias.
 use super::{Result, Trust, hash, trusted_file};
+use crate::firmware;
 use serde::Deserialize;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -13,6 +14,9 @@ struct Payload {
     source_manifest_sha256: String,
 }
 fn validate(payload: &Payload, trust: &Trust) -> Result<()> {
+    if trust.scope.architecture != std::env::consts::ARCH {
+        return Err("installer payload architecture differs from this installer".into());
+    }
     let prefix = format!("{}@sha256:", trust.scope.repository);
     let digest = payload
         .image
@@ -29,7 +33,21 @@ fn validate(payload: &Payload, trust: &Trust) -> Result<()> {
     }
     Ok(())
 }
+// The media must have booted through the firmware-verified shim/GRUB/kernel chain.
+fn require_secure_boot() -> Result<()> {
+    let observed = match firmware::secure_boot() {
+        Ok(state) if state.enforced() => return Ok(()),
+        Ok(state) => state.to_string(),
+        Err(error) => error.to_string(),
+    };
+    Err(format!(
+        "{observed}; installation requires UEFI Secure Boot and must not start. {}",
+        firmware::GUIDANCE
+    )
+    .into())
+}
 pub(super) fn verify(trust: &Trust) -> Result<()> {
+    require_secure_boot()?;
     let descriptor = trusted_file::read(Path::new(INPUT), 0, 16_384)?;
     let payload: Payload = serde_json::from_slice(&descriptor)
         .map_err(|_| "installer payload descriptor is malformed")?;
@@ -67,7 +85,7 @@ pub(super) fn verify(trust: &Trust) -> Result<()> {
     println!(
         "{}",
         serde_json::json!({"schema_version":1,"installer_payload_verified":true,
-        "image":payload.image,"source_manifest_sha256":trust.source_manifest_hash,
+        "uefi_secure_boot_enforced":true,"image":payload.image,"source_manifest_sha256":trust.source_manifest_hash,
         "key_fingerprint_sha256":sysroot_core::release::public_key_fingerprint(&trust.key)?,
         "descriptor_sha256":hash(&descriptor),"installation_disk_writes_performed":false})
     );

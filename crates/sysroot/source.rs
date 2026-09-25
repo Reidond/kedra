@@ -239,16 +239,23 @@ fn plan_committed(
     let target: Target =
         toml::from_str(text(&bytes)?).map_err(|e| invalid(format!("{target_path}: {e}")))?;
     if target.id != host
-        || target.architecture != "x86_64"
         || target.fedora_release != 44
         || target.image != format!("ghcr.io/reidond/kedra-{host}")
     {
         return Err(invalid(
-            "target identity, architecture, repository or Fedora release does not match Kedra policy",
+            "target identity, repository or Fedora release does not match Kedra policy",
         ));
     }
     if !target.candidate_target {
         return Err(invalid(format!("target {host} is disabled")));
+    }
+    if sysroot_core::targets::enabled(host, &target.architecture)
+        .is_none_or(|spec| spec.repository != target.image)
+    {
+        return Err(invalid(format!(
+            "target {host} with architecture {:?} is not enabled",
+            target.architecture
+        )));
     }
     let mut packages = package_list(repo, &tree, "packages/common.list")?;
     packages.extend(package_list(

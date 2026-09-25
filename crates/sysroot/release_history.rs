@@ -27,6 +27,7 @@ pub struct Options {
 }
 
 pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
+    // Protocol-1 release files exist only for desktop x86_64 (Scope::legacy).
     let scope = Scope {
         target: options.target,
         architecture: "x86_64".into(),

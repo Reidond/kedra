@@ -11,6 +11,8 @@ use p256::pkcs8::{DecodePublicKey, EncodePublicKey};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 
+use crate::targets;
+
 pub const PROTOCOL: u32 = 1;
 pub const MAX_DOCUMENT: usize = 65_536;
 const MAX_LIFETIME: u64 = 7 * 24 * 60 * 60;
@@ -77,13 +79,6 @@ fn hex(s: &str, len: usize) -> bool {
         && s.bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
-fn target_id(s: &str) -> bool {
-    !s.is_empty()
-        && s.len() <= 63
-        && s.as_bytes()[0].is_ascii_lowercase()
-        && s.bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-}
 fn repository(s: &str) -> bool {
     if s.len() > 255 {
         return false;
@@ -128,15 +123,21 @@ pub struct Scope {
     pub repository: String,
 }
 impl Scope {
+    /// Accept only enabled table pairs. The repository is checked for shape here;
+    /// signed-image identity and registry management also require the production one.
     pub fn validate(&self) -> Result<(), Error> {
-        if !target_id(&self.target)
-            || self.architecture != "x86_64"
+        if targets::enabled(&self.target, &self.architecture).is_none()
             || self.fedora_release != 44
             || !repository(&self.repository)
         {
             return Err(invalid("unsupported or malformed target scope"));
         }
         Ok(())
+    }
+    /// Protocol-1 release files were only published for desktop x86_64; other
+    /// targets use signed images exclusively.
+    pub fn legacy(&self) -> bool {
+        self.target == "desktop" && self.architecture == "x86_64"
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -181,6 +182,9 @@ impl Release {
             return Err(Error::UnsupportedSchema(self.schema_version));
         }
         self.scope.validate()?;
+        if !self.scope.legacy() {
+            return Err(Error::ScopeMismatch);
+        }
         if self.project != "Kedra"
             || self.sequence == 0
             || self.minimum_protocol == 0

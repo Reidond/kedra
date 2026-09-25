@@ -10,6 +10,8 @@ pub mod image;
 pub mod noctalia;
 /// Signed release records, freshness checkpoints and replay validation.
 pub mod release;
+/// Closed target/architecture/repository table shared by every scope check.
+pub mod targets;
 
 /// Human-facing operating system name.
 pub const PROJECT: &str = "Kedra";
@@ -46,7 +48,12 @@ pub const STATUS_JSON: &str = r#"{
     },
     "doctor": {
       "implemented": true, "platform": "linux",
-      "requires": ["installed Kedra desktop", "ordinary logged-in desktop user"]
+      "requires": ["installed Kedra system", "ordinary logged-in desktop user"]
+    },
+    "targets": {
+      "implemented": true, "platform": "portable",
+      "enabled": {"desktop": "x86_64", "utm": "aarch64"},
+      "requires": ["separately signed image per target"]
     }
   },
   "qualification": {
@@ -55,7 +62,9 @@ pub const STATUS_JSON: &str = r#"{
     "broader_home_groups": "incomplete",
     "codex_bundled_runtime": "native_vm_pass",
     "claude_bundled_runtime": "not_packaged_pending_owner_terms",
-    "agent_authentication": "not_qualified"
+    "agent_authentication": "not_qualified",
+    "utm_target": "implemented_not_qualified",
+    "secure_boot_enforcement": "implemented_not_qualified"
   },
   "installed_checks": {
     "published_channel": "sysroot update check",

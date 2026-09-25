@@ -13,6 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sysroot_core::{
     deployment::{self, Host, OperationKind, Phase, StageAction},
     image::{self, Identity, Receipt},
+    targets,
 };
 
 const IDENTITY: &str = "/usr/share/sysroot/image-identity.json";
@@ -140,7 +141,7 @@ fn skopeo(arguments: &[&str], seconds: &str, limit: usize) -> Result<Vec<u8>> {
     result
 }
 
-fn resolve() -> Result<String> {
+fn resolve(trust: &Trust) -> Result<String> {
     let cache = Cache::new()?;
     let auth = cache.0.join("auth.json");
     OpenOptions::new()
@@ -149,7 +150,7 @@ fn resolve() -> Result<String> {
         .mode(0o600)
         .open(&auth)?
         .write_all(b"{}")?;
-    let reference = format!("docker://{}:{}", image::REPOSITORY, image::CHANNEL);
+    let reference = format!("docker://{}:{}", trust.scope.repository, image::CHANNEL);
     let bytes = skopeo(
         &[
             "inspect",
@@ -210,7 +211,7 @@ fn authenticate(digest: &str, trust: &Trust, booted: bool) -> Result<Receipt> {
         .mode(0o600)
         .open(&auth)?
         .write_all(b"{}")?;
-    let source = format!("docker://{}@{digest}", image::REPOSITORY);
+    let source = format!("docker://{}@{digest}", trust.scope.repository);
     let target = format!("dir:{}", cache.0.join("image").display());
     // Full native policy enforcement, including missing/wrong signatures, precedes metadata use.
     skopeo(
@@ -234,7 +235,10 @@ fn authenticate(digest: &str, trust: &Trust, booted: bool) -> Result<Receipt> {
     }
     let raw = skopeo(&["inspect", "--config", &target], "30s", 1_048_576)?;
     let config: Config = serde_json::from_slice(&raw)?;
-    if config.os != "linux" || config.architecture != "amd64" {
+    if config.os != "linux"
+        || targets::oci_architecture(&trust.scope.architecture)
+            != Some(config.architecture.as_str())
+    {
         return Err("signed image platform differs".into());
     }
     let label = config
@@ -403,7 +407,7 @@ fn response(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
             "schema_version":2,"kind":"signed_image_status","state":state,"enrolled":journal.is_some(),
-            "scope":trust.scope,"channel":format!("{}:{}",image::REPOSITORY,image::CHANNEL),
+            "scope":trust.scope,"channel":format!("{}:{}",trust.scope.repository,image::CHANNEL),
             "host":host,"installed_identity":identity,"journal":journal,"available":available,
         "registry_checked":checked,"signature_verified":checked,
         "booted_receipt_verified":journal.is_some_and(|j|j.identity_health_error.is_none()),
@@ -423,7 +427,11 @@ pub(super) fn run(request: Request) -> Result<()> {
         );
     }
     let trust = load_trust()?;
-    if trust.scope.repository != image::REPOSITORY || trust.scope.target != "desktop" {
+    // The scope must be an enabled production target built for this helper's own architecture.
+    if targets::enabled(&trust.scope.target, &trust.scope.architecture)
+        .is_none_or(|spec| spec.repository != trust.scope.repository)
+        || trust.scope.architecture != std::env::consts::ARCH
+    {
         return Err("no direct channel configured for installed scope".into());
     }
     let _lock = lock()?;
@@ -446,6 +454,9 @@ pub(super) fn run(request: Request) -> Result<()> {
             .is_some_and(|d| d != &before.booted.digest)
         {
             return Err("booted digest differs from explicit enrollment expectation".into());
+        }
+        if migrate_legacy && !trust.scope.legacy() {
+            return Err("legacy migration exists only for desktop x86_64".into());
         }
         if migrate_legacy && expected_digest.is_none() {
             return Err(
@@ -512,9 +523,9 @@ pub(super) fn run(request: Request) -> Result<()> {
     {
         if matches!(request, Request::ChannelCheck {}) {
             installed(&trust)?;
-            let digest = resolve()?;
+            let digest = resolve(&trust)?;
             let available = authenticate(&digest, &trust, false)?;
-            if resolve()? != digest || observe(&trust.scope)? != before {
+            if resolve(&trust)? != digest || observe(&trust.scope)? != before {
                 return Err("channel or deployment changed during check".into());
             }
             return response(&trust, &before, None, Some(&available), true);
@@ -548,10 +559,10 @@ pub(super) fn run(request: Request) -> Result<()> {
     }
     let (kind, target, should_run) = match request {
         Request::ChannelCheck {} | Request::ChannelStage { .. } => {
-            let digest = resolve()?;
+            let digest = resolve(&trust)?;
             let available = authenticate(&digest, &trust, digest == before.booted.digest)?;
             available.follows(&journal.high_water)?;
-            if resolve()? != digest || observe(&trust.scope)? != before {
+            if resolve(&trust)? != digest || observe(&trust.scope)? != before {
                 return Err("channel or deployment changed during verification".into());
             }
             if matches!(request, Request::ChannelCheck {}) {
@@ -636,7 +647,7 @@ pub(super) fn run(request: Request) -> Result<()> {
         phase: Phase::Intent,
     });
     revision = save(&mut store, revision, &journal)?;
-    let reference = format!("{}@{target}", image::REPOSITORY);
+    let reference = format!("{}@{target}", trust.scope.repository);
     let result = if should_run {
         let arguments = match kind {
             OperationKind::Stage => vec!["switch", "--enforce-container-sigpolicy", &reference],

@@ -110,6 +110,7 @@ pub fn unpack(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     if fingerprint != options.expected_fingerprint {
         return Err("public key differs from the independently expected fingerprint".into());
     }
+    // Protocol-1 release files exist only for desktop x86_64 (Scope::legacy).
     let scope = Scope {
         target: options.target,
         architecture: "x86_64".into(),

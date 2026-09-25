@@ -16,6 +16,10 @@ test = false
 name = "e2e_home_export"
 path = "tests/home_export.rs"
 
+[[test]]
+name = "e2e_source_targets"
+path = "tests/source_targets.rs"
+
 [dependencies]
 sysroot-core.workspace = true
 clap.workspace = true

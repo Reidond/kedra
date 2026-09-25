@@ -163,6 +163,7 @@ fn verify_release(command: ReleaseCommand) -> Result<(), Box<dyn std::error::Err
     } = command
     {
         use sysroot_core::release::{MAX_DOCUMENT, Scope, TrustState};
+        // Protocol-1 release files exist only for desktop x86_64 (Scope::legacy).
         let scope = Scope {
             target,
             architecture: "x86_64".into(),

@@ -27,6 +27,8 @@ The observer writes markers to the virtio-serial port `org.kedra.events` (host `
 
 Any failed unit fails the run. A unit that fails only under TCG must be investigated and documented here, not silently allowed.
 
+Documented TCG case (2026-09-25): in run [36186175108](https://github.com/Reidond/kedra/actions/runs/36186175108) `tuned.service` (tuned 2.28.0, from the Fedora bootc base) used 41.3 s of CPU in 53 s and hit Fedora's default start timeout 44 s after starting; its process then exited 0. Secure Boot, bootc and SELinux markers had passed. The test layer therefore sets `DefaultTimeoutStartSec=10min` in `/usr/lib/systemd/system.conf.d/90-kedra-research-tcg.conf`. Units must still reach active and the zero-failed-units gate is unchanged; the product image and UTM/HVF runs keep Fedora's defaults.
+
 ## Why the NVRAM boot entry exists
 
 Fedora 44 `shim-aa64-16.1-5` has two kinds of signature:

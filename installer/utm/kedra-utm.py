@@ -433,6 +433,9 @@ def build_iso(args):
     return 0
 
 
+NETWORK_MODES = {'emulated': 'Emulated', 'shared': 'Shared'}
+
+
 def vm_configuration(args, vm_uuid, mac, port, iso_name, notes):
     drive = {'InterfaceVersion': 1, 'ReadOnly': False}
     # The PL011 carries the firmware, GRUB and a login console. UTM's built-in
@@ -459,7 +462,10 @@ def vm_configuration(args, vm_uuid, mac, port, iso_name, notes):
         'Drive': [dict(drive, Identifier=INSTALLER_DRIVE, ImageName=iso_name, ImageType='CD', Interface='USB',
                        ReadOnly=True),
                   dict(drive, Identifier=SYSTEM_DRIVE, ImageName=SYSTEM_IMAGE, ImageType='Disk', Interface='VirtIO')],
-        'Network': [{'Mode': 'Shared', 'Hardware': 'virtio-net-pci', 'MacAddress': mac, 'IsolateFromHost': False,
+        # Emulated VLAN is QEMU's own DHCP/NAT. Shared (macOS vmnet) needs the host's
+        # bootpd, which gave a 2026-09-26 install no IPv4 lease behind VPN software.
+        'Network': [{'Mode': NETWORK_MODES[args.network], 'Hardware': 'virtio-net-pci', 'MacAddress': mac,
+                     'IsolateFromHost': False,
                      'PortForward': []}],
         'Serial': [serial],
         'Sound': [{'Hardware': 'intel-hda'}],
@@ -549,7 +555,7 @@ def create(args):
     print('  Secure Boot: UEFI + TPM, Data/efi_vars.fd from UTM %s %s' % (app['version'], SECURE_VARS))
     print('  Installer: Data/%s (USB CD, first boot device) from %s' % (iso.name, record['image']))
     print('  System disk: Data/%s, %d GiB, /dev/disk/by-id/virtio-KEDRASYSTEM' % (SYSTEM_IMAGE, args.disk_gib))
-    print('  Network: shared, MAC %s; serial console: %s' % (mac, console))
+    print('  Network: %s, MAC %s; serial console: %s' % (args.network, mac, console))
     print('  UTM: ' + ('not registered (--no-register)' if args.no_register else 'registered; start it from UTM or '
                         'with: %s start %s' % (shlex.quote(str(app['utmctl'])), vm_uuid)))
     print('After installing, shut the VM down and run: python3 %s detach-installer --bundle %s'
@@ -671,6 +677,9 @@ def main():
     new.add_argument('--serial-port', type=int,
                      help='Expose the serial console as an unauthenticated TCP server on this 127.0.0.1 port '
                           '(default: UTM\'s built-in terminal only)')
+    new.add_argument('--network', choices=sorted(NETWORK_MODES), default='emulated',
+                     help='emulated (default): UTM Emulated VLAN, QEMU DHCP/NAT without host access; '
+                          'shared: macOS vmnet Shared Network with host access, needs the host DHCP service')
     new.add_argument('--no-register', action='store_true', help='Do not open the bundle in UTM')
     detach = commands.add_parser('detach-installer', parents=[utm], help='Remove the installer from a stopped VM')
     detach.add_argument('--bundle', required=True, type=Path)

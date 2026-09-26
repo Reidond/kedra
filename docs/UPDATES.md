@@ -16,6 +16,16 @@ Enroll once. Review an available update before staging it. Staging changes the n
 
 Checking records verified image ordering and last-check state in the root-owned store; it does not stage an image. It is not proof that upstream Fedora has no newer packages. Add --expected-digest when enrollment or staging must match a digest you independently reviewed.
 
+## Downloads and disk use
+
+Every `enroll`, `check` and `stage` verifies the exact digest again with a policy-enforcing Skopeo copy from the registry, so the signature is checked on every run. The copy's destination is a root-only OCI layout, `/var/lib/sysroot/verified-oci`, which is kept between runs. The first verification downloads the whole image (about 6.3 GB for the current desktop and utm images). Later verifications fetch the manifest, configuration and signature, plus only layers the cache does not hold. A `check` followed by `stage` therefore downloads a new image's changed layers once. `bootc switch` then fetches whatever ostree lacks into its own store. Progress is printed to the terminal.
+
+The helper keeps layers for the booted, staged and rollback images, the journal's recorded operation and the digest being verified. Before each copy it removes every other image, so a failed transfer never leaves stale images in place. After a successful copy it also removes leftover layers of interrupted transfers. A failed or interrupted copy keeps the layers it completed, so a retry resumes rather than starting over. Expect the cache to use about one image's size plus the layers unique to the other kept images, on top of ostree's deployments.
+
+If a verification fails because `/var` is full, free space and retry. The kept images are the minimum a verification needs. If you must reclaim the cache itself, delete it as described below; the retry then downloads the whole image again.
+
+The cache only saves transfers. The helper never reads layers from it, and bootc never deploys from it. Unexpected contents make the helper remove the cache without following links and download again. That includes unknown files, links, wrong ownership or mode, and unparseable metadata. While no `sysroot update` command is running, root can safely delete `/var/lib/sysroot/verified-oci`; the next verification downloads the whole image. Do not delete anything else in `/var/lib/sysroot`.
+
 After your chosen reboot:
 
 ```sh

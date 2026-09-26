@@ -20,6 +20,7 @@ const STORE: &str = "/var/lib/sysroot/deployment";
 const RECORD: &str = "deployment";
 mod ghcr;
 mod installer;
+mod oci_cache;
 
 fn hash(bytes: &[u8]) -> String {
     Sha256::digest(bytes)

@@ -124,7 +124,7 @@ for phase in A B ROLLBACK; do
     grep -q KEDRA_SECUREBOOT_PASS "$evidence/$phase.serial.log"
     grep -q "KEDRA_GHCR_${phase}_PASS" "$evidence/$phase.serial.log"
 done
-printf 'PASS: native v2 enrollment/check/stage/boot/identity recovery/rollback/hold/resume and critical refusals under UEFI Secure Boot.\n' > "$evidence/result.txt"
+printf 'PASS: native v2 enrollment/check/stage/boot/identity recovery/rollback/hold/resume, cached-layer reuse and critical refusals under UEFI Secure Boot.\n' > "$evidence/result.txt"
 python3 - <<'PY'
 import json,pathlib
 pathlib.Path('output/ghcr-evidence/scope.json').write_text(json.dumps({
@@ -132,7 +132,9 @@ pathlib.Path('output/ghcr-evidence/scope.json').write_text(json.dumps({
         'wrong-target','wrong-architecture-identity','wrong-channel','malformed-identity','same-rank-equivocation',
         'offline','available','stage','pending-preservation','idempotent-stage','boot-B','lower-rank-replay',
         'identity-health-refusal-and-retained-rollback','boot-A','persistent-data','hold','resume',
-        'uefi-secure-boot-microsoft-keys'],
+        'uefi-secure-boot-microsoft-keys','first-verification-downloads-every-layer',
+        'repeated-verification-reuses-cached-layers','check-then-stage-reuse','cache-persists-across-reboot',
+        'untrusted-cache-discarded-without-following-links','cached-digest-signature-withdrawn'],
     'not_run_cases':['deterministic-tag-race','interrupted-helper-or-bootc-operation','legacy-state-migration',
         'native-OCI-platform-mismatch'],
     'production_registry_writes':False,'production_keys_used':False},indent=2)+'\n')

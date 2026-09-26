@@ -97,7 +97,11 @@ removes only the bundle it just created. The bundle contains:
   with `plutil -lint`:
   - QEMU backend, `aarch64` `virt`, `Hypervisor`, `UEFIBoot`, `TPMDevice`, RNG, balloon;
   - `virtio-gpu-gl-pci` with dynamic resolution;
-  - shared network with a random locally administered MAC;
+  - UTM's Emulated VLAN network (QEMU DHCP and NAT) with a random locally administered
+    MAC. `--network shared` selects macOS vmnet Shared Network instead, which also
+    allows host access but depends on the Mac's DHCP service: on 2026-09-26 a Shared
+    VM on a Mac running VPN software received only IPv6 addresses, no IPv4 lease, so
+    DNS and `sysroot update` failed until the VM was switched to Emulated VLAN;
   - a serial console in UTM's built-in terminal (a localhost TCP server only with
     `--serial-port`; see [serial console](#graphics-serial-console-and-guest-agents));
   - `intel-hda` sound and clipboard sharing;

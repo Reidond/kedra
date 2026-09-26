@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Generate public image identities for the disposable fixed-domain native test."""
 import hashlib
 import json

@@ -1,3 +1,4 @@
+# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Manual native recovery case in an already prepared, disposable signed A/B VM.
 
 Run after signed B has booted and its v2 journal retains A as native rollback.

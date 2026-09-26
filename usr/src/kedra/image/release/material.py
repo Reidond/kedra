@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Bounded image identity/material validation after native OCI authentication.
 
 Production first performs a policy-enforcing Skopeo copy of the exact manifest.

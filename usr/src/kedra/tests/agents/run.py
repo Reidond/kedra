@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Native launcher probes under a generated user home and no network namespace."""
 import argparse
 import hashlib

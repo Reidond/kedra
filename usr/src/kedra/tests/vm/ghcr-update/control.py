@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Loopback-only controller for an isolated test registry; no production destinations."""
 import hashlib
 import http.server

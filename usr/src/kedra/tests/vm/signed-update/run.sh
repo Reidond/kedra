@@ -11,7 +11,7 @@ mkdir "$root" "$private"
 chmod 0700 "$private"
 mkdir -p output/r01-evidence "$root/context/public" "$root/image" "$root/cases"
 evidence="$PWD/output/r01-evidence"
-base=$(python3 usr/src/kedra/tests/common/resolve-fedora-base.py --output "$evidence/base-resolution.json")
+base=$(uv run usr/src/kedra/tests/common/resolve-fedora-base.py --output "$evidence/base-resolution.json")
 builder=$(jq -er .platforms.amd64.builder usr/src/kedra/image/inputs.json)
 registry_image=docker.io/library/registry@sha256:7518da9b12dd746278282a729dee2e65eabdeb449db4d0b28d46ef6e90308f58
 repository=registry.kedra.test:5000/kedra/r01
@@ -28,7 +28,7 @@ repository=registry.kedra.test:5000/kedra/r01
     qemu-system-x86_64 --version
     printf '%s\n' "$base" "$builder" "$registry_image"
 } > "$evidence/environment.txt"
-python3 usr/src/kedra/tests/common/secure_boot.py provenance --evidence "$evidence"
+uv run usr/src/kedra/tests/common/secure_boot.py provenance --evidence "$evidence"
 cleanup() {
     sudo podman logs kedra-r01-registry > "$evidence/registry.log" 2>&1 || true
     sudo podman stop kedra-r01-registry >/dev/null 2>&1 || true
@@ -49,7 +49,7 @@ docker:
   registry.kedra.test:5000:
     use-sigstore-attachments: true
 EOF
-python3 usr/src/kedra/tests/vm/signed-update/helper-fixtures.py prepare --root "$root"
+uv run usr/src/kedra/tests/vm/signed-update/helper-fixtures.py prepare --root "$root"
 sudo mkdir -p /etc/containers/registries.d /etc/containers/certs.d/registry.kedra.test:5000
 sudo cp "$root/context/registries.yaml" /etc/containers/registries.d/kedra-r01.yaml
 sudo cp "$root/context/tls.crt" /etc/containers/certs.d/registry.kedra.test:5000/ca.crt
@@ -113,7 +113,7 @@ jq -n --arg a "$repository@$(cat "$root/A.digest")" --arg b "$repository@$(cat "
     --arg m "$repository@$missing_digest" --arg other "registry.kedra.test:5000/kedra/other@$(cat "$root/wrong-repository.digest")" \
     '{schema_version:1,initial_a:$a,valid_b:$b,unsigned:$u,wrong_key:$w,missing_attachment:$m,wrong_repository:$other}' > "$root/cases/cases.json"
 cp "$root/cases/cases.json" "$evidence/cases.json"
-python3 usr/src/kedra/tests/vm/signed-update/helper-fixtures.py requests --root "$root"
+uv run usr/src/kedra/tests/vm/signed-update/helper-fixtures.py requests --root "$root"
 cp "$root/cases"/helper-*.json "$evidence/"
 cp "$root/context/policy.json" "$root/context/registries.yaml" "$root/context/public/release.pub" "$evidence/"
 # Verify A before copying it into the local builder store; first-boot policy is
@@ -132,7 +132,7 @@ mkfs.ext4 -q -L KEDRA_CASES -d "$root/cases" "$root/cases.raw"
 # Negative UEFI Secure Boot case on the same disk (snapshot, no network): the
 # same firmware with a db trusting only Ubuntu's snakeoil test key must refuse
 # Fedora's Microsoft-signed shim and remain at its boot menu until the timeout.
-python3 usr/src/kedra/tests/common/secure_boot.py vars --template snakeoil --output "$root/OVMF_VARS.snakeoil.fd"
+uv run usr/src/kedra/tests/common/secure_boot.py vars --template snakeoil --output "$root/OVMF_VARS.snakeoil.fd"
 untrusted=0
 sudo timeout 120 qemu-system-x86_64 -machine q35,smm=on,accel=kvm -cpu host -smp 2 -m 4096 \
     -global driver=cfi.pflash01,property=secure,value=on \
@@ -148,9 +148,9 @@ if grep -a -E 'Linux version|KEDRA_' "$evidence/untrusted-keys.serial.log"; then
 fi
 # Positive phases: Microsoft-enrolled variables persist across the three boots
 # (shim's fallback may add a boot entry and reset once; no -no-reboot).
-python3 usr/src/kedra/tests/common/secure_boot.py vars --template microsoft --output "$root/OVMF_VARS.fd"
+uv run usr/src/kedra/tests/common/secure_boot.py vars --template microsoft --output "$root/OVMF_VARS.fd"
 for phase in stage-b boot-b rollback-a; do
-    python3 usr/src/kedra/tests/common/secure_boot.py verify --vars "$root/OVMF_VARS.fd"
+    uv run usr/src/kedra/tests/common/secure_boot.py verify --vars "$root/OVMF_VARS.fd"
     sudo timeout 900 qemu-system-x86_64 -machine q35,smm=on,accel=kvm -cpu host -smp 2 -m 4096 \
         -global driver=cfi.pflash01,property=secure,value=on \
         -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \

@@ -1,3 +1,4 @@
+# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Exercise line review against the generated account's actual niri file."""
 import json
 import os

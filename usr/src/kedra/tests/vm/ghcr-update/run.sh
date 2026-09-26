@@ -18,11 +18,11 @@ cleanup() {
     test "$private" = "$RUNNER_TEMP/kedra-ghcr-private" && rm -rf -- "$private"
 }
 trap cleanup EXIT
-base=$(python3 usr/src/kedra/tests/common/resolve-fedora-base.py --output "$evidence/base-resolution.json")
+base=$(uv run usr/src/kedra/tests/common/resolve-fedora-base.py --output "$evidence/base-resolution.json")
 printf '%s\n' "$base" > "$root/base.txt"
 builder=$(jq -er .platforms.amd64.builder usr/src/kedra/image/inputs.json)
 registry=docker.io/library/registry@sha256:7518da9b12dd746278282a729dee2e65eabdeb449db4d0b28d46ef6e90308f58
-python3 usr/src/kedra/tests/common/secure_boot.py provenance --evidence "$evidence"
+uv run usr/src/kedra/tests/common/secure_boot.py provenance --evidence "$evidence"
 # Resolve/pull external build tools before introducing the local-only GHCR test domain.
 sudo podman pull "$base" > "$evidence/base-pull.log" 2>&1
 sudo podman pull "$builder" > "$evidence/builder-pull.log" 2>&1
@@ -35,7 +35,7 @@ done
 openssl req -x509 -newkey rsa:3072 -nodes -days 1 -subj /CN=ghcr.io \
     -addext subjectAltName=DNS:ghcr.io,IP:127.0.0.1 -keyout "$private/tls.key" -out "$root/context/tls.crt" \
     2> "$evidence/tls-generation.log"
-python3 usr/src/kedra/tests/vm/ghcr-update/prepare.py
+uv run usr/src/kedra/tests/vm/ghcr-update/prepare.py
 cp usr/src/kedra/tests/vm/ghcr-update/{Containerfile,variant.Containerfile,check.py,check.service,identity-recovery.py} "$root/context/"
 cp usr/src/kedra/tests/common/console.toml "$root/context/"
 cp target/release/sysroot "$root/context/sysroot"
@@ -59,7 +59,7 @@ sudo podman build --pull=never --build-arg "BASE_IMAGE=$base" --tag localhost/ke
     > "$evidence/base-build.log" 2>&1
 sudo podman run --rm --network=none localhost/kedra-ghcr:base rpm -qa \
     --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' > "$root/package-material.txt"
-python3 usr/src/kedra/tests/vm/ghcr-update/prepare.py finalize
+uv run usr/src/kedra/tests/vm/ghcr-update/prepare.py finalize
 for variant in A B C E U W R N T X H M; do
     identity=$(cat "$root/context/$variant/image-identity.json")
     sudo podman build --pull=never --build-arg "KEDRA_IDENTITY=$identity" --build-arg "VARIANT=$variant" \
@@ -84,14 +84,14 @@ sudo skopeo inspect --raw "docker://ghcr.io/reidond/kedra-desktop:$signature_tag
 attachment_digest=$(skopeo manifest-digest "$evidence/removed-signature-manifest.json")
 curl --silent --show-error --fail --cacert "$root/context/tls.crt" -X DELETE \
     "https://127.0.0.1/v2/reidond/kedra-desktop/manifests/$attachment_digest"
-python3 - <<'PY'
+uv run python - <<'PY'
 import json, os, pathlib
 root=pathlib.Path(os.environ['RUNNER_TEMP'])/'kedra-ghcr'
 cases={'schema_version':1,'digests':{v:(root/(v+'.digest')).read_text().strip() for v in 'A B C E U W R N T X H M'.split()}}
 (root/'cases/cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 pathlib.Path('output/ghcr-evidence/cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 PY
-python3 usr/src/kedra/tests/vm/ghcr-update/control.py > "$evidence/controller.log" 2>&1 &
+uv run usr/src/kedra/tests/vm/ghcr-update/control.py > "$evidence/controller.log" 2>&1 &
 controller_pid=$!
 sleep 1
 curl --silent --show-error --fail -X POST http://127.0.0.1:18080/A
@@ -109,9 +109,9 @@ truncate -s 16M "$root/cases.raw"
 mkfs.ext4 -q -L KEDRA_GHCR_CASES -d "$root/cases" "$root/cases.raw"
 # Microsoft-enrolled UEFI Secure Boot variables persist across the three boots
 # (shim's fallback may add a boot entry and reset once; no -no-reboot).
-python3 usr/src/kedra/tests/common/secure_boot.py vars --template microsoft --output "$root/OVMF_VARS.fd"
+uv run usr/src/kedra/tests/common/secure_boot.py vars --template microsoft --output "$root/OVMF_VARS.fd"
 for phase in A B ROLLBACK; do
-    python3 usr/src/kedra/tests/common/secure_boot.py verify --vars "$root/OVMF_VARS.fd"
+    uv run usr/src/kedra/tests/common/secure_boot.py verify --vars "$root/OVMF_VARS.fd"
     sudo timeout 2400 qemu-system-x86_64 -machine q35,smm=on,accel=kvm -cpu host -smp 2 -m 4096 \
         -global driver=cfi.pflash01,property=secure,value=on \
         -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
@@ -125,7 +125,7 @@ for phase in A B ROLLBACK; do
     grep -q "KEDRA_GHCR_${phase}_PASS" "$evidence/$phase.serial.log"
 done
 printf 'PASS: native v2 enrollment/check/stage/boot/identity recovery/rollback/hold/resume, cached-layer reuse and critical refusals under UEFI Secure Boot.\n' > "$evidence/result.txt"
-python3 - <<'PY'
+uv run python - <<'PY'
 import json,pathlib
 pathlib.Path('output/ghcr-evidence/scope.json').write_text(json.dumps({
     'implemented_cases':['enroll/current','unsigned','wrong-key','wrong-repository','missing-signature',

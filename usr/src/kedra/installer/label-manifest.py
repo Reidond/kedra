@@ -1,3 +1,4 @@
+# Runs inside the pinned image-builder container with its own python3; uv applies to host-side scripts only.
 """Add the missing v82 generic ISO SELinux labeling stage, fail on layout drift."""
 import json
 import pathlib

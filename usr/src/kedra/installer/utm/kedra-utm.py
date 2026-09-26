@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Owner tooling for the Kedra `utm` target on an Apple Silicon Mac running UTM.
 
 check-host        read-only report: UTM, its Secure Boot firmware, Docker, free space
@@ -9,7 +13,7 @@ detach-installer  remove the installer ISO from the stopped VM after installatio
 
 It only creates files under the directories you choose and invokes UTM and the
 local Docker engine. It never touches the Mac's own disks or bootloader, never
-needs sudo and never uploads anything. Compatible with macOS /usr/bin/python3.
+needs sudo and never uploads anything. Run it with `uv run`.
 """
 import argparse
 import hashlib
@@ -428,7 +432,7 @@ def build_iso(args):
             elif created:
                 print('kedra-utm: unverified output retained for inspection in ' + str(output), file=sys.stderr)
     print('Verified %s (%d bytes) built from %s' % (iso, record['installer']['size_bytes'], record['image']))
-    print('Next: python3 %s create --iso %s' % (shlex.quote(sys.argv[0]), shlex.quote(str(iso))))
+    print('Next: uv run %s create --iso %s' % (shlex.quote(sys.argv[0]), shlex.quote(str(iso))))
     return 0
 
 
@@ -557,7 +561,7 @@ def create(args):
     print('  Network: %s, MAC %s; serial console: %s' % (args.network, mac, console))
     print('  UTM: ' + ('not registered (--no-register)' if args.no_register else 'registered; start it from UTM or '
                         'with: %s start %s' % (shlex.quote(str(app['utmctl'])), vm_uuid)))
-    print('After installing, shut the VM down and run: python3 %s detach-installer --bundle %s'
+    print('After installing, shut the VM down and run: uv run %s detach-installer --bundle %s'
           % (shlex.quote(sys.argv[0]), shlex.quote(str(bundle))))
     return 0
 

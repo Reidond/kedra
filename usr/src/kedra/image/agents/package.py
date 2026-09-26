@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Verify and package the official private Codex runtime as explicit image input."""
 import argparse
 import hashlib

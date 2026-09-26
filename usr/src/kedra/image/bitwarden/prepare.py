@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Prepare pinned native Bitwarden files for image construction in Actions."""
 import argparse
 import hashlib

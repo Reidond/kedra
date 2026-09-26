@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Resolve the reviewed Fedora test stream to one checked immutable platform."""
 import argparse
 import hashlib

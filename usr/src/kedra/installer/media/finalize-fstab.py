@@ -1,3 +1,4 @@
+# Runs inside the Anaconda installer environment with its own python3; uv applies to host-side scripts only.
 """Installer-only normalization of the physical-root fstab entry for bootc."""
 import os
 import pathlib

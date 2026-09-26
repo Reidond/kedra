@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Build one local Kedra ISO from an explicitly reviewed, signed GHCR digest."""
 import argparse
 import hashlib

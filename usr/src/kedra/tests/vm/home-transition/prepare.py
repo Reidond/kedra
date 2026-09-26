@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Public A/P/B source and signing fixtures for a disposable Actions VM.
 
 Image A is built from a legacy-layout rewrite of the dispatched commit and

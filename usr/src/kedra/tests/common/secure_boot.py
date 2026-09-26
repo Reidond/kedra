@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Ubuntu OVMF UEFI Secure Boot firmware for disposable x86_64 VM tests.
 
 Every CI VM boots Ubuntu's SMM-enforced Secure Boot build with a private copy

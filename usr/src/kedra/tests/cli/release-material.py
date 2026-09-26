@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """End-to-end image-input CLI checks using real files/processes and OpenSSL.
 
 The disposable config signature seals fixture artifacts independently. Native
@@ -11,7 +16,6 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
-import sys
 import time
 
 parser = argparse.ArgumentParser()
@@ -36,7 +40,7 @@ def native(*arguments):
 
 
 def call(*arguments, expected=True, reason=None):
-    result = subprocess.run([sys.executable, str(cli), *map(str, arguments)], capture_output=True)
+    result = subprocess.run(['uv', 'run', str(cli), *map(str, arguments)], capture_output=True)
     if expected and result.returncode:
         raise RuntimeError(result.stderr.decode(errors='replace'))
     if not expected and result.returncode == 0:
@@ -207,7 +211,7 @@ try:
     native('openssl', 'pkey', '-in', private, '-pubout', '-out', public)
     for name in TARGETS:
         exercise(name)
-    unknown = subprocess.run([sys.executable, str(cli), 'bootc', '--target', 'xps', '--inputs', str(public)],
+    unknown = subprocess.run(['uv', 'run', str(cli), 'bootc', '--target', 'xps', '--inputs', str(public)],
                              capture_output=True)
     assert unknown.returncode != 0 and not unknown.stdout, 'Unknown target was accepted'
     print('PASS: unknown release target refused by the image-input CLI')

@@ -10,14 +10,14 @@ mkdir "$root" "$private"
 chmod 0700 "$private"
 mkdir -p "$root/desktop" "$root/image" output/r04-evidence
 evidence="$PWD/output/r04-evidence"
-base=$(python3 usr/src/kedra/tests/common/resolve-fedora-base.py --output "$evidence/base-resolution.json")
+base=$(uv run usr/src/kedra/tests/common/resolve-fedora-base.py --output "$evidence/base-resolution.json")
 builder=$(jq -er .platforms.amd64.builder usr/src/kedra/image/inputs.json)
 repository=registry.kedra.test:5000/kedra/r04
 registry_image=docker.io/library/registry@sha256:7518da9b12dd746278282a729dee2e65eabdeb449db4d0b28d46ef6e90308f58
 cleanup() {
     sudo podman logs kedra-r04-registry > "$evidence/registry.log" 2>&1 || true
     sudo podman stop kedra-r04-registry >/dev/null 2>&1 || true
-    python3 - <<'PY'
+    uv run python - <<'PY'
 import os, pathlib, re, shutil
 private = pathlib.Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-r04-private'
 log = private / 'builder.log'
@@ -39,13 +39,13 @@ trap cleanup EXIT
     skopeo --version
     printf '%s\n' "$base" "$builder" "$registry_image"
 } > "$evidence/environment.txt"
-python3 usr/src/kedra/tests/common/secure_boot.py provenance --evidence "$evidence"
+uv run usr/src/kedra/tests/common/secure_boot.py provenance --evidence "$evidence"
 openssl rand -base64 32 > "$private/passphrase"
 chmod 0600 "$private/passphrase"
 skopeo generate-sigstore-key --output-prefix "$private/allowed" --passphrase-file "$private/passphrase"
 openssl req -x509 -newkey rsa:3072 -nodes -days 1 -subj /CN=registry.kedra.test \
     -addext subjectAltName=DNS:registry.kedra.test -keyout "$private/tls.key" -out "$root/tls.crt" 2> "$evidence/tls-generation.log"
-python3 usr/src/kedra/tests/vm/home-transition/prepare.py images
+uv run usr/src/kedra/tests/vm/home-transition/prepare.py images
 cp "$root/fixture.json" "$evidence/"
 sudo mkdir -p /etc/containers/registries.d /etc/containers/certs.d/registry.kedra.test:5000
 sudo cp "$root/A/registries.yaml" /etc/containers/registries.d/kedra-r04.yaml
@@ -63,7 +63,7 @@ curl --silent --fail --cacert "$root/tls.crt" https://registry.kedra.test:5000/v
 target/release/sysroot source archive --host desktop --output "$root/desktop/payload.tar"
 cp target/release/sysroot target/release/sysroot-helper usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh "$root/desktop/"
 bash usr/src/kedra/image/agents/prepare.sh desktop "$root/desktop" "$private/agent-inputs" "$evidence/agent-inputs.json"
-python3 usr/src/kedra/image/bitwarden/prepare.py --target desktop --context "$root/desktop" --evidence "$evidence/bitwarden-inputs.json"
+uv run usr/src/kedra/image/bitwarden/prepare.py --target desktop --context "$root/desktop" --evidence "$evidence/bitwarden-inputs.json"
 sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
     --tag localhost/kedra-r04-desktop:base "$root/desktop" > "$evidence/desktop-build.log" 2>&1
 for variant in A B; do
@@ -75,12 +75,12 @@ for variant in A B; do
     cp "$root/$variant/source.json" "$evidence/source-$variant.json"
     cp "$root/$variant.digest" "$evidence/"
 done
-python3 usr/src/kedra/tests/vm/home-transition/prepare.py requests
+uv run usr/src/kedra/tests/vm/home-transition/prepare.py requests
 cp "$root/cases"/helper-*.json "$root/A/release.pub" "$root/A/policy.json" "$evidence/"
 jq --arg key "$root/A/release.pub" '.transports[][][].keyPath=$key' "$root/A/policy.json" > "$root/host-policy.json"
 initial="$repository@$(cat "$root/A.digest")"
 sudo skopeo --policy "$root/host-policy.json" copy "docker://$initial" "containers-storage:$initial" > "$evidence/verified-a-copy.log" 2>&1
-python3 - <<'PY'
+uv run python - <<'PY'
 import json, os, pathlib, secrets, subprocess
 private = pathlib.Path(os.environ['RUNNER_TEMP']) / 'kedra-r04-private'
 password = secrets.token_hex(16)
@@ -112,7 +112,7 @@ for phase in stage-b accept-b rollback-a; do
         rollback-a) success=KEDRA_R04_ROLLBACK_A_HOME_PASS ;;
     esac
     xvfb-run -a -s '-screen 0 1280x768x24' env LIBGL_ALWAYS_SOFTWARE=1 \
-        python3 usr/src/kedra/tests/common/run_vm.py --disk "${disks[0]}" --persistent-disk --network \
+        uv run usr/src/kedra/tests/common/run_vm.py --disk "${disks[0]}" --persistent-disk --network \
         --cases-disk "$root/cases.raw" --firmware-vars "$root/OVMF_VARS.fd" \
         "${login_options[@]}" \
         --work "$evidence/$phase" --password-file "$private/password" \

@@ -34,6 +34,11 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.12.19
+          enable-cache: false
       - name: Build checked launcher
         run: |
           rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
@@ -44,7 +49,7 @@ jobs:
       - name: Fetch pinned official research inputs
         run: |
           mkdir -p output/r05-evidence
-          python3 usr/src/kedra/image/agents/fetch.py --target "$KEDRA_TARGET" --output "$RUNNER_TEMP/kedra-r05-inputs" --research-tools
+          uv run usr/src/kedra/image/agents/fetch.py --target "$KEDRA_TARGET" --output "$RUNNER_TEMP/kedra-r05-inputs" --research-tools
           cp usr/src/kedra/image/agents/inputs.json output/r05-evidence/
           cp -a "$RUNNER_TEMP/kedra-r05-inputs/notices" output/r05-evidence/
           sha256sum "$RUNNER_TEMP/kedra-r05-inputs/notices/"* > output/r05-evidence/notice-hashes.txt
@@ -52,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           inputs="$RUNNER_TEMP/kedra-r05-inputs"
-          python3 usr/src/kedra/image/agents/package.py --target "$KEDRA_TARGET" --inputs "$inputs" \
+          uv run usr/src/kedra/image/agents/package.py --target "$KEDRA_TARGET" --inputs "$inputs" \
             --output "$RUNNER_TEMP/kedra-agents.tar" --evidence output/r05-evidence/image-package.json
       - name: Probe native wrappers without model access
         run: |
@@ -63,7 +68,7 @@ jobs:
           sudo chown -R root:root /usr/libexec/sysroot/agents/codex
           # Drop privileges before running checkout test code; no network access.
           sudo unshare --net -- setpriv --reuid="$(id -u)" --regid="$(id -g)" --init-groups \
-            python3 usr/src/kedra/tests/agents/run.py --sysroot "$PWD/target/release/sysroot" \
+            uv run usr/src/kedra/tests/agents/run.py --sysroot "$PWD/target/release/sysroot" \
             --packages "$inputs" --work "$RUNNER_TEMP/kedra-r05-probe" \
             --evidence "$PWD/output/r05-evidence" | tee output/r05-evidence/probe-result.txt
       - name: Preserve safe evidence only

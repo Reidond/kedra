@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Kill the installed CLI at a real file publication, then use its recovery UI.
 
 Runs only as the generated graphical VM user. No implementation imports, altered

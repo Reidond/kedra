@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Public signed helper fixtures; generated private keys stay outside artifacts."""
 import argparse
 import base64

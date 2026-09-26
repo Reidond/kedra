@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Fetch pinned official Codex packages for image assembly or isolated research."""
 import argparse
 import hashlib

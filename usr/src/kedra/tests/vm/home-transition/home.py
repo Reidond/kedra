@@ -1,3 +1,4 @@
+# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Actual user CLI across signed image A, image B, and retained-image rollback."""
 import json
 import ctypes

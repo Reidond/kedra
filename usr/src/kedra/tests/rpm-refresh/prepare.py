@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Runs inside the disposable Fedora fixture container with its own python3; uv applies to host-side scripts only.
 """Build small signed RPMs and immutable repository snapshots inside Fedora."""
 
 import hashlib

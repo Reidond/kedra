@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Actions-only end-to-end experiment using real Podman, DNF, RPM and repos."""
 
 import hashlib
@@ -194,7 +198,7 @@ def main():
     public.mkdir()
     try:
         resolved_base = subprocess.check_output(
-            [sys.executable, str(ROOT / "usr/src/kedra/tests/common/resolve-fedora-base.py"),
+            ["uv", "run", str(ROOT / "usr/src/kedra/tests/common/resolve-fedora-base.py"),
              "--output", str(OUTPUT / "base-resolution.json")], text=True).strip()
         source_files = ["Containerfile.tools", "Containerfile.seed", "Containerfile.case", "prepare.py", "materialize.py", "run.py"]
         source_hashes = {name: digest(CONTEXT / name) for name in source_files}

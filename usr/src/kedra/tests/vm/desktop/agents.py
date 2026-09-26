@@ -1,3 +1,4 @@
+# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Run the image's private official runtime as the generated ordinary VM user."""
 import hashlib
 import json

@@ -1,3 +1,4 @@
+# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Actual installed public-CLI flows across three disposable signed VM boots."""
 import json
 import os

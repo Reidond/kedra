@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Disposable graphical integration test using QEMU's documented QMP interface."""
 import argparse
 import json

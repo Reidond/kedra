@@ -1,3 +1,4 @@
+# Runs inside the Anaconda installer environment with its own python3; uv applies to host-side scripts only.
 """Narrow, version-guarded Fedora Anaconda 44.30-2.fc44 media adaptations."""
 import hashlib
 import pathlib

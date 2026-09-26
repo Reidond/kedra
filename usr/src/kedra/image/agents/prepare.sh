@@ -8,5 +8,5 @@ context=$2
 inputs=$3
 evidence=$4
 test -d "$context"
-python3 usr/src/kedra/image/agents/fetch.py --target "$target" --output "$inputs" --verification-tools
-python3 usr/src/kedra/image/agents/package.py --target "$target" --inputs "$inputs" --output "$context/agents.tar" --evidence "$evidence"
+uv run usr/src/kedra/image/agents/fetch.py --target "$target" --output "$inputs" --verification-tools
+uv run usr/src/kedra/image/agents/package.py --target "$target" --inputs "$inputs" --output "$context/agents.tar" --evidence "$evidence"

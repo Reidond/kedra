@@ -1,3 +1,4 @@
+# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Native GUI fixture: select a real file through each toolkit's own dialog.
 
 QEMU sends the keyboard input. No widget methods simulate user activation.

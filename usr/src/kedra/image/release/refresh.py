@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Actions-only GHCR image resolution, comparison and stable publication.
 
 No GitHub Releases, ISO artifacts, metadata signatures or checkpoints are used.

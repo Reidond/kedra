@@ -1,3 +1,8 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Cross-check the Rust release verifier with independent OpenSSL signatures.
 
 All identities, bytes and keys here are disposable synthetic fixtures. This is
@@ -9,7 +14,6 @@ import hashlib
 import json
 import pathlib
 import subprocess
-import sys
 import time
 
 parser = argparse.ArgumentParser()
@@ -89,7 +93,7 @@ try:
             plan = root / ('public-source-plan-' + name + '.json')
             plan.write_text(json.dumps(plan_value), encoding='utf-8')
             destination = root / ('public-trust-' + name)
-            result = subprocess.run([sys.executable, str(repository / 'usr/src/kedra/image/release/prepare-trust.py'),
+            result = subprocess.run(['uv', 'run', str(repository / 'usr/src/kedra/image/release/prepare-trust.py'),
                 '--source', str(plan), '--public-key', str(public), '--expected-fingerprint', fingerprint,
                 '--sysroot', str(binary), '--output', str(destination)], capture_output=True)
             return result, destination

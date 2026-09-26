@@ -1,10 +1,13 @@
 //! Direct signed registry updates. Caller input selects intent, never trust or references.
-use super::{DIRECTORY, RECORD, Result, STORE, Trust, hash, load_trust, lock, observe, process};
+use super::{
+    DIRECTORY, RECORD, Result, STORE, Trust, hash, load_trust, lock, observe, oci_cache, process,
+};
 use crate::{protocol::Request, storage::Store, trusted_file};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
+use std::os::fd::AsFd;
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -100,8 +103,9 @@ impl Drop for Cache {
     }
 }
 
-fn skopeo(arguments: &[&str], seconds: &str, limit: usize) -> Result<Vec<u8>> {
-    let mut child = Command::new("/usr/bin/timeout")
+fn skopeo_command(arguments: &[&str], seconds: &str) -> Command {
+    let mut command = Command::new("/usr/bin/timeout");
+    command
         .env_clear()
         .env("PATH", "/usr/sbin:/usr/bin")
         .env("HOME", DIRECTORY)
@@ -114,7 +118,26 @@ fn skopeo(arguments: &[&str], seconds: &str, limit: usize) -> Result<Vec<u8>> {
             "/usr/bin/skopeo",
         ])
         .args(arguments)
-        .stdin(Stdio::null())
+        .stdin(Stdio::null());
+    command
+}
+
+/// A policy-enforcing copy whose native progress report (stdout) goes to the
+/// caller's terminal on stderr; the helper's stdout stays its response channel.
+fn skopeo_copy(arguments: &[&str], seconds: &str) -> Result<()> {
+    let progress = std::io::stderr().as_fd().try_clone_to_owned()?;
+    let status = skopeo_command(arguments, seconds)
+        .stdout(Stdio::from(progress))
+        .stderr(Stdio::inherit())
+        .status()?;
+    if !status.success() {
+        return Err("signed registry operation failed; no deployment authorized".into());
+    }
+    Ok(())
+}
+
+fn skopeo(arguments: &[&str], seconds: &str, limit: usize) -> Result<Vec<u8>> {
+    let mut child = skopeo_command(arguments, seconds)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()?;
@@ -199,7 +222,33 @@ fn installed(trust: &Trust) -> Result<(Identity, Vec<u8>)> {
     Ok((identity, bytes))
 }
 
-fn authenticate(digest: &str, trust: &Trust, booted: bool) -> Result<Receipt> {
+/// Digests whose transferred layers stay cached: the native deployments and
+/// the journal's operation. Anything else is pruned after the next copy.
+fn cached(host: &Host, journal: Option<&Journal>) -> BTreeSet<String> {
+    let mut digests: BTreeSet<String> = [
+        Some(&host.booted),
+        host.staged.as_ref(),
+        host.rollback.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|slot| slot.digest.clone())
+    .collect();
+    if let Some(operation) = journal.and_then(|j| j.operation.as_ref()) {
+        digests.insert(operation.target_digest.clone());
+        digests.insert(operation.previous_booted.clone());
+        digests.extend(operation.previous_staged.clone());
+    }
+    digests.retain(|digest| deployment::digest_valid(digest));
+    digests
+}
+
+fn authenticate(
+    digest: &str,
+    trust: &Trust,
+    booted: bool,
+    retained: &BTreeSet<String>,
+) -> Result<Receipt> {
     if !deployment::digest_valid(digest) {
         return Err("invalid expected image digest".into());
     }
@@ -212,9 +261,21 @@ fn authenticate(digest: &str, trust: &Trust, booted: bool) -> Result<Receipt> {
         .open(&auth)?
         .write_all(b"{}")?;
     let source = format!("docker://{}@{digest}", trust.scope.repository);
-    let target = format!("dir:{}", cache.0.join("image").display());
+    // Keep this digest even if its identity is refused below, so a repeated
+    // refusal does not transfer it again. Other images go before the transfer,
+    // so a failed one (for example on a full disk) never leaves them in place.
+    let mut keep = retained.clone();
+    keep.insert(digest.to_owned());
+    oci_cache::prepare(&keep)?;
+    let target = oci_cache::reference(digest)?;
     // Full native policy enforcement, including missing/wrong signatures, precedes metadata use.
-    skopeo(
+    // The OCI layout destination cannot store signatures, so they are verified, not copied.
+    eprintln!(
+        "sysroot-helper: transferring {source} to verify its signature and identity; \
+         the first transfer downloads the whole image, later ones reuse cached layers \
+         and fetch only new ones"
+    );
+    skopeo_copy(
         &[
             "--policy",
             POLICY,
@@ -223,17 +284,34 @@ fn authenticate(digest: &str, trust: &Trust, booted: bool) -> Result<Receipt> {
             auth.to_str().ok_or("cache path invalid")?,
             "--src-tls-verify=true",
             "--preserve-digests",
+            "--remove-signatures",
             &source,
             &target,
         ],
         "30m",
-        1_048_576,
     )?;
-    let manifest = skopeo(&["inspect", "--raw", &target], "30s", 1_048_576)?;
-    if format!("sha256:{}", hash(&manifest)) != digest {
-        return Err("verified cache manifest digest differs".into());
-    }
-    let raw = skopeo(&["inspect", "--config", &target], "30s", 1_048_576)?;
+    eprintln!("sysroot-helper: signature verified; checking the signed image identity");
+    let read_back = (|| -> Result<Vec<u8>> {
+        let manifest = skopeo(&["inspect", "--raw", &target], "30s", 1_048_576)?;
+        if format!("sha256:{}", hash(&manifest)) != digest {
+            return Err("verified cache manifest digest differs".into());
+        }
+        // containers/image rejects a config whose digest differs from this manifest.
+        skopeo(&["inspect", "--config", &target], "30s", 1_048_576)
+    })();
+    let raw = match read_back {
+        Ok(raw) => raw,
+        Err(error) => {
+            if let Err(cleanup) =
+                oci_cache::discard("layout read-back failed after a verified copy")
+            {
+                eprintln!("sysroot-helper: {cleanup}");
+            }
+            return Err(error);
+        }
+    };
+    // Unreferenced layers, including those of an interrupted copy, go too.
+    oci_cache::prune(&keep)?;
     let config: Config = serde_json::from_slice(&raw)?;
     if config.os != "linux"
         || targets::oci_architecture(&trust.scope.architecture)
@@ -463,7 +541,16 @@ pub(super) fn run(request: Request) -> Result<()> {
                 "legacy migration requires the explicitly reviewed booted --expected-digest".into(),
             );
         }
-        let booted = authenticate(&before.booted.digest, &trust, true)?;
+        // Store::create refuses any existing entry; refuse before transferring the image
+        // or pruning layers that an existing journal's operation still needs.
+        if !migrate_legacy {
+            match std::fs::symlink_metadata(STORE) {
+                Ok(_) => return Err("already enrolled; use update status or check".into()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                Err(error) => return Err(error.into()),
+            }
+        }
+        let booted = authenticate(&before.booted.digest, &trust, true, &cached(&before, None))?;
         if observe(&trust.scope)? != before {
             return Err("native deployment changed during enrollment".into());
         }
@@ -524,7 +611,7 @@ pub(super) fn run(request: Request) -> Result<()> {
         if matches!(request, Request::ChannelCheck {}) {
             installed(&trust)?;
             let digest = resolve(&trust)?;
-            let available = authenticate(&digest, &trust, false)?;
+            let available = authenticate(&digest, &trust, false, &cached(&before, None))?;
             if resolve(&trust)? != digest || observe(&trust.scope)? != before {
                 return Err("channel or deployment changed during check".into());
             }
@@ -560,7 +647,12 @@ pub(super) fn run(request: Request) -> Result<()> {
     let (kind, target, should_run) = match request {
         Request::ChannelCheck {} | Request::ChannelStage { .. } => {
             let digest = resolve(&trust)?;
-            let available = authenticate(&digest, &trust, digest == before.booted.digest)?;
+            let available = authenticate(
+                &digest,
+                &trust,
+                digest == before.booted.digest,
+                &cached(&before, Some(&journal)),
+            )?;
             available.follows(&journal.high_water)?;
             if resolve(&trust)? != digest || observe(&trust.scope)? != before {
                 return Err("channel or deployment changed during verification".into());
@@ -653,8 +745,14 @@ pub(super) fn run(request: Request) -> Result<()> {
             OperationKind::Stage => vec!["switch", "--enforce-container-sigpolicy", &reference],
             OperationKind::Rollback => vec!["rollback"],
         };
+        if matches!(kind, OperationKind::Stage) {
+            eprintln!(
+                "sysroot-helper: staging {reference} with bootc; it fetches only layers it does not already have"
+            );
+        }
+        // bootc's own progress and messages go to the caller's terminal.
         process("30m", &arguments)
-            .stdout(Stdio::null())
+            .stdout(Stdio::from(std::io::stderr().as_fd().try_clone_to_owned()?))
             .stderr(Stdio::inherit())
             .status()?
             .success()

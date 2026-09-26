@@ -27,22 +27,17 @@ selected upstream Rust skills live in the separate repository-local `rust-skills
 plugin (`usr/src/kedra/plugins/rust-skills/skills/`), whose NOTICE.md records
 upstream provenance. Edit files in place; there is no sync command or copied
 agent discovery tree.
-The plugin is development knowledge for a Kedra checkout. Loading it does not
-authorize hooks, tool installation, deployment or personal configuration changes.
+Loading the plugin does not authorize hooks, tool installation, deployment or
+personal configuration changes.
 
-## Repository scope only
+## Repository development only
 
-This entire collection, including the pinned upstream Rust skills, belongs only
-to the Kedra checkout/worktrees. It must not be installed or registered in global
-user skill directories, system directories, global plugins, or shared agent
-profiles. Do not package it as a system-wide library in the OS image, installer,
-or managed home baseline. A normal Kedra clone contains these repository files;
-that is not a global skill installation.
-
-The bundled `sysroot` agent launchers should find the collection by opening this
-repository, not by copying it into personal or global configuration. This does
-not change the user's independent ownership of personal skills or their optional
-tracking choices. See `AGENTS.md` for the full scope and authorization contract.
+These skills, including the pinned upstream Rust skills, are for developing this
+repository. Both plugins are registered for this repository only, by the
+checked-in marketplaces and project configuration described in `AGENTS.md`. They
+are not part of the OS image, installer, managed home baseline, the `sysroot`
+agent launchers or their profiles, and are not installed for other projects.
+Any change to these skills bumps the plugin version in both manifests.
 
 ## Maintenance contract
 

@@ -6,48 +6,46 @@ The eighteen selected upstream Rust skills are the separate repository-local
 `.codex-plugin/plugin.json`; Claude reads `.claude-plugin/plugin.json`.
 Everything is an ordinary file.
 
-Use this plugin while working in a Kedra checkout. Start with the checkout's
+These skills are for developing this repository only. Start with the checkout's
 AGENTS.md, worklog.md and usr/src/kedra/docs/STATUS.md, then the `kedra-context`
-skill. Repository paths in skills refer to that working checkout, not an
-installed plugin cache. The sysroot agent launchers open the checkout without
-provisioning these skills globally; see usr/src/kedra/docs/AGENT-LAUNCHERS.md for
-implemented runtime scope.
+skill. Repository paths in skills refer to the working checkout. The skills are
+not part of the OS, installer, home baseline or the sysroot agent launchers.
 
 ## Codex
 
 The repository marketplace is `.agents/plugins/marketplace.json`, named
-`kedra-local`. On 2026-09-07, Codex CLI 0.153.4 marketplace queries and fresh-profile
-skills/list probes found no Kedra skills at root or crate cwd. The current app
-session did not advertise them either. Read canonical skill files explicitly when
-the plugin is unavailable; a restart is not a verified remedy. See
-[discovery evidence](https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/STATUS.md).
-These repository files have not installed the plugin or changed personal config.
+`kedra-local`. The checked-in `.codex/config.toml` enables `kedra@kedra-local`
+and `rust-skills@kedra-local` once the project is trusted. Codex loads plugins
+only from its cached copy (`$CODEX_HOME/plugins/cache/`), and its command-line
+plugin commands do not discover the repository marketplace by themselves, so
+register once per machine from the repository root:
 
-Codex CLI supports explicitly registering a marketplace with
-`codex plugin marketplace add .` and installing with
-`codex plugin add kedra@kedra-local` (`rust-skills@kedra-local` for the Rust
-skills). These persist installation/config outside the checkout: they are user
-opt-in, not automatic agent startup steps.
+```sh
+codex plugin marketplace add .
+codex plugin add kedra@kedra-local
+codex plugin add rust-skills@kedra-local
+```
+
+The first command records this checkout's absolute path in the user's Codex
+configuration; the others copy the plugins into the cache. Codex refreshes the
+cache only when a plugin's `version` changes, or when `codex plugin add` runs
+again. Earlier discovery evidence (Codex CLI 0.153.4, 2026-09-07) is in
+[STATUS](https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/STATUS.md).
 
 ## Claude Code
 
-From the Kedra checkout, load both repository plugins for the current session:
-
-```sh
-claude --plugin-dir ./usr/src/kedra/plugins/kedra --plugin-dir ./usr/src/kedra/plugins/rust-skills
-```
-
-Use `/kedra:kedra-context` to load the context skill. The root
-`.claude-plugin/marketplace.json` also supports explicitly chosen marketplace
-installation. Session loading avoids a persistent user installation.
+The checked-in `.claude/settings.json` declares the `kedra-local` marketplace
+(`.claude-plugin/marketplace.json`) and enables `kedra@kedra-local` and
+`rust-skills@kedra-local`. Once the folder is trusted, both plugins load in
+place from the working tree; edits take effect in a new session or after
+`/reload-plugins`. Use `/kedra:kedra-context` to load the context skill.
 
 ## Editing
 
 Edit `usr/src/kedra/plugins/kedra/skills/<name>/` directly. Both manifests use
 the same tree; there is no generator, sync command, symlink setup or Cargo task
-runner. Update both manifest versions together when publishing a plugin update.
-Reload Claude plugins or start a new session; refresh an installed Codex plugin
-through its normal update/reinstall flow and start a new thread.
+runner. Any change to the skills bumps `version` in both manifests together, so
+Codex refreshes its cached copy; then start a new session or thread.
 
 The `rust-skills` plugin's notice records the source revision and selected
 skills. [Upstream notices](../rust-skills/NOTICE.md) retain attribution and the

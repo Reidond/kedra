@@ -22,6 +22,6 @@ Only E2E/manual tests: no unit/model/mock/doctests or repository source scanners
 
 Use the pinned toolchain. RUSTUP_TOOLCHAIN can override rust-toolchain.toml; inspect rustup show active-toolchain and use the explicit installed pin rather than lowering rust-version. Do not install tools automatically. Source: https://rust-lang.github.io/rustup/overrides.html (local finding 2026-09-07).
 
-Keep canonical ordinary skill files and Codex/Claude manifests in usr/src/kedra/plugins/kedra, with the pinned upstream Rust skills in usr/src/kedra/plugins/rust-skills. Preserve upstream NOTICE/provenance and review snapshot/version updates. No symlinks, submodules, generated copies, global registration or OS skill provisioning. Manual file access does not prove automatic plugin discovery.
+Keep canonical ordinary skill files and Codex/Claude manifests in usr/src/kedra/plugins/kedra, with the pinned upstream Rust skills in usr/src/kedra/plugins/rust-skills. Preserve upstream NOTICE/provenance and review snapshot/version updates. No symlinks, submodules, generated copies or OS skill provisioning; the plugins are registered for this repository only (AGENTS.md), and skill changes bump the plugin version. Manual file access does not prove automatic plugin discovery.
 
 Windows Git 2.55 rejected canonical verbatim paths in GIT_CONFIG_GLOBAL; use appropriate ordinary subprocess paths for generated fixtures, separately from filesystem path validation. Native CLI/VM E2E remains the acceptance boundary.

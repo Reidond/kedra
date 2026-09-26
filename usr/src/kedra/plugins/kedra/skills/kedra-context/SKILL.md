@@ -11,4 +11,4 @@ Use kedra-rust-workspace plus rust-router/domain-cli for Rust; kedra-bootc/relea
 
 Source and installed versions differ; consult STATUS before claiming newer features shipped. Current distribution is signed GHCR images only, with local on-demand installer media. Preserve user changes, explicit target scope, local-only home content and private credentials. OS image builds belong in Actions. Never enroll or format the workstation.
 
-Skills remain checkout-local. No global installation, generated copies or OS provisioning. Record exact checks and unresolved behavior in worklog; keep logs/artifacts in Actions, not tracked research directories.
+Skills are for developing this repository only; both plugins are registered for this repository (AGENTS.md). No generated copies or OS provisioning. Record exact checks and unresolved behavior in worklog; keep logs/artifacts in Actions, not tracked research directories.

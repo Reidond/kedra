@@ -25,4 +25,4 @@ cargo test --workspace --test 'e2e_*' --locked
 cargo build --workspace --release --locked
 ```
 
-[Tests](usr/src/kedra/tests/README.md) use real CLI/process and disposable VM workflows. [Repository skills](usr/src/kedra/plugins/kedra/README.md) and the [pinned Rust skills](usr/src/kedra/plugins/rust-skills/NOTICE.md) remain checkout-local; [third-party notices](usr/src/kedra/THIRD_PARTY.md) remain intact.
+[Tests](usr/src/kedra/tests/README.md) use real CLI/process and disposable VM workflows. [Repository skills](usr/src/kedra/plugins/kedra/README.md) and the [pinned Rust skills](usr/src/kedra/plugins/rust-skills/NOTICE.md) are registered for developing this repository only; [third-party notices](usr/src/kedra/THIRD_PARTY.md) remain intact.

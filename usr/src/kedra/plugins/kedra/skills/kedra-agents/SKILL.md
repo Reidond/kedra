@@ -82,9 +82,25 @@ configured marketplace roots, while standalone repository discovery scans
 `.agents/skills`, not `usr/src/kedra/plugins/kedra/skills`. An `AVAILABLE` marketplace entry
 does not load the plugin; its loader requires an active cache installation.
 
-Continue by reading canonical files through the checkout's AGENTS.md routing.
-Do not copy or link the skill tree into discovery folders, register it in a
-personal/management profile, or globally install it as an incidental remedy.
+Owner decision (2026-09-27): register both repository plugins for this
+repository instead of relying on manual reads. Source review of `openai/codex`
+at `06f97622f852` (identical at `rust-v0.157.1`, 2026-09-26) and local 0.156.1
+experiments with a disposable `CODEX_HOME` found:
+
+- A trusted project's `.codex/config.toml` may set `[plugins."<name>@<marketplace>"]`
+  (`config/src/loader/mod.rs`, `core-plugins/src/marketplace_policy.rs`). An
+  untrusted project's layer is ignored.
+- A `[marketplaces.<name>]` local `source` is resolved against the process
+  working directory, not the config file, so the checked-in config omits it.
+- The TUI and app server discover `<git root>/.agents/plugins/marketplace.json`.
+  CLI `codex plugin` commands do not (`cli/src/plugin_cmd.rs`).
+- Plugins load only from `$CODEX_HOME/plugins/cache/<marketplace>/<plugin>/<version>/`.
+  The background refresh reinstalls only when the manifest version changes
+  (`core-plugins/src/loader.rs`), so skill changes bump the plugin version.
+
+Hence: checked-in `.codex/config.toml` plus once-per-machine `codex plugin
+marketplace add .` and `codex plugin add` from the repository root. Do not link
+the skill tree into discovery folders or provision it into launcher profiles.
 The inspected native CLI has no `--plugin-dir`/`--skills-dir` option;
 `skills.config` only enables/disables discovered skills and is not a root mapping.
 

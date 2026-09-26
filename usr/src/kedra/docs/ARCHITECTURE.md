@@ -32,7 +32,7 @@ Noctalia uses a narrow safe-field projection; niri uses explicitly adopted text 
 
 ## Agents and credentials
 
-Bundled agents are private executables reached through `sysroot`; personal runtimes and profiles remain independent. A profile directory is not a security sandbox. Repository skills and pinned upstream notices remain in the repository-local `usr/src/kedra/plugins/kedra` and `usr/src/kedra/plugins/rust-skills` plugins, never automatically registered globally or copied into the OS.
+Bundled agents are private executables reached through `sysroot`; personal runtimes and profiles remain independent. A profile directory is not a security sandbox. Repository development skills live in the `usr/src/kedra/plugins/kedra` and `usr/src/kedra/plugins/rust-skills` plugins, registered for this repository only; they are never copied into the OS, installer, home baseline or launcher profiles.
 
 Bitwarden holds SSH keys. Never export private keys or pass an unlocked vault session to agents. SSH, GitHub API, registry, model authentication and OS-release signing are separate authorities. Account login is an owner operation; no custom OAuth or credential synchronization.
 

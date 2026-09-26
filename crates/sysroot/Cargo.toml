@@ -20,6 +20,10 @@ path = "tests/home_export.rs"
 name = "e2e_source_targets"
 path = "tests/source_targets.rs"
 
+[[test]]
+name = "e2e_setup_tpm_unlock"
+path = "tests/setup_tpm_unlock.rs"
+
 [dependencies]
 sysroot-core.workspace = true
 clap.workspace = true

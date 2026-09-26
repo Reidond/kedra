@@ -50,6 +50,11 @@ pub const STATUS_JSON: &str = r#"{
       "implemented": true, "platform": "linux",
       "requires": ["installed Kedra system", "ordinary logged-in desktop user"]
     },
+    "setup": {
+      "implemented": true, "platform": "linux", "operations": ["tpm-unlock"],
+      "tpm_policy": "pcr7_sha256_optional_pin",
+      "requires": ["ordinary owner at an interactive terminal", "root and /var on one LUKS2 volume", "administrator authorization", "for enrollment and replacement only: enforced UEFI Secure Boot, one TPM 2.0 with a measured SHA-256 PCR 7, rd.luks.uuid for that volume and the current disk passphrase"]
+    },
     "targets": {
       "implemented": true, "platform": "portable",
       "enabled": {"desktop": "x86_64", "utm": "aarch64"},
@@ -64,13 +69,15 @@ pub const STATUS_JSON: &str = r#"{
     "claude_bundled_runtime": "not_packaged_pending_owner_terms",
     "agent_authentication": "not_qualified",
     "utm_target": "implemented_not_qualified",
-    "secure_boot_enforcement": "implemented_not_qualified"
+    "secure_boot_enforcement": "implemented_not_qualified",
+    "tpm_unlock": "implemented_not_qualified"
   },
   "installed_checks": {
     "published_channel": "sysroot update check",
     "deployment": "sysroot update status",
     "caller_home": "sysroot update status --home",
-    "desktop": "sysroot doctor"
+    "desktop": "sysroot doctor",
+    "tpm_unlock_preflight": "sysroot setup tpm-unlock --dry-run"
   }
 }"#;
 
@@ -80,7 +87,6 @@ pub fn research_gate(command: &str) -> Option<&'static str> {
         "update" | "deploy" | "rollback" => Some("R01, R02, R04, R08, R10"),
         "home" => Some("R03, R04"),
         "codex" | "claude" => Some("R05, R06, R11"),
-        "setup" | "doctor" => Some("R06, R07, R10"),
         "context" => Some("R05, R09, R10"),
         _ => None,
     }

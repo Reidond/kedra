@@ -11,6 +11,7 @@ mod home;
 mod installer_artifact;
 mod release_channel;
 mod release_history;
+mod setup;
 mod source;
 
 #[derive(Parser)]
@@ -34,6 +35,8 @@ enum Commands {
     Update(deployment::Options),
     /// Review, select and reconcile supported Noctalia settings and niri text.
     Home(home::Options),
+    /// One-time setup of this installed machine, such as TPM disk unlock (Linux).
+    Setup(setup::Options),
     /// Launch an official Codex runtime in the verified Kedra checkout (Linux).
     Codex(agents::Options),
     /// Launch an official Claude runtime in the verified Kedra checkout (Linux).
@@ -398,6 +401,12 @@ fn main() -> ExitCode {
                 return ExitCode::from(78);
             }
         }
+        Some(Commands::Setup(options)) => {
+            if let Err(error) = setup::run(options) {
+                eprintln!("sysroot: {error}");
+                return ExitCode::from(78);
+            }
+        }
         Some(Commands::Codex(options)) => {
             if let Err(error) = agents::run("codex", options) {
                 eprintln!("sysroot: {error}");
@@ -428,7 +437,7 @@ fn main() -> ExitCode {
                 println!("{}", sysroot_core::STATUS_JSON);
             } else {
                 println!(
-                    "Kedra capabilities: source and release tools, including historical verification, and Linux deployment and Noctalia/niri home workflows are implemented. Installed state is not checked here. Use sysroot update status, sysroot update status --home and sysroot doctor for installed checks."
+                    "Kedra capabilities: source and release tools, including historical verification, and Linux deployment, Noctalia/niri home workflows and TPM disk unlock setup are implemented. Installed state is not checked here. Use sysroot update status, sysroot update status --home, sysroot doctor and sysroot setup tpm-unlock --dry-run for installed checks."
                 );
             }
         }

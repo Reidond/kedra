@@ -188,6 +188,27 @@ because its `EFI/BOOT` has no `fbaa64.efi` (see [installer/README.md](../README.
   `\EFI\fedora\shimaa64.efi` on the EFI partition of the `KEDRASYSTEM` disk and move
   it first.
 
+TPM disk unlock (`sysroot setup tpm-unlock` in the guest, see
+[INSTALL.md](../../docs/INSTALL.md#optional-unlock-the-disk-with-the-tpm)) seals the
+disk key in this swtpm, bound to PCR 7:
+
+- It removes the boot passphrase prompt but adds no protection against a copied
+  bundle. The Mac can read `Data/tpmdata`, which holds the TPM's secrets, so anyone
+  who can read the bundle can recover the key without the passphrase, the PCR 7
+  state or a `--with-pin` PIN. A disk image copied without `Data/tpmdata` still
+  needs the passphrase.
+- Its preflight refuses unless PCR 7 in the SHA-256 bank is measured, that is,
+  unless UTM's firmware recorded the Secure Boot state. This has not yet been
+  observed in a UTM guest.
+- Resetting the UEFI variables, toggling the TPM or replacing `Data/tpmdata` makes
+  TPM unlock fail, and boot asks for the passphrase again. Keep the passphrase. After
+  a UEFI variable reset, log in and run `sysroot setup tpm-unlock --replace`. A
+  toggled TPM or replaced `Data/tpmdata` is a new TPM with the same PCR 7, so
+  `--replace` keeps the old, unusable slot: run `sysroot setup tpm-unlock --remove`,
+  then `sysroot setup tpm-unlock`.
+- `--remove` needs neither the TPM nor Secure Boot, so the enrollment can be
+  removed from the LUKS2 header even while either is turned off.
+
 ## Graphics, serial console and guest agents
 
 - **VirGL (OpenGL)** is Mesa's default driver on `virtio-gpu-gl-pci`.

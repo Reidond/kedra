@@ -93,3 +93,53 @@ The installed system uses enforcing SELinux; installer-media policy is separate.
 After a fresh installation, use `sysroot update enroll`, then the [update workflow](UPDATES.md).
 
 Physical hardware and each target's Secure Boot installation require separate qualification. See [status](STATUS.md) for actual tested media and remaining limits.
+
+## Optional: unlock the disk with the TPM
+
+The encrypted root asks for its passphrase at every boot. `sysroot setup tpm-unlock` adds a key sealed in the TPM so the initramfs can unlock the disk without it. Run it as the owner account in a terminal, not with sudo:
+
+```sh
+sysroot setup tpm-unlock --dry-run   # read-only checks, the plan and the exact commands
+sysroot setup tpm-unlock             # asks for sudo, then for the current disk passphrase
+```
+
+Before enrolling (and with `--replace`), it checks without administrator access and refuses without changing anything unless:
+
+- UEFI Secure Boot is enforced (the same firmware check as `sysroot doctor`);
+- exactly one TPM 2.0 is present (`/sys/class/tpm/tpm*/tpm_version_major`), with its `/dev/tpmrm*` device, and PCR 7 in the SHA-256 bank is measured (not all zeros);
+- `lsblk --json` shows exactly one LUKS2 volume (a `crypt` mapping on a `crypto_LUKS` version 2 container) holding `/sysroot` (or `/`) and `/var`, and `/dev/disk/by-uuid/<uuid>` resolves to it;
+- the kernel command line has `rd.luks.uuid=<that uuid>` and no `rd.luks.key`, `luks.key`, `rd.luks.options` or `luks.options`. The image's initramfs is generic (`--no-hostonly`) and contains no `/etc/crypttab`, so this argument is what unlocks the root at boot. `/etc/crypttab` is not read: Anaconda creates it readable only by root.
+
+It then runs `/usr/bin/sudo -- /usr/bin/systemd-cryptenroll` three times with explicit arguments:
+
+1. `/dev/disk/by-uuid/<uuid>` lists the key slots. It stops unless a passphrase slot exists, and, without `--replace`, if a TPM slot already exists.
+2. `--tpm2-device=/dev/tpmrmN --tpm2-pcrs=7:sha256 --tpm2-public-key= --tpm2-pcrlock= /dev/disk/by-uuid/<uuid>` enrolls (`--tpm2-with-pin=yes` is added with `--with-pin`). systemd-cryptenroll asks for the current passphrase on your terminal; `sysroot` never reads, stores or passes it. The empty values stop systemd-cryptenroll from also binding a signed-PCR key or pcrlock policy that happens to exist on disk.
+3. The list is read again. Exactly one TPM slot, not one listed before, must exist and every other slot must be unchanged.
+
+No `/etc/crypttab` or kernel-argument change is needed. When no key file is configured, systemd-cryptsetup 259 tries every enrolled LUKS2 token through libcryptsetup's token plugins before asking for the passphrase. The base initramfs contains `systemd-cryptsetup`, the `systemd-tpm2` token plugin and the TPM libraries.
+
+Options:
+
+- `--with-pin` also requires a PIN at every boot, at the "LUKS2 token PIN" prompt. A wrong PIN asks again and counts toward the TPM's dictionary-attack lockout. How to leave that prompt for the passphrase prompt has not been qualified; if the PIN is lost, installation media opens the volume with the passphrase.
+- `--replace` enrolls again and adds `--wipe-slot=tpm2`: old TPM slots are wiped only after the new enrollment succeeds. This re-seals after PCR 7 changed, or when adding, changing or dropping the PIN. If an existing TPM slot already matches the current PCR 7 value without a PIN, systemd-cryptenroll 259 keeps it and seals nothing ("This PCR set is already enrolled, executing no operation"); `sysroot` then reports that the slot was kept and exits with an error instead of claiming success.
+- `--remove` runs `--wipe-slot=tpm2` only, and refuses unless a passphrase slot exists. It checks only the LUKS2 volume and needs administrator access, not Secure Boot, the TPM, the kernel command line or the passphrase, so it also works after the TPM or Secure Boot was turned off. If even the volume cannot be identified, the refusal prints the manual `systemd-cryptenroll` commands.
+
+Why PCR 7 alone:
+
+- PCR 7 records the Secure Boot state, the firmware key databases (PK, KEK, db, dbx) and the certificates that approved shim, GRUB and the kernel, as reported by the firmware and shim. Image updates replace the kernel and initramfs, which the same Fedora key signs and PCR 7 does not cover, so updates are not expected to require enrolling again (not yet qualified).
+- PCRs 4, 8 and 9 (boot loader, GRUB commands and kernel command line, kernel and initramfs) change with every image update and would bring back the passphrase prompt after each one. PCRs 0 and 2 change with firmware updates. Signed PCR 11 policies need a unified kernel image, which Kedra does not boot.
+
+Recovery: the passphrase stays enrolled. When the TPM refuses, boot asks for the passphrase. After logging in:
+
+- if PCR 7 changed (Secure Boot toggled, a firmware key or dbx update, a shim SBAT update, a reset UTM variable store), run `sysroot setup tpm-unlock --replace`;
+- if the TPM was cleared or replaced (UTM: the TPM toggled or `Data/tpmdata` replaced), PCR 7 is unchanged, so `--replace` keeps the old slot, which can no longer be unsealed. Run `sysroot setup tpm-unlock --remove`, then `sysroot setup tpm-unlock`.
+
+When unsure, run `--replace` first; it reports when it kept the old slot. Keep the passphrase: installation media also opens the volume with it.
+
+Security scope:
+
+- The initramfs and kernel command line are not signed and not part of PCR 7, and GRUB has no password. Someone at the console can boot an edited command line, for example with a debug shell, and get a root shell once the TPM has unlocked the disk. Without `--with-pin`, TPM unlock protects a disk separated from its machine, not a stolen machine.
+- In a virtual machine the host keeps the TPM state. On UTM, anyone who can read the bundle's `Data/tpmdata` can recover the key without the passphrase, the PCR 7 state or a PIN (see [installer/utm](../installer/utm/README.md#secure-boot-and-tpm-semantics)).
+- `sysroot doctor` does not report the enrollment: reading LUKS2 token metadata means opening the block device, which only root can do.
+
+The enrollment, replace and remove arguments were exercised with systemd 259.9 against a software TPM and a generated LUKS2 file. Boot unlock on UTM and on hardware is not yet qualified; see [status](STATUS.md).

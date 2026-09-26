@@ -59,6 +59,19 @@ If `sysroot update status --home` is available in this build, it reports the
 caller's adopted Noctalia/niri baseline and pending recovery state without
 applying changes. Use the explicit home review/plan/recovery commands to act on it.
 
+To stop typing the disk passphrase at every boot, run
+`sysroot setup tpm-unlock --dry-run` to check this system and print the exact
+commands, then `sysroot setup tpm-unlock` in a terminal. It asks for the current
+disk passphrase and seals a new disk key in the TPM, bound to the Secure Boot
+state (PCR 7). Your passphrase stays enrolled: boot asks for it whenever the TPM
+refuses, for example after a firmware or Secure Boot change; then run the command
+again with `--replace`. After a TPM reset, `--replace` keeps the old slot: run
+`--remove`, then the plain command. Undo with `sysroot setup tpm-unlock --remove`,
+which works even when the TPM or Secure Boot is off.
+Without `--with-pin`, anyone at this machine's console can reach the unlocked
+disk, because the boot menu and kernel command line are not protected. In a
+virtual machine, whoever can read the VM's TPM state can recover the key.
+
 For recovery without a graphical session, use Ctrl+Alt+F2 and log in on the text
 console. `bootc status` distinguishes the current image from a staged one.
 Keep installation/recovery media available. Rolling back the OS does not restore

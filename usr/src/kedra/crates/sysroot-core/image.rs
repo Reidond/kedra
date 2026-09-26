@@ -40,8 +40,8 @@ impl Identity {
     }
 
     pub fn validate(&self, scope: &Scope, now: u64) -> Result<(), &'static str> {
-        let production =
-            targets::enabled(&scope.target, &scope.architecture).map(|spec| spec.repository.as_str());
+        let production = targets::enabled(&scope.target, &scope.architecture)
+            .map(|spec| spec.repository.as_str());
         if self.schema_version != 2
             || self.project != "Kedra"
             || self.target != scope.target

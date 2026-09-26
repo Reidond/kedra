@@ -1038,7 +1038,8 @@ Last updated: 2026-09-27 (UTC).
   - pass — in rust:1.98.1 arm64: fmt; Clippy `-D warnings`; e2e 5/5 (including new cross-layout source and niri-review cases), run as an ordinary user with umask 022; release build; release-interop and release-material, both directly and via `uv run`.
   - pass — source plans of the moved tree against main for `desktop` and `utm`: identical destinations, blobs, modes, targets and packages. The new CLI plans legacy main exactly as the old CLI did.
   - pass — Python/shell/YAML/JSON parse; uv entry points start on macOS; Codex CLI 0.156.1 on the owner's Mac lists `kedra@kedra-local` 0.2.0 and `rust-skills@kedra-local` as installed and enabled, with the cache identical to the working tree.
-  - not-run — Actions workflows, VM runs, a model session using the plugins.
+  - fail then fixed — the first push (`0d612af`) failed rustfmt in every workflow: `sysroot-core/image.rs` changed after the last local fmt run. The next commit applies rustfmt, and the full local suite above was rerun and passes.
+  - not-run — Actions workflows past formatting, VM runs, a model session using the plugins.
   - blocked — Claude project registration: Claude Code refused to change its own configuration without the owner.
 - Remaining / blockers:
   - The owner runs the Claude registration commands on the Mac. Those commands also write `.claude/settings.json`, which is to be reviewed and committed.

@@ -1,7 +1,7 @@
 # State model and adversarial examples
 
 Supported Noctalia/niri workflows use independent review, publication and recovery
-state. See docs/HOME-REVIEW.md, docs/TEXT-REVIEW.md and docs/STATUS.md for actual scope.
+state. See usr/src/kedra/docs/HOME-REVIEW.md, usr/src/kedra/docs/TEXT-REVIEW.md and usr/src/kedra/docs/STATUS.md for actual scope.
 
 ## Separate state dimensions
 

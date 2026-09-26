@@ -5,11 +5,15 @@ description: Add or change Kedra host targets, shared/host overlays, home source
 
 # One repository, separate target releases
 
-Common packages and Linux-shaped etc/usr/home inputs are assembled first;
-hosts/<target>/ inputs follow with explicit same-path replacement. Report replaced
-paths. Use native app includes for content composition, not an arbitrary deep
-merge. Start with two levels; add shared laptop profiles only when actual repeated
-hardware policy warrants them. No machine-specific long-lived branches or repos.
+The repository root is the image filesystem. Shared packages
+(usr/src/kedra/image/packages.list) and root etc/ and usr/ are assembled first;
+etc/skel/ is the home baseline and the usr/src/kedra/ development tree never
+enters the image. The target's usr/src/kedra/image/targets/<target>/ inputs
+(target.toml, packages.list and the etc/ and usr/ overlay) follow with explicit
+same-path replacement. Report replaced paths. Use native app includes for content
+composition, not an arbitrary deep merge. Start with two levels; add shared laptop
+profiles only when actual repeated hardware policy warrants them. No
+machine-specific long-lived branches or repos.
 
 The first real target is desktop. xps reserves a future laptop and is disabled
 until selected/qualified. Use a second synthetic VM target to prove architecture
@@ -20,18 +24,19 @@ same source commit/base but produce different image digests and installers.
 enabled target: aarch64, `ghcr.io/reidond/kedra-utm`, `hardware_status = "virtual"`.
 It is an Apple Silicon Mac guest in UTM 5.0.6's QEMU backend (HVF, `virtio-gpu-gl-pci`,
 UEFI + TPM Secure Boot), not a hardware claim. The closed table is
-`crates/sysroot-core/targets.rs` and `build/release/material.py` `TARGETS`; any other
-(target, architecture) pair is refused, and xps stays disabled. It has its own key,
-signing environment, runner and rank history. Keep niri output/scale/input overrides
-out of `hosts/utm` until measured in UTM. Facts found in disposable containers on
-2026-09-25:
+`usr/src/kedra/image/release/targets.json`, embedded by sysroot-core and read by
+the Python tooling; any other (target, architecture) pair is refused, and xps
+stays disabled. It has its own key, signing environment, runner and rank history.
+Keep niri output/scale/input overrides out of the utm overlay
+(`usr/src/kedra/image/targets/utm/`) until measured in UTM. Facts found in
+disposable containers on 2026-09-25:
 - Fedora 44 `qemu-guest-agent-10.2.2-1.fc44` blocks no RPCs (`QEMU_GA_ARGS` is
   commented out in `/etc/sysconfig/qemu-ga`). UTM always attaches its port, and
   `utmctl exec`/`file` use it (UTM v5.0.6 `Scripting/UTMScripting*Impl.swift`).
-  `hosts/utm` therefore blocks the exec, file, password and SSH-key RPCs in a
+  The utm overlay therefore blocks the exec, file, password and SSH-key RPCs in a
   qemu-guest-agent drop-in.
-- Bitwarden has no aarch64 RPM. `build/bitwarden/prepare.py` accepts only the reviewed
-  flat layout of the arm64 tarball. Its desktop entry keeps upstream `%u`, and
+- Bitwarden has no aarch64 RPM. `usr/src/kedra/image/bitwarden/prepare.py`
+  accepts only the reviewed flat layout of the arm64 tarball. Its desktop entry keeps upstream `%u`, and
   niri/Noctalia app-id matching on utm is unmeasured.
 
 ## Provenance and identity
@@ -39,9 +44,11 @@ out of `hosts/utm` until measured in UTM. Facts found in disposable containers o
 Implemented 2026-09-08: `sysroot source plan --repo PATH --host TARGET [--json]`
 reads one committed HEAD via raw Git tree/blobs, excludes index/worktree/untracked
 edits and emits package intent plus source paths, replacements, modes and SHA-256.
-Disabled/mismatched targets, links, package options and payload collisions fail.
-Source planning does not establish two-machine lifecycle. See docs/ARCHITECTURE.md
-for ownership and docs/STATUS.md for actual implemented/qualified behavior.
+Disabled/mismatched targets, links, package options, payload collisions,
+unexpected top-level directories, usr/src/ content other than usr/src/kedra/ and
+unexpected target-overlay files fail. Source planning does not establish
+two-machine lifecycle. See usr/src/kedra/docs/ARCHITECTURE.md for ownership and
+usr/src/kedra/docs/STATUS.md for actual implemented/qualified behavior.
 
 The follow-up `source archive --host TARGET --output FILE` writes a deterministic
 tar from those raw blobs plus source.json. It creates a new output only, keeps
@@ -50,7 +57,11 @@ private-key markers. It never reads live
 homes or claims to detect every secret; public input review remains necessary.
 
 Record each home file's source path/revision/host/content hash/mode/app group.
-Shared keybindings normally export to home/, monitor settings to hosts/<host>/home/.
+Shared keybindings normally export to etc/skel/, monitor settings to
+usr/src/kedra/image/targets/<target>/etc/skel/. Retained commits in the earlier
+layout (hosts/, packages/, root home/) still resolve, selected per commit; a
+commit mixing both layouts is refused. Provenance compares layer and
+home-relative path, so a baseline recorded before the move stays valid.
 Do not infer ownership from the deployed filename alone. A host override can hide
 a common file; show scope and all affected targets before publication. Ambiguous
 scope requires an explicit reviewed choice, not silently rewriting shared defaults.
@@ -77,5 +88,6 @@ remote deployment should call the same local deterministic helper, not bypass it
 R09 fixture: two VMs, distinct host overrides/local edits; publish shared plus
 host-only changes; update independently; reject cross-target images; keep one
 machine offline; then reconcile and roll back separately without scope leakage.
-Sources: PLAN.md and docs/ARCHITECTURE.md (user decisions), plus bootc-switch and
-bootc-kargs in docs/ARCHITECTURE.md. Hardware qualification is R07, not a matrix build.
+Sources: usr/src/kedra/PLAN.md and usr/src/kedra/docs/ARCHITECTURE.md (user
+decisions), plus bootc-switch and bootc-kargs in usr/src/kedra/docs/ARCHITECTURE.md.
+Hardware qualification is R07, not a matrix build.

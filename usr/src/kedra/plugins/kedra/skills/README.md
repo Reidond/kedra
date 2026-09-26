@@ -3,7 +3,8 @@
 These skills package the design session into task-sized instructions for Codex
 and Claude Code. Read `kedra-context` first, then the relevant domain. Each skill
 carries the decision, practical procedure, failure modes and primary references.
-PLAN.md, docs/ARCHITECTURE.md and docs/STATUS.md provide current scope.
+usr/src/kedra/PLAN.md, usr/src/kedra/docs/ARCHITECTURE.md and
+usr/src/kedra/docs/STATUS.md provide current scope.
 
 | Skill | Use for |
 |---|---|
@@ -20,10 +21,12 @@ PLAN.md, docs/ARCHITECTURE.md and docs/STATUS.md provide current scope.
 | kedra-research | End-to-end qualification, exact evidence and knowledge maintenance |
 | kedra-security | Privileged interface, path safety, journals, secret exclusion and recovery |
 
-This directory is the single canonical source for twelve Kedra skills and
-eighteen selected upstream Rust skills, with their supporting files. Both plugin
-manifests use it directly. Edit files here; there is no sync command or copied
-agent discovery tree. The plugin's third-party/rust-skills/NOTICE.md records upstream provenance.
+This directory is the single canonical source for the twelve Kedra skills and
+their supporting files; both plugin manifests use it directly. The eighteen
+selected upstream Rust skills live in the separate repository-local `rust-skills`
+plugin (`usr/src/kedra/plugins/rust-skills/skills/`), whose NOTICE.md records
+upstream provenance. Edit files in place; there is no sync command or copied
+agent discovery tree.
 The plugin is development knowledge for a Kedra checkout. Loading it does not
 authorize hooks, tool installation, deployment or personal configuration changes.
 

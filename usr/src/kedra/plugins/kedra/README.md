@@ -1,14 +1,17 @@
 # Kedra plugin for Codex and Claude Code
 
-One shared `skills/` directory contains twelve Kedra skills and eighteen selected
-Rust skills, with supporting files. Codex reads `.codex-plugin/plugin.json`;
-Claude reads `.claude-plugin/plugin.json`. Everything is an ordinary file.
+The `skills/` directory contains the twelve Kedra skills with supporting files.
+The eighteen selected upstream Rust skills are the separate repository-local
+`rust-skills` plugin in `usr/src/kedra/plugins/rust-skills/`. Codex reads
+`.codex-plugin/plugin.json`; Claude reads `.claude-plugin/plugin.json`.
+Everything is an ordinary file.
 
 Use this plugin while working in a Kedra checkout. Start with the checkout's
-AGENTS.md, worklog.md and docs/STATUS.md, then the `kedra-context` skill.
-Repository paths in skills refer to that working checkout, not an installed
-plugin cache. The sysroot agent launchers open the checkout without provisioning
-these skills globally; see docs/AGENT-LAUNCHERS.md for implemented runtime scope.
+AGENTS.md, worklog.md and usr/src/kedra/docs/STATUS.md, then the `kedra-context`
+skill. Repository paths in skills refer to that working checkout, not an
+installed plugin cache. The sysroot agent launchers open the checkout without
+provisioning these skills globally; see usr/src/kedra/docs/AGENT-LAUNCHERS.md for
+implemented runtime scope.
 
 ## Codex
 
@@ -17,20 +20,21 @@ The repository marketplace is `.agents/plugins/marketplace.json`, named
 skills/list probes found no Kedra skills at root or crate cwd. The current app
 session did not advertise them either. Read canonical skill files explicitly when
 the plugin is unavailable; a restart is not a verified remedy. See
-[discovery evidence](https://github.com/Reidond/kedra/blob/main/docs/STATUS.md).
+[discovery evidence](https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/STATUS.md).
 These repository files have not installed the plugin or changed personal config.
 
 Codex CLI supports explicitly registering a marketplace with
 `codex plugin marketplace add .` and installing with
-`codex plugin add kedra@kedra-local`. These persist installation/config outside
-the checkout: they are user opt-in, not automatic agent startup steps.
+`codex plugin add kedra@kedra-local` (`rust-skills@kedra-local` for the Rust
+skills). These persist installation/config outside the checkout: they are user
+opt-in, not automatic agent startup steps.
 
 ## Claude Code
 
-From the Kedra checkout, load it for the current session:
+From the Kedra checkout, load both repository plugins for the current session:
 
 ```sh
-claude --plugin-dir ./plugins/kedra
+claude --plugin-dir ./usr/src/kedra/plugins/kedra --plugin-dir ./usr/src/kedra/plugins/rust-skills
 ```
 
 Use `/kedra:kedra-context` to load the context skill. The root
@@ -39,14 +43,14 @@ installation. Session loading avoids a persistent user installation.
 
 ## Editing
 
-Edit `plugins/kedra/skills/<name>/` directly. Both manifests use the same tree;
-there is no generator, sync command, symlink setup or Cargo task runner.
-Update both manifest versions together when publishing a plugin update.
+Edit `usr/src/kedra/plugins/kedra/skills/<name>/` directly. Both manifests use
+the same tree; there is no generator, sync command, symlink setup or Cargo task
+runner. Update both manifest versions together when publishing a plugin update.
 Reload Claude plugins or start a new session; refresh an installed Codex plugin
 through its normal update/reinstall flow and start a new thread.
 
-The upstream notice records the source revision and selected skills.
-[Upstream notices](third-party/rust-skills/NOTICE.md) retain attribution and the
+The `rust-skills` plugin's notice records the source revision and selected
+skills. [Upstream notices](../rust-skills/NOTICE.md) retain attribution and the
 missing LICENSE-file finding. No hooks, MCP servers or programs are bundled.
 Optional upstream references are not permission to install tooling.
 

@@ -25,7 +25,7 @@ path. Build preparation relocates unchanged runtime files to /usr/lib/bitwarden
 for bootc, retaining notices/source. Never run its conditional setuid/AppArmor
 RPM scripts on the workstation. Native sandbox startup and socket propagation
 have desktop VM coverage; syntax/layout checks alone do not pass authentication.
-See build/bitwarden/README.md and docs/STATUS.md for scope and pinned inputs.
+See usr/src/kedra/image/bitwarden/README.md and usr/src/kedra/docs/STATUS.md for scope and pinned inputs.
 
 Select the intended GitHub identity with a public-key file and SSH IdentityAgent,
 IdentityFile and IdentitiesOnly. The private half stays with Bitwarden. This

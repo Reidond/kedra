@@ -2,8 +2,8 @@
 
 `kedra-utm.py` is owner tooling for the aarch64 `utm` target: an Apple Silicon Mac
 running UTM 5.0.6 or newer with the QEMU backend (HVF, `virtio-gpu-gl-pci`, UEFI
-Secure Boot through TPM and a Microsoft-keyed variable store). It runs with the
-macOS `/usr/bin/python3` (3.9+) and uses only the standard library.
+Secure Boot through TPM and a Microsoft-keyed variable store). Run it with
+`uv run` from the checkout root; it uses only the standard library.
 
 It creates files only under the directories you name and otherwise invokes UTM,
 `utmctl`, AppleScript and the local Docker engine. It never touches the Mac's own
@@ -12,21 +12,23 @@ uploads anything. UTM 5.0.x is a pre-release series. This flow has no qualificat
 record yet; see [status](../../docs/STATUS.md) before relying on it.
 
 ```sh
-python3 installer/utm/kedra-utm.py check-host --automation
+uv run usr/src/kedra/installer/utm/kedra-utm.py check-host --automation
 mkdir -p ~/Kedra  # the parent of --output must exist; the output directory must not
-python3 installer/utm/kedra-utm.py iso --image ghcr.io/reidond/kedra-utm@sha256:REVIEWED_DIGEST --output ~/Kedra/iso-REVIEWED
-python3 installer/utm/kedra-utm.py create --iso ~/Kedra/iso-REVIEWED/kedra-utm-44-DIGEST16.iso
+uv run usr/src/kedra/installer/utm/kedra-utm.py iso --image ghcr.io/reidond/kedra-utm@sha256:REVIEWED_DIGEST --output ~/Kedra/iso-REVIEWED
+uv run usr/src/kedra/installer/utm/kedra-utm.py create --iso ~/Kedra/iso-REVIEWED/kedra-utm-44-DIGEST16.iso
 # install in UTM, shut the VM down, then:
-python3 installer/utm/kedra-utm.py detach-installer --bundle ~/VMs/Kedra.utm
+uv run usr/src/kedra/installer/utm/kedra-utm.py detach-installer --bundle ~/VMs/Kedra.utm
 ```
 
 ## Prerequisites
 
 - An Apple Silicon Mac. UTM 5.0.6 or newer in `/Applications` (or pass `--utm-app`).
+- `uv`, which runs the script with the Python 3.12 pinned by the checkout's
+  `.python-version`.
 - A native linux/arm64 Docker engine. OrbStack was the qualified engine for the
   privileged nested-Podman build; others produce a warning.
 - A trusted Kedra checkout whose path has no `:`, `,`, `"` or newlines. It must
-  contain `build/release/authority/utm.pub` and `utm.sha256`.
+  contain `usr/src/kedra/image/release/authority/utm.pub` and `utm.sha256`.
 - Free space: 40 GiB inside the Docker VM; on the Mac, 8 GiB for the ISO plus room
   for the VM disk to grow.
 
@@ -58,7 +60,8 @@ Docker engine. The container is pinned by digest in `inputs.json` and runs
 - installs Podman, Skopeo, OpenSSL, sudo, Python and Netavark from Fedora's signed
   repositories;
 - creates a non-root `kedra-build` user with non-interactive sudo;
-- runs the unchanged `installer/build-local.py` from the checkout, which is mounted read-only.
+- runs the unchanged `usr/src/kedra/installer/build-local.py` from the checkout,
+  which is mounted read-only.
 
 All of `build-local.py`'s checks apply unchanged. They include the fixed-key
 signature policy on pull, target/architecture/scope checks and the pinned arm64
@@ -178,7 +181,7 @@ Fedora 44 aarch64 fallback caveat: `shim-aa64` 16.1-5 ships test-signed
 `fbaa64.efi`/`mmaa64.efi`. The installed system therefore boots only through the NVRAM
 boot entry the installer creates for `\EFI\fedora\shimaa64.efi`. The removable-media
 fallback path fails with a Security Violation. The installer ISO itself is not affected,
-because its `EFI/BOOT` has no `fbaa64.efi` (see [installer/README.md](../README.md)).
+because its `EFI/BOOT` has no `fbaa64.efi` (see [usr/src/kedra/installer/README.md](../README.md)).
 
 - Keep `Data/efi_vars.fd`.
 - Do not use Reset UEFI Variables or toggle the TPM in UTM's settings. Turning the TPM

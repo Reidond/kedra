@@ -40,7 +40,7 @@ Each nightly rebuild is driven by a new `quay.io/fedora/fedora-bootc:44` base di
 
 - **Codex** 0.153.4 (x86_64) is bundled under `/usr/libexec/sysroot/agents/codex` from the pinned official archive with Sigstore verification. [test-agents 34695674783](https://github.com/Reidond/kedra/actions/runs/34695674783) and the desktop VM (`KEDRA_R05_IMAGE_RUNTIME_PASS`) pass for runtime selection, profiles and `--version`/`--help`. Authenticated model use, MCP, skills and hooks are not qualified.
 - **Claude** is not bundled: `public_preinstallation_approved` remains false pending the owner's Commercial Terms decision. `sysroot claude --runtime user` is the only path.
-- **Repository skill discovery (R11):** on 2026-09-07 Codex CLI 0.153.4 marketplace and fresh-profile probes found no Kedra skills at the root or crate cwd. Read the canonical `plugins/kedra/skills/*/SKILL.md` files explicitly; no global installation is authorized.
+- **Repository skill discovery (R11):** on 2026-09-07 Codex CLI 0.153.4 marketplace and fresh-profile probes found no Kedra skills at the root or crate cwd. Read the canonical `usr/src/kedra/plugins/kedra/skills/*/SKILL.md` and `usr/src/kedra/plugins/rust-skills/skills/*/SKILL.md` files explicitly; no global installation is authorized.
 - **Bitwarden Desktop** 2026.8.0 is bundled at `/usr/lib/bitwarden`. The desktop VM covers native sandbox startup while logged out (`KEDRA_R06_LOGGED_OUT_PASS`) and `SSH_AUTH_SOCK` propagation. Vault login/unlock, key serving, signing approval and Git over SSH are not-run.
 
 ## History
@@ -191,7 +191,7 @@ new-image and graphical checks were not-run; the later exact-source native/VM
 results follow below. Physical qualification remains separate. The earlier
 published image and ISO results remain evidence for their original source only.
 See WL-20260913-07 in the
-[worklog](../worklog.md) for this source task's checks and next step.
+[worklog](../../../../worklog.md) for this source task's checks and next step.
 
 ### Native GTK and Qt integration follow-up
 
@@ -440,4 +440,4 @@ The Ubuntu WSL build initially reported a Podman cleanup warning because `netava
 
 The earlier signed candidate 34697167136 at b4e9f78 passed its exact fresh encrypted offline installation and ten qualification checks. That historical installation result does not qualify installation of the newly published GHCR-only image or restore deleted Release assets.
 
-[INSTALL](INSTALL.md) describes local media construction; [UPDATES](UPDATES.md) describes direct updates and recovery. The [worklog](../worklog.md) retains exact historical evidence and the next operational step.
+[INSTALL](INSTALL.md) describes local media construction; [UPDATES](UPDATES.md) describes direct updates and recovery. The [worklog](../../../../worklog.md) retains exact historical evidence and the next operational step.

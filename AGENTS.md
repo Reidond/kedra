@@ -3,20 +3,38 @@
 ## Read first
 
 Read the current project status and latest entries in `worklog.md`, then
-`docs/STATUS.md` and `plugins/kedra/skills/kedra-context/SKILL.md` at the start of a new or
-resumed session. `PLAN.md` defines the product; `docs/ARCHITECTURE.md` defines durable
-contracts; exact Actions runs and `docs/STATUS.md` describe actual results. Never
-infer an implemented feature from a design example or a stale worklog summary.
-Inspect source, Git state, and CI before continuing.
+`usr/src/kedra/docs/STATUS.md` and the `kedra-context` skill at the start of a new or
+resumed session. `usr/src/kedra/PLAN.md` defines the product;
+`usr/src/kedra/docs/ARCHITECTURE.md` defines durable contracts; exact Actions runs and
+`usr/src/kedra/docs/STATUS.md` describe actual results. Never infer an implemented
+feature from a design example or a stale worklog summary. Inspect source, Git state,
+and CI before continuing.
+
+## Repository layout
+
+The repository root is the image filesystem. Root `etc/` and `usr/` are the shared
+payload; `etc/skel/` is the home baseline. `usr/src/kedra/` is the development tree
+and never enters the image: `crates/` (Rust workspace members), `image/`
+(Containerfile, `assemble.sh`, package lists, `targets/<target>/` overlays, external
+inputs, release tooling and the closed `release/targets.json`), `installer/`,
+`tests/`, `plugins/` and `docs/`. The root also keeps `README.md`, this file,
+`CLAUDE.md`, `worklog.md`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`,
+`rustfmt.toml`, `.python-version` and dot directories. The source plan refuses any
+other top-level directory, other `usr/src/` content and unknown files in a target
+overlay. Retained commits in the earlier layout (`hosts/`, `packages/`, root `home/`)
+must stay readable by the resolver and by home review. `.github/workflows/release.yml`
+is bound into signed image identity; never rename it.
 
 ## Settled choices
 
 - Kedra is the OS/project; `sysroot` is the command. Repo: `Reidond/kedra`.
 - Fedora 44 bootc, plain Containerfile, Actions signed OCI builds and local on-demand ISO construction. No BlueBuild or GitHub Release/ISO publication.
 - Rust edition 2024, Cargo workspace, one lockfile, pinned toolchain,
-  rustfmt/Clippy. No first-party `src/` at any depth. Explicit `main.rs`/`lib.rs`.
+  rustfmt/Clippy. No Cargo `src/` directories: crates keep explicit flat
+  `main.rs`/`lib.rs` under `usr/src/kedra/crates/`.
   The TypeScript/Effect/Vite Plus/Oxlint/Oxfmt proposal was superseded.
-- Shared Linux-shaped inputs, explicit host overrides, independent per-target
+- Python runs through uv; see below.
+- Shared root-filesystem inputs, explicit target overlays, independent per-target
   signed releases. Never guess the future XPS hardware or current disk/device IDs.
 - Live home files are writable. Review/stage by line; preserve unstaged and
   explicit local-only changes. Do not replace this with read-only home symlinks.
@@ -25,6 +43,20 @@ Inspect source, Git state, and CI before continuing.
   remain independently installable/updatable and optionally tracked.
 - Bitwarden holds SSH keys. Never export a private key, pass a broad unlocked
   vault session to an agent, or confuse SSH with GitHub API/registry/model auth.
+
+## Python
+
+Run every Python script on a development machine or CI runner with `uv run` (for
+example `uv run usr/src/kedra/installer/build-local.py --help`), never with `python3`,
+`python` or `pip` directly; inline runner code uses `uv run python -`.
+`.python-version` pins the interpreter. Host-side entry scripts carry PEP 723
+metadata and the `uv run --script` shebang; keep them standard-library only unless a
+pinned dependency is justified in that metadata. Workflows install uv with the pinned
+`astral-sh/setup-uv` step. Code that executes inside a VM guest, a fixture or builder
+container, the installed OS or the installer environment uses that environment's
+interpreter and says so in its header. The image-signing job has no checkout and
+holds production keys: its inline check keeps the runner's `python3` and installs no
+tools.
 
 ## Repository-only skills
 
@@ -107,7 +139,7 @@ last verified source/CI evidence and the next concrete actions. Distinguish
 planned, implemented, tested, published, staged, booted and healthy where relevant.
 Do not invent percentage-complete estimates or mark a research gate passed merely
 because code exists. Keep this snapshot consistent with
-`docs/STATUS.md` and exact Actions results; link evidence instead of copying logs.
+`usr/src/kedra/docs/STATUS.md` and exact Actions results; link evidence instead of copying logs.
 The snapshot summarizes those records and does not override them. Historical
 research reports remain in Git history; do not recreate tracked research outputs.
 
@@ -192,7 +224,10 @@ remain required; removing unit tests does not remove implementation safeguards.
 
 Use standard Cargo commands appropriate to the change: `cargo fmt --all -- --check`,
 `cargo clippy --workspace --all-targets --locked -- -D warnings`,
-`cargo test --workspace --test 'e2e_*' --locked`, and `cargo build --workspace --release --locked`.
+`cargo test --workspace --test 'e2e_*' --locked`, and `cargo build --workspace --release --locked`,
+then `uv run usr/src/kedra/tests/cli/release-interop.py --sysroot target/release/sysroot
+--workdir target/release-interop` and `uv run usr/src/kedra/tests/cli/release-material.py
+--workdir target/release-material` as check.yml does.
 Do not recreate the removed xtask runner or skill-copy validation machinery.
 Keep dependency additions
 small and justified. Prefer typed errors and explicit process arguments over

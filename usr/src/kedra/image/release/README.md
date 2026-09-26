@@ -1,13 +1,13 @@
 # Build and sign GHCR images
 
-The workflow publishes independently signed OCI images per enabled target. It does not create GitHub Releases, ISO assets, metadata signatures or checkpoints. Local installation media is built separately with [installer/build-local.py](../../installer/build-local.py).
+The workflow publishes independently signed OCI images per enabled target. It does not create GitHub Releases, ISO assets, metadata signatures or checkpoints. Local installation media is built separately with [usr/src/kedra/installer/build-local.py](../../installer/build-local.py).
 
 | Target | Architecture (OCI) | Signed repository | Unsigned builds | Runner | Signing environment | Authority |
 |---|---|---|---|---|---|---|
 | `desktop` | x86_64 (`amd64`) | `ghcr.io/reidond/kedra-desktop` | `ghcr.io/reidond/kedra-desktop-builds` | `ubuntu-24.04` | `kedra-desktop-signing` | `authority/desktop.pub`, `desktop.sha256` |
 | `utm` | aarch64 (`arm64`) | `ghcr.io/reidond/kedra-utm` | `ghcr.io/reidond/kedra-utm-builds` | `ubuntu-24.04-arm` | `kedra-utm-signing` | `authority/utm.pub`, `utm.sha256` |
 
-The closed table is `TARGETS` in `material.py`. `xps` stays disabled and any other target/architecture pair is refused. Each repository has its own `stable` tag, rank history and high-water mark; the identity schema, `workflow` value (`.github/workflows/release.yml`), epoch and rank semantics are shared.
+The closed table is `targets.json`, read by `material.py` and the other Python tooling and embedded by the Rust crates. `xps` stays disabled and any other target/architecture pair is refused. Each repository has its own `stable` tag, rank history and high-water mark; the identity schema, `workflow` value (`.github/workflows/release.yml`), epoch and rank semantics are shared.
 
 ## Package check
 
@@ -24,7 +24,7 @@ Runner queues affect delivery time. For each target the workflow resolves the re
 
 No-change does nothing: no new image or freshness renewal. Changed inputs build one candidate whose actual RPM material must match preflight. Failures never become a successful no-change result. Allowed RPM architectures are the target architecture and `noarch`, plus `i686` only for x86_64; the bootc RPM architecture must equal the target architecture.
 
-`build/release/compatibility.json` is shared with the compiled helper and currently qualifies bootc 1.16.13. Preflight and actual-image checks reject an unsupported bootc RPM before signing; publication repeats the compatibility check. A version change requires deliberately updating the contract/helper compatibility and passing native qualification, not bypassing the gate.
+`usr/src/kedra/image/release/compatibility.json` is shared with the compiled helper and currently qualifies bootc 1.16.13. Preflight and actual-image checks reject an unsupported bootc RPM before signing; publication repeats the compatibility check. A version change requires deliberately updating the contract/helper compatibility and passing native qualification, not bypassing the gate.
 
 ## Automatic image signing
 

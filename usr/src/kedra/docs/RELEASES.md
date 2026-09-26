@@ -2,7 +2,7 @@
 
 The only published product artifacts are the signed OCI images of each enabled target: `ghcr.io/reidond/kedra-desktop` (x86_64) and `ghcr.io/reidond/kedra-utm` (aarch64, the Apple Silicon UTM virtual machine). Each repository has its own key, signing environment, `stable` tag and rank history. `stable` is discovery; verification and deployment use the immutable digest. A GitHub source commit, a tag name or a successful build alone is not image-signing authority.
 
-The fixed public keys are `build/release/authority/<target>.pub`. Independently confirm their SPKI DER SHA-256:
+The fixed public keys are `usr/src/kedra/image/release/authority/<target>.pub`. Independently confirm their SPKI DER SHA-256:
 
 ```text
 desktop  a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
@@ -13,7 +13,7 @@ The installed root policy requires native Sigstore signatures from the installed
 
 On the installed current-source OS, `sysroot update check` inspects the fixed GHCR repository of its enrolled target through the installed helper; `sysroot update stage` independently verifies before mutation. Image-owned identity/resolved-input records are bound by the signed OCI content. Local writable files and caller-supplied claims cannot establish root trust.
 
-Builds, isolated signing and verified stable publication run automatically in Actions after validation, natively per target (`ubuntu-24.04` for desktop, `ubuntu-24.04-arm` for utm). Each signing environment restricts deployment to main and has no human-review gate; no checkout, repository script or candidate code executes while production private keys are available. Build-time scope/rank/material checks and independent key/signature verification remain mandatory. No-change builds do not publish, sign metadata or renew checkpoints. See [release operations](../build/release/README.md) for the owner steps a new target needs before its first publication.
+Builds, isolated signing and verified stable publication run automatically in Actions after validation, natively per target (`ubuntu-24.04` for desktop, `ubuntu-24.04-arm` for utm). Each signing environment restricts deployment to main and has no human-review gate; no checkout, repository script or candidate code executes while production private keys are available. Build-time scope/rank/material checks and independent key/signature verification remain mandatory. No-change builds do not publish, sign metadata or renew checkpoints. See [release operations](../image/release/README.md) for the owner steps a new target needs before its first publication.
 
 Create installation media locally using [INSTALL.md](INSTALL.md). Its hash records describe the local output; the installer verifies the signed embedded OS payload offline. Current code does not publish ISO parts, GitHub Releases, machine bundles or release/checksum assets.
 

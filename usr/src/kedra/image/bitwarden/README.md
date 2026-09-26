@@ -2,8 +2,9 @@
 
 `prepare.py --target TARGET --context DIR --evidence JSON` runs as the ordinary
 Actions runner. The target's architecture comes from the closed release table in
-`build/release/material.py`, and `inputs.json` pins exactly one official Desktop
-2026.8.0 package per architecture plus the matching client source:
+`usr/src/kedra/image/release/targets.json`, and `inputs.json` pins exactly one
+official Desktop 2026.8.0 package per architecture plus the matching client
+source:
 
 | Target | Architecture | Official package | Needs |
 |---|---|---|---|

@@ -5,7 +5,7 @@ description: Maintain writable home review, selected publication, local-only pol
 
 # Writable home
 
-Read docs/HOME-REVIEW.md, docs/TEXT-REVIEW.md, docs/ARCHITECTURE.md and references/state-model.md. Native Noctalia safe fields and explicitly adopted niri text paths are supported; wider arbitrary groups are not. Check docs/STATUS.md for actual qualification rather than assuming all failure cases pass.
+Read usr/src/kedra/docs/HOME-REVIEW.md, usr/src/kedra/docs/TEXT-REVIEW.md, usr/src/kedra/docs/ARCHITECTURE.md and references/state-model.md. Native Noctalia safe fields and explicitly adopted niri text paths are supported; wider arbitrary groups are not. Check usr/src/kedra/docs/STATUS.md for actual qualification rather than assuming all failure cases pass.
 
 Keep accepted baseline B, live L, next baseline N, selected S, local policy I, published receipts P and recovery J independent. Later app writes never mutate selected content. Publication does not accept a new installed baseline. Preserve private source ancestry and host/shared path provenance.
 

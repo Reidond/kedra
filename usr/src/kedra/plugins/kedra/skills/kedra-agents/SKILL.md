@@ -13,7 +13,7 @@ The Linux launcher selects these paths (with bin/NAME below each agent
 directory). Codex 0.153.4 is packaged in the image and VM-tested; Claude is not
 bundled until the owner accepts its preinstallation terms. Authenticated model
 use, MCP and skills remain unqualified.
-See docs/AGENT-LAUNCHERS.md and docs/STATUS.md for actual scope.
+See usr/src/kedra/docs/AGENT-LAUNCHERS.md and usr/src/kedra/docs/STATUS.md for actual scope.
 
 ## Intended interfaces (not upstream flags)
 
@@ -69,7 +69,7 @@ images. Avoid custom OAuth/token synchronization. Primary references:
 [Claude environment](https://code.claude.com/docs/en/env-vars),
 [Claude authentication](https://code.claude.com/docs/en/authentication) and
 [Claude setup](https://code.claude.com/docs/en/setup).
-Use kedra-bitwarden for credential boundaries and THIRD_PARTY.md for distribution.
+Use kedra-bitwarden for credential boundaries and usr/src/kedra/THIRD_PARTY.md for distribution.
 
 ## Repository skill discovery — Codex 0.153.4
 
@@ -79,7 +79,7 @@ top-level/plugin/marketplace/app-server help pass with a disposable CODEX_HOME;
 no installation, registration or model turn was performed. R11's earlier empty
 listing is explained by the runtime's loading boundary: CLI plugin listing uses
 configured marketplace roots, while standalone repository discovery scans
-`.agents/skills`, not `plugins/kedra/skills`. An `AVAILABLE` marketplace entry
+`.agents/skills`, not `usr/src/kedra/plugins/kedra/skills`. An `AVAILABLE` marketplace entry
 does not load the plugin; its loader requires an active cache installation.
 
 Continue by reading canonical files through the checkout's AGENTS.md routing.
@@ -97,7 +97,7 @@ outside the current launcher task. Do not claim loaded-plugin/model qualificatio
 from help, schema availability or direct file access. Extra-root execution and
 actual root/crate model use remain not-run under R11.
 
-Evidence and exact source links: [R11 discovery audit](https://github.com/Reidond/kedra/blob/main/docs/STATUS.md),
+Evidence and exact source links: [R11 discovery audit](https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/STATUS.md),
 [pinned CLI root selection](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/cli/src/plugin_cmd.rs#L261),
 [pinned skill roots](https://github.com/openai/codex/blob/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a/codex-rs/ext/skills/src/host_roots.rs#L28),
 [official App Server reference](https://learn.chatgpt.com/docs/app-server).

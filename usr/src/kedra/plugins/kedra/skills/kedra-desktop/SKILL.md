@@ -17,7 +17,7 @@ greetd 0.10.3-6.fc44. The service account is `greetd`, not upstream's `greeter`.
 Actions 34169415857 passed a generated-password VM login, IPC, service/portal
 availability and unlocked synthetic keyring; the Fedora PAM file includes
 GNOME Keyring integration. This does not prove physical devices or owner auth.
-See docs/STATUS.md for later actual desktop and installer qualification.
+See usr/src/kedra/docs/STATUS.md for later actual desktop and installer qualification.
 
 Prove niri session startup, D-Bus/systemd user environment, portal backends/file
 chooser/screen sharing, Xwayland application support, PipeWire/WirePlumber,
@@ -51,7 +51,7 @@ before adoption. Require wrong/correct login, session selection, TTY recovery,
 Sources: [Greeter docs](https://docs.noctalia.dev/greeter/),
 [1.5.0 packaging](https://raw.githubusercontent.com/noctalia-dev/noctalia-greeter/v1.5.0/PACKAGING.md),
 [session wrapper](https://raw.githubusercontent.com/noctalia-dev/noctalia-greeter/v1.5.0/scripts/noctalia-greeter-session).
-See docs/DESKTOP.md and WL-20260913-09 for the completed evaluation scope.
+See usr/src/kedra/docs/DESKTOP.md and WL-20260913-09 for the completed evaluation scope.
 
 ## Noctalia effective settings
 
@@ -60,7 +60,7 @@ v4 Quickshell/JSON commands are not interchangeable. Check the installed major
 version first. Read references/noctalia.md for the proposed narrow projection.
 Noctalia 5.0.1 native full-export/IPC projection passes R07 run 34179189185 at
 d74c4c0 (2026-09-08). The safe three-field model rejects unqualified versions and
-missing/malformed selected fields before persistence; see docs/HOME-REVIEW.md.
+missing/malformed selected fields before persistence; see usr/src/kedra/docs/HOME-REVIEW.md.
 The full export remains transient. Native activation separately coordinates writers.
 Do not decide a Git config update succeeded while a writable override still wins.
 Review/export only selected safe settings, not the entire state tree.
@@ -137,7 +137,7 @@ The 2026-09-13 integration uses KDE platform-theme plugins and Breeze for both
 Qt generations, with KDE Qt Quick Controls desktop styles and Breeze icons.
 Native disposable Xvfb QApplications with Qt 5.15.18 / 6.11.2 and Plasma
 integration/Breeze 6.7.5 resolved Breeze, Adwaita Sans 11 and Breeze icons. See
-`docs/DESKTOP.md` and WL-20260913-08 for scope and later graphical evidence.
+`usr/src/kedra/docs/DESKTOP.md` and WL-20260913-08 for scope and later graphical evidence.
 `/etc/xdg/kdeglobals` supplies defaults; personal `~/.config/kdeglobals` wins.
 Keep the platform-theme default in systemd `environment.d`, preserving an
 explicit value. Fedora systemd 259.8's generator was checked for unset and
@@ -162,7 +162,7 @@ redacted hardware inventory and physical GPU/scaling/mode/audio/USB/network/susp
 checks. The potential XPS remains disabled until its exact CPU/GPU/Wi-Fi/camera/
 audio/dock are known. Another distribution's vendor certification is not Fedora
 qualification. Laptop battery/lid/external-display behavior has separate tests.
-Document measured workarounds under the host with a reason/removal condition.
+Document measured workarounds in the target overlay with a reason/removal condition.
 
 Gates: R07 desktop, R03/R04 effective settings, R06 keyring/auth, R09 host isolation.
 Primary references: [niri](https://niri-wm.github.io/niri/),

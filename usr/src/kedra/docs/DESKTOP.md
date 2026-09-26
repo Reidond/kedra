@@ -70,10 +70,10 @@ native application styling. This follows GLib's
 [vendor override mechanism](https://docs.gtk.org/gio/class.Settings.html#vendor-overrides)
 and GTK 3's [settings lookup](https://docs.gtk.org/gtk3/class.Settings.html).
 
-Shared defaults live under `home/.config/`; new accounts receive ordinary writable
+Shared defaults live under `etc/skel/.config/`; new accounts receive ordinary writable
 files. Host-specific monitor, scaling and hardware settings remain separately
-scoped. Review the actual [niri configuration](../home/.config/niri/config.kdl)
-and [Noctalia configuration](../home/.config/noctalia/config.toml) for the full
+scoped. Review the actual [niri configuration](../../../../etc/skel/.config/niri/config.kdl)
+and [Noctalia configuration](../../../../etc/skel/.config/noctalia/config.toml) for the full
 shortcut and appearance settings.
 
 Noctalia 5.0.1 stores GUI overrides separately from curated `config.toml`. An
@@ -182,7 +182,7 @@ the running desktop separately for typography, focus, popovers, launcher behavio
 light/dark applications, scaling and high contrast. Noctalia's custom palette does
 not establish libadwaita accessibility conformance.
 
-See [verified status](STATUS.md) and the [worklog](../worklog.md) for actual results.
+See [verified status](STATUS.md) and the [worklog](../../../../worklog.md) for actual results.
 Source changes alone do not update an existing installed image or writable home.
 
 At `71cb8c9158871f82cb38f1fa59df2e7260dd51cf`, desktop Actions

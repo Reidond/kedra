@@ -5,7 +5,7 @@ description: Start or resume Kedra work using current source, operational contra
 
 # Start here
 
-Read AGENTS.md, worklog.md current/latest entries, docs/STATUS.md and docs/ARCHITECTURE.md. Inspect Git status, branch, remote and exact CI before edits. PLAN.md defines the product, not completion.
+Read AGENTS.md, worklog.md current/latest entries, usr/src/kedra/docs/STATUS.md and usr/src/kedra/docs/ARCHITECTURE.md. Inspect Git status, branch, remote and exact CI before edits. usr/src/kedra/PLAN.md defines the product, not completion.
 
 Use kedra-rust-workspace plus rust-router/domain-cli for Rust; kedra-bootc/release-signing/github-actions for production; kedra-home for writable configuration; kedra-agents/bitwarden for runtimes/auth; kedra-desktop/machines for sessions/targets; kedra-security for privilege/state.
 

@@ -8,7 +8,7 @@
 | `Containerfile`, `check.sh`, `check.service` | Non-promotable observer layer over `localhost/kedra-utm:research`, tagged `localhost/kedra-utm-test:secureboot` |
 | `boot.sh` | Firmware validation, fresh NVRAM with one explicit boot entry, bounded TCG boot, marker verification |
 
-The disk comes from the arm64 bootc-image-builder pin (`build/inputs.json` `.platforms.arm64.builder`), with a generated account whose password is never stored. The account exists only so the observer can run `sysroot doctor` as a non-root user.
+The disk comes from the arm64 bootc-image-builder pin (`usr/src/kedra/image/inputs.json` `.platforms.arm64.builder`), with a generated account whose password is never stored. The account exists only so the observer can run `sysroot doctor` as a non-root user.
 
 ## Guest markers
 
@@ -23,7 +23,7 @@ The observer writes markers to the virtio-serial port `org.kedra.events` (host `
   - the doctor `secure_boot` check passes.
 - `KEDRA_UTM_BOOTC_PASS`: `bootc status` shows the booted `localhost/kedra-utm-test:secureboot`, `arm64`, and no staged or rollback deployment; `source.json` is `utm`/`aarch64`.
 - `KEDRA_UTM_SELINUX_PASS`: Enforcing, the targeted policy, and no `enforcing=0` or `selinux=0` on the command line. AVC listings are evidence only.
-- `KEDRA_UTM_UNITS_PASS`: `systemctl is-system-running --wait` reports `running` with zero failed system units, and `qemu-guest-agent.service` is active on the host-provided channel with the `hosts/utm` `--block-rpcs` list on its command line.
+- `KEDRA_UTM_UNITS_PASS`: `systemctl is-system-running --wait` reports `running` with zero failed system units, and `qemu-guest-agent.service` is active on the host-provided channel with the `usr/src/kedra/image/targets/utm` `--block-rpcs` list on its command line.
 
 Any failed unit fails the run. A unit that fails only under TCG must be investigated and documented here, not silently allowed.
 
@@ -90,7 +90,7 @@ Run on an Apple M2 Pro, Docker 29.4.0 on OrbStack, `linux/arm64`. There was no K
      - It added kargs.d files for `quiet` and for the utm console, and the committed observer.
      - The observer's Kedra-only lines, doctor and `source.json`, were removed because the plain base has no `sysroot`. Those checks were therefore **not exercised**.
    - The arm64 bootc-image-builder pin, `linux/arm64`, `sha256:a4779fc2307a7c2e82fda09e5c7712871fdb2dfae8a587f61d1dab32e7c4edc8`, revision `a686afed6dde14fa5444a3d3be0f269acc783470`, built the qcow2 in 118 s.
-   - `tests/vm/utm/boot.sh` then ran unchanged in `ubuntu:24.04` with `GITHUB_ACTIONS=true RUNNER_OS=Linux GITHUB_REPOSITORY=Reidond/kedra`. That container is disposable, like the runner.
+   - `boot.sh` (then `tests/vm/utm/boot.sh`) ran unchanged in `ubuntu:24.04` with `GITHUB_ACTIONS=true RUNNER_OS=Linux GITHUB_REPOSITORY=Reidond/kedra`. That container is disposable, like the runner.
    - **pass**, QEMU exiting 0 after 126 s:
      - The firmware booted `Boot0003 "file shimaa64.efi"`.
      - `systemd-analyze` reported 3.2 s kernel + 25.3 s initrd + 52.5 s userspace. `graphical.target` was reached, the state was `running` with zero failed units, and `qemu-guest-agent` was active.

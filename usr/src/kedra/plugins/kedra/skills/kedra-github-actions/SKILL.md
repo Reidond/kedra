@@ -5,7 +5,7 @@ description: Maintain Kedra signed-container CI, midnight package checks and nat
 
 # Actions
 
-Read docs/UPDATES.md, docs/RELEASES.md and docs/ARCHITECTURE.md. OS image builds run in Actions. ISO construction is explicit/local through installer/build-local.py and never uploads. Do not create GitHub Releases, machine bundles or ISO/checksum assets.
+Read usr/src/kedra/docs/UPDATES.md, usr/src/kedra/docs/RELEASES.md and usr/src/kedra/docs/ARCHITECTURE.md. OS image builds run in Actions. ISO construction is explicit/local through usr/src/kedra/installer/build-local.py and never uploads. Do not create GitHub Releases, machine bundles or ISO/checksum assets.
 
 The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure. Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
 

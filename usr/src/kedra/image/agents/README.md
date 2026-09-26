@@ -2,8 +2,8 @@
 
 `fetch.py --target TARGET` downloads pinned public artifacts into a new explicit
 directory. It does not install an agent or edit a user profile. The target comes
-from the closed release table in `build/release/material.py` (`desktop` is
-x86_64, `utm` is aarch64) and selects the matching official
+from the closed release table in `usr/src/kedra/image/release/targets.json`
+(`desktop` is x86_64, `utm` is aarch64) and selects the matching official
 `codex-package-<arch>-unknown-linux-musl` archive and Sigstore bundles from
 `inputs.json`; an unknown target or triple is refused. `--verification-tools`
 includes the pinned Cosign build tool for the runner's own architecture

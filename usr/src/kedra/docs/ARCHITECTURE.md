@@ -1,10 +1,10 @@
 # Architecture and safety contracts
 
-Kedra is a personal Fedora 44 bootc OS. `sysroot` is the CLI; a narrow image-installed helper performs authorized deployment operations. Rust edition 2024, one Cargo workspace/lockfile and explicit flat `main.rs`/`lib.rs` paths are required. No first-party `src/` trees, BlueBuild, custom Git engine, configuration language, fleet service or permanent AI daemon.
+Kedra is a personal Fedora 44 bootc OS. `sysroot` is the CLI; a narrow image-installed helper performs authorized deployment operations. Rust edition 2024, one Cargo workspace/lockfile and explicit flat `main.rs`/`lib.rs` paths are required. No Cargo `src/` directories inside crates, BlueBuild, custom Git engine, configuration language, fleet service or permanent AI daemon.
 
 ## Source and ownership
 
-Shared `etc/`, `usr/`, `home/` files are resolved before explicit `hosts/<target>/` overrides. The committed source plan records path provenance and replacement. Documentation and `.gitkeep` do not become rootfs files. Generated build contexts contain only declared payloads; never copy the whole repository into an image.
+The repository root is the image's Linux filesystem. Shared payload is root `etc/` and `usr/` except `usr/src/`, with `etc/skel/` as the home baseline; it is resolved before the explicit target overlay `usr/src/kedra/image/targets/<target>/` (`etc/`, `usr/`, and `etc/skel/` for target home files). Package lists and target declarations also live under `usr/src/kedra/image/`. `usr/src/kedra/` is the development tree and never enters the image. Any other top-level directory apart from dot-directories, any other `usr/src/` content and unexpected files in a target overlay are refused. Retained commits in the earlier layout (`hosts/`, `packages/`, root `home/`) resolve exactly as before, selected per commit; a commit mixing both layouts is refused. Home-review provenance compares layer and home-relative path, so a baseline recorded before the move keeps working. The committed source plan records path provenance and replacement. Root-level files and `.gitkeep` do not become rootfs files. Generated build contexts contain only declared payloads; never copy the whole repository into an image.
 
 `/usr` contains image-owned software, public trust and home baselines. `/etc` follows bootc persistence/merge semantics; `/var` and live home persist across deployments. Root state lives in `/var/lib/sysroot`; private user review state is separate. OS rollback does not rewind home, credentials, persistent databases or personal tools.
 
@@ -32,7 +32,7 @@ Noctalia uses a narrow safe-field projection; niri uses explicitly adopted text 
 
 ## Agents and credentials
 
-Bundled agents are private executables reached through `sysroot`; personal runtimes and profiles remain independent. A profile directory is not a security sandbox. Repository skills and pinned upstream notices remain in `plugins/kedra`, never automatically registered globally or copied into the OS.
+Bundled agents are private executables reached through `sysroot`; personal runtimes and profiles remain independent. A profile directory is not a security sandbox. Repository skills and pinned upstream notices remain in the repository-local `usr/src/kedra/plugins/kedra` and `usr/src/kedra/plugins/rust-skills` plugins, never automatically registered globally or copied into the OS.
 
 Bitwarden holds SSH keys. Never export private keys or pass an unlocked vault session to agents. SSH, GitHub API, registry, model authentication and OS-release signing are separate authorities. Account login is an owner operation; no custom OAuth or credential synchronization.
 

@@ -39,7 +39,7 @@ The repository variable `KEDRA_RELEASES_ENABLED=true` enables image publication 
 
 The workflow validates the exact image/source/run identity before automatic signing. Tools are prepared before private material is exposed, and the isolated signer executes no checkout or candidate code. The subsequent key-free job strictly verifies the signed digest before stable publication. There are no release/checkpoint/ISO signatures or manual signing actions.
 
-Public build checks enforce `build/release/compatibility.json`, also embedded by the helper. Unsupported bootc RPM changes stop before signing/stable publication. Update the shared contract and helper compatibility deliberately and qualify the new version natively; automatic signing does not substitute for that compatibility evidence.
+Public build checks enforce `usr/src/kedra/image/release/compatibility.json`, also embedded by the helper. Unsupported bootc RPM changes stop before signing/stable publication. Update the shared contract and helper compatibility deliberately and qualify the new version natively; automatic signing does not substitute for that compatibility evidence.
 
 Removing the review gate makes accepted-main workflow code and its validation gates responsible for authorizing signatures. Keep main protected, signing secrets confined to their environment, and all current-source, digest, scope, rank and native signature checks intact. Remove only the reviewer rule when changing an environment; preserve the main deployment rule, public variables and existing secrets. See [STATUS](../../../docs/STATUS.md) for whether that configuration and production execution have actually completed.
 

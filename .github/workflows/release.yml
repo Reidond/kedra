@@ -9,17 +9,14 @@ on:
     paths:
       - .github/workflows/release.yml
       - .github/workflows/release-target.yml
-      - Containerfile
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
-      - crates/**
-      - packages/**
       - etc/**
       - usr/**
-      - home/**
-      - hosts/**
-      - build/**
+      - '!usr/src/kedra/**'
+      - usr/src/kedra/crates/**
+      - usr/src/kedra/image/**
 
 permissions:
   contents: read

@@ -1,12 +1,21 @@
 {
   "name": "kedra-local",
-  "owner": { "name": "Kedra contributors" },
-  "metadata": { "description": "Repository-local Kedra development skills." },
+  "owner": {
+    "name": "Kedra contributors"
+  },
+  "metadata": {
+    "description": "Repository-local Kedra development skills."
+  },
   "plugins": [
     {
       "name": "kedra",
-      "source": "./plugins/kedra",
+      "source": "./usr/src/kedra/plugins/kedra",
       "description": "Kedra repository development skills for Claude Code."
+    },
+    {
+      "name": "rust-skills",
+      "source": "./usr/src/kedra/plugins/rust-skills",
+      "description": "Selected upstream Rust skills for Kedra development."
     }
   ]
 }

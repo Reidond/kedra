@@ -2,27 +2,28 @@ name: Test UTM image
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'codex/**']
     paths:
       - .github/workflows/test-utm-image.yml
-      - Containerfile
-      - build/assemble.sh
-      - build/agents/**
-      - build/bitwarden/**
-      - build/release/material.py
-      - tests/vm/utm/**
-      - tests/resolve-fedora-base.py
-      - build/inputs.json
-      - build/release/compatibility.json
-      - packages/**
-      - home/**
       - etc/**
       - usr/**
-      - hosts/utm/**
-      - crates/**
-      - Cargo.lock
+      - '!usr/src/kedra/**'
+      - usr/src/kedra/image/Containerfile
+      - usr/src/kedra/image/assemble.sh
+      - usr/src/kedra/image/inputs.json
+      - usr/src/kedra/image/packages.list
+      - usr/src/kedra/image/remove.list
+      - usr/src/kedra/image/agents/**
+      - usr/src/kedra/image/bitwarden/**
+      - usr/src/kedra/image/release/material.py
+      - usr/src/kedra/image/release/targets.json
+      - usr/src/kedra/image/release/compatibility.json
+      - usr/src/kedra/image/targets/utm/**
+      - usr/src/kedra/tests/vm/utm-image/**
+      - usr/src/kedra/tests/common/resolve-fedora-base.py
       - Cargo.toml
+      - Cargo.lock
       - rust-toolchain.toml
+      - usr/src/kedra/crates/**
 permissions:
   contents: read
 concurrency:
@@ -55,20 +56,20 @@ jobs:
           jq -e '.target.id == "utm" and .target.architecture == "aarch64" and .target.candidate_target' \
             output/utm-evidence/source.json > /dev/null
           target/release/sysroot source archive --host utm --output output/utm-context/payload.tar
-          cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh output/utm-context/
-          cp build/inputs.json output/utm-evidence/
-          bash build/agents/prepare.sh utm output/utm-context "$RUNNER_TEMP/kedra-agent-inputs" output/utm-evidence/agent-inputs.json
+          cp target/release/sysroot target/release/sysroot-helper usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh output/utm-context/
+          cp usr/src/kedra/image/inputs.json output/utm-evidence/
+          bash usr/src/kedra/image/agents/prepare.sh utm output/utm-context "$RUNNER_TEMP/kedra-agent-inputs" output/utm-evidence/agent-inputs.json
           sha256sum output/utm-context/* > output/utm-evidence/build-input-hashes.txt
       - name: Install runner container and firmware tools
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends podman skopeo jq qemu-system-arm qemu-efi-aarch64 qemu-utils python3-virt-firmware
-          python3 build/bitwarden/prepare.py --target utm --context output/utm-context --evidence output/utm-evidence/bitwarden-inputs.json
+          python3 usr/src/kedra/image/bitwarden/prepare.py --target utm --context output/utm-context --evidence output/utm-evidence/bitwarden-inputs.json
           sha256sum output/utm-context/* > output/utm-evidence/build-input-hashes.txt
       - name: Build and validate Fedora utm candidate
         run: |
           set -euo pipefail
-          base=$(python3 tests/resolve-fedora-base.py --architecture arm64 --output output/utm-evidence/base-resolution.json)
+          base=$(python3 usr/src/kedra/tests/common/resolve-fedora-base.py --architecture arm64 --output output/utm-evidence/base-resolution.json)
           {
             date --utc --iso-8601=seconds
             uname -a
@@ -87,15 +88,15 @@ jobs:
           jq -e '.[0].Os == "linux" and .[0].Architecture == "arm64"' output/utm-evidence/image-inspect.json > /dev/null
           sudo podman run --rm localhost/kedra-utm:research cat /usr/share/sysroot/packages.txt > output/utm-evidence/packages.txt
           sudo podman run --rm localhost/kedra-utm:research find /var -type f > output/utm-evidence/image-var-files.txt
-          contract=$(jq -er .bootc_version build/release/compatibility.json)
+          contract=$(jq -er .bootc_version usr/src/kedra/image/release/compatibility.json)
           sudo podman run --rm -i localhost/kedra-utm:research bash -s -- "$contract" \
-            < tests/vm/utm/image-check.sh > output/utm-evidence/image-checks.txt 2>&1 \
+            < usr/src/kedra/tests/vm/utm-image/image-check.sh > output/utm-evidence/image-checks.txt 2>&1 \
             || { tail -n 40 output/utm-evidence/image-checks.txt; exit 1; }
           tail -n 1 output/utm-evidence/image-checks.txt
       - name: Prepare disposable Secure Boot observer fixture
         run: |
           mkdir -p output/utm-test-context output/utm-image output/utm-evidence/vm
-          cp tests/vm/utm/Containerfile tests/vm/utm/check.sh tests/vm/utm/check.service output/utm-test-context/
+          cp usr/src/kedra/tests/vm/utm-image/Containerfile usr/src/kedra/tests/vm/utm-image/check.sh usr/src/kedra/tests/vm/utm-image/check.service output/utm-test-context/
           sudo podman build --pull=never --tag localhost/kedra-utm-test:secureboot output/utm-test-context \
             > output/utm-evidence/test-image-build.log 2>&1
           python3 - <<'PY'
@@ -112,7 +113,7 @@ jobs:
       - name: Build disposable utm disk
         run: |
           set -euo pipefail
-          builder=$(jq -er .platforms.arm64.builder build/inputs.json)
+          builder=$(jq -er .platforms.arm64.builder usr/src/kedra/image/inputs.json)
           sudo podman pull "$builder" > output/utm-evidence/builder-pull.log 2>&1
           test "$(sudo podman image inspect "$builder" --format '{{.Os}}/{{.Architecture}}')" = linux/arm64
           sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
@@ -131,7 +132,7 @@ jobs:
           mapfile -t disks < <(find "$PWD/output/utm-image" -name '*.qcow2' -type f)
           test "${#disks[@]}" -eq 1
           digest=$(sudo podman image inspect localhost/kedra-utm-test:secureboot --format '{{.Digest}}')
-          bash tests/vm/utm/boot.sh "${disks[0]}" "$RUNNER_TEMP/kedra-utm-vm" output/utm-evidence/vm "$digest" \
+          bash usr/src/kedra/tests/vm/utm-image/boot.sh "${disks[0]}" "$RUNNER_TEMP/kedra-utm-vm" output/utm-evidence/vm "$digest" \
             | tee output/utm-evidence/vm-result.txt
       - name: Sanitize builder evidence and remove disposable account secret
         if: always()

@@ -62,15 +62,15 @@ jobs:
           cargo clippy --workspace --all-targets --locked -- -D warnings
           cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
-          python3 tests/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
-          python3 tests/release-material.py --workdir target/release-material
+          python3 usr/src/kedra/tests/cli/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
+          python3 usr/src/kedra/tests/cli/release-material.py --workdir target/release-material
       - name: Prepare bounded image inputs and public trust
         id: trust
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends podman skopeo rpm cpio openssl
-          authority="build/release/authority/$KEDRA_TARGET"
+          authority="usr/src/kedra/image/release/authority/$KEDRA_TARGET"
           if ! test -f "$authority.pub" || ! test -f "$authority.sha256"; then
             echo "The $KEDRA_TARGET public signing authority is not provisioned"; exit 1
           fi
@@ -78,22 +78,22 @@ jobs:
           mkdir -p output/image-evidence "$context" output/release-context
           target/release/sysroot source plan --host "$KEDRA_TARGET" --json > output/image-evidence/source-plan.json
           target/release/sysroot source archive --host "$KEDRA_TARGET" --output "$context/payload.tar"
-          cp target/release/sysroot target/release/sysroot-helper Containerfile build/assemble.sh "$context/"
+          cp target/release/sysroot target/release/sysroot-helper usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh "$context/"
           fingerprint=$(cat "$authority.sha256")
-          python3 build/release/prepare-trust.py --source output/image-evidence/source-plan.json \
+          python3 usr/src/kedra/image/release/prepare-trust.py --source output/image-evidence/source-plan.json \
             --public-key "$authority.pub" --expected-fingerprint "$fingerprint" \
             --sysroot target/release/sysroot --output output/release-context/trust
           printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
           sudo mkdir -p /etc/containers/registries.d
           sudo cp output/release-context/trust/registries.yaml /etc/containers/registries.d/kedra.yaml
-          bash build/agents/prepare.sh "$KEDRA_TARGET" "$context" "$RUNNER_TEMP/kedra-agent-inputs" output/image-evidence/agent-inputs.json
-          python3 build/bitwarden/prepare.py --target "$KEDRA_TARGET" --context "$context" --evidence output/image-evidence/bitwarden-inputs.json
+          bash usr/src/kedra/image/agents/prepare.sh "$KEDRA_TARGET" "$context" "$RUNNER_TEMP/kedra-agent-inputs" output/image-evidence/agent-inputs.json
+          python3 usr/src/kedra/image/bitwarden/prepare.py --target "$KEDRA_TARGET" --context "$context" --evidence output/image-evidence/bitwarden-inputs.json
       - name: Resolve packages and compare strictly verified stable image
         id: preflight
         env:
           GH_TOKEN: ${{ github.token }}
           APPROVED_FINGERPRINT: ${{ steps.trust.outputs.fingerprint }}
-        run: python3 build/release/refresh.py prepare --target "$KEDRA_TARGET" --work output/image-evidence
+        run: python3 usr/src/kedra/image/release/refresh.py prepare --target "$KEDRA_TARGET" --work output/image-evidence
       - name: Build changed image with signed-config identity
         if: steps.preflight.outputs.changed == 'true'
         env:
@@ -105,7 +105,7 @@ jobs:
             2>&1 | tee "output/image-evidence/$KEDRA_TARGET-build.log"
           identity=$(cat output/release-context/image-identity.json)
           sudo podman build --pull=never --build-arg "CANDIDATE_IMAGE=localhost/kedra-$KEDRA_TARGET:release-base" \
-            --build-arg "KEDRA_IDENTITY=$identity" --file build/release/Containerfile \
+            --build-arg "KEDRA_IDENTITY=$identity" --file usr/src/kedra/image/release/Containerfile \
             --tag "localhost/kedra-$KEDRA_TARGET:release-candidate" output/release-context \
             2>&1 | tee output/image-evidence/trust-build.log
       - name: Validate actual image identity and material without execution
@@ -113,7 +113,7 @@ jobs:
         if: steps.preflight.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 build/release/refresh.py inspect-candidate --target "$KEDRA_TARGET" --work output/image-evidence
+        run: python3 usr/src/kedra/image/release/refresh.py inspect-candidate --target "$KEDRA_TARGET" --work output/image-evidence
       - name: Publish immutable unsigned build for isolated signing
         id: publish
         if: steps.preflight.outputs.changed == 'true'
@@ -181,7 +181,7 @@ jobs:
           printf 'docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n' | sudo tee /etc/containers/registries.d/kedra.yaml >/dev/null
           python3 - <<'PY'
           import hashlib, json, os, re, subprocess
-          # Closed target table (build/release/material.py); this job has no checkout.
+          # Closed target table (usr/src/kedra/image/release/targets.json); this job has no checkout.
           targets = {'desktop': ('x86_64', 'amd64'), 'utm': ('aarch64', 'arm64')}
           target = os.environ['KEDRA_TARGET']
           architecture, oci_architecture = targets[target]
@@ -279,7 +279,7 @@ jobs:
           trap 'rm -rf -- "$auth_dir"' EXIT
           printf '%s' "$GH_TOKEN" | skopeo login --authfile "$auth" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
           export KEDRA_REGISTRY_AUTH="$auth"
-          python3 build/release/refresh.py publish --target "$KEDRA_TARGET" --work output/image-evidence
+          python3 usr/src/kedra/image/release/refresh.py publish --target "$KEDRA_TARGET" --work output/image-evidence
       - name: Preserve public stable publication receipt
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

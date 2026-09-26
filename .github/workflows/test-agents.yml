@@ -2,14 +2,13 @@ name: Test private agent runtimes
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'codex/**']
     paths:
       - .github/workflows/test-agents.yml
-      - build/agents/**
-      - build/release/material.py
-      - tests/agents/**
-      - crates/sysroot/agents/**
-      - crates/sysroot/agents.rs
+      - usr/src/kedra/image/agents/**
+      - usr/src/kedra/image/release/targets.json
+      - usr/src/kedra/tests/agents/**
+      - usr/src/kedra/crates/sysroot/agents/**
+      - usr/src/kedra/crates/sysroot/agents.rs
 permissions:
   contents: read
 concurrency:
@@ -45,15 +44,15 @@ jobs:
       - name: Fetch pinned official research inputs
         run: |
           mkdir -p output/r05-evidence
-          python3 build/agents/fetch.py --target "$KEDRA_TARGET" --output "$RUNNER_TEMP/kedra-r05-inputs" --research-tools
-          cp build/agents/inputs.json output/r05-evidence/
+          python3 usr/src/kedra/image/agents/fetch.py --target "$KEDRA_TARGET" --output "$RUNNER_TEMP/kedra-r05-inputs" --research-tools
+          cp usr/src/kedra/image/agents/inputs.json output/r05-evidence/
           cp -a "$RUNNER_TEMP/kedra-r05-inputs/notices" output/r05-evidence/
           sha256sum "$RUNNER_TEMP/kedra-r05-inputs/notices/"* > output/r05-evidence/notice-hashes.txt
       - name: Verify signatures and prepare the private image package
         run: |
           set -euo pipefail
           inputs="$RUNNER_TEMP/kedra-r05-inputs"
-          python3 build/agents/package.py --target "$KEDRA_TARGET" --inputs "$inputs" \
+          python3 usr/src/kedra/image/agents/package.py --target "$KEDRA_TARGET" --inputs "$inputs" \
             --output "$RUNNER_TEMP/kedra-agents.tar" --evidence output/r05-evidence/image-package.json
       - name: Probe native wrappers without model access
         run: |
@@ -64,7 +63,7 @@ jobs:
           sudo chown -R root:root /usr/libexec/sysroot/agents/codex
           # Drop privileges before running checkout test code; no network access.
           sudo unshare --net -- setpriv --reuid="$(id -u)" --regid="$(id -g)" --init-groups \
-            python3 tests/agents/run.py --sysroot "$PWD/target/release/sysroot" \
+            python3 usr/src/kedra/tests/agents/run.py --sysroot "$PWD/target/release/sysroot" \
             --packages "$inputs" --work "$RUNNER_TEMP/kedra-r05-probe" \
             --evidence "$PWD/output/r05-evidence" | tee output/r05-evidence/probe-result.txt
       - name: Preserve safe evidence only

@@ -150,6 +150,7 @@ The lab tools layer (`lab/tools.Containerfile`) installs sway, grim, wlrctl, wty
 | rtkit `--no-limit-resources` | rtkit's per-UID `RLIMIT_NPROC` counts every container's rtkit on a shared kernel. A second lab container's rtkit then fails, and `xdg-desktop-portal` times out on it. |
 | journald `ReadKMsg=no` | The kernel log belongs to the host. |
 | (CI host) unload Ubuntu's `unix-chkpwd` AppArmor profile | Ubuntu 24.04 attaches that profile by path, so it also confines the container's Fedora `unix_chkpwd`. That copy then cannot read the container's accounts, and PAM refuses the user manager (`test-container.yml`, 2026-09-27; the diagnosis is recorded in the worklog). |
+| (CI host) `kernel.apparmor_restrict_unprivileged_userns=0` | Ubuntu 24.04 puts every unprivileged user namespace under its `unprivileged_userns` profile, including those in the container. That denies Bitwarden's Chromium sandbox and `bwrap`, as the kernel audit log recorded. |
 | Single-link copies in `/etc`, `/usr/lib/systemd`, `/usr/share/containers` | bootc images hard-link files to their embedded ostree objects. A booted composefs system shows one link, and `sysroot`'s trusted reads require exactly one. |
 
 The remaining differences are recorded, not hidden:

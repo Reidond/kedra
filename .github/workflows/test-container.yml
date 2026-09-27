@@ -67,15 +67,22 @@ jobs:
             docker version
             docker info --format '{{.CgroupVersion}} {{.CgroupDriver}} {{.Driver}}'
           } > output/kedra-lab/environment.txt
-      - name: Keep the host's unix_chkpwd AppArmor profile off container copies
+      - name: Keep Ubuntu host AppArmor policy off the container's own programs
         run: |
-          # Ubuntu 24.04 attaches its unix-chkpwd profile by path, so it also
-          # confines the Fedora /usr/sbin/unix_chkpwd inside the OS container,
-          # which then cannot read that container's accounts; PAM refuses the
-          # user manager. Unload only that profile on this disposable runner.
+          # Measured on ubuntu-24.04 runners (runs 36313894034, 36315527414):
+          # - the unix-chkpwd profile attaches by path, also to the Fedora
+          #   /usr/sbin/unix_chkpwd inside the OS container, which then cannot
+          #   read that container's accounts; PAM refuses the user manager.
+          # - apparmor_restrict_unprivileged_userns puts user namespaces under
+          #   the unprivileged_userns profile, denying Bitwarden's Chromium
+          #   sandbox and bwrap (CAP_SYS_ADMIN/SETPCAP/NET_ADMIN).
+          # Relax exactly these on this disposable runner.
           sudo aa-status > output/kedra-lab/apparmor-before.txt 2>&1 || true
           if test -f /etc/apparmor.d/unix-chkpwd; then
             sudo apparmor_parser --remove /etc/apparmor.d/unix-chkpwd
+          fi
+          if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
           sudo aa-status > output/kedra-lab/apparmor-after.txt 2>&1 || true
       - name: Validate scenarios before provisioning anything

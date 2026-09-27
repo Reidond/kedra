@@ -1,0 +1,111 @@
+name: Test container scenarios
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/test-container.yml
+      - etc/**
+      - usr/**
+      - '!usr/src/kedra/**'
+      - usr/src/kedra/image/Containerfile
+      - usr/src/kedra/image/assemble.sh
+      - usr/src/kedra/image/inputs.json
+      - usr/src/kedra/image/packages.list
+      - usr/src/kedra/image/remove.list
+      - usr/src/kedra/image/agents/**
+      - usr/src/kedra/image/bitwarden/**
+      - usr/src/kedra/image/release/targets.json
+      - usr/src/kedra/image/targets/**
+      - usr/src/kedra/tests/container/**
+      - usr/src/kedra/tests/common/test-profile.toml
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - usr/src/kedra/crates/**
+permissions:
+  contents: read
+concurrency:
+  group: test-container-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  scenarios:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    name: scenarios (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: desktop
+            runner: ubuntu-24.04
+          - target: utm
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      CARGO_TERM_COLOR: always
+      # The same full image build a developer runs with `kedra-lab image --image build`:
+      # this commit's candidate, built natively, with no working-tree overlay.
+      KEDRA_LAB_TARGET: ${{ matrix.target }}
+      KEDRA_LAB_IMAGE: build
+      KEDRA_LAB_OVERLAY: none
+      KEDRA_LAB_ARTIFACTS: ${{ github.workspace }}/output/kedra-lab
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Record the environment
+        run: |
+          mkdir -p output/kedra-lab
+          {
+            date --utc --iso-8601=seconds
+            uname -a
+            nproc
+            free -h
+            df -h
+            docker version
+            docker info --format '{{.CgroupVersion}} {{.CgroupDriver}} {{.Driver}}'
+          } > output/kedra-lab/environment.txt
+      - name: Keep Ubuntu host AppArmor policy off the container's own programs
+        run: |
+          # Measured on ubuntu-24.04 runners (runs 36313894034, 36315527414):
+          # - the unix-chkpwd profile attaches by path, also to the Fedora
+          #   /usr/sbin/unix_chkpwd inside the OS container, which then cannot
+          #   read that container's accounts; PAM refuses the user manager.
+          # - apparmor_restrict_unprivileged_userns puts user namespaces under
+          #   the unprivileged_userns profile, denying Bitwarden's Chromium
+          #   sandbox and bwrap (CAP_SYS_ADMIN/SETPCAP/NET_ADMIN).
+          # Relax exactly these on this disposable runner.
+          sudo aa-status > output/kedra-lab/apparmor-before.txt 2>&1 || true
+          if test -f /etc/apparmor.d/unix-chkpwd; then
+            sudo apparmor_parser --remove /etc/apparmor.d/unix-chkpwd
+          fi
+          if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          sudo aa-status > output/kedra-lab/apparmor-after.txt 2>&1 || true
+      - name: Validate scenarios before provisioning anything
+        run: cargo test -p kedra-container-tests --test container --locked -- --list
+      - name: Build the candidate and run the container scenarios
+        run: cargo test -p kedra-container-tests --test container --locked
+      - name: Record host AppArmor denials
+        if: failure()
+        run: sudo dmesg | grep -F 'apparmor="DENIED"' | tail -n 200 > output/kedra-lab/apparmor-denials.txt || true
+      - name: Preserve reports, screenshots and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: container-scenarios-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/kedra-lab/environment.txt
+            output/kedra-lab/apparmor-*.txt
+            output/kedra-lab/runs/
+            output/kedra-lab/cache/build-context-*/*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Scope of this result
+        if: always()
+        run: |
+          echo 'Container scenarios boot the candidate with systemd as PID 1 and run the real Kedra session nested in a headless compositor.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'They do not boot a kernel: Secure Boot, SELinux enforcement, VT login, bootc updates and rollback remain VM workflows.' >> "$GITHUB_STEP_SUMMARY"

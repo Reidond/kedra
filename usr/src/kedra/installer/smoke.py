@@ -1,9 +1,9 @@
 """Boot the unchanged ISO diskless through UEFI Secure Boot and wait for probe markers."""
 import hashlib
-from pathlib import Path
 import shutil
 import subprocess
 import time
+from pathlib import Path
 
 # Debian/Ubuntu firmware: Secure Boot code plus a variable store with Microsoft
 # UEFI CAs enrolled and Secure Boot enabled. The guest probe independently

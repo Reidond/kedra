@@ -1,0 +1,44 @@
+[package]
+name = "kedra-container-tests"
+description = "Container end-to-end harness and local lab for Kedra OS images; development only"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+autobins = false
+autotests = false
+autoexamples = false
+autobenches = false
+
+[lib]
+path = "lib.rs"
+test = false
+doctest = false
+
+# Local lab: run, inspect and screenshot a Kedra desktop from any image stage.
+[[bin]]
+name = "kedra-lab"
+path = "lab.rs"
+test = false
+
+# Container scenarios and native tests: `cargo test -p kedra-container-tests --test container`.
+[[test]]
+name = "container"
+path = "main.rs"
+harness = false
+
+[dependencies]
+bytes = "1.11.1"
+clap.workspace = true
+futures-util = { version = "0.3.31", default-features = false, features = ["std"] }
+libtest-mimic = "0.8.2"
+serde.workspace = true
+serde_json.workspace = true
+serde-saphyr = { version = "1.3.0", default-features = false, features = ["deserialize"] }
+sha2.workspace = true
+tar.workspace = true
+testcontainers = { version = "0.28.0", default-features = false, features = ["blocking", "watchdog"] }
+tokio = { version = "1.53.1", default-features = false, features = ["io-util", "rt", "time"] }
+
+[lints]
+workspace = true

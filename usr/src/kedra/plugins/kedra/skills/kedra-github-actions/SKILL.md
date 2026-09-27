@@ -20,7 +20,11 @@ Per-target releases (2026-09-25; none of this has run in Actions yet):
 - The four x86 VM workflows boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd`, and require the guest's `KEDRA_SECUREBOOT_PASS`. test-signed-update adds a snakeoil-keys refusal case.
 - SMM under KVM on hosted runners is unverified until those runs.
 
-check.yml uses standard Cargo tools and actual CLI/OpenSSL workflows. Native tests retain signed-update, desktop, home-transition, agent and RPM coverage with disposable inputs. No unit/model/mock/doctests or repository scanners.
+check.yml uses standard Cargo tools and actual CLI/OpenSSL workflows. test-container.yml (added 2026-09-27; not yet run) builds each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`, docker/BuildKit, KEDRA_LOCAL_BUILDER inputs). It then runs every container scenario and uploads report.json, junit.xml and screenshots. VM workflows keep boot-level coverage:
+- test-desktop: tuigreet login, PAM keyring, doctor gate, Xwayland/Qt choosers.
+- test-utm-image: the bootc contract and the TCG Secure Boot boot.
+- Signed update, direct GHCR, home transition and RPM refresh.
+Image-content and session checks moved from these workflows into container scenarios. No unit/model/mock/doctests or repository scanners.
 
 Local installer changes retain pinned image-builder, labeling, offline payload verification and deliberate disk choice. Media permissive SELinux never weakens installed enforcing SELinux/signature policy. Record actual local smoke/fresh-install results separately from image builds.
 

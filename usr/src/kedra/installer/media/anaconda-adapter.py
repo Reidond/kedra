@@ -1,9 +1,9 @@
 # Runs inside the Anaconda installer environment with its own python3; uv applies to host-side scripts only.
 """Narrow, version-guarded Fedora Anaconda 44.30-2.fc44 media adaptations."""
 import hashlib
+import importlib.util
 import pathlib
 import py_compile
-import importlib.util
 
 if not pathlib.Path('/run/.containerenv').is_file():
     raise SystemExit('Apply only inside the disposable installer image build')

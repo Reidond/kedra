@@ -1,8 +1,8 @@
 # Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Actual user CLI across signed image A, image B, and retained-image rollback."""
-import json
 import ctypes
 import fcntl
+import json
 import os
 import pathlib
 import re
@@ -22,8 +22,8 @@ home_state = pathlib.Path.home() / '.local/state/sysroot/home'
 
 
 def run(args, success=True, environment=None):
-    result = subprocess.run(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, timeout=90, check=False, env=environment)
+    result = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True,
+                            timeout=90, check=False, env=environment)
     if (result.returncode == 0) != success:
         raise RuntimeError(f'generated native workflow failed: {args[:4]}: {result.stderr.decode(errors="replace")[:1200]}')
     return result.stdout

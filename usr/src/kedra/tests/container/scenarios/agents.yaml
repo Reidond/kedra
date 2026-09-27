@@ -1,0 +1,14 @@
+version: 1
+name: bundled_agent_runtime
+description: >
+  The image's private official Codex runs for the ordinary account through
+  `sysroot codex` with a generated profile and checkout (lab/probes/agents.py).
+profile: desktop
+steps:
+  - action:
+      name: probe
+      with: {name: agents, as: user, timeout: 5m}
+      capture: {stdout: agents}
+  - assert:
+      - value: "${agents}"
+        contains: KEDRA_R05_IMAGE_RUNTIME_PASS

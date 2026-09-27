@@ -1,5 +1,5 @@
-# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
-"""Run the image's private official runtime as the generated ordinary VM user."""
+# Runs inside the lab container as the test account with the image's own python3; uv applies to host-side scripts only.
+"""Run the image's private official runtime as the generated ordinary account."""
 import hashlib
 import json
 import os
@@ -25,7 +25,7 @@ target = json.loads(pathlib.Path('/usr/share/sysroot/source.json').read_text())[
 package = json.loads(pathlib.Path('/usr/share/sysroot/agents/codex.json').read_text())
 with tempfile.TemporaryDirectory(prefix='kedra-agent-checkout-', dir=home) as temporary:
     repo = pathlib.Path(temporary)
-    definition = repo / 'hosts' / target['id'] / 'host.toml'
+    definition = repo / 'usr/src/kedra/image/targets' / target['id'] / 'target.toml'
     definition.parent.mkdir(parents=True)
     definition.write_text('\n'.join(f'{key} = {json.dumps(value)}' for key, value in target.items()) + '\n')
     environment = {**os.environ, 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'}
@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='kedra-agent-checkout-', dir=home) as te
                  ['add', '.'], ['commit', '-qm', 'generated fixture']]:
         subprocess.run(['git', '-C', str(repo), *args], env=environment, check=True)
     (repo / 'untracked').write_text('retain the fixture checkout\n')
-    command = ['sysroot', 'codex', '--repo', str(repo)]
+    command = ['sysroot', 'codex', '--repo', str(repo), '--host', target['id']]
     plan = json.loads(subprocess.check_output([*command, '--print-plan']))
     if plan['version'] != package['version'] or plan['deployment_authorized']:
         raise RuntimeError('Image runtime selection mismatch')

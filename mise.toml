@@ -1,0 +1,9 @@
+# Development tools for this repository (https://mise.jdx.dev), pinned to the
+# same versions as rust-toolchain.toml and the Actions workflows. mise exports
+# RUSTUP_TOOLCHAIN for the Rust pin, which overrides a global `rust = "stable"`
+# for shells and editors (rust-analyzer) opened in this checkout. Python itself
+# runs through uv and .python-version (AGENTS.md).
+[tools]
+rust = { version = "1.98.1", components = "rustfmt,clippy", profile = "minimal" }
+uv = "0.12.19"
+ruff = "0.16.9"

@@ -15,7 +15,8 @@ Last updated: 2026-09-27 (UTC).
 - **Owner-only:** physical desktop/XPS qualification, Claude Commercial Terms, first-party license, real account/vault tests, Greeter and broader home-group decisions.
 - **Merged since:** PR #18 (update progress, verified OCI layer reuse) and PR #19 (`sysroot setup tpm-unlock`), main `949abe5`.
 - **In review (WL-20260927-01, PR #20, branch `rootfs-layout`):** the repository root is the image filesystem, with the development tree under `usr/src/kedra/`. Host Python runs through uv. The repository skill plugins are registered for Codex and Claude. Local Linux checks and every PR workflow pass; RPM refresh (main-only) and the post-merge publication are not-run.
-- **Next:** qualify `rootfs-layout` in every workflow (including the cross-layout home-transition fixture), merge, and confirm the next publication of both targets.
+- **Container harness (WL-20260927-02, branch `container-harness` from `16ea871`, PR open, Actions pending):** `usr/src/kedra/tests/container` implements the owner's Testcontainers harness specification. It includes YAML scenarios, native tests and the `kedra-lab` tool for running and screenshotting the desktop from any stage, with a cocoa-way live view. Desktop session, home review, Noctalia, portals, agents, Bitwarden, doctor and GTK choosers moved from VM workflows to containers; VMs keep boot-level checks. All container tests pass locally on utm. `test-container.yml` and the trimmed VM workflows are pending on the PR.
+- **Next:** qualify `rootfs-layout` in every workflow (including the cross-layout home-transition fixture), merge, and confirm the next publication of both targets. For the harness: get authorization to push `container-harness`, then observe test-container.yml (both targets) and the trimmed test-desktop/test-utm-image runs.
 
 ## Work entries
 
@@ -1054,3 +1055,85 @@ Last updated: 2026-09-27 (UTC).
   - After merge, `START-HERE.md` (in the image) links the moved INSTALL.md.
   - A pre-move CLI refuses home review against a post-move checkout until the machine updates. After a rollback to a pre-move deployment, review state that already names moved paths is refused and preserved.
 - Next: after the merge, check the main push runs, including the main-only RPM refresh and the release run, confirm the new signed publication of both targets, and record them in a follow-up entry.
+
+### WL-20260927-02 — 2026-09-27 — Container test harness and the Kedra lab
+- Agent / state: Claude Code (Claude Opus 5.5); in-progress (local implementation and checks complete; CI not-run).
+- Scope / base: branch `container-harness` from main `16ea871`; the owner authorized commit, push and a PR (2026-09-27). The owner asked to replace or repurpose the tests as container tests following the Testcontainers integration-harness specification (lemmi-ai-api `.specs/testcontainers-integration-harness/spec.md`). Goals: faster development, screenshots of niri/Noctalia changes at good resolution, and running the distro from any stage, with a look at cocoa-way.
+- Owner decisions (2026-09-27, in session):
+  - Keep boot-level VM workflows.
+  - Allow full local builds (unsigned, never pushed).
+  - Install cocoa-way. Later: build it without Homebrew because the owner is away.
+  - Keep the unit-test ban for the harness.
+- Completed:
+  - Harness crate `usr/src/kedra/tests/container`, a workspace member (`kedra-container-tests`):
+    - Built on testcontainers 0.28, with libtest-mimic as the native `cargo test` runner.
+    - Strict YAML scenarios: exec, eventually/observe, assert, actions, includes with inputs/outputs, JSON selectors, typed captures.
+    - Native tests; a lab image layered over any stage (published digest/run/stable, builds repository, reference, full local build of the working tree or a commit, and a working-tree overlay using the real `sysroot source archive`).
+    - Diagnostics, `report.json` and `junit.xml`; ownership labels and cleanup.
+  - The session runs the image's own `kedra-session` through the greetd PAM service (`PAMName=greetd`), so logind, keyring, portals and niri/Noctalia start as after a login. niri runs nested in headless sway.
+  - Container adaptations are documented in the harness README:
+    - `WSL_DISTRO_NAME` for niri's nested session;
+    - greetd/bootloader-update conditions;
+    - rtkit `--no-limit-resources` (per-UID `RLIMIT_NPROC` is shared across containers and broke xdg-desktop-portal in a second container);
+    - journald without the host kernel log;
+    - single-link copies where `sysroot` trusted-reads (bootc images hard-link files to embedded ostree objects).
+  - Ported checks:
+    - desktop VM check.sh → scenarios session-ready, session-environment, noctalia-appearance, autostart, portals-keyring, doctor, bitwarden, agents, plus native `home_review_cycle` and `toolkit_file_choosers`;
+    - utm image-check.sh → `utm-image.yaml` and `lab/probes/qemu-ga.py`;
+    - host podman checks of test-desktop.yml → `image-contents.yaml`.
+  - The probes moved to `lab/probes`. `recovery.py` and `niri-review.py` retry when the CLI finishes before its SIGKILL lands (fast hosts), and compare SELinux labels only where SELinux exists.
+  - test-desktop.yml / check.sh now cover only Secure Boot, SELinux, tuigreet password login, PAM keyring, the doctor gate and Xwayland/Qt choosers. test-utm-image.yml keeps the bootc contract and the TCG boot. New `test-container.yml` covers desktop and utm natively.
+  - `kedra-lab`: `up`/`shot`/`sync`/`exec`/`logs`/`ls`/`down`/`clean`/`image`.
+    - `live-tools` builds cocoa-way 2.0.3 and waypipe-darwin 0.11.0-darwin.1 from the tap's pinned sha256 sources, without Homebrew taps.
+    - `up --live` starts cocoa-way, a waypipe client and a loopback TCP bridge, because OrbStack refuses container connections to macOS-created Unix sockets.
+  - `image/agents/prepare.sh` and `image/bitwarden/prepare.py` also accept `KEDRA_LOCAL_BUILDER=1` inside a container. `assemble.sh` also accepts a BuildKit build (PID 1 is its RUN line).
+  - AGENTS.md records the owner decisions. Skills updated: research, desktop, github-actions, rust-workspace; plugin 0.3.0.
+- Checks / evidence (all on the owner's M2 Pro, OrbStack 2.2.3, Docker 29.4.0, utm target):
+  - pass — `cargo test -p kedra-container-tests --test container`, 13/13 in one run, on `ghcr.io/reidond/kedra-utm@sha256:45fe5f7275888ce895bf92bfee6e470cdf302488c68affbb8331d1032ede5fdc` + working tree. On the full local build: 12/13, then doctor passed after the release-trust fix below.
+  - pass — A2 filtering, A3 (two concurrent executions, nothing left), A8 strict parsing (all refusals before provisioning), A9 (a wrong expected wallpaper fails with expected/actual).
+  - pass — full local build of the working tree (`kedra-lab image --image build`, 8 min 15 s, assemble.sh and `bootc container lint` included).
+  - pass — `kedra-lab live-tools` with the pinned toolchain; `kedra-lab up --live` session ready in 4.8 s through cocoa-way (1600×1200 winit output). Not yet seen by a person.
+  - pass — `cargo fmt --check`; `cargo clippy --workspace --all-targets --locked -D warnings`; `cargo test --workspace --test 'e2e_*'` on macOS (the Linux-only e2e targets are empty there); release build; release-interop.py and release-material.py.
+  - not-run — `test-container.yml` and the trimmed VM workflows in Actions; the x86_64 desktop target in containers; A4 reversed order, A6/A7/A10 fault injection.
+- Remaining / blockers:
+  - Xwayland (xwayland-satellite) and Qt 6.11 clients received no key events from niri's virtual keyboard in the nested session, so those choosers stay in the VM.
+  - Homebrew `libxkbcommon` 1.13.2 was installed (core formula) to build cocoa-way. cocoa-way created example files in `~/.config/cocoa-way`.
+- Follow-up in the same session (owner requests while away):
+  - Bundle cocoa-way without Homebrew: done as `kedra-lab live-tools` and `up --live`.
+  - Zed's rust-analyzer ran rustc 1.94.0: the global mise `rust = "stable"` exports `RUSTUP_TOOLCHAIN=stable`. The new `mise.toml` pins rust 1.98.1 (rustfmt, clippy), uv 0.12.19 and ruff 0.16.9, and mise now exports `RUSTUP_TOOLCHAIN=1.98.1` in the checkout. `mise install` also marked the checkout trusted in the owner's mise config.
+  - Lint all Python with ruff: new `ruff.toml` (py312, default rules), a check.yml step `uvx ruff@0.16.9 check`, and AGENTS.md updated. Fixes:
+    - import order and f-strings (automatic, reviewed);
+    - executable bits on the 24 shebang scripts;
+    - explicit `check=False` on 25 `subprocess.run` calls that inspect the return code;
+    - two justified `noqa: BLE001` catch-alls.
+  - `kedra-lab clean --images` prunes superseded harness images.
+  - The doctor scenario now expects `release_setup` only to be non-required, because unsigned builds carry no release trust.
+- Checks after the follow-up:
+  - pass — `ruff check` clean over all 35 Python files, and `py_compile` of each.
+  - pass — release-interop.py and release-material.py.
+  - pass — `kedra-utm.py --help` and `check-host`, and `build-local.py --help`.
+  - pass — `cargo fmt --check`; clippy with `-D warnings`.
+  - pass — the full container suite, 13/13 in one run (101 s).
+  - pass — doctor on the full local build.
+  - not-run — the ghcr-update, signed-update, home-transition and rpm-refresh Python fixtures after the lint rewrites; they run only in their VM/Actions workflows.
+- PR #21, first Actions run at `59c4c37`:
+  - pass — the trimmed VM workflows desktop, utm and signed-vm, plus native and rust.
+  - fail — test-container.yml [36313894034](https://github.com/Reidond/kedra/actions/runs/36313894034) on both legs. The full candidate built in about 7 min, then every session fixture failed: `user@1000.service` "PAM failed: Authentication service cannot retrieve authentication info", with `unix_chkpwd: could not obtain user info`.
+  - A stock Ubuntu 24.04 Docker 29.1.3 (systemd cgroup driver, overlayfs) on OrbStack's kernel starts the same user manager, so the cause is the runner host: Ubuntu 24.04's AppArmor `unix-chkpwd` profile attaches by path, including to the container's copy. The workflow now unloads that one profile and records AppArmor status and denials to confirm this.
+  - fail — desktop `image_contents`: the x86_64 RPM names its entry `bitwarden.desktop`. The shared check is now architecture-neutral; the arm64 names moved to `utm-image.yaml`.
+- Second run [36315527414](https://github.com/Reidond/kedra/actions/runs/36315527414) at `9a32ffc`:
+  - Confirmed: `unix-chkpwd` was loaded before the step and absent after, and the session now starts. utm 11/13, desktop 10/12.
+  - Remaining: the Bitwarden window and the GTK 3 app. The kernel audit log shows `profile="unprivileged_userns"` denials for `bitwarden-app` (sys_admin) and `bwrap` (setpcap, net_admin).
+  - The workflow now also sets `kernel.apparmor_restrict_unprivileged_userns=0` on the runner.
+- Third run [36316401867](https://github.com/Reidond/kedra/actions/runs/36316401867) at `35c0cfd`: the userns change fixed Bitwarden and GTK 3 startup. Desktop 11/12, utm 12/13.
+  - fail — desktop `toolkit_file_choosers`: the GTK 4 portal chooser lost the leading "/" and searched for the rest. The test now waits for niri to report the chooser focused, then uses Ctrl+L plus the full path for GTK 4; GTK 3 keeps "/".
+  - fail — utm `home_review_cycle`: `recovery.py` got exit 1 from `sysroot home recover <action>` after an interruption. It passed on desktop and in every local run. The probe now prints the journal phase before recovering and includes the CLI's stderr in failures, to tell a timing-dependent phase (published or validated) from a product defect.
+- Fourth run [36317311862](https://github.com/Reidond/kedra/actions/runs/36317311862) at `e3be9c7`:
+  - pass — utm 13/13, including `recovery.py` and both GTK choosers.
+  - fail — desktop `home_review_cycle`: `sysroot home discard` refused with "an unmanaged Noctalia executable is running".
+- Product race found (sysroot `home/activation/linux/native.rs` `writers()`):
+  - Noctalia forks git for its plugin sources right after each start. Such a child keeps the name `noctalia` until its execve completes: first with Noctalia's executable (counted as "another writer"), then briefly with git's ("unmanaged executable"). A process exiting mid-scan also failed `read_link`.
+  - Fix: skip processes whose parent is a Noctalia process, and skip processes that exited during the scan. A separately started Noctalia is still refused.
+  - pass — Linux release build and `home_review_cycle` locally. Linux clippy is left to check.yml.
+- Next: record the outcome of test-container.yml on both runners in a follow-up entry and STATUS.
+

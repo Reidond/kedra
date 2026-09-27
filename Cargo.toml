@@ -4,6 +4,7 @@ members = [
     "usr/src/kedra/crates/sysroot-core",
     "usr/src/kedra/crates/sysroot-helper",
     "usr/src/kedra/crates/sysroot-linux",
+    "usr/src/kedra/tests/container",
 ]
 resolver = "3"
 

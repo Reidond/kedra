@@ -1,0 +1,66 @@
+version: 1
+name: utm_image
+description: >
+  Target overlay of the aarch64 utm image (UTM/QEMU on Apple Silicon): guest
+  integration packages, the qemu-ga RPC block list, VirGL/Venus graphics
+  defaults, console kargs, the aarch64 Codex and the boot-chain packages that
+  the VM workflow then boots under Secure Boot. Formerly utm-image/image-check.sh.
+profile: system
+targets: [utm]
+steps:
+  - exec:
+      argv: [uname, -m]
+      expect: {stdout: aarch64}
+  - exec:
+      name: the image was built for the utm target
+      argv: [jq, -c, .target, /usr/share/sysroot/source.json]
+      expect:
+        json:
+          - select: $
+            subset: {id: utm, architecture: aarch64, image: ghcr.io/reidond/kedra-utm}
+  - exec:
+      argv: [rpm, -q, qemu-guest-agent, spice-vdagent, vulkan-tools, egl-utils, mesa-dri-drivers, mesa-vulkan-drivers]
+  - action:
+      name: probe
+      with: {name: qemu-ga, as: root, timeout: 2m}
+      capture: {stdout: qemu_ga}
+  - assert:
+      - value: "${qemu_ga}"
+        contains: KEDRA_UTM_QEMU_GA_BLOCK_PASS
+  - exec:
+      name: Venus Vulkan ICD and the VirGL GL driver are present
+      argv: [jq, -r, .ICD.library_path, /usr/share/vulkan/icd.d/virtio_icd.aarch64.json]
+      expect: {stdout_contains: [libvulkan_virtio.so]}
+  - exec:
+      argv: [test, -f, /usr/lib64/dri/virtio_gpu_dri.so]
+  - exec:
+      name: systemd's user environment generator resolves GSK_RENDERER=gl
+      argv: [/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator]
+      env: {PATH: /usr/bin}
+      expect: {stdout_contains: ["GSK_RENDERER=gl\n"]}
+  - exec:
+      name: serial and graphical console kargs
+      argv: [cat, /usr/lib/bootc/kargs.d/30-kedra-utm-console.toml]
+      expect: {stdout_contains: ['"console=ttyAMA0,115200"', '"console=tty0"']}
+  - exec:
+      name: the bundled Codex is the aarch64 musl build
+      argv: [jq, -r, .target, /usr/share/sysroot/agents/codex.json]
+      expect: {stdout: aarch64-unknown-linux-musl}
+  - exec:
+      argv: [jq, -r, '.target + " " + .architecture', /usr/share/sysroot/bitwarden.json]
+      expect: {stdout: utm aarch64}
+  - exec:
+      name: the arm64 tarball's relocated desktop entry and icons
+      argv: [grep, -E, "^Exec=/usr/bin/bitwarden( |$)", /usr/share/applications/com.bitwarden.desktop.desktop]
+  - exec:
+      argv: [find, /usr/share/icons/hicolor, -path, "*/apps/com.bitwarden.desktop.png"]
+      expect: {stdout_nonempty: true}
+  - exec:
+      name: boot chain packages and EFI binaries for the VM workflow's Secure Boot check
+      argv: [rpm, -q, shim-aa64, grub2-efi-aa64, bootupd, mokutil, efibootmgr, kernel-core, bootc]
+  - exec:
+      argv: [find, /usr/lib/efi/shim, -path, "*/EFI/fedora/shimaa64.efi"]
+      expect: {stdout_nonempty: true}
+  - exec:
+      argv: [find, /usr/lib/efi/grub2, -path, "*/EFI/fedora/grubaa64.efi"]
+      expect: {stdout_nonempty: true}

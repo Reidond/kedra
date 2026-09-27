@@ -4,7 +4,7 @@
 
 | File | Role |
 |---|---|
-| `image-check.sh` | Read-only candidate checks, streamed into `podman run -i`: target identity, niri/Noctalia validation, greetd and masked update timer, VM packages, the guest-agent RPC block list (effective unit plus a probe of the installed `qemu-ga`), Venus ICD, VirGL DRI driver, environment.d/kargs files, Bitwarden arm64 tree, aarch64 Codex, boot-chain RPMs and the bootc contract |
+| (moved) | The read-only candidate checks formerly in `image-check.sh` are container scenarios: [utm-image.yaml](../../container/scenarios/utm-image.yaml) with the [qemu-ga probe](../../container/lab/probes/qemu-ga.py), and [image-contents.yaml](../../container/scenarios/image-contents.yaml). The workflow keeps the bootc contract check before booting. |
 | `Containerfile`, `check.sh`, `check.service` | Non-promotable observer layer over `localhost/kedra-utm:research`, tagged `localhost/kedra-utm-test:secureboot` |
 | `boot.sh` | Firmware validation, fresh NVRAM with one explicit boot entry, bounded TCG boot, marker verification |
 
@@ -128,4 +128,4 @@ To reproduce, run `boot.sh` as above in a disposable `ubuntu:24.04` arm64 contai
 
 As of 2026-09-25 the workflow has not run in Actions (`not-run`). The local prototype and rehearsal are emulation evidence only; they are not a runner, UTM or hardware result.
 
-The guest-agent RPC block list and its checks were added after that rehearsal. The `image-check.sh` block passed locally against `quay.io/fedora/fedora-bootc:44` (arm64, `sha256:6718b063…887b`) with `qemu-guest-agent-10.2.2-1.fc44` and the drop-in installed, not against a utm candidate. The `check.sh` command-line assertion has not run in a booted guest (`not-run`).
+The guest-agent RPC block list and its checks were added after that rehearsal. The `image-check.sh` block (since moved to the container scenarios) passed locally against `quay.io/fedora/fedora-bootc:44` (arm64, `sha256:6718b063…887b`) with `qemu-guest-agent-10.2.2-1.fc44` and the drop-in installed, not against a utm candidate. The `check.sh` command-line assertion has not run in a booted guest (`not-run`).

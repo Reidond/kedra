@@ -32,8 +32,12 @@ parser.add_argument('--target', choices=sorted(TARGETS), required=True)
 parser.add_argument('--context', type=pathlib.Path, required=True)
 parser.add_argument('--evidence', type=pathlib.Path, required=True)
 args = parser.parse_args()
-if os.environ.get('GITHUB_ACTIONS') != 'true' or not args.context.is_dir():
-    raise SystemExit('Use an explicit Actions build context')
+# Actions runners, or the disposable local-build container of usr/src/kedra/tests/container.
+disposable = os.environ.get('GITHUB_ACTIONS') == 'true' or (
+    os.environ.get('KEDRA_LOCAL_BUILDER') == '1'
+    and (os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')))
+if not disposable or not args.context.is_dir():
+    raise SystemExit('Use an explicit Actions or local-builder container build context')
 pins = json.loads(pathlib.Path(__file__).with_name('inputs.json').read_text())
 architecture = TARGETS[args.target]['architecture']
 package = pins['packages'].get(architecture)

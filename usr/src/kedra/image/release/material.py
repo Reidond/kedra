@@ -11,9 +11,9 @@ This module validates its config and non-executed installed files, not signature
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import re
 import time
+from pathlib import Path
 
 LIMIT = 4 * 1024**2
 LABEL = 'org.kedra.image.identity'

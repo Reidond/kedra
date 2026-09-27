@@ -1,0 +1,25 @@
+version: 1
+name: session_environment
+description: >
+  The session's systemd user environment and login shells carry Kedra's
+  defaults: niri as the current desktop, KDE Qt platform theme and the
+  Bitwarden SSH agent socket unless the account set its own.
+profile: desktop
+steps:
+  - exec:
+      name: user manager environment after niri imported its session variables
+      as: user
+      argv: [systemctl, --user, show-environment]
+      expect:
+        stdout_contains:
+          - "XDG_CURRENT_DESKTOP=niri\n"
+          - "XDG_SESSION_TYPE=wayland\n"
+          - "QT_QPA_PLATFORMTHEME=kde\n"
+          - "SSH_AUTH_SOCK=${fixtures.test_user.home}/.bitwarden-ssh-agent.sock\n"
+  - action:
+      name: probe
+      with: {name: login-shell, as: user, args: [SSH_AUTH_SOCK]}
+      capture: {json: login_shell}
+  - assert:
+      - value: "${login_shell}"
+        equals: {SSH_AUTH_SOCK: "${fixtures.test_user.home}/.bitwarden-ssh-agent.sock"}

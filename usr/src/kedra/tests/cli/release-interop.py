@@ -51,7 +51,7 @@ def openssl(*arguments):
 def verify(signature, key=public, manifest=payload, image=artifact, expected=True):
     result = subprocess.run([str(binary), "release", "verify", "--manifest", str(manifest),
         "--signature", str(signature), "--public-key", str(key), "--artifact", str(image),
-        "--target", "desktop", "--json"], capture_output=True)
+        "--target", "desktop", "--json"], capture_output=True, check=False)
     if expected:
         if result.returncode != 0:
             raise RuntimeError("Rust rejected an OpenSSL signature: " + result.stderr.decode())
@@ -95,7 +95,7 @@ try:
             destination = root / ('public-trust-' + name)
             result = subprocess.run(['uv', 'run', str(repository / 'usr/src/kedra/image/release/prepare-trust.py'),
                 '--source', str(plan), '--public-key', str(public), '--expected-fingerprint', fingerprint,
-                '--sysroot', str(binary), '--output', str(destination)], capture_output=True)
+                '--sysroot', str(binary), '--output', str(destination)], capture_output=True, check=False)
             return result, destination
 
         for plan_value in (desktop_plan, utm_plan):
@@ -129,7 +129,7 @@ try:
             result, destination = prepare_trust(name, refused, expected)
             assert result.returncode != 0 and not destination.exists(), 'Unsupported target scope produced public trust: ' + name
         print('PASS: public trust refuses wrong-architecture, wrong-repository, disabled and unknown target scopes', flush=True)
-        invalid_key = subprocess.run([str(binary), 'release', 'key', '--public-key', str(private)], capture_output=True)
+        invalid_key = subprocess.run([str(binary), 'release', 'key', '--public-key', str(private)], capture_output=True, check=False)
         assert invalid_key.returncode != 0 and not invalid_key.stdout
         # Public release tooling checks freshness using independently signed
         # channel bytes. Only the actual CLI supplies retained state.
@@ -148,7 +148,7 @@ try:
             checkpoint.write_text(json.dumps(record, separators=(',', ':')), encoding='utf-8')
             checkpoint_signature.write_bytes(base64.b64encode(openssl('dgst', '-sha256', '-sign', private, checkpoint)))
             arguments = channel_command + (['--previous-state', str(previous)] if previous else [])
-            result = subprocess.run(arguments, capture_output=True)
+            result = subprocess.run(arguments, capture_output=True, check=False)
             if expected:
                 if result.returncode != 0:
                     raise RuntimeError('CLI channel verification failed: ' + result.stderr.decode())
@@ -190,7 +190,7 @@ try:
             if previous is not None:
                 arguments += ['--previous-state', str(previous)]
             started = int(time.time())
-            result = subprocess.run(arguments, capture_output=True)
+            result = subprocess.run(arguments, capture_output=True, check=False)
             if not expected:
                 assert result.returncode != 0 and not result.stdout, 'Invalid predecessor received history output'
                 return None
@@ -221,7 +221,7 @@ try:
         expired_output = root / 'expired-unpack'
         result = subprocess.run([str(binary), 'release', 'unpack', '--bundle', str(expired_bundle),
             '--public-key', str(public), '--expected-fingerprint', expected, '--target', 'desktop',
-            '--repository', release['scope']['repository'], '--output-dir', str(expired_output)], capture_output=True)
+            '--repository', release['scope']['repository'], '--output-dir', str(expired_output)], capture_output=True, check=False)
         assert result.returncode != 0 and not expired_output.exists(), 'Historical metadata became eligible for unpack'
 
         history(expired_record, key=wrong_public, expected=False)
@@ -268,19 +268,19 @@ try:
                   '--public-key', str(public), '--expected-fingerprint', expected,
                   '--target', 'desktop', '--repository', release['scope']['repository'],
                   '--output-dir', str(unpacked), '--json']
-        result = subprocess.run(unpack + ['--previous-state', str(newer)], capture_output=True)
+        result = subprocess.run(unpack + ['--previous-state', str(newer)], capture_output=True, check=False)
         assert result.returncode != 0 and not unpacked.exists(), 'Replayed bundle created output'
         altered_bundle = json.loads(json.dumps(bundle))
         altered_bundle['release']['payload'] += ' '
         bundle_path.write_text(json.dumps(altered_bundle), encoding='utf-8')
-        result = subprocess.run(unpack, capture_output=True)
+        result = subprocess.run(unpack, capture_output=True, check=False)
         assert result.returncode != 0 and not unpacked.exists(), 'Tampered bundle created output'
         bundle_path.write_text(json.dumps(bundle), encoding='utf-8')
         wrong_fingerprint = unpack.copy()
         wrong_fingerprint[wrong_fingerprint.index('--expected-fingerprint') + 1] = '0' * 64
-        result = subprocess.run(wrong_fingerprint, capture_output=True)
+        result = subprocess.run(wrong_fingerprint, capture_output=True, check=False)
         assert result.returncode != 0 and not unpacked.exists(), 'Wrong authority created output'
-        result = subprocess.run(unpack + ['--previous-state', str(prior)], capture_output=True)
+        result = subprocess.run(unpack + ['--previous-state', str(prior)], capture_output=True, check=False)
         if result.returncode:
             raise RuntimeError('Channel unpack failed: ' + result.stderr.decode())
         assert json.loads(result.stdout)['replay_checked']
@@ -293,7 +293,7 @@ try:
                             '--target', 'desktop', '--repository', release['scope']['repository'],
                             '--previous-state', str(unpacked / 'next-trust-state.json'), '--json']
         subprocess.run(unpacked_channel, capture_output=True, check=True)
-        result = subprocess.run(unpack, capture_output=True)
+        result = subprocess.run(unpack, capture_output=True, check=False)
         assert result.returncode != 0 and (unpacked / 'release.json').read_bytes() == payload.read_bytes(), 'Unpack replaced existing output'
         assert prior.read_bytes() == prior_bytes, 'Unpack changed caller replay history'
         print('PASS: CLI channel unpack and downstream verification; replay/tamper/authority/existing-output refusal', flush=True)
@@ -301,7 +301,7 @@ try:
         # Desktop-scoped legacy protocol-1 metadata is never accepted for another target.
         legacy_utm = subprocess.run([str(binary), "release", "verify", "--manifest", str(payload),
             "--signature", str(signature), "--public-key", str(public), "--artifact", str(artifact),
-            "--target", "utm", "--json"], capture_output=True)
+            "--target", "utm", "--json"], capture_output=True, check=False)
         assert legacy_utm.returncode != 0 and not legacy_utm.stdout, "Desktop legacy metadata verified as utm"
         altered = root / "altered.json"
         altered.write_bytes(payload.read_bytes() + b" ")
@@ -322,16 +322,16 @@ try:
             "--signature", str(signature), "--public-key", str(public), "--target", "desktop",
             "--output-dir", str(destination), "--json"]
         for invalid in [parts[:-1], list(reversed(parts)), parts + parts]:
-            result = subprocess.run(assemble + list(map(str, invalid)), capture_output=True)
+            result = subprocess.run(assemble + list(map(str, invalid)), capture_output=True, check=False)
             assert result.returncode != 0 and not list(destination.iterdir()), "Bad parts published output"
-        result = subprocess.run(assemble + list(map(str, parts)), capture_output=True)
+        result = subprocess.run(assemble + list(map(str, parts)), capture_output=True, check=False)
         if result.returncode != 0:
             raise RuntimeError("Installer assembly failed: " + result.stderr.decode())
         assert json.loads(result.stdout)["artifact_verified"]
         assembled = destination / artifact.name
         assert assembled.read_bytes() == artifact.read_bytes()
         verify(signature, image=assembled)
-        result = subprocess.run(assemble + list(map(str, parts)), capture_output=True)
+        result = subprocess.run(assemble + list(map(str, parts)), capture_output=True, check=False)
         assert result.returncode != 0 and assembled.read_bytes() == b"abc", "Existing output was replaced"
         print("PASS: 16 OpenSSL signatures, wrong-key/tamper/artifact rejection, advisory output", flush=True)
         print("PASS: CLI installer assembly, missing/reordered/extra parts and existing-output refusal", flush=True)

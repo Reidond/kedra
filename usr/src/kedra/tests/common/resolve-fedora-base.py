@@ -8,10 +8,10 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import time
+from pathlib import Path
 
 
 def require(ok, message):
@@ -20,8 +20,8 @@ def require(ok, message):
 
 
 def native(*arguments):
-    result = subprocess.run(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, timeout=180, check=False)
+    result = subprocess.run(arguments, stdin=subprocess.DEVNULL, capture_output=True,
+                            timeout=180, check=False)
     require(result.returncode == 0, 'Fedora input resolution failed: ' + result.stderr.decode(errors='replace')[:1500])
     require(0 < len(result.stdout) <= 8 * 1024**2, 'Registry response exceeds its bound')
     return result.stdout

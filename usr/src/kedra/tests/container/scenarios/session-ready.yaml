@@ -1,0 +1,41 @@
+version: 1
+name: desktop_session_ready
+description: >
+  A new account's real session (kedra-session through the greetd PAM service)
+  brings up niri and Noctalia as the packaged user services, with a logind
+  session and the expected HiDPI output.
+profile: desktop
+steps:
+  - exec:
+      name: niri and Noctalia run as the packaged user services
+      as: user
+      argv: [systemctl, --user, is-active, niri.service, kedra-noctalia.service]
+      expect:
+        stdout: "active\nactive"
+  - exec:
+      name: logind registered the account's user manager, then its PAM user session
+      argv: [loginctl, list-sessions, --json=short]
+      expect:
+        json:
+          - select: $[0]
+            subset: {user: "${fixtures.test_user.name}", class: manager}
+          - select: $[1]
+            subset: {user: "${fixtures.test_user.name}", class: user}
+  - exec:
+      name: no system unit failed
+      argv: [systemctl, --failed, --no-legend, --plain]
+      expect:
+        stdout: ""
+  - exec:
+      name: niri reports the HiDPI output
+      as: session
+      argv: [niri, msg, --json, outputs]
+      expect:
+        json:
+          - select: $.winit.logical
+            subset: {width: 1280, height: 800, scale: 2.0}
+          - select: $.winit.current_mode
+            equals: 0
+  - action:
+      name: screenshot
+      with: {name: desktop}

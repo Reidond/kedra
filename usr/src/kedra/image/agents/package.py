@@ -53,7 +53,7 @@ for binary, digest in record['signatures'].items():
     result = subprocess.run([str(verifier), 'verify-blob', '--bundle', str(bundle),
                     '--certificate-identity', identity,
                     '--certificate-oidc-issuer', 'https://token.actions.githubusercontent.com',
-                    str(args.inputs / 'codex' / relative)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    str(args.inputs / 'codex' / relative)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
     (args.evidence.parent / f'{binary}-verification.txt').write_bytes(result.stdout)
     if result.returncode != 0:
         raise RuntimeError(f'Official signature verification failed: {binary}')

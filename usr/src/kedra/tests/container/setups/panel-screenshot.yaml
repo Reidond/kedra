@@ -1,0 +1,18 @@
+version: 1
+name: panel_screenshot
+description: Open a Noctalia panel, let it draw, capture it and close it again.
+inputs: [panel, name]
+outputs:
+  path: shot
+steps:
+  - exec:
+      as: session
+      argv: [noctalia, msg, panel-toggle, "${inputs.panel}"]
+  - action: {name: settle, with: {for: 2s}}
+  - action:
+      name: screenshot
+      with: {name: "${inputs.name}"}
+      capture: {path: shot}
+  - exec:
+      as: session
+      argv: [noctalia, msg, panel-toggle, "${inputs.panel}"]

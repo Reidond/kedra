@@ -14,9 +14,9 @@ import argparse
 import copy
 import hashlib
 import json
-from pathlib import Path
 import subprocess
 import time
+from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--workdir', type=Path, required=True)
@@ -40,7 +40,7 @@ def native(*arguments):
 
 
 def call(*arguments, expected=True, reason=None):
-    result = subprocess.run(['uv', 'run', str(cli), *map(str, arguments)], capture_output=True)
+    result = subprocess.run(['uv', 'run', str(cli), *map(str, arguments)], capture_output=True, check=False)
     if expected and result.returncode:
         raise RuntimeError(result.stderr.decode(errors='replace'))
     if not expected and result.returncode == 0:
@@ -197,7 +197,7 @@ def exercise(target):
     seal(identity)
     (root / 'config.json').write_bytes((root / 'config.json').read_bytes() + b' ')
     rejected = subprocess.run(['openssl', 'dgst', '-sha256', '-verify', str(public), '-signature',
-                               str(signature), str(root / 'config.json')], capture_output=True)
+                               str(signature), str(root / 'config.json')], capture_output=True, check=False)
     assert rejected.returncode != 0
     put('identity.json', dict(identity, run_attempt=2))
     call(*verify, expected=False)
@@ -212,7 +212,7 @@ try:
     for name in TARGETS:
         exercise(name)
     unknown = subprocess.run(['uv', 'run', str(cli), 'bootc', '--target', 'xps', '--inputs', str(public)],
-                             capture_output=True)
+                             capture_output=True, check=False)
     assert unknown.returncode != 0 and not unknown.stdout, 'Unknown target was accepted'
     print('PASS: unknown release target refused by the image-input CLI')
 finally:

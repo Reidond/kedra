@@ -8,7 +8,6 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import re
 import shutil
@@ -18,12 +17,13 @@ import tempfile
 import time
 import tomllib
 import uuid
+from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
-import smoke  # noqa: E402
+import smoke
 
 # One closed target table, shared with the release tooling and embedded by the
 # Rust helper; never guess a target.

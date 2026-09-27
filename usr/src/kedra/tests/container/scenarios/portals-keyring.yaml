@@ -1,0 +1,36 @@
+version: 1
+name: portals_audio_keyring
+description: >
+  The session's audio, desktop portal and Secret Service answer on the user
+  bus, and the login keyring is unlocked with the account password as
+  pam_gnome_keyring leaves it after a password login.
+profile: desktop
+steps:
+  - exec:
+      as: user
+      argv: [systemctl, --user, start, xdg-desktop-portal.service]
+      timeout: 60s
+  - exec:
+      as: user
+      argv: [systemctl, --user, is-active, pipewire.service, wireplumber.service, xdg-desktop-portal.service]
+      expect: {stdout: "active\nactive\nactive"}
+  - exec:
+      as: user
+      argv: [wpctl, status]
+      expect: {stdout_contains: [PipeWire]}
+  - exec:
+      name: the desktop portal answers
+      as: user
+      argv: [busctl, --user, call, org.freedesktop.portal.Desktop, /org/freedesktop/portal/desktop, org.freedesktop.DBus.Peer, Ping]
+      timeout: 20s
+  - exec:
+      name: the Secret Service answers
+      as: user
+      argv: [busctl, --user, call, org.freedesktop.secrets, /org/freedesktop/secrets, org.freedesktop.DBus.Peer, Ping]
+      timeout: 20s
+  - exec:
+      name: the default collection is unlocked
+      as: user
+      argv: [busctl, --user, get-property, org.freedesktop.secrets, /org/freedesktop/secrets/aliases/default, org.freedesktop.Secret.Collection, Locked]
+      timeout: 20s
+      expect: {stdout: "b false"}

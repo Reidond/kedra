@@ -33,6 +33,16 @@ merge. Verify niri include/output-rule semantics before spreading the same monit
 across layers. Connector names and refresh strings require actual inventory.
 Earlier display/GPU context is not a live hardware probe.
 
+## Seeing desktop changes: the container lab
+
+Measured 2026-09-27 (niri 26.04, Noctalia 5.1.0, OrbStack 2.2.3 on an M2 Pro): the real session renders in a container. The harness README has the details (usr/src/kedra/tests/container).
+
+- **How it runs.** `kedra-session` starts through the greetd PAM service with `PAMName=greetd`, which gives a real logind session. niri runs nested through its winit backend: `niri --session` drops `WAYLAND_DISPLAY` unless `WSL_DISTRO_NAME` is set (src/main.rs, v26.04). The parent is a headless sway (pixman). Rendering is llvmpipe; Noctalia, GTK 3/4, Qt and Electron (Bitwarden) render.
+- **Screenshots.** `kedra-lab up`, edit etc/skel, `kedra-lab sync` (niri reloads its config), then `kedra-lab shot`. The default output is 2560×1600 at scale 2, set by `niri msg output winit scale`, because niri's `output` config does not size a winit output. Show the owner the PNGs.
+- **Live view on macOS.** `kedra-lab live-tools` builds pinned cocoa-way 2.0.3 and waypipe-darwin 0.11.0 without Homebrew taps; it needs libxkbcommon, lz4, zstd, pixman and Xcode's libclang. Then `kedra-lab up --live`. OrbStack refuses container connections to macOS-created Unix sockets, so waypipe goes through a loopback TCP bridge to `host.docker.internal`. cocoa-way gave niri a 1600×1200 output at scale 1.
+- **Input.** niri's virtual keyboard reaches foot, GTK 3 (wlrctl's standard keymap only) and GTK 4 (wtype, which sends a real Return). Xwayland (xwayland-satellite) and Qt 6.11 clients received no key events. A nested niri reads raw keycodes with its own keymap, so wtype through the parent compositor types wrong characters. Keyboard-driven Qt/Xwayland checks stay in the VM.
+- **Not the hardware.** Container screenshots show layout, theme and palette, not GPU, scaling-on-hardware or accessibility behavior. The kernel, uptime and hardware sensors are the host's.
+
 ## Greeter adoption boundary
 
 The 2026-09-13 evaluation of Noctalia Greeter 1.5.0 recommends a separate

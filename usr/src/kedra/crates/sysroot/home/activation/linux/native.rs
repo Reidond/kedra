@@ -64,6 +64,27 @@ fn profile(home: &Path, values: impl IntoIterator<Item = (String, String)>) -> R
     }
     Ok(())
 }
+/// Noctalia forks children to run helpers (git for its plugin sources right
+/// after it starts). Until its execve completes such a child is still named
+/// `noctalia`, first with Noctalia's executable and then briefly with the
+/// helper's. It belongs to its parent's instance, not a second writer. A
+/// separately started Noctalia has another parent and is still counted.
+fn forked_by_noctalia(process: &Path) -> bool {
+    let Ok(stat) = std::fs::read_to_string(process.join("stat")) else {
+        return false;
+    };
+    // `pid (comm) state ppid …`; comm may contain spaces or parentheses.
+    let Some(parent) = stat
+        .rsplit_once(')')
+        .and_then(|(_, rest)| rest.split_whitespace().nth(1))
+        .filter(|ppid| ppid.bytes().all(|b| b.is_ascii_digit()))
+    else {
+        return false;
+    };
+    std::fs::read_to_string(Path::new("/proc").join(parent).join("comm"))
+        .is_ok_and(|comm| comm.trim() == "noctalia")
+}
+
 fn writers() -> Result<Vec<u32>> {
     use std::os::unix::fs::MetadataExt;
     let owner = rustix::process::geteuid().as_raw();
@@ -89,7 +110,14 @@ fn writers() -> Result<Vec<u32>> {
         if comm.trim() != "noctalia" {
             continue;
         }
-        if std::fs::read_link(entry.path().join("exe"))? != Path::new("/usr/bin/noctalia") {
+        if forked_by_noctalia(&entry.path()) {
+            continue;
+        }
+        // A process that exited during the scan is no writer.
+        let Ok(exe) = std::fs::read_link(entry.path().join("exe")) else {
+            continue;
+        };
+        if exe != Path::new("/usr/bin/noctalia") {
             return Err("an unmanaged Noctalia executable is running".into());
         }
         found.push(pid);

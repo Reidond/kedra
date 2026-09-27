@@ -55,7 +55,7 @@ for runtime in ['bundled', 'user']:
         if plan['version'] != expected_version or plan['deployment_authorized']:
             raise RuntimeError('Wrong native runtime selected')
         for upstream in [['--version'], ['--help'], ['login', '--help']]:
-            output = subprocess.run([*command, '--', *upstream], env=environment, capture_output=True, timeout=30)
+            output = subprocess.run([*command, '--', *upstream], env=environment, capture_output=True, timeout=30, check=False)
             if output.returncode != 0:
                 raise RuntimeError(f'Native invocation failed: {runtime}/{scope}/{upstream}')
         results.append({'runtime': runtime, 'scope': scope, 'version': plan['version'],

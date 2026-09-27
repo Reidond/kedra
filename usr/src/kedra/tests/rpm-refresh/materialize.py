@@ -4,14 +4,13 @@
 
 import hashlib
 import json
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import time
 import uuid
-
+from pathlib import Path
 
 EVIDENCE = Path("/evidence")
 FIXTURE = Path("/fixture")

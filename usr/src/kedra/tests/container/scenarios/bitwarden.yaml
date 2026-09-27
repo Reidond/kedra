@@ -1,0 +1,31 @@
+version: 1
+name: bitwarden_logged_out
+description: >
+  The bundled Bitwarden Desktop starts logged out in the niri session with its
+  native sandbox and maps a window. Vault login and SSH signing are owner-only.
+profile: desktop
+steps:
+  - exec:
+      as: session
+      argv: [systemd-run, --user, --unit=kedra-bitwarden-research, --collect, --service-type=exec, /usr/bin/bitwarden]
+  - eventually:
+      name: Bitwarden maps a window
+      timeout: 90s
+      interval: 2s
+      observe:
+        as: session
+        argv: [niri, msg, --json, windows]
+        expect: {stdout_contains: ['"app_id":"bitwarden"']}
+  - exec:
+      as: user
+      argv: [systemctl, --user, is-active, kedra-bitwarden-research.service]
+      expect: {stdout: active}
+  - action: {name: settle, with: {for: 5s}}
+  - action:
+      name: screenshot
+      with: {name: bitwarden}
+  - exec:
+      name: cleanup; Electron may abort on the cgroup-wide SIGTERM, which is not asserted
+      as: user
+      argv: [systemctl, --user, stop, kedra-bitwarden-research.service]
+      timeout: 2m

@@ -1039,7 +1039,12 @@ Last updated: 2026-09-27 (UTC).
   - pass — source plans of the moved tree against main for `desktop` and `utm`: identical destinations, blobs, modes, targets and packages. The new CLI plans legacy main exactly as the old CLI did.
   - pass — Python/shell/YAML/JSON parse; uv entry points start on macOS; Codex CLI 0.156.1 on the owner's Mac lists `kedra@kedra-local` 0.2.0 and `rust-skills@kedra-local` as installed and enabled, with the cache identical to the working tree.
   - fail then fixed — the first push (`0d612af`) failed rustfmt in every workflow: `sysroot-core/image.rs` changed after the last local fmt run. The next commit applies rustfmt, and the full local suite above was rerun and passes.
-  - not-run — Actions workflows past formatting, VM runs, a model session using the plugins.
+  - Actions at `e838f7a`:
+    - pass — workspace [36272882101](https://github.com/Reidond/kedra/actions/runs/36272882101), signed updates [36272882067](https://github.com/Reidond/kedra/actions/runs/36272882067), direct GHCR [36272882082](https://github.com/Reidond/kedra/actions/runs/36272882082), UTM image [36272882042](https://github.com/Reidond/kedra/actions/runs/36272882042), and signed home transition [36272882072](https://github.com/Reidond/kedra/actions/runs/36272882072), whose image A is now a legacy-layout baseline.
+    - fail — desktop [36272882086](https://github.com/Reidond/kedra/actions/runs/36272882086): `sudo` reset `PATH`, so root could not find `uv`. The same problem would hit the agent probe. `74ffaa6` passes uv by absolute path; the agent probe also gets the runner home and an offline cache, verified in an ubuntu:24.04 container.
+    - pending — desktop and agents at `74ffaa6`.
+    - not-run — RPM refresh, which runs only on main.
+  - not-run — a model session invoking the plugins.
   - blocked, then resolved by the owner — Claude Code refused to change its own configuration. The owner ran `claude plugin marketplace add ./ --scope project` (a bare `.` is rejected) and both `claude plugin install … --scope project` commands, then replaced the absolute marketplace path the CLI wrote with `./`.
   - pass — Claude Code 2.1.282 lists both plugins enabled at project scope from the repository root, and this session offers their 12 + 18 skills.
   - observed — the plugins show as disabled when listed from a subdirectory.
@@ -1048,4 +1053,4 @@ Last updated: 2026-09-27 (UTC).
   - Confirm that `./` resolves in a fresh clone. `claude plugin marketplace add ./ --scope local` is the documented local fallback.
   - After merge, `START-HERE.md` (in the image) links the moved INSTALL.md.
   - A pre-move CLI refuses home review against a post-move checkout until the machine updates. After a rollback to a pre-move deployment, review state that already names moved paths is refused and preserved.
-- Next: qualify every workflow on PR #20, then merge.
+- Next: confirm desktop and agents at `74ffaa6` on PR #20, merge, then check the main-only RPM refresh and the next publication of both targets.

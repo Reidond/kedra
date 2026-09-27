@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory(prefix='kedra-public-key-') as temporary:
     captured = pathlib.Path(temporary) / 'release.pub'
     captured.write_bytes(public_key)
     identity = subprocess.run([str(args.sysroot.resolve()), 'release', 'key', '--public-key', str(captured), '--json'],
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                              capture_output=True, check=False)
 if identity.returncode != 0:
     raise SystemExit('The supplied public key is not a valid bounded P-256 SPKI key')
 identity = json.loads(identity.stdout)

@@ -50,6 +50,9 @@ jobs:
           git --version
       - name: Formatting
         run: cargo fmt --all -- --check
+      - name: Python lint
+        # Same pin as mise.toml; ruff.toml holds the configuration.
+        run: uvx ruff@0.16.9 check --no-cache
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: End-to-end CLI workflows

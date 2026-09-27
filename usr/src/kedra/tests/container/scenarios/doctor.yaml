@@ -1,0 +1,37 @@
+version: 1
+name: doctor_session_checks
+description: >
+  `sysroot doctor` as the ordinary user passes every desktop-session check a
+  container can host. SELinux enforcement and UEFI Secure Boot cannot exist in
+  a container: they must stay required for the session and are qualified by
+  the VM workflows.
+profile: desktop
+steps:
+  - exec:
+      as: user
+      argv: [sysroot, doctor, --json]
+      timeout: 2m
+      expect:
+        exit: 1
+        json:
+          - select: $.changes_performed
+            equals: false
+          - select: $.desktop_session_checks_passed
+            equals: false
+          - select: $.checks
+            subset:
+              - {name: selinux, passed: false, required_for_session: true}
+              - {name: secure_boot, passed: false, required_for_session: true}
+              - {name: system_services, passed: true}
+              - {name: user_services, passed: true}
+              - {name: niri_configuration, passed: true}
+              - {name: noctalia_configuration, passed: true}
+              - {name: login_keyring, passed: true}
+              - {name: desktop_portal_response, passed: true}
+              - {name: compositor, passed: true}
+              - {name: desktop_controls, passed: true}
+              - {name: audio, passed: true}
+              - {name: audio_policy, passed: true}
+              - {name: desktop_portal, passed: true}
+              # Published images carry release trust; unsigned local and CI builds do not.
+              - {name: release_setup, required_for_session: false}

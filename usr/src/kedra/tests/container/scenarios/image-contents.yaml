@@ -1,0 +1,98 @@
+version: 1
+name: image_contents
+description: >
+  Installed-image checks that need no session: packaged desktop programs,
+  validated account defaults, enabled/masked units, toolkit integration
+  packages, the private Bitwarden and Codex runtimes. Formerly the host-side
+  podman checks of test-desktop.yml and part of utm-image/image-check.sh.
+profile: system
+steps:
+  - exec:
+      name: niri and Noctalia run
+      argv: [niri, --version]
+      expect: {stdout_contains: ["niri "]}
+  - exec:
+      argv: [noctalia, --version]
+      expect: {stdout_contains: ["noctalia v"]}
+  - exec:
+      argv: [noctalia, msg, --help]
+  - exec:
+      name: the shipped niri defaults validate with the installed niri
+      argv: [niri, validate, --config, /usr/share/sysroot/home/default/.config/niri/config.kdl]
+  - exec:
+      name: the shipped Noctalia defaults validate with the installed Noctalia
+      argv: [noctalia, config, validate]
+      env:
+        NOCTALIA_CONFIG_HOME: /usr/share/sysroot/home/default/.config
+        NOCTALIA_STATE_HOME: /tmp/kedra-noctalia-validation
+  - exec:
+      name: new accounts receive the shipped defaults
+      argv: [cmp, /usr/share/sysroot/home/default/.config/niri/config.kdl, /etc/skel/.config/niri/config.kdl]
+  - exec:
+      name: greetd PAM stack includes GNOME Keyring
+      argv: [cat, /etc/pam.d/greetd]
+      expect: {stdout_contains: [pam_gnome_keyring.so]}
+  - exec:
+      name: greetd is the enabled login manager
+      argv: [systemctl, is-enabled, greetd.service]
+      expect: {stdout: enabled}
+  - exec:
+      name: automatic bootc updates stay masked (sysroot owns updates)
+      argv: [systemctl, is-enabled, bootc-fetch-apply-updates.timer]
+      expect: {exit: 1, stdout: masked}
+  - exec:
+      argv: [systemctl, get-default]
+      expect: {stdout: graphical.target}
+  - exec:
+      name: the resolved package inventory is recorded
+      argv: [test, -s, /usr/share/sysroot/packages.txt]
+  - exec:
+      name: native toolkit integration packages are installed
+      argv: [rpm, -q, gtk3, adw-gtk3-theme, gtk4, libadwaita, qt5-qtbase-gui, qt6-qtbase-gui, plasma-integration,
+             plasma-integration-qt5, plasma-breeze, plasma-breeze-qt5, breeze-icon-theme]
+  - exec:
+      argv: [test, -r, /usr/share/themes/adw-gtk3/gtk-3.0/gtk.css]
+  - exec:
+      name: xwaylandvideobridge does not autostart under niri
+      argv: [grep, -Fx, "NotShowIn=niri;", /etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop]
+  - exec:
+      name: Bitwarden is the relocated official tree without special bits
+      argv: [jq, -e, '.runtime_root == "/usr/lib/bitwarden" and .package_scripts_executed == false', /usr/share/sysroot/bitwarden.json]
+  - exec:
+      argv: [test, -x, /usr/lib/bitwarden/bitwarden-app]
+  - exec:
+      argv: [stat, -c, "%a %U:%G", /usr/lib/bitwarden/chrome-sandbox]
+      expect: {stdout: "755 root:root"}
+  - exec:
+      argv: [find, /usr/lib/bitwarden, -perm, /7000, -print, -quit]
+      expect: {stdout: ""}
+  - exec:
+      argv: [find, /usr/lib/bitwarden, "!", -type, f, "!", -type, d, -print, -quit]
+      expect: {stdout: ""}
+  - exec:
+      argv: [grep, -E, "^Exec=/usr/bin/bitwarden( |$)", /usr/share/applications/com.bitwarden.desktop.desktop]
+  - exec:
+      argv: [find, /usr/share/icons/hicolor, -path, "*/apps/com.bitwarden.desktop.png"]
+      expect: {stdout_nonempty: true}
+  - exec:
+      name: locate the architecture's Bitwarden native module
+      argv: [find, /usr/lib/bitwarden/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi, -name, "desktop_napi.linux-*.node"]
+      expect: {stdout_nonempty: true}
+      capture:
+        napi: {stdout: trim}
+  - exec:
+      name: Bitwarden has every shared library
+      argv: [ldd, /usr/lib/bitwarden/bitwarden-app, /usr/lib/bitwarden/desktop_proxy, "${napi}"]
+      expect: {stdout_lacks: [not found]}
+  - exec:
+      name: the bundled Codex runs and reports its pinned version
+      argv: [jq, -r, .version, /usr/share/sysroot/agents/codex.json]
+      capture:
+        codex_version: {stdout: trim}
+  - exec:
+      argv: [/usr/libexec/sysroot/agents/codex/bin/codex, --version]
+      env: {HOME: /tmp}
+      expect: {stdout: "codex-cli ${codex_version}"}
+  - exec:
+      name: sysroot reports installed status
+      argv: [sysroot, status, --json]

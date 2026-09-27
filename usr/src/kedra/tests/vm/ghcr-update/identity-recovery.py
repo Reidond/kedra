@@ -10,10 +10,10 @@ creates a registry, changes trust policy, or runs on the workstation.
 import argparse
 import json
 import os
-from pathlib import Path
 import pwd
 import subprocess
 import tempfile
+from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--owner', default='kedra-test')
@@ -34,7 +34,7 @@ args.output.mkdir(parents=True, mode=0o700)
 
 def cli(*arguments, success=True):
     result = subprocess.run(['/usr/sbin/runuser', '-u', args.owner, '--', '/usr/bin/sysroot',
-                             'update', *arguments], capture_output=True, timeout=2100)
+                             'update', *arguments], capture_output=True, timeout=2100, check=False)
     if success:
         if result.returncode:
             raise RuntimeError(result.stderr.decode(errors='replace'))

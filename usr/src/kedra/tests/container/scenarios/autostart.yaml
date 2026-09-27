@@ -1,0 +1,23 @@
+version: 1
+name: session_autostart
+description: >
+  XDG autostart under niri does not start xwaylandvideobridge, whose invisible
+  capture window would become a focused black tile.
+profile: desktop
+steps:
+  - eventually:
+      name: xdg-desktop-autostart.target has been reached
+      timeout: 60s
+      observe:
+        as: user
+        argv: [systemctl, --user, is-active, xdg-desktop-autostart.target]
+        expect: {stdout: active}
+  - action: {name: settle, with: {for: 5s}}
+  - exec:
+      as: session
+      argv: [niri, msg, --json, windows]
+      expect: {stdout_lacks: [xwaylandvideobridge]}
+  - exec:
+      name: no bridge process (its name exceeds comm's 15 characters)
+      argv: [pgrep, -u, "${fixtures.test_user.name}", -f, "(^|/)xwaylandvideobridge([[:space:]]|$)"]
+      expect: {exit: 1}

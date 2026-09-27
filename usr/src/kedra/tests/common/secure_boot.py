@@ -53,7 +53,7 @@ def variables(path):
     with tempfile.TemporaryDirectory(prefix="kedra-uefi-vars-") as scratch:
         output = pathlib.Path(scratch) / "vars.json"
         result = subprocess.run(["virt-fw-vars", "--input", str(path), "--output-json", str(output)],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=60)
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=60, check=False)
         if result.returncode:
             detail = result.stderr.decode(errors="replace").strip().splitlines()
             raise FirmwareError(f"cannot decode UEFI variable store {path}: {detail[-1] if detail else result.returncode}")

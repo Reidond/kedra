@@ -93,11 +93,11 @@ jobs:
           jq -e '.[0].Os == "linux" and .[0].Architecture == "arm64"' output/utm-evidence/image-inspect.json > /dev/null
           sudo podman run --rm localhost/kedra-utm:research cat /usr/share/sysroot/packages.txt > output/utm-evidence/packages.txt
           sudo podman run --rm localhost/kedra-utm:research find /var -type f > output/utm-evidence/image-var-files.txt
+          # Image contents (guest agent RPC block list, graphics defaults,
+          # kargs, Bitwarden, Codex, boot-chain packages) are container
+          # scenarios in test-container.yml; the boot below needs this contract.
           contract=$(jq -er .bootc_version usr/src/kedra/image/release/compatibility.json)
-          sudo podman run --rm -i localhost/kedra-utm:research bash -s -- "$contract" \
-            < usr/src/kedra/tests/vm/utm-image/image-check.sh > output/utm-evidence/image-checks.txt 2>&1 \
-            || { tail -n 40 output/utm-evidence/image-checks.txt; exit 1; }
-          tail -n 1 output/utm-evidence/image-checks.txt
+          test "$(sudo podman run --rm localhost/kedra-utm:research rpm -q --qf '%{VERSION} %{ARCH}' bootc)" = "$contract aarch64"
       - name: Prepare disposable Secure Boot observer fixture
         run: |
           mkdir -p output/utm-test-context output/utm-image output/utm-evidence/vm

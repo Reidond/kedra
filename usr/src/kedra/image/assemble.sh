@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Image-build entrypoint, not a host package installer.
 set -euo pipefail
-test -f /run/.containerenv
+# Podman marks its build containers; a BuildKit build (the local lab build in
+# usr/src/kedra/tests/container) runs the Containerfile RUN line as PID 1.
+test -f /run/.containerenv || grep -qF /tmp/kedra-assemble.sh /proc/1/cmdline
 manifest=/usr/share/sysroot/source.json
 # Build natively: the target's architecture must be this build's machine, and
 # only the closed (target, architecture) pairs are accepted.

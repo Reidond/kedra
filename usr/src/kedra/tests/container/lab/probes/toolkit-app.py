@@ -1,8 +1,9 @@
-# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
+# Runs inside the lab container as the test account with the image's own python3; uv applies to host-side scripts only.
 """Native GUI fixture: select a real file through each toolkit's own dialog.
 
-QEMU sends the keyboard input. No widget methods simulate user activation.
-Only the disposable VM account runs this program.
+The harness sends keyboard input through the session's compositor (QEMU key
+events in the VM). No widget methods simulate user activation. Only the
+disposable test account runs this program.
 """
 import json
 import pathlib

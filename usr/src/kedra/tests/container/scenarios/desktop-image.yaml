@@ -1,0 +1,22 @@
+version: 1
+name: desktop_image
+description: >
+  Target identity of the x86_64 desktop image and the boot-chain packages that
+  the VM workflows boot under Secure Boot.
+profile: system
+targets: [desktop]
+steps:
+  - exec:
+      argv: [uname, -m]
+      expect: {stdout: x86_64}
+  - exec:
+      argv: [jq, -c, .target, /usr/share/sysroot/source.json]
+      expect:
+        json:
+          - select: $
+            subset: {id: desktop, architecture: x86_64, image: ghcr.io/reidond/kedra-desktop}
+  - exec:
+      argv: [jq, -r, .target, /usr/share/sysroot/agents/codex.json]
+      expect: {stdout: x86_64-unknown-linux-musl}
+  - exec:
+      argv: [rpm, -q, shim-x64, grub2-efi-x64, bootupd, mokutil, efibootmgr, kernel-core, bootc]

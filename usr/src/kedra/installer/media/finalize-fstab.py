@@ -6,6 +6,7 @@ import re
 import stat
 import subprocess
 
+
 def normalize(source):
     lines = source.splitlines(keepends=True)
     roots = [i for i, line in enumerate(lines)

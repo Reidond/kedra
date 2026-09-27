@@ -11,9 +11,7 @@ Only the automatically signed, validated OCI manifest authorizes an update.
 import argparse
 import hashlib
 import io
-import json
 import os
-from pathlib import Path
 import platform
 import re
 import subprocess
@@ -22,6 +20,7 @@ import tempfile
 import threading
 import time
 import uuid
+from pathlib import Path
 
 import material as m
 

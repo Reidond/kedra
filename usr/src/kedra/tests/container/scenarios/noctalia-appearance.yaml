@@ -1,0 +1,69 @@
+version: 1
+name: noctalia_appearance
+description: >
+  Noctalia renders the shipped Adwaita palette without falling back to its
+  builtin one, and uses the solid Adwaita wallpaper on the session's output.
+  Config export and color-scheme-get report the request even on fallback, so
+  the running process's own journal is checked too.
+profile: desktop
+steps:
+  - exec:
+      as: session
+      argv: [noctalia, msg, log-level-status]
+      capture: {level: {stdout: trim}}
+  - assert:
+      - value: "${level}"
+        one_of: [trace, debug, info]
+  - exec:
+      name: the requested palette is the custom Adwaita one
+      as: session
+      argv: [noctalia, msg, color-scheme-get]
+      expect: {stdout: custom Adwaita}
+  - exec:
+      as: user
+      argv: [systemctl, --user, show, kedra-noctalia.service, --property=MainPID, --value]
+      capture: {pid: {stdout: trim}}
+  - assert:
+      - value: "${pid}"
+        differs: "0"
+  - exec:
+      argv: [journalctl, --sync]
+  - exec:
+      name: the running Noctalia logged no palette fallback
+      argv: [journalctl, -b, --quiet, --no-pager, --output=cat, "_PID=${pid}", "_UID=${fixtures.test_user.uid}"]
+      expect:
+        stdout_nonempty: true
+        stdout_lacks: ["custom palette 'Adwaita' not found or invalid; falling back to builtin"]
+  - exec:
+      name: default and per-output wallpaper are the Adwaita solid colour
+      as: session
+      argv: [noctalia, msg, wallpaper-get]
+      expect: {stdout: "color:#222226"}
+  - exec:
+      as: session
+      argv: [noctalia, msg, wallpaper-get, "${fixtures.desktop_session.output}"]
+      expect: {stdout: "color:#222226"}
+  - action:
+      name: screenshot
+      with: {name: desktop}
+  - include:
+      setup: panel_screenshot
+      with: {panel: launcher, name: launcher}
+      capture: {path: launcher_shot}
+  - exec:
+      as: session
+      argv: [noctalia, msg, settings-toggle]
+  - action: {name: settle, with: {for: 2s}}
+  - action:
+      name: screenshot
+      with: {name: settings}
+  - exec:
+      as: session
+      argv: [noctalia, msg, settings-toggle]
+  - include:
+      setup: panel_screenshot
+      with: {panel: control-center, name: control-center}
+      capture: {path: control_center_shot}
+  - assert:
+      - value: "${control_center_shot}"
+        contains: control-center.png

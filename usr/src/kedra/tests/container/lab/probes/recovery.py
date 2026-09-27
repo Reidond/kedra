@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
+# Runs inside the lab container as the test account with the image's own python3; uv applies to host-side scripts only.
 """Kill the installed CLI at a real file publication, then use its recovery UI.
 
 Runs only as the generated graphical VM user. No implementation imports, altered
@@ -16,6 +16,9 @@ import subprocess
 import sys
 import time
 
+# Include the SELinux label where the kernel has SELinux (VMs); lab containers have none.
+METADATA_FORMAT = '%u:%g:%a:%C' if os.path.exists('/sys/fs/selinux/enforce') else '%u:%g:%a'
+
 
 state = sys.argv[1]
 # The caller chooses two changed values from the actual adopted baseline.
@@ -29,8 +32,8 @@ home = ["sysroot", "home", "--state", state]
 
 
 def run(args, *, success=True):
-    result = subprocess.run(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, timeout=90, check=False)
+    result = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True,
+                            timeout=90, check=False)
     if (result.returncode == 0) != success:
         raise RuntimeError(f"unexpected exit for {args[:2]}: {result.returncode}")
     return result.stdout
@@ -79,6 +82,10 @@ def interrupt_publication(plan):
             if killed:
                 break
         child.communicate(timeout=10)
+        if child.returncode == 0:
+            # The CLI finished its whole discard before SIGKILL landed (fast
+            # hosts): a clean completion, not an interruption. Caller retries.
+            return False
         if not killed or child.returncode != -signal.SIGKILL:
             raise RuntimeError("CLI was not interrupted at native publication")
     finally:
@@ -90,15 +97,20 @@ def interrupt_publication(plan):
     if not pending["pending"] or pending["journal"]["phase"] not in ("prepared", "published"):
         raise RuntimeError("interrupted publication did not retain recoverable pending state")
     run(home + ["stage", "theme.mode"], success=False)
+    return True
 
 
 for action in ("abort", "resume", "keep-current"):
     theme(selected_theme)
     response("stage", "theme.mode")
-    theme(later_theme)
-    plan = response("plan", "--discard", "theme.mode")["plan_id"]
-    metadata = run(["stat", "-c", "%u:%g:%a:%C", str(native / "settings.toml")])
-    interrupt_publication(plan)
+    for attempt in range(10):
+        theme(later_theme)
+        plan = response("plan", "--discard", "theme.mode")["plan_id"]
+        metadata = run(["stat", "-c", METADATA_FORMAT, str(native / "settings.toml")])
+        if interrupt_publication(plan):
+            break
+    else:
+        raise RuntimeError("CLI always completed before it could be interrupted at native publication")
     if action == "keep-current":
         # A real application edits the file after the interrupted operation.
         # Exact rollback must refuse that edit; explicit keep-current retains it.
@@ -122,7 +134,7 @@ for action in ("abort", "resume", "keep-current"):
             and result["fields"][0]["selected"]["value"] == selected_theme):
         raise RuntimeError(f"{action} did not preserve live/selected state")
     run(service + ["is-active", "kedra-noctalia.service"])
-    if run(["stat", "-c", "%u:%g:%a:%C", str(native / "settings.toml")]) != metadata:
+    if run(["stat", "-c", METADATA_FORMAT, str(native / "settings.toml")]) != metadata:
         raise RuntimeError("native settings metadata changed during recovery")
     expected_phase = {"abort": "aborted", "resume": "completed", "keep-current": "kept_current"}[action]
     journal = response("recover")

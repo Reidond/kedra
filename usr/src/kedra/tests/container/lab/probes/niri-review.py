@@ -1,8 +1,8 @@
-# Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
+# Runs inside the lab container as the test account with the image's own python3; uv applies to host-side scripts only.
 """Exercise line review against the generated account's actual niri file."""
+import ctypes
 import json
 import os
-import ctypes
 import pathlib
 import re
 import select
@@ -14,10 +14,17 @@ import sys
 import time
 
 
+def selinux_label(path):
+    """The file's SELinux label where the kernel has SELinux (VMs); None in lab containers."""
+    if not os.path.exists("/sys/fs/selinux/enforce"):
+        return None
+    return os.getxattr(path, "security.selinux")
+
+
 def home(*args, success=True, state=None):
     command = ["sysroot", "home"] + (["--state", str(state)] if state is not None else [])
-    result = subprocess.run([*command, *args], stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, timeout=60, check=False)
+    result = subprocess.run([*command, *args], capture_output=True,
+                            timeout=60, check=False)
     if (result.returncode == 0) != success:
         # This runs only against generated public fixture content in the VM.
         detail = result.stderr.decode(errors="replace")[:1200]
@@ -98,6 +105,10 @@ def interrupt_discard(change, plan_id):
             if killed:
                 break
         child.communicate(timeout=10)
+        if child.returncode == 0:
+            # The CLI finished before SIGKILL landed (fast hosts): a clean
+            # completion, not an interruption. The caller retries.
+            return False
         if not killed or child.returncode != -signal.SIGKILL:
             raise RuntimeError("niri CLI was not interrupted at file publication")
     finally:
@@ -108,13 +119,16 @@ def interrupt_discard(change, plan_id):
     pending = cli("recover")
     if not pending["pending_activation"] or pending["journal"]["phase"] not in ("prepared", "published"):
         raise RuntimeError("niri interruption did not retain its reservation")
+    return True
 
 
 native = pathlib.Path.home() / ".config/niri/config.kdl"
 home_state = pathlib.Path.home() / ".local/state/sysroot/home"
-if len(sys.argv) != 2:
+if len(sys.argv) != 3:
     raise RuntimeError("the R07 native Noctalia recovery store is required")
 noctalia_recovery_state = pathlib.Path(sys.argv[1])
+# Git bundle of the installed image's recorded source revision, from the harness.
+SOURCE_BUNDLE = sys.argv[2]
 original = native.read_text()
 if home_state.exists():
     raise RuntimeError("independent adoption requires the fresh default review store")
@@ -133,7 +147,7 @@ try:
     home("status", success=False)
     home("status", "--last-capture", success=False)
     if subprocess.run(["systemctl", "--user", "is-active", "kedra-noctalia.service"],
-                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode == 0:
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False).returncode == 0:
         raise RuntimeError("text adoption started the unrelated Noctalia service")
     adopted = cli("status")
     cli("init", "--reviewed-safe", success=False)
@@ -180,7 +194,7 @@ try:
     print("KEDRA_HOME_LATER_NOCTALIA_ADOPTION_PASS", flush=True)
     planned = cli("discard-plan", current_width)
     before = native.stat()
-    before_label = os.getxattr(native, "security.selinux")
+    before_label = selinux_label(native)
     cli("discard", current_width, "--plan", "0" * 64, "--activate-managed-file", success=False)
     if "width 4" not in native.read_text():
         raise RuntimeError("stale discard plan changed the file")
@@ -188,7 +202,7 @@ try:
     after = native.stat()
     if "width 3" not in native.read_text() or "gaps 16" not in native.read_text():
         raise RuntimeError("discard did not restore pinned width while preserving the later gap edit")
-    if (before.st_uid, before.st_gid, before.st_mode) != (after.st_uid, after.st_gid, after.st_mode) or os.getxattr(native, "security.selinux") != before_label:
+    if (before.st_uid, before.st_gid, before.st_mode) != (after.st_uid, after.st_gid, after.st_mode) or selinux_label(native) != before_label:
         raise RuntimeError("discard changed niri file metadata")
     recovered = cli("recover")
     if recovered["pending_activation"] is not None or recovered["journal"]["phase"] != "completed":
@@ -209,11 +223,15 @@ try:
     print("KEDRA_R04_NATIVE_NIRI_DISCARD_PASS", flush=True)
     accepted = cli("status")["accepted_baseline"]
     for action in ("abort", "resume", "keep-current"):
-        native.write_text(native.read_text().replace("width 3", "width 4"))
-        change = next(row["change"]["id"] for row in cli("status")["changes"]
-                      if row["change"]["after"].strip() == "width 4")
-        planned = cli("discard-plan", change)
-        interrupt_discard(change, planned["plan_id"])
+        for attempt in range(10):
+            native.write_text(native.read_text().replace("width 3", "width 4"))
+            change = next(row["change"]["id"] for row in cli("status")["changes"]
+                          if row["change"]["after"].strip() == "width 4")
+            planned = cli("discard-plan", change)
+            if interrupt_discard(change, planned["plan_id"]):
+                break
+        else:
+            raise RuntimeError("niri CLI always completed before it could be interrupted")
         cli("unstage", selected, success=False)
         if action == "keep-current":
             native.write_text(native.read_text().replace("width 3", "width 8"))
@@ -235,12 +253,12 @@ try:
     print("KEDRA_R04_NATIVE_NIRI_RECOVERY_PASS", flush=True)
     cli("unstage", selected)
     cli("clear-local", local)
-    # Reconcile against the actual installed image and its exact public Git history.
-    # This bundle is confined to the generated research derivative.
+    # Reconcile against the actual installed image and its exact Git history:
+    # the harness supplies a bundle of the image's recorded source revision.
     repo = pathlib.Path.home() / "kedra-source"
     subprocess.run(["git", "init", str(repo)], check=True, timeout=20)
     subprocess.run(["git", "-C", str(repo), "fetch", "--no-tags",
-                    "/usr/share/kedra-research/source.bundle", "HEAD"], check=True, timeout=60)
+                    SOURCE_BUNDLE, "HEAD"], check=True, timeout=60)
     subprocess.run(["git", "-C", str(repo), "checkout", "--detach", "FETCH_HEAD"], check=True, timeout=20)
     subprocess.run(["git", "-C", str(repo), "remote", "add", "origin",
                     "https://github.com/Reidond/kedra.git"], check=True, timeout=20)

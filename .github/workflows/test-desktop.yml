@@ -19,6 +19,7 @@ on:
       - usr/src/kedra/image/release/compatibility.json
       - usr/src/kedra/image/targets/desktop/**
       - usr/src/kedra/tests/vm/desktop/**
+      - usr/src/kedra/tests/container/lab/probes/toolkit-app.py
       - usr/src/kedra/tests/common/**
       - Cargo.toml
       - Cargo.lock
@@ -83,29 +84,16 @@ jobs:
             2>&1 | tee output/desktop-evidence/build.log
           sudo podman image inspect localhost/kedra-desktop:research > output/desktop-evidence/image-inspect.json
           sudo podman run --rm localhost/kedra-desktop:research cat /usr/share/sysroot/packages.txt > output/desktop-evidence/packages.txt
-          sudo podman run --rm localhost/kedra-desktop:research bash -e -c \
-            'niri --version; noctalia --version; noctalia msg --help; cat /etc/pam.d/greetd; test "$(systemctl is-enabled greetd)" = enabled; test "$(systemctl is-enabled bootc-fetch-apply-updates.timer || true)" = masked' \
-            > output/desktop-evidence/session-interfaces.txt
           sudo podman run --rm localhost/kedra-desktop:research find /var -type f > output/desktop-evidence/image-var-files.txt
-          # Inspect the actual candidate before adding test-only GUI bindings.
-          sudo podman run --rm localhost/kedra-desktop:research rpm -q \
-            gtk3 adw-gtk3-theme gtk4 libadwaita qt5-qtbase-gui qt6-qtbase-gui plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 breeze-icon-theme \
-            > output/desktop-evidence/toolkit-candidate-rpms.txt
-          sudo podman run --rm localhost/kedra-desktop:research rpm -ql \
-            plasma-integration plasma-integration-qt5 plasma-breeze plasma-breeze-qt5 \
-            > output/desktop-evidence/toolkit-candidate-plugin-paths.txt
-          sudo podman run --rm localhost/kedra-desktop:research rpm -ql adw-gtk3-theme \
-            > output/desktop-evidence/toolkit-candidate-gtk3-theme-paths.txt
-          sudo podman run --rm localhost/kedra-desktop:research test -r /usr/share/themes/adw-gtk3/gtk-3.0/gtk.css
+          # Installed-image contents (programs, validated defaults, unit
+          # enablement, toolkit packages, Bitwarden, Codex) are container
+          # scenarios in test-container.yml; this VM qualifies boot and login.
       - name: Prepare disposable graphical login fixture
         run: |
           mkdir -p output/desktop-test-context output/desktop-image output/desktop-evidence/vm
           cp usr/src/kedra/tests/vm/desktop/Containerfile usr/src/kedra/tests/vm/desktop/check.sh usr/src/kedra/tests/vm/desktop/check.service usr/src/kedra/tests/common/test-profile.toml usr/src/kedra/tests/common/console.toml output/desktop-test-context/
-          cp usr/src/kedra/tests/vm/desktop/agents.py output/desktop-test-context/
-          cp usr/src/kedra/tests/vm/desktop/recovery.py output/desktop-test-context/
-          cp usr/src/kedra/tests/vm/desktop/niri-review.py output/desktop-test-context/
-          cp usr/src/kedra/tests/vm/desktop/toolkit-app.py output/desktop-test-context/
-          git bundle create output/desktop-test-context/source.bundle HEAD
+          # The guest toolkit fixture is shared with the container scenarios.
+          cp usr/src/kedra/tests/container/lab/probes/toolkit-app.py output/desktop-test-context/
           sudo podman build --pull=never --tag localhost/kedra-desktop-test:r07 output/desktop-test-context \
             > output/desktop-evidence/test-image-build.log 2>&1
           uv run python - <<'PY'

@@ -8,13 +8,13 @@ import hashlib
 import http.server
 import json
 import os
-from pathlib import Path
 import re
 import ssl
 import subprocess
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 root = Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-ghcr'
 assert os.environ.get('GITHUB_ACTIONS') == 'true'
@@ -100,7 +100,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.end_headers()
             self.wfile.write(body)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - the fixture reports any failure as HTTP 500
             self.send_error(500, str(error))
 
 

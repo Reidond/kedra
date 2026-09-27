@@ -19,7 +19,6 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import plistlib
 import re
@@ -31,6 +30,7 @@ import socket
 import subprocess
 import sys
 import uuid
+from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
@@ -104,11 +104,11 @@ def run(arguments, *, timeout, capture=False, check=True, cwd=None):
     except FileNotFoundError:
         raise ToolError('Required program not found: ' + arguments[0]) from None
     except subprocess.TimeoutExpired:
-        raise ToolError('Timed out after %d s: %s' % (timeout, ' '.join(arguments[:3]))) from None
+        raise ToolError(f"Timed out after {timeout} s: {' '.join(arguments[:3])}") from None
     if check and result.returncode != 0:
         detail = result.stderr.decode('utf-8', 'replace').strip()[-1500:] if capture else ''
-        raise ToolError('Command failed with status %d: %s%s' % (
-            result.returncode, ' '.join(arguments[:3]), '\n' + detail if detail else ''))
+        suffix = '\n' + detail if detail else ''
+        raise ToolError(f"Command failed with status {result.returncode}: {' '.join(arguments[:3])}{suffix}")
     return result
 
 
@@ -169,17 +169,17 @@ def load_pins():
 def utm_app(path, minimum):
     path = path.expanduser().absolute()
     info_path = path / 'Contents/Info.plist'
-    require(regular(info_path), 'UTM not found at %s; install UTM %s or newer or pass --utm-app' % (path, minimum))
+    require(regular(info_path), f'UTM not found at {path}; install UTM {minimum} or newer or pass --utm-app')
     info = load_plist(info_path)
     require(info.get('CFBundleIdentifier') == UTM_ID, str(path) + ' is not UTM')
     version = str(info.get('CFBundleShortVersionString', ''))
     found = version_tuple(version)
     require(found is not None and found >= version_tuple(minimum),
-            'UTM %s is older than the qualified %s; update UTM first' % (version or 'unknown', minimum))
+            'UTM {} is older than the qualified {}; update UTM first'.format(version or 'unknown', minimum))
     firmware = path / 'Contents/Resources/qemu'
     code, variables = firmware / SECURE_CODE, firmware / SECURE_VARS
     require(regular(code) and regular(variables),
-            'UTM at %s lacks its Secure Boot firmware %s and %s' % (path, SECURE_CODE, SECURE_VARS))
+            f'UTM at {path} lacks its Secure Boot firmware {SECURE_CODE} and {SECURE_VARS}')
     with variables.open('rb') as stream:
         require(stream.read(4) == QCOW2_MAGIC, SECURE_VARS + ' is not the expected qcow2 variable store')
     return {'path': path, 'version': version, 'build': str(info.get('CFBundleVersion', '')),
@@ -211,7 +211,7 @@ def docker_engine(docker):
     require(result.returncode == 0, 'The Docker engine is not reachable; start OrbStack or another arm64 engine')
     engine, _, version = result.stdout.decode('utf-8', 'replace').strip().partition(' ')
     require(engine == 'linux/' + SPEC['oci_architecture'],
-            'The Docker engine runs %s; a native linux/arm64 engine is required' % engine)
+            f'The Docker engine runs {engine}; a native linux/arm64 engine is required')
     name = run([docker, 'info', '--format', '{{.OperatingSystem}}'], timeout=60, capture=True).stdout
     return {'cli': docker, 'version': version, 'name': name.decode('utf-8', 'replace').strip()}
 
@@ -221,12 +221,11 @@ def installer_record(directory, image=None, iso_name=None):
     record = json.loads(read_bounded(directory / 'installer.json'))
     require(isinstance(record, dict), 'installer.json is not an object')
     match = re.fullmatch(IMAGE_PATTERN, str(record.get('image', '')))
-    require(match, 'installer.json does not describe %s media; this tool installs only the %s target'
-            % (SPEC['repository'], TARGET))
+    require(match, 'installer.json does not describe {} media; this tool installs only the {} target'.format(SPEC['repository'], TARGET))
     require(image is None or record['image'] == image, 'installer.json names a different image than requested')
     require(record.get('target', TARGET) == TARGET and record.get('uploaded') is False,
             'installer.json records an unexpected target or publication state')
-    name = 'kedra-%s-44-%s.iso' % (TARGET, match.group(1)[:16])
+    name = f'kedra-{TARGET}-44-{match.group(1)[:16]}.iso'
     installer = record.get('installer')
     require(isinstance(installer, dict) and installer.get('filename') == name
             and isinstance(installer.get('size_bytes'), int)
@@ -253,7 +252,7 @@ def free_serial_port(port):
         try:
             probe.bind(('127.0.0.1', port))
         except OSError:
-            raise ToolError('Serial console port %d on 127.0.0.1 is in use' % port) from None
+            raise ToolError(f'Serial console port {port} on 127.0.0.1 is in use') from None
     return port
 
 
@@ -270,19 +269,19 @@ def utm_automation(app):
     error = decoded(result.stderr)
     if result.returncode == 0 and result.stdout.startswith(b'UUID') and 'Error from event' not in error:
         return None
-    return error or 'utmctl list exited with status %d' % result.returncode
+    return error or f'utmctl list exited with status {result.returncode}'
 
 
 def automation_refusal(detail):
     denied = APPLE_EVENTS_DENIED.search(detail)
-    return 'utmctl cannot control UTM from this session%s:\n%s\n%s' % (
+    return 'utmctl cannot control UTM from this session{}:\n{}\n{}'.format(
         ' (macOS denied Apple Events)' if denied else '', detail, AUTOMATION_HELP)
 
 
 def with_diagnosis(message, program, detail):
     """Append a program's stderr, and the Automation fix when it reports denied Apple Events."""
     if detail:
-        message += '\n%s: %s' % (program, detail)
+        message += f'\n{program}: {detail}'
     if APPLE_EVENTS_DENIED.search(detail):
         message += '\n' + AUTOMATION_HELP
     return message
@@ -298,33 +297,31 @@ def check_host(args):
     failures = []
 
     def report(level, message):
-        print('%-5s %s' % (level, message))
+        print(f'{level:<5} {message}')
         if level == 'fail':
             failures.append(message)
 
     if sys.platform != 'darwin' or platform.machine() != 'arm64':
-        report('fail', 'macOS on Apple Silicon is required (found %s/%s)' % (sys.platform, platform.machine()))
+        report('fail', f'macOS on Apple Silicon is required (found {sys.platform}/{platform.machine()})')
         return 1
-    report('ok', 'macOS %s on arm64; Python %s' % (platform.mac_ver()[0], platform.python_version()))
+    report('ok', f'macOS {platform.mac_ver()[0]} on arm64; Python {platform.python_version()}')
     hypervisor = sysctl('kern.hv_support')
     report('ok' if hypervisor == 1 else 'fail', 'Hypervisor.framework available: %s' % (hypervisor == 1))
     memory, cpus = sysctl('hw.memsize'), sysctl('hw.ncpu')
-    report('info', 'Host memory %.1f GiB, %s CPUs' % ((memory or 0) / GIB, cpus))
+    report('info', f'Host memory {(memory or 0) / GIB:.1f} GiB, {cpus} CPUs')
     minimum = '5.0.6'
     try:
         pins = load_pins()
         minimum = pins['minimum_utm_version']
-        report('ok', 'Pinned build container %s' % pins['build_container'])
+        report('ok', 'Pinned build container {}'.format(pins['build_container']))
     except (ToolError, ValueError) as error:
         pins = None
         report('fail', str(error))
     try:
         app = utm_app(args.utm_app, minimum)
-        report('ok', 'UTM %s (build %s) at %s; the 5.0 series is a pre-release'
-               % (app['version'], app['build'], app['path']))
+        report('ok', 'UTM {} (build {}) at {}; the 5.0 series is a pre-release'.format(app['version'], app['build'], app['path']))
         for label, path in (('firmware', app['code']), ('variable store (qcow2)', app['vars'])):
-            report('ok', 'Secure Boot %s %s: %d bytes, sha256 %s'
-                   % (label, path.name, path.stat().st_size, sha256(path)))
+            report('ok', f'Secure Boot {label} {path.name}: {path.stat().st_size} bytes, sha256 {sha256(path)}')
         if not os.access(str(app['utmctl']), os.X_OK):
             report('warn', 'utmctl is not executable: ' + str(app['utmctl']))
         elif args.automation:
@@ -332,23 +329,21 @@ def check_host(args):
             report('ok' if denied is None else 'fail', 'Automation access to UTM through utmctl' if denied is None
                    else automation_refusal(denied))
         else:
-            report('info', 'utmctl: %s; Automation access not tested (check-host --automation starts UTM hidden '
-                   'and tests it; detach-installer needs it unless UTM is quit)' % app['utmctl'])
+            report('info', 'utmctl: {}; Automation access not tested (check-host --automation starts UTM hidden '
+                   'and tests it; detach-installer needs it unless UTM is quit)'.format(app['utmctl']))
         renderer, vulkan = utm_graphics()
         if renderer is None and vulkan is None:
             report('info', 'UTM display settings are unreadable here (sandboxed) or unchanged; Venus needs renderer '
                    'Default or ANGLE (Metal) and a Vulkan driver other than Disabled (UTM > Settings > Display)')
         elif renderer in (1, 3) or vulkan == 1:
-            report('warn', 'UTM renderer %s with Vulkan driver %s disables Venus; use renderer Default/ANGLE (Metal)'
-                   % (RENDERERS.get(renderer, renderer), VULKAN_DRIVERS.get(vulkan, vulkan)))
+            report('warn', f'UTM renderer {RENDERERS.get(renderer, renderer)} with Vulkan driver {VULKAN_DRIVERS.get(vulkan, vulkan)} disables Venus; use renderer Default/ANGLE (Metal)')
         else:
-            report('ok', 'UTM renderer %s, Vulkan driver %s'
-                   % (RENDERERS.get(renderer or 0), VULKAN_DRIVERS.get(vulkan or 0)))
+            report('ok', f'UTM renderer {RENDERERS.get(renderer or 0)}, Vulkan driver {VULKAN_DRIVERS.get(vulkan or 0)}')
     except ToolError as error:
         report('fail', str(error))
     try:
         engine = docker_engine(docker_cli())
-        report('ok' if engine['name'] == 'OrbStack' else 'warn', 'Docker engine %s %s (linux/arm64) via %s%s' % (
+        report('ok' if engine['name'] == 'OrbStack' else 'warn', 'Docker engine {} {} (linux/arm64) via {}{}'.format(
             engine['name'], engine['version'], engine['cli'],
             '' if engine['name'] == 'OrbStack' else '; only OrbStack was qualified for the ISO build'))
         if pins:
@@ -359,20 +354,20 @@ def check_host(args):
         report('fail', str(error))
     directory = args.dir.expanduser().absolute()
     free = free_bytes(directory)
-    report('ok' if free >= 64 * GIB else 'warn', 'Free space for %s: %.1f GiB' % (directory, free / GIB))
+    report('ok' if free >= 64 * GIB else 'warn', f'Free space for {directory}: {free / GIB:.1f} GiB')
     unsafe = any(char in UNSAFE_PATH for char in str(ROOT))
-    report('fail' if unsafe else 'ok', 'Kedra checkout %s%s' % (ROOT, ' contains : , " or newlines' if unsafe else ''))
+    report('fail' if unsafe else 'ok', 'Kedra checkout {}{}'.format(ROOT, ' contains : , " or newlines' if unsafe else ''))
     authority = [ROOT / SPEC['public_key'], ROOT / SPEC['key_sha256']]
     report('ok' if all(map(regular, authority)) else 'warn',
            'utm release authority files %s' % ('present' if all(map(regular, authority)) else 'missing'))
-    print('%d required check(s) failed' % len(failures) if failures else 'Host is ready for the utm target tooling')
+    print(f'{len(failures)} required check(s) failed' if failures else 'Host is ready for the utm target tooling')
     return 1 if failures else 0
 
 
 def build_iso(args):
     require_mac()
     require(re.fullmatch(IMAGE_PATTERN, args.image),
-            'An exact reviewed %s@sha256:... digest is required, not a mutable tag' % SPEC['repository'])
+            'An exact reviewed {}@sha256:... digest is required, not a mutable tag'.format(SPEC['repository']))
     require(args.base_image is None or re.fullmatch(BASE_PATTERN, args.base_image),
             'Invalid reviewed Fedora base digest')
     pins = load_pins()
@@ -393,10 +388,10 @@ def build_iso(args):
     require(not any(char in UNSAFE_PATH for char in str(ROOT) + str(output.parent.resolve()) + output.name),
             'The checkout and output paths must not contain : , " or newlines (container mount syntax)')
     require(free_bytes(output.parent) >= 8 * GIB, 'Less than 8 GiB free for the ISO under ' + str(output.parent))
-    running = run([docker, 'ps', '--filter', 'label=%s=iso' % LABEL, '--format', '{{.Names}}'],
+    running = run([docker, 'ps', '--filter', f'label={LABEL}=iso', '--format', '{{.Names}}'],
                   timeout=60, capture=True).stdout.decode('utf-8', 'replace').split()
     require(not running, 'Another kedra-utm ISO build is running: ' + ', '.join(running))
-    print('kedra-utm: utm public key SPKI SHA-256 %s; confirm it independently' % fingerprint, file=sys.stderr)
+    print(f'kedra-utm: utm public key SPKI SHA-256 {fingerprint}; confirm it independently', file=sys.stderr)
     token = secrets.token_hex(6)
     container, volume = 'kedra-utm-iso-' + token, 'kedra-utm-iso-out-' + token
     run([docker, 'volume', 'create', '--label', LABEL + '=iso-output', volume], timeout=120, capture=True)
@@ -408,10 +403,10 @@ def build_iso(args):
         # Podman state persists only in the named storage volume.
         run([docker, 'run', '--rm', '--name', container, '--label', LABEL + '=iso', '--platform', 'linux/arm64',
              '--pull', 'missing', '--privileged', '--cgroupns', 'private',
-             '--mount', 'type=volume,source=%s,target=/var/lib/containers' % STORAGE_VOLUME,
-             '--mount', 'type=volume,source=%s,target=/var/tmp/kedra-out' % volume,
-             '--mount', 'type=bind,source=%s,target=/kedra,readonly' % ROOT,
-             '--mount', 'type=bind,source=%s,target=/export' % output.resolve(),
+             '--mount', f'type=volume,source={STORAGE_VOLUME},target=/var/lib/containers',
+             '--mount', f'type=volume,source={volume},target=/var/tmp/kedra-out',
+             '--mount', f'type=bind,source={ROOT},target=/kedra,readonly',
+             '--mount', f'type=bind,source={output.resolve()},target=/export',
              pins['build_container'], '/bin/bash', '/kedra/usr/src/kedra/installer/utm/build-in-container.sh',
              args.image, args.base_image or ''], timeout=4 * 3600)
         record, iso = installer_record(output, image=args.image)
@@ -425,14 +420,13 @@ def build_iso(args):
         if verified:
             run([docker, 'volume', 'rm', volume], timeout=300, capture=True, check=False)
         else:
-            print('kedra-utm: build scratch retained in Docker volume %s (remove: docker volume rm %s)'
-                  % (volume, volume), file=sys.stderr)
+            print(f'kedra-utm: build scratch retained in Docker volume {volume} (remove: docker volume rm {volume})', file=sys.stderr)
             if created and not any(output.iterdir()):
                 output.rmdir()
             elif created:
                 print('kedra-utm: unverified output retained for inspection in ' + str(output), file=sys.stderr)
-    print('Verified %s (%d bytes) built from %s' % (iso, record['installer']['size_bytes'], record['image']))
-    print('Next: uv run %s create --iso %s' % (shlex.quote(sys.argv[0]), shlex.quote(str(iso))))
+    print(f"Verified {iso} ({record['installer']['size_bytes']} bytes) built from {record['image']}")
+    print(f'Next: uv run {shlex.quote(sys.argv[0])} create --iso {shlex.quote(str(iso))}')
     return 0
 
 
@@ -497,7 +491,7 @@ def create(args):
     memory, cpus = sysctl('hw.memsize') or 0, sysctl('hw.ncpu') or 0
     require(4096 <= args.memory_mib <= memory // MIB - 4096,
             '--memory-mib must be between 4096 and the host memory minus 4096 MiB')
-    require(2 <= args.cpus <= cpus, '--cpus must be between 2 and %d' % cpus)
+    require(2 <= args.cpus <= cpus, f'--cpus must be between 2 and {cpus}')
     require(64 <= args.disk_gib <= 4096, '--disk-gib must be between 64 and 4096')
     require(args.serial_port is None or 1024 <= args.serial_port <= 65535, '--serial-port must be 1024-65535')
     iso = args.iso.expanduser().absolute()
@@ -511,18 +505,18 @@ def create(args):
     bundle = directory / (args.name + '.utm')
     require(not os.path.lexists(str(bundle)), 'Refusing to overwrite existing ' + str(bundle))
     if free_bytes(directory) < args.disk_gib * GIB:
-        print('kedra-utm: warning: less free space than the %d GiB disk can grow to' % args.disk_gib,
+        print(f'kedra-utm: warning: less free space than the {args.disk_gib} GiB disk can grow to',
               file=sys.stderr)
     port = free_serial_port(args.serial_port) if args.serial_port else None
-    console = ('nc 127.0.0.1 %d' % port) if port else 'UTM\'s built-in terminal window'
+    console = f'nc 127.0.0.1 {port}' if port else 'UTM\'s built-in terminal window'
     if port:
-        print('kedra-utm: warning: the TCP serial console on 127.0.0.1:%d has no authentication. Any local '
+        print(f'kedra-utm: warning: the TCP serial console on 127.0.0.1:{port} has no authentication. Any local '
               'account, app or container that reaches it has the VM\'s console: firmware setup (Secure Boot can '
               'be disabled), GRUB command-line editing (a root shell once the disk is unlocked) and a login '
-              'prompt' % port, file=sys.stderr)
+              'prompt', file=sys.stderr)
     octets = bytearray(secrets.token_bytes(6))
     octets[0] = (octets[0] & 0xFC) | 0x02  # locally administered unicast, as UTM generates
-    mac = ':'.join('%02X' % octet for octet in octets)
+    mac = ':'.join(f'{octet:02X}' for octet in octets)
     vm_uuid = str(uuid.uuid4()).upper()
     bundle.mkdir(mode=0o755)
     try:
@@ -544,25 +538,23 @@ def create(args):
             stream.seek(0x8001)
             require(stream.read(5) == b'CD001', str(iso) + ' is not an ISO 9660 image')
         os.chmod(str(media), 0o444)
-        notes = ('Kedra %s target (aarch64). Installer %s from %s. Serial console: %s. '
-                 'Created by usr/src/kedra/installer/utm/kedra-utm.py.' % (TARGET, iso.name, record['image'], console))
+        notes = ('Kedra {} target (aarch64). Installer {} from {}. Serial console: {}. '
+                 'Created by usr/src/kedra/installer/utm/kedra-utm.py.'.format(TARGET, iso.name, record['image'], console))
         write_plist(bundle / 'config.plist', vm_configuration(args, vm_uuid, mac, port, iso.name, notes))
     except BaseException:
         shutil.rmtree(str(bundle))  # only the bundle this run created
         raise
     if not args.no_register:
         registered = run([TOOLS['open'], '-a', app['path'], bundle], timeout=60, capture=True, check=False)
-        require(registered.returncode == 0, 'Created %s, but UTM did not open it; open it from UTM (File > Open)'
-                % bundle)
-    print('Created %s (UUID %s)' % (bundle, vm_uuid))
-    print('  Secure Boot: UEFI + TPM, Data/efi_vars.fd from UTM %s %s' % (app['version'], SECURE_VARS))
-    print('  Installer: Data/%s (USB CD, first boot device) from %s' % (iso.name, record['image']))
-    print('  System disk: Data/%s, %d GiB, /dev/disk/by-id/virtio-KEDRASYSTEM' % (SYSTEM_IMAGE, args.disk_gib))
-    print('  Network: %s, MAC %s; serial console: %s' % (args.network, mac, console))
+        require(registered.returncode == 0, f'Created {bundle}, but UTM did not open it; open it from UTM (File > Open)')
+    print(f'Created {bundle} (UUID {vm_uuid})')
+    print('  Secure Boot: UEFI + TPM, Data/efi_vars.fd from UTM {} {}'.format(app['version'], SECURE_VARS))
+    print('  Installer: Data/{} (USB CD, first boot device) from {}'.format(iso.name, record['image']))
+    print(f'  System disk: Data/{SYSTEM_IMAGE}, {args.disk_gib} GiB, /dev/disk/by-id/virtio-KEDRASYSTEM')
+    print(f'  Network: {args.network}, MAC {mac}; serial console: {console}')
     print('  UTM: ' + ('not registered (--no-register)' if args.no_register else 'registered; start it from UTM or '
-                        'with: %s start %s' % (shlex.quote(str(app['utmctl'])), vm_uuid)))
-    print('After installing, shut the VM down and run: uv run %s detach-installer --bundle %s'
-          % (shlex.quote(sys.argv[0]), shlex.quote(str(bundle))))
+                        'with: {} start {}'.format(shlex.quote(str(app['utmctl'])), vm_uuid)))
+    print(f'After installing, shut the VM down and run: uv run {shlex.quote(sys.argv[0])} detach-installer --bundle {shlex.quote(str(bundle))}')
     return 0
 
 
@@ -579,7 +571,7 @@ def open_holders(paths):
             pid = line[1:]
             holders.append('pid ' + pid)
         elif line.startswith('c') and pid:
-            holders[-1] = '%s (pid %s)' % (line[1:], pid)
+            holders[-1] = f'{line[1:]} (pid {pid})'
     return holders
 
 
@@ -617,7 +609,7 @@ def detach_installer(args):
     if args.utm_quit:
         # UTM reads config.plist again when it starts, so no reload is needed.
         running = utm_processes()
-        require(not running, 'UTM is running (pid %s); quit UTM first, or omit --utm-quit' % ', '.join(running))
+        require(not running, 'UTM is running (pid {}); quit UTM first, or omit --utm-quit'.format(', '.join(running)))
     elif not args.unregistered:
         app = utm_app(args.utm_app, load_pins()['minimum_utm_version'])
         status = run([app['utmctl'], 'status', vm_uuid], timeout=120, capture=True, check=False)
@@ -630,7 +622,7 @@ def detach_installer(args):
             'The VM must be stopped and registered in UTM (utmctl status: %s)' % (state or 'unavailable'),
             'utmctl', decoded(status.stderr)))
     holders = open_holders([media, data / SYSTEM_IMAGE, data / 'efi_vars.fd', data / 'tpmdata'])
-    require(not holders, 'VM files are still open by: %s; stop the VM first' % ', '.join(sorted(set(holders))))
+    require(not holders, 'VM files are still open by: {}; stop the VM first'.format(', '.join(sorted(set(holders)))))
     system = data / SYSTEM_IMAGE
     if regular(system) and system.stat().st_size < 64 * MIB:
         print('kedra-utm: warning: the system disk looks unwritten; was the installation completed?',
@@ -653,7 +645,7 @@ def detach_installer(args):
             'Detached on disk, but UTM did not reload the configuration; quit and reopen UTM before starting the VM',
             'osascript', decoded(reloaded.stderr)))
     offline = '--utm-quit' if args.utm_quit else '--unregistered'
-    print('Detached %s from %s%s' % (image_name, bundle, '' if app else ' (UTM not contacted: %s)' % offline))
+    print('Detached {} from {}{}'.format(image_name, bundle, '' if app else f' (UTM not contacted: {offline})'))
     return 0
 
 
@@ -667,7 +659,7 @@ def main():
     host.add_argument('--automation', action='store_true',
                       help='Also test Automation access to UTM with utmctl list (starts UTM hidden)')
     iso = commands.add_parser('iso', help='Build the utm installer ISO in a disposable container')
-    iso.add_argument('--image', required=True, help='Reviewed %s@sha256:...' % SPEC['repository'])
+    iso.add_argument('--image', required=True, help='Reviewed {}@sha256:...'.format(SPEC['repository']))
     iso.add_argument('--output', required=True, type=Path, help='New local directory for the ISO and its records')
     iso.add_argument('--base-image', help='Explicit reviewed Fedora base digest (legacy payloads only)')
     new = commands.add_parser('create', parents=[utm], help='Create a UTM VM bundle for the installer ISO')

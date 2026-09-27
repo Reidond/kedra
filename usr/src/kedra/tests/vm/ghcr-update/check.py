@@ -2,10 +2,10 @@
 """Actual installed public-CLI flows across three disposable signed VM boots."""
 import json
 import os
-from pathlib import Path
 import subprocess
 import time
 import urllib.request
+from pathlib import Path
 
 state = Path('/var/lib/kedra-ghcr-test')
 state.mkdir(mode=0o700, exist_ok=True)
@@ -74,7 +74,7 @@ def cached_refs():
 
 def cli(label, *arguments, success=True):
     result = subprocess.run(['/usr/sbin/runuser', '-u', 'kedra-test', '--', '/usr/bin/sysroot', 'update', *arguments],
-                            capture_output=True, timeout=2100)
+                            capture_output=True, timeout=2100, check=False)
     (state / (label + '.stdout')).write_bytes(result.stdout)
     (state / (label + '.stderr')).write_bytes(result.stderr)
     print('CLI', label, 'exit', result.returncode, flush=True)
@@ -230,7 +230,7 @@ def main():
 
 try:
     main()
-except Exception as error:
+except Exception as error:  # noqa: BLE001 - any failure must reach the host as a marker
     print('KEDRA_GHCR_FAIL', type(error).__name__, str(error), flush=True)
 finally:
     # Selected generated results only; no account, private-key or unrelated system logs.

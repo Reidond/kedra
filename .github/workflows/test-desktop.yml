@@ -134,8 +134,10 @@ jobs:
           uv run usr/src/kedra/tests/common/secure_boot.py provenance --evidence output/desktop-evidence
           mapfile -t disks < <(find "$PWD/output/desktop-image" -name '*.qcow2' -type f)
           test "${#disks[@]}" -eq 1
+          # sudo resets PATH; hand root the pinned uv by absolute path.
+          uv=$(command -v uv)
           sudo xvfb-run -a -s '-screen 0 1280x768x24' env LIBGL_ALWAYS_SOFTWARE=1 \
-            uv run usr/src/kedra/tests/common/run_vm.py --disk "${disks[0]}" \
+            "$uv" run usr/src/kedra/tests/common/run_vm.py --disk "${disks[0]}" \
             --work "$PWD/output/desktop-evidence/vm" --password-file "$RUNNER_TEMP/kedra-r07-private/password" \
             | tee output/desktop-evidence/vm-result.txt
       - name: Sanitize builder evidence and remove disposable account secret

@@ -1116,5 +1116,10 @@ Last updated: 2026-09-27 (UTC).
   - pass — the full container suite, 13/13 in one run (101 s).
   - pass — doctor on the full local build.
   - not-run — the ghcr-update, signed-update, home-transition and rpm-refresh Python fixtures after the lint rewrites; they run only in their VM/Actions workflows.
-- Next: observe test-container.yml on both runners, check.yml's ruff step and the trimmed VM workflows on the PR, and record the run IDs in a follow-up entry and STATUS.
+- PR #21, first Actions run at `59c4c37`:
+  - pass — the trimmed VM workflows desktop, utm and signed-vm, plus native and rust.
+  - fail — test-container.yml [36313894034](https://github.com/Reidond/kedra/actions/runs/36313894034) on both legs. The full candidate built in about 7 min, then every session fixture failed: `user@1000.service` "PAM failed: Authentication service cannot retrieve authentication info", with `unix_chkpwd: could not obtain user info`.
+  - A stock Ubuntu 24.04 Docker 29.1.3 (systemd cgroup driver, overlayfs) on OrbStack's kernel starts the same user manager, so the cause is the runner host: Ubuntu 24.04's AppArmor `unix-chkpwd` profile attaches by path, including to the container's copy. The workflow now unloads that one profile and records AppArmor status and denials to confirm this.
+  - fail — desktop `image_contents`: the x86_64 RPM names its entry `bitwarden.desktop`. The shared check is now architecture-neutral; the arm64 names moved to `utm-image.yaml`.
+- Next: confirm the AppArmor diagnosis from the next run's artifacts, then record the outcome of test-container.yml on both runners and check.yml's ruff step in a follow-up entry and STATUS.
 

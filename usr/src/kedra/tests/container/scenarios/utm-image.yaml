@@ -50,6 +50,12 @@ steps:
       argv: [jq, -r, '.target + " " + .architecture', /usr/share/sysroot/bitwarden.json]
       expect: {stdout: utm aarch64}
   - exec:
+      name: the arm64 tarball's relocated desktop entry and icons
+      argv: [grep, -E, "^Exec=/usr/bin/bitwarden( |$)", /usr/share/applications/com.bitwarden.desktop.desktop]
+  - exec:
+      argv: [find, /usr/share/icons/hicolor, -path, "*/apps/com.bitwarden.desktop.png"]
+      expect: {stdout_nonempty: true}
+  - exec:
       name: boot chain packages and EFI binaries for the VM workflow's Secure Boot check
       argv: [rpm, -q, shim-aa64, grub2-efi-aa64, bootupd, mokutil, efibootmgr, kernel-core, bootc]
   - exec:

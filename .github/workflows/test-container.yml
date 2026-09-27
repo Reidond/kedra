@@ -67,10 +67,24 @@ jobs:
             docker version
             docker info --format '{{.CgroupVersion}} {{.CgroupDriver}} {{.Driver}}'
           } > output/kedra-lab/environment.txt
+      - name: Keep the host's unix_chkpwd AppArmor profile off container copies
+        run: |
+          # Ubuntu 24.04 attaches its unix-chkpwd profile by path, so it also
+          # confines the Fedora /usr/sbin/unix_chkpwd inside the OS container,
+          # which then cannot read that container's accounts; PAM refuses the
+          # user manager. Unload only that profile on this disposable runner.
+          sudo aa-status > output/kedra-lab/apparmor-before.txt 2>&1 || true
+          if test -f /etc/apparmor.d/unix-chkpwd; then
+            sudo apparmor_parser --remove /etc/apparmor.d/unix-chkpwd
+          fi
+          sudo aa-status > output/kedra-lab/apparmor-after.txt 2>&1 || true
       - name: Validate scenarios before provisioning anything
         run: cargo test -p kedra-container-tests --test container --locked -- --list
       - name: Build the candidate and run the container scenarios
         run: cargo test -p kedra-container-tests --test container --locked
+      - name: Record host AppArmor denials
+        if: failure()
+        run: sudo dmesg | grep -F 'apparmor="DENIED"' | tail -n 200 > output/kedra-lab/apparmor-denials.txt || true
       - name: Preserve reports, screenshots and failure diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -78,6 +92,7 @@ jobs:
           name: container-scenarios-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             output/kedra-lab/environment.txt
+            output/kedra-lab/apparmor-*.txt
             output/kedra-lab/runs/
             output/kedra-lab/cache/build-context-*/*.json
           if-no-files-found: error

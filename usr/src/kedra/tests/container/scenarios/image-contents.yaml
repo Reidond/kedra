@@ -70,9 +70,15 @@ steps:
       argv: [find, /usr/lib/bitwarden, "!", -type, f, "!", -type, d, -print, -quit]
       expect: {stdout: ""}
   - exec:
-      argv: [grep, -E, "^Exec=/usr/bin/bitwarden( |$)", /usr/share/applications/com.bitwarden.desktop.desktop]
+      name: one Bitwarden desktop entry (the x86_64 RPM and arm64 tarball name it differently)
+      argv: [find, /usr/share/applications, -name, "*bitwarden*.desktop"]
+      expect: {stdout_nonempty: true}
+      capture:
+        bitwarden_entry: {stdout: trim}
   - exec:
-      argv: [find, /usr/share/icons/hicolor, -path, "*/apps/com.bitwarden.desktop.png"]
+      argv: [grep, -E, "^Exec=/usr/bin/bitwarden( |$)", "${bitwarden_entry}"]
+  - exec:
+      argv: [find, /usr/share/icons/hicolor, -path, "*/apps/*bitwarden*.png"]
       expect: {stdout_nonempty: true}
   - exec:
       name: locate the architecture's Bitwarden native module

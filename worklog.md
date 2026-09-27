@@ -1128,5 +1128,12 @@ Last updated: 2026-09-27 (UTC).
 - Third run [36316401867](https://github.com/Reidond/kedra/actions/runs/36316401867) at `35c0cfd`: the userns change fixed Bitwarden and GTK 3 startup. Desktop 11/12, utm 12/13.
   - fail — desktop `toolkit_file_choosers`: the GTK 4 portal chooser lost the leading "/" and searched for the rest. The test now waits for niri to report the chooser focused, then uses Ctrl+L plus the full path for GTK 4; GTK 3 keeps "/".
   - fail — utm `home_review_cycle`: `recovery.py` got exit 1 from `sysroot home recover <action>` after an interruption. It passed on desktop and in every local run. The probe now prints the journal phase before recovering and includes the CLI's stderr in failures, to tell a timing-dependent phase (published or validated) from a product defect.
-- Next: record the outcome of test-container.yml on both runners in a follow-up entry and STATUS; if the recovery failure repeats, analyze it from the captured stderr.
+- Fourth run [36317311862](https://github.com/Reidond/kedra/actions/runs/36317311862) at `e3be9c7`:
+  - pass — utm 13/13, including `recovery.py` and both GTK choosers.
+  - fail — desktop `home_review_cycle`: `sysroot home discard` refused with "an unmanaged Noctalia executable is running".
+- Product race found (sysroot `home/activation/linux/native.rs` `writers()`):
+  - Noctalia forks git for its plugin sources right after each start. Such a child keeps the name `noctalia` until its execve completes: first with Noctalia's executable (counted as "another writer"), then briefly with git's ("unmanaged executable"). A process exiting mid-scan also failed `read_link`.
+  - Fix: skip processes whose parent is a Noctalia process, and skip processes that exited during the scan. A separately started Noctalia is still refused.
+  - pass — Linux release build and `home_review_cycle` locally. Linux clippy is left to check.yml.
+- Next: record the outcome of test-container.yml on both runners in a follow-up entry and STATUS.
 

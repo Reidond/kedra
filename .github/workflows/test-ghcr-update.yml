@@ -2,21 +2,18 @@ name: Test direct signed GHCR updates
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'codex/**']
     paths:
       - .github/workflows/test-ghcr-update.yml
       - .github/workflows/release.yml
       - .github/workflows/release-target.yml
-      - tests/vm/ghcr/**
-      - tests/vm/console.toml
-      - tests/vm/desktop/secure_boot.py
-      - tests/resolve-fedora-base.py
-      - build/inputs.json
-      - build/release/**
-      - crates/**
+      - usr/src/kedra/tests/vm/ghcr-update/**
+      - usr/src/kedra/tests/common/**
+      - usr/src/kedra/image/inputs.json
+      - usr/src/kedra/image/release/**
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
+      - usr/src/kedra/crates/**
 permissions:
   contents: read
 concurrency:
@@ -31,6 +28,11 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.12.19
+          enable-cache: false
       - name: Prepare disposable native tools
         run: |
           sudo apt-get update
@@ -41,7 +43,7 @@ jobs:
           cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
       - name: Exercise actual direct-registry signed A/B/rollback and refusals
-        run: bash tests/vm/ghcr/run.sh
+        run: bash usr/src/kedra/tests/vm/ghcr-update/run.sh
       - name: Retain public native outcomes
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

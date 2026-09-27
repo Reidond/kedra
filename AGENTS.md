@@ -3,20 +3,38 @@
 ## Read first
 
 Read the current project status and latest entries in `worklog.md`, then
-`docs/STATUS.md` and `plugins/kedra/skills/kedra-context/SKILL.md` at the start of a new or
-resumed session. `PLAN.md` defines the product; `docs/ARCHITECTURE.md` defines durable
-contracts; exact Actions runs and `docs/STATUS.md` describe actual results. Never
-infer an implemented feature from a design example or a stale worklog summary.
-Inspect source, Git state, and CI before continuing.
+`usr/src/kedra/docs/STATUS.md` and the `kedra-context` skill at the start of a new or
+resumed session. `usr/src/kedra/PLAN.md` defines the product;
+`usr/src/kedra/docs/ARCHITECTURE.md` defines durable contracts; exact Actions runs and
+`usr/src/kedra/docs/STATUS.md` describe actual results. Never infer an implemented
+feature from a design example or a stale worklog summary. Inspect source, Git state,
+and CI before continuing.
+
+## Repository layout
+
+The repository root is the image filesystem. Root `etc/` and `usr/` are the shared
+payload; `etc/skel/` is the home baseline. `usr/src/kedra/` is the development tree
+and never enters the image: `crates/` (Rust workspace members), `image/`
+(Containerfile, `assemble.sh`, package lists, `targets/<target>/` overlays, external
+inputs, release tooling and the closed `release/targets.json`), `installer/`,
+`tests/`, `plugins/` and `docs/`. The root also keeps `README.md`, this file,
+`CLAUDE.md`, `worklog.md`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`,
+`rustfmt.toml`, `.python-version` and dot directories. The source plan refuses any
+other top-level directory, other `usr/src/` content and unknown files in a target
+overlay. Retained commits in the earlier layout (`hosts/`, `packages/`, root `home/`)
+must stay readable by the resolver and by home review. `.github/workflows/release.yml`
+is bound into signed image identity; never rename it.
 
 ## Settled choices
 
 - Kedra is the OS/project; `sysroot` is the command. Repo: `Reidond/kedra`.
 - Fedora 44 bootc, plain Containerfile, Actions signed OCI builds and local on-demand ISO construction. No BlueBuild or GitHub Release/ISO publication.
 - Rust edition 2024, Cargo workspace, one lockfile, pinned toolchain,
-  rustfmt/Clippy. No first-party `src/` at any depth. Explicit `main.rs`/`lib.rs`.
+  rustfmt/Clippy. No Cargo `src/` directories: crates keep explicit flat
+  `main.rs`/`lib.rs` under `usr/src/kedra/crates/`.
   The TypeScript/Effect/Vite Plus/Oxlint/Oxfmt proposal was superseded.
-- Shared Linux-shaped inputs, explicit host overrides, independent per-target
+- Python runs through uv; see below.
+- Shared root-filesystem inputs, explicit target overlays, independent per-target
   signed releases. Never guess the future XPS hardware or current disk/device IDs.
 - Live home files are writable. Review/stage by line; preserve unstaged and
   explicit local-only changes. Do not replace this with read-only home symlinks.
@@ -26,32 +44,50 @@ Inspect source, Git state, and CI before continuing.
 - Bitwarden holds SSH keys. Never export a private key, pass a broad unlocked
   vault session to an agent, or confuse SSH with GitHub API/registry/model auth.
 
-## Repository-only skills
+## Python
 
-All first-party Kedra skills and the pinned `actionbook/rust-skills` integration
-are development knowledge for this repository only. Their scope is a Kedra
-checkout/worktree and its project-local agent discovery directories, not the
-installed operating system or unrelated projects.
+Run every Python script on a development machine or CI runner with `uv run` (for
+example `uv run usr/src/kedra/installer/build-local.py --help`), never with `python3`,
+`python` or `pip` directly; inline runner code uses `uv run python -`.
+`.python-version` pins the interpreter. Host-side entry scripts carry PEP 723
+metadata and the `uv run --script` shebang; keep them standard-library only unless a
+pinned dependency is justified in that metadata. Workflows install uv with the pinned
+`astral-sh/setup-uv` step. Code that executes inside a VM guest, a fixture or builder
+container, the installed OS or the installer environment uses that environment's
+interpreter and says so in its header. The image-signing job has no checkout and
+holds production keys: its inline check keeps the runner's `python3` and installs no
+tools.
 
-Keep one canonical skill tree in `plugins/kedra/skills/`, with ordinary files
-and shared Codex/Claude plugin manifests in `plugins/kedra/`. The repository-local
-marketplace catalogs expose this plugin. No submodules, symlinks, generated skill
-copies, synchronization tasks or custom Cargo check runner. Edit skills directly.
-Keep upstream provenance and existing notices in the plugin's
-`third-party/rust-skills/NOTICE.md` and accompanying upstream files.
-Do not install/register this collection in global profiles or unrelated projects
-as an incidental development step. Plugin creation does not authorize installation.
-Do not install the collection into the OS image, installer payload, home baseline,
-or bundled agents' shared profile as a system-wide skill library. An explicitly
-cloned Kedra checkout can contain and use the skills as repository files; that
-is different from globally installing or registering them.
+## Repository development skills
 
-`sysroot codex` and `sysroot claude` should access these skills by opening the
-Kedra checkout, not by provisioning them into personal/global profiles. Bundling
-agent executables does not imply bundling global skills. Personal skills remain
-independent and optionally tracked under the existing ownership rules. If an
-upstream tool suggests global installation, adapt it to repository-local use or
-report the limitation; do not silently broaden this scope.
+The skills in `usr/src/kedra/plugins/` exist only for developing this repository:
+the first-party `kedra` plugin and the pinned upstream `rust-skills` plugin
+(`actionbook/rust-skills`). They are not part of the OS image, installer payload,
+home baseline, the `sysroot` agent launchers or their profiles, and are not
+installed for other projects. Use them whenever a task matches; the route table
+below names them.
+
+Both plugins are registered for this repository with the checked-in marketplaces
+(`.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, both named
+`kedra-local`) and project configuration:
+
+- Claude Code: `.claude/settings.json` declares the `kedra-local` marketplace
+  (directory `./`) and enables `kedra@kedra-local` and `rust-skills@kedra-local`.
+  After the folder is trusted, both load in place from the working tree; start
+  Claude from the repository root. If a clone does not find the marketplace, run
+  `claude plugin marketplace add ./ --scope local`, which writes the ignored
+  `.claude/settings.local.json`; never commit an absolute path.
+- Codex: `.codex/config.toml` enables both plugins once the project is trusted.
+  Codex runs plugins from a cached copy. Register once per machine from the
+  repository root: `codex plugin marketplace add .`, then
+  `codex plugin add kedra@kedra-local` and `codex plugin add rust-skills@kedra-local`.
+
+Codex refreshes its cached copy only when a plugin's version changes: any change
+to a plugin's skills bumps `version` in both of that plugin's manifests
+(`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`). Edit skills in place
+in their plugin's `skills/` directory; no copies, symlinks, submodules, generated
+trees or synchronization tasks. Keep upstream provenance and notices in
+`usr/src/kedra/plugins/rust-skills/NOTICE.md` and its `upstream/` directory.
 
 ## Route knowledge on demand
 
@@ -69,14 +105,16 @@ report the limitation; do not silently broaden this scope.
 | End-to-end qualification and evidence | `kedra-research` |
 | Privilege, journals, privacy, recovery | `kedra-security` |
 
-Canonical first-party and selected upstream skills are
-`plugins/kedra/skills/<name>/SKILL.md`. Read referenced material as needed,
+First-party skills are `usr/src/kedra/plugins/kedra/skills/<name>/SKILL.md`; the
+pinned upstream ones are `usr/src/kedra/plugins/rust-skills/skills/<name>/SKILL.md`.
+Read referenced material as needed,
 not every skill in every prompt. Upstream advice does not override this contract,
 the task's authorization, our source layout, or pinned build/lint settings.
 Do not execute upstream setup scripts, hooks, plugins, permissions, background
 agents, or MCP examples merely because they appear in a skill. Do not install
-missing external tools automatically. Never change personal agent configuration
-or global skills. Explain decisions and evidence, not private reasoning traces.
+missing external tools automatically. Do not change personal agent configuration
+or global skills beyond the per-machine plugin registration above, and only when
+the owner asks. Explain decisions and evidence, not private reasoning traces.
 
 ## Required worklog and project status
 
@@ -107,7 +145,7 @@ last verified source/CI evidence and the next concrete actions. Distinguish
 planned, implemented, tested, published, staged, booted and healthy where relevant.
 Do not invent percentage-complete estimates or mark a research gate passed merely
 because code exists. Keep this snapshot consistent with
-`docs/STATUS.md` and exact Actions results; link evidence instead of copying logs.
+`usr/src/kedra/docs/STATUS.md` and exact Actions results; link evidence instead of copying logs.
 The snapshot summarizes those records and does not override them. Historical
 research reports remain in Git history; do not recreate tracked research outputs.
 
@@ -192,7 +230,10 @@ remain required; removing unit tests does not remove implementation safeguards.
 
 Use standard Cargo commands appropriate to the change: `cargo fmt --all -- --check`,
 `cargo clippy --workspace --all-targets --locked -- -D warnings`,
-`cargo test --workspace --test 'e2e_*' --locked`, and `cargo build --workspace --release --locked`.
+`cargo test --workspace --test 'e2e_*' --locked`, and `cargo build --workspace --release --locked`,
+then `uv run usr/src/kedra/tests/cli/release-interop.py --sysroot target/release/sysroot
+--workdir target/release-interop` and `uv run usr/src/kedra/tests/cli/release-material.py
+--workdir target/release-material` as check.yml does.
 Do not recreate the removed xtask runner or skill-copy validation machinery.
 Keep dependency additions
 small and justified. Prefer typed errors and explicit process arguments over

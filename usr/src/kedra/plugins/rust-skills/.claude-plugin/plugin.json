@@ -1,0 +1,8 @@
+{
+  "name": "rust-skills",
+  "version": "0.1.0",
+  "description": "Selected actionbook/rust-skills, pinned for Kedra repository development.",
+  "author": { "name": "Kedra contributors" },
+  "repository": "https://github.com/Reidond/kedra",
+  "keywords": ["rust"]
+}

@@ -2,19 +2,18 @@ name: Test signed updates
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'codex/**']
     paths:
       - .github/workflows/test-signed-update.yml
-      - tests/vm/signed-update/**
-      - tests/vm/console.toml
-      - tests/vm/desktop/secure_boot.py
-      - tests/resolve-fedora-base.py
-      - build/inputs.json
-      - build/agents/inputs.json
-      - build/release/compatibility.json
-      - crates/**
+      - usr/src/kedra/tests/vm/signed-update/**
+      - usr/src/kedra/tests/common/**
+      - usr/src/kedra/image/inputs.json
+      - usr/src/kedra/image/agents/inputs.json
+      - usr/src/kedra/image/release/compatibility.json
+      - usr/src/kedra/image/release/targets.json
       - Cargo.toml
       - Cargo.lock
+      - rust-toolchain.toml
+      - usr/src/kedra/crates/**
 permissions:
   contents: read
 concurrency:
@@ -29,6 +28,11 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.12.19
+          enable-cache: false
       - name: Install disposable runner tools
         run: |
           sudo apt-get update
@@ -38,7 +42,7 @@ jobs:
           rustup toolchain install 1.98.1 --profile minimal
           cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
-          bash tests/vm/signed-update/run.sh
+          bash usr/src/kedra/tests/vm/signed-update/run.sh
       - name: Preserve public research evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

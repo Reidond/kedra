@@ -1,0 +1,18 @@
+{
+  "name": "rust-skills",
+  "version": "0.1.0",
+  "description": "Selected actionbook/rust-skills, pinned for Kedra repository development.",
+  "author": {
+    "name": "Kedra contributors"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Rust skills",
+    "shortDescription": "Selected upstream Rust skills for Kedra development.",
+    "longDescription": "A pinned selection of actionbook/rust-skills. Open a Kedra checkout and read AGENTS.md before applying these instructions.",
+    "developerName": "Kedra contributors",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Route this Rust question through rust-router."
+  }
+}

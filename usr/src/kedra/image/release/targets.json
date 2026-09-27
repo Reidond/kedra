@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "targets": {
+    "desktop": {
+      "architecture": "x86_64",
+      "oci_architecture": "amd64",
+      "repository": "ghcr.io/reidond/kedra-desktop",
+      "builds": "ghcr.io/reidond/kedra-desktop-builds",
+      "runner": "ubuntu-24.04",
+      "environment": "kedra-desktop-signing",
+      "prefix": "KEDRA_DESKTOP",
+      "public_key": "usr/src/kedra/image/release/authority/desktop.pub",
+      "key_sha256": "usr/src/kedra/image/release/authority/desktop.sha256"
+    },
+    "utm": {
+      "architecture": "aarch64",
+      "oci_architecture": "arm64",
+      "repository": "ghcr.io/reidond/kedra-utm",
+      "builds": "ghcr.io/reidond/kedra-utm-builds",
+      "runner": "ubuntu-24.04-arm",
+      "environment": "kedra-utm-signing",
+      "prefix": "KEDRA_UTM",
+      "public_key": "usr/src/kedra/image/release/authority/utm.pub",
+      "key_sha256": "usr/src/kedra/image/release/authority/utm.sha256"
+    }
+  }
+}

@@ -2,30 +2,28 @@ name: Test signed home transition
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'codex/**']
     paths:
       - .github/workflows/test-home-transition.yml
-      - tests/vm/home-transition/**
-      - tests/vm/desktop/run_vm.py
-      - tests/vm/desktop/secure_boot.py
-      - tests/vm/desktop/test-profile.toml
-      - tests/vm/console.toml
-      - tests/resolve-fedora-base.py
-      - build/inputs.json
-      - build/release/compatibility.json
-      - build/assemble.sh
-      - build/agents/**
-      - build/bitwarden/**
-      - build/release/material.py
-      - Containerfile
-      - crates/**
-      - Cargo.toml
-      - Cargo.lock
-      - packages/**
-      - hosts/desktop/**
       - etc/**
       - usr/**
-      - home/**
+      - '!usr/src/kedra/**'
+      - usr/src/kedra/image/Containerfile
+      - usr/src/kedra/image/assemble.sh
+      - usr/src/kedra/image/inputs.json
+      - usr/src/kedra/image/packages.list
+      - usr/src/kedra/image/remove.list
+      - usr/src/kedra/image/agents/**
+      - usr/src/kedra/image/bitwarden/**
+      - usr/src/kedra/image/release/material.py
+      - usr/src/kedra/image/release/targets.json
+      - usr/src/kedra/image/release/compatibility.json
+      - usr/src/kedra/image/targets/desktop/**
+      - usr/src/kedra/tests/vm/home-transition/**
+      - usr/src/kedra/tests/common/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - usr/src/kedra/crates/**
 permissions:
   contents: read
 concurrency:
@@ -41,6 +39,11 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.12.19
+          enable-cache: false
       - name: Prepare disposable runner tools
         run: |
           sudo apt-get update
@@ -51,11 +54,11 @@ jobs:
           cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
       - name: Exercise actual signed A and B graphical boots with writable home
-        run: bash tests/vm/home-transition/run.sh
+        run: bash usr/src/kedra/tests/vm/home-transition/run.sh
       - name: Remove disposable private inputs
         if: always()
         run: |
-          python3 - <<'PY'
+          uv run python - <<'PY'
           import os, pathlib, shutil
           private = pathlib.Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-r04-private'
           if private.is_dir():

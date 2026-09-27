@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "kedra@kedra-local": true,
+    "rust-skills@kedra-local": true
+  },
+  "extraKnownMarketplaces": {
+    "kedra-local": {
+      "source": {
+        "source": "directory",
+        "path": "./"
+      }
+    }
+  }
+}

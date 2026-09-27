@@ -45,7 +45,7 @@ Signed OS images are published per target: ghcr.io/reidond/kedra-desktop
 (x86_64) and ghcr.io/reidond/kedra-utm (aarch64 UTM virtual machine). Each
 system follows only its own target. Installation media is built locally on
 demand; no GitHub Release download is required. UEFI Secure Boot is required.
-Follow https://github.com/Reidond/kedra/blob/main/docs/INSTALL.md.
+Follow https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/INSTALL.md.
 On an installed system, use `sysroot update status` to inspect enrollment and
 the running/staged image. Run management commands as your ordinary owner account;
 the installed helper requests administrator authentication when needed.

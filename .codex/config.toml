@@ -1,0 +1,10 @@
+# Repository development plugins for Codex; loaded only after this project is
+# trusted. The repository marketplace is .agents/plugins/marketplace.json
+# (kedra-local). Codex runs plugins from a cached copy: register once per
+# machine from the repository root (see AGENTS.md), and bump the plugin version
+# whenever its skills change so the cache refreshes.
+[plugins."kedra@kedra-local"]
+enabled = true
+
+[plugins."rust-skills@kedra-local"]
+enabled = true

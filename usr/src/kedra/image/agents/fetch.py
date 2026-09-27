@@ -1,0 +1,116 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""Fetch pinned official Codex packages for image assembly or isolated research."""
+import argparse
+import hashlib
+import http.client
+import json
+import pathlib
+import tarfile
+import time
+import urllib.error
+import urllib.request
+
+from pins import PINS, TARGETS, codex, cosign
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--target', choices=sorted(TARGETS), required=True)
+parser.add_argument('--output', type=pathlib.Path, required=True)
+parser.add_argument('--research-tools', action='store_true')
+parser.add_argument('--verification-tools', action='store_true')
+args = parser.parse_args()
+record = codex('codex', args.target)
+args.output.mkdir(parents=True, exist_ok=False)
+
+def transient(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException))
+
+def download(url, destination, digest, size):
+    hashed = hashlib.sha256()
+    received = 0
+    with destination.open('xb') as output, urllib.request.urlopen(url, timeout=60) as response:
+        while chunk := response.read(1024 * 1024):
+            received += len(chunk)
+            if received > (size if size is not None else 65536):
+                raise RuntimeError('Download exceeded pinned size bound')
+            hashed.update(chunk)
+            output.write(chunk)
+    if (size is not None and received != size) or hashed.hexdigest() != digest:
+        raise RuntimeError(f'Pinned artifact identity mismatch: {destination.name}')
+
+def fetch(url, destination, digest, size=None):
+    # Retry only transport failures. The pinned size and digest checks stay final,
+    # and the partial file created by a failed attempt is removed before retrying.
+    for attempt in range(1, 5):
+        try:
+            download(url, destination, digest, size)
+            return
+        except (OSError, http.client.HTTPException) as error:
+            if isinstance(error, FileExistsError) or not transient(error) or attempt == 4:
+                raise
+            destination.unlink()
+            print(f'Transient download failure for {destination.name}: {error}; retrying', flush=True)
+            time.sleep(15 * attempt)
+
+def package(record, name):
+    version, target = record['version'], record['target']
+    archive = args.output / f'{name}.tar.gz'
+    base = f'https://github.com/openai/codex/releases/download/rust-v{version}'
+    fetch(f'{base}/codex-package-{target}.tar.gz', archive, record['archive_sha256'], record['archive_size'])
+    directory = args.output / name
+    expected = {'bin/codex', 'bin/codex-code-mode-host', 'codex-package.json',
+                'codex-path/rg', 'codex-resources/bwrap', 'codex-resources/zsh/bin/zsh'}
+    with tarfile.open(archive) as stream:
+        members = stream.getmembers()
+        if {m.name for m in members if m.isfile()} != expected:
+            raise RuntimeError('Official package layout changed; review required')
+        if any(not (m.isfile() or m.isdir()) for m in members):
+            raise RuntimeError('Package links or special entries are not accepted')
+        stream.extractall(directory, filter='data')
+    manifest = json.loads((directory / 'codex-package.json').read_text())
+    if manifest != {'layoutVersion': 1, 'version': version, 'target': target, 'variant': 'codex',
+                    'entrypoint': 'bin/codex', 'resourcesDir': 'codex-resources', 'pathDir': 'codex-path'}:
+        raise RuntimeError('Unexpected package manifest')
+    for binary, digest in record.get('signatures', {}).items():
+        fetch(f'{base}/{binary}-{target}.sigstore', args.output / f'{binary}.sigstore', digest)
+    print(f'Pinned package verified: {name} {version}', flush=True)
+
+package(record, 'codex')
+fetch(f'https://codeload.github.com/openai/codex/tar.gz/{record["source_revision"]}',
+      args.output / 'codex-corresponding-source.tar.gz', record['source_sha256'], record['source_size'])
+# Keep upstream notices beside the unmodified package, including the vendored
+# bubblewrap license. Its complete source/build files remain in the archive.
+notices = args.output / 'notices'
+notices.mkdir()
+with tarfile.open(args.output / 'codex-corresponding-source.tar.gz') as source:
+    prefix = f'codex-{record["source_revision"]}/'
+    for relative, name in [
+        ('LICENSE', 'codex-LICENSE'), ('NOTICE', 'codex-NOTICE'),
+        ('codex-rs/vendor/bubblewrap/COPYING', 'bubblewrap-COPYING'),
+        ('codex-rs/shell-escalation/patches/zsh-exec-wrapper.patch', 'codex-zsh-exec-wrapper.patch'),
+    ]:
+        member = source.getmember(prefix + relative)
+        if not member.isfile() or member.size > 1024 * 1024:
+            raise RuntimeError('Expected bounded upstream notice/source file')
+        stream = source.extractfile(member)
+        if stream is None:
+            raise RuntimeError('Missing upstream notice/source bytes')
+        with stream:
+            (notices / name).write_bytes(stream.read())
+for notice in PINS['component_notices']:
+    if pathlib.PurePosixPath(notice['filename']).name != notice['filename']:
+        raise RuntimeError('Notice name must be a basename')
+    fetch(notice['url'], notices / notice['filename'], notice['sha256'], notice['size'])
+if args.research_tools:
+    package(codex('personal_test_codex', args.target), 'personal-codex')
+if args.research_tools or args.verification_tools:
+    # The verifier runs here, so it matches this runner rather than the target.
+    tool = cosign()
+    fetch(f'https://github.com/sigstore/cosign/releases/download/v{tool["version"]}/{tool["asset"]}',
+          args.output / 'cosign', tool['sha256'], tool['size'])
+    (args.output / 'cosign').chmod(0o755)

@@ -15,7 +15,7 @@ Last updated: 2026-09-27 (UTC).
 - **Owner-only:** physical desktop/XPS qualification, Claude Commercial Terms, first-party license, real account/vault tests, Greeter and broader home-group decisions.
 - **Merged since:** PR #18 (update progress, verified OCI layer reuse) and PR #19 (`sysroot setup tpm-unlock`), main `949abe5`.
 - **In review (WL-20260927-01, PR #20, branch `rootfs-layout`):** the repository root is the image filesystem, with the development tree under `usr/src/kedra/`. Host Python runs through uv. The repository skill plugins are registered for Codex and Claude. Local Linux checks and every PR workflow pass; RPM refresh (main-only) and the post-merge publication are not-run.
-- **Container harness (WL-20260927-02, branch `container-harness` from `16ea871`, PR open, Actions pending):** `usr/src/kedra/tests/container` implements the owner's Testcontainers harness specification. It includes YAML scenarios, native tests and the `kedra-lab` tool for running and screenshotting the desktop from any stage, with a cocoa-way live view. Desktop session, home review, Noctalia, portals, agents, Bitwarden, doctor and GTK choosers moved from VM workflows to containers; VMs keep boot-level checks. All container tests pass locally on utm. `test-container.yml` and the trimmed VM workflows are pending on the PR.
+- **Container harness (WL-20260927-02/03):** merged as PR #21 (`490e13a`). `usr/src/kedra/tests/container` implements the owner's Testcontainers harness specification, with YAML scenarios, native tests and `kedra-lab` for running and screenshotting the desktop from any stage (cocoa-way live view). On main, test-container.yml passes on both targets, as do every VM workflow, check (with ruff), agents and RPM refresh. Push release run 34 published both targets.
 - **Next:** qualify `rootfs-layout` in every workflow (including the cross-layout home-transition fixture), merge, and confirm the next publication of both targets. For the harness: get authorization to push `container-harness`, then observe test-container.yml (both targets) and the trimmed test-desktop/test-utm-image runs.
 
 ## Work entries
@@ -1136,4 +1136,42 @@ Last updated: 2026-09-27 (UTC).
   - Fix: skip processes whose parent is a Noctalia process, and skip processes that exited during the scan. A separately started Noctalia is still refused.
   - pass — Linux release build and `home_review_cycle` locally. Linux clippy is left to check.yml.
 - Next: record the outcome of test-container.yml on both runners in a follow-up entry and STATUS.
+
+### WL-20260927-03 — 2026-09-27 — PR #21 results and merge
+- Agent / state: Claude Code (Claude Opus 5.5); completed. Follow-up to WL-20260927-02.
+- Scope / base: PR #21 head `7062104`, merged by the owner's instruction as `490e13a` on main; this record goes through its own PR because main requires the `rust` check.
+- Completed:
+  - Merged PR #21 after every check passed at `7062104`.
+  - Observed all ten main push runs for `490e13a`.
+- Checks / evidence:
+  - pass — PR head `7062104`:
+    - container scenarios desktop and utm, [36318146204](https://github.com/Reidond/kedra/actions/runs/36318146204)
+    - desktop VM [36318146217](https://github.com/Reidond/kedra/actions/runs/36318146217)
+    - utm VM [36318146256](https://github.com/Reidond/kedra/actions/runs/36318146256)
+    - signed updates [36318146215](https://github.com/Reidond/kedra/actions/runs/36318146215)
+    - direct GHCR [36318146199](https://github.com/Reidond/kedra/actions/runs/36318146199)
+    - home transition [36318146226](https://github.com/Reidond/kedra/actions/runs/36318146226)
+    - check, rust and rust-aarch64 with the new ruff step: [36318146177](https://github.com/Reidond/kedra/actions/runs/36318146177) and [36318149684](https://github.com/Reidond/kedra/actions/runs/36318149684)
+  - pass — main `490e13a`:
+    - check [36323569124](https://github.com/Reidond/kedra/actions/runs/36323569124)
+    - container scenarios [36323569209](https://github.com/Reidond/kedra/actions/runs/36323569209)
+    - desktop VM [36323569074](https://github.com/Reidond/kedra/actions/runs/36323569074)
+    - utm VM [36323569095](https://github.com/Reidond/kedra/actions/runs/36323569095)
+    - signed updates [36323569059](https://github.com/Reidond/kedra/actions/runs/36323569059)
+    - direct GHCR [36323569077](https://github.com/Reidond/kedra/actions/runs/36323569077)
+    - home transition [36323569081](https://github.com/Reidond/kedra/actions/runs/36323569081)
+    - agents [36323569091](https://github.com/Reidond/kedra/actions/runs/36323569091)
+    - RPM refresh [36323569145](https://github.com/Reidond/kedra/actions/runs/36323569145)
+    - push release [36323569281](https://github.com/Reidond/kedra/actions/runs/36323569281) (run 34): build, sign-image and publish-stable for both targets
+  - pass — registry readback 2026-09-27:
+    - `ghcr.io/reidond/kedra-desktop:stable` = `sha256:b6b017fab000f30338e6be84eb4b400da9f0c97397799e9c74ea65a41e4ab614`
+    - `ghcr.io/reidond/kedra-utm:stable` = `sha256:f3230ed446ccc500ac5db6fd2e57c99d26bd31e4395ca3bc22b1e6494dbd2129`
+    - both also tagged `run-36323569281-1`
+  - The container test found, and the merge fixed, the Noctalia forked-helper race in `sysroot` home activation (WL-20260927-02). The runner AppArmor adaptations are confirmed by run artifacts.
+- Remaining / blockers:
+  - Qt/Xwayland keyboard-driven choosers remain VM-only.
+  - The live cocoa-way window has not been seen by a person.
+  - Fault-injection acceptance cases A6, A7 and A10 are not-run.
+  - The published images carry the Noctalia writer fix but have not been installed or booted on a physical machine.
+- Next: use `kedra-lab` for desktop configuration changes, and add fault-injection native tests (cancellation, async timeout, teardown failure) when needed.
 

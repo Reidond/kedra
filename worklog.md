@@ -14,7 +14,7 @@ Last updated: 2026-09-27 (UTC).
 - **Not qualified:** Secure Boot, physical hardware, production-image forward update, registry race/interruption, native OCI-platform mismatch, key rotation, VM suspend/resume, scaling/high contrast, authenticated agent/Bitwarden use.
 - **Owner-only:** physical desktop/XPS qualification, Claude Commercial Terms, first-party license, real account/vault tests, Greeter and broader home-group decisions.
 - **Merged since:** PR #18 (update progress, verified OCI layer reuse) and PR #19 (`sysroot setup tpm-unlock`), main `949abe5`.
-- **In review (WL-20260927-01, branch `rootfs-layout`):** the repository root is the image filesystem, with the development tree under `usr/src/kedra/`. Host Python runs through uv. The repository skill plugins are registered for Codex and Claude. Local Linux checks pass; Actions and VM workflows are not-run.
+- **In review (WL-20260927-01, PR #20, branch `rootfs-layout`):** the repository root is the image filesystem, with the development tree under `usr/src/kedra/`. Host Python runs through uv. The repository skill plugins are registered for Codex and Claude. Local Linux checks pass; Actions and VM workflows are not-run.
 - **Next:** qualify `rootfs-layout` in every workflow (including the cross-layout home-transition fixture), merge, and confirm the next publication of both targets.
 
 ## Work entries
@@ -1040,9 +1040,12 @@ Last updated: 2026-09-27 (UTC).
   - pass — Python/shell/YAML/JSON parse; uv entry points start on macOS; Codex CLI 0.156.1 on the owner's Mac lists `kedra@kedra-local` 0.2.0 and `rust-skills@kedra-local` as installed and enabled, with the cache identical to the working tree.
   - fail then fixed — the first push (`0d612af`) failed rustfmt in every workflow: `sysroot-core/image.rs` changed after the last local fmt run. The next commit applies rustfmt, and the full local suite above was rerun and passes.
   - not-run — Actions workflows past formatting, VM runs, a model session using the plugins.
-  - blocked — Claude project registration: Claude Code refused to change its own configuration without the owner.
+  - blocked, then resolved by the owner — Claude Code refused to change its own configuration. The owner ran `claude plugin marketplace add ./ --scope project` (a bare `.` is rejected) and both `claude plugin install … --scope project` commands, then replaced the absolute marketplace path the CLI wrote with `./`.
+  - pass — Claude Code 2.1.282 lists both plugins enabled at project scope from the repository root, and this session offers their 12 + 18 skills.
+  - observed — the plugins show as disabled when listed from a subdirectory.
+  - not-run — fresh-clone resolution of `./`: running Claude Code with a scratch configuration was denied.
 - Remaining / blockers:
-  - The owner runs the Claude registration commands on the Mac. Those commands also write `.claude/settings.json`, which is to be reviewed and committed.
+  - Confirm that `./` resolves in a fresh clone. `claude plugin marketplace add ./ --scope local` is the documented local fallback.
   - After merge, `START-HERE.md` (in the image) links the moved INSTALL.md.
   - A pre-move CLI refuses home review against a post-move checkout until the machine updates. After a rollback to a pre-move deployment, review state that already names moved paths is refused and preserved.
-- Next: commit `.claude/settings.json`, push `rootfs-layout`, open the PR and qualify every workflow.
+- Next: qualify every workflow on PR #20, then merge.

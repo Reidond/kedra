@@ -38,7 +38,11 @@ The checked-in `.claude/settings.json` declares the `kedra-local` marketplace
 (`.claude-plugin/marketplace.json`) and enables `kedra@kedra-local` and
 `rust-skills@kedra-local`. Once the folder is trusted, both plugins load in
 place from the working tree; edits take effect in a new session or after
-`/reload-plugins`. Use `/kedra:kedra-context` to load the context skill.
+`/reload-plugins`. Start Claude from the repository root: `claude plugin list`
+reports both plugins disabled when run from a subdirectory. If a clone does not
+find the marketplace, run `claude plugin marketplace add ./ --scope local`; it
+writes the ignored `.claude/settings.local.json` instead of committing an
+absolute path. Use `/kedra:kedra-context` to load the context skill.
 
 ## Editing
 

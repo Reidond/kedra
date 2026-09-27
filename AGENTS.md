@@ -71,9 +71,12 @@ Both plugins are registered for this repository with the checked-in marketplaces
 (`.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, both named
 `kedra-local`) and project configuration:
 
-- Claude Code: `.claude/settings.json` declares the `kedra-local` marketplace and
-  enables `kedra@kedra-local` and `rust-skills@kedra-local`. After the folder is
-  trusted, both load in place from the working tree.
+- Claude Code: `.claude/settings.json` declares the `kedra-local` marketplace
+  (directory `./`) and enables `kedra@kedra-local` and `rust-skills@kedra-local`.
+  After the folder is trusted, both load in place from the working tree; start
+  Claude from the repository root. If a clone does not find the marketplace, run
+  `claude plugin marketplace add ./ --scope local`, which writes the ignored
+  `.claude/settings.local.json`; never commit an absolute path.
 - Codex: `.codex/config.toml` enables both plugins once the project is trusted.
   Codex runs plugins from a cached copy. Register once per machine from the
   repository root: `codex plugin marketplace add .`, then

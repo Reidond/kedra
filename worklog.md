@@ -14,7 +14,7 @@ Last updated: 2026-09-27 (UTC).
 - **Not qualified:** Secure Boot, physical hardware, production-image forward update, registry race/interruption, native OCI-platform mismatch, key rotation, VM suspend/resume, scaling/high contrast, authenticated agent/Bitwarden use.
 - **Owner-only:** physical desktop/XPS qualification, Claude Commercial Terms, first-party license, real account/vault tests, Greeter and broader home-group decisions.
 - **Merged since:** PR #18 (update progress, verified OCI layer reuse) and PR #19 (`sysroot setup tpm-unlock`), main `949abe5`.
-- **In review (WL-20260927-01, PR #20, branch `rootfs-layout`):** the repository root is the image filesystem, with the development tree under `usr/src/kedra/`. Host Python runs through uv. The repository skill plugins are registered for Codex and Claude. Local Linux checks pass; Actions and VM workflows are not-run.
+- **In review (WL-20260927-01, PR #20, branch `rootfs-layout`):** the repository root is the image filesystem, with the development tree under `usr/src/kedra/`. Host Python runs through uv. The repository skill plugins are registered for Codex and Claude. Local Linux checks and every PR workflow pass; RPM refresh (main-only) and the post-merge publication are not-run.
 - **Next:** qualify `rootfs-layout` in every workflow (including the cross-layout home-transition fixture), merge, and confirm the next publication of both targets.
 
 ## Work entries
@@ -1026,7 +1026,7 @@ Last updated: 2026-09-27 (UTC).
 - Next: if approved, do the payload move as its own `codex/**` PR. Add a cross-layout e2e case and a legacy-A/moved-B home-transition fixture, then qualify all workflows.
 
 ### WL-20260927-01 — 2026-09-27 — Root-filesystem layout, uv, repository plugin registration
-- Agent / state: Claude Code (Opus 5.5); in-progress (implemented locally, pending Actions).
+- Agent / state: Claude Code (Opus 5.5); completed on the branch; the owner asked to merge PR #20.
 - Scope / base: branch `rootfs-layout` from main `949abe5`; all targets. Follows the WL-20260926-03 proposal; the owner chose a repository root that is itself a Linux filesystem, with Cargo and toolchain files kept at the root.
 - Completed:
   - Layout and code. Root `etc/` and `usr/` are the shared payload; `etc/skel/` is the home baseline. Development files moved to `usr/src/kedra/{crates,image,installer,tests,plugins,docs}`. `source.rs` reads both layouts per commit and refuses mixed or unrecognized layouts. Home-review provenance compares layer plus home-relative path (`sysroot-core/layout.rs`), and exports write to the checkout's layout. The agent launcher reads either target declaration, and source plans read whole-tree paths from subdirectories.
@@ -1042,7 +1042,7 @@ Last updated: 2026-09-27 (UTC).
   - Actions at `e838f7a`:
     - pass — workspace [36272882101](https://github.com/Reidond/kedra/actions/runs/36272882101), signed updates [36272882067](https://github.com/Reidond/kedra/actions/runs/36272882067), direct GHCR [36272882082](https://github.com/Reidond/kedra/actions/runs/36272882082), UTM image [36272882042](https://github.com/Reidond/kedra/actions/runs/36272882042), and signed home transition [36272882072](https://github.com/Reidond/kedra/actions/runs/36272882072), whose image A is now a legacy-layout baseline.
     - fail — desktop [36272882086](https://github.com/Reidond/kedra/actions/runs/36272882086): `sudo` reset `PATH`, so root could not find `uv`. The same problem would hit the agent probe. `74ffaa6` passes uv by absolute path; the agent probe also gets the runner home and an offline cache, verified in an ubuntu:24.04 container.
-    - pending — desktop and agents at `74ffaa6`.
+    - pass — at `74ffaa6`, desktop [36302126927](https://github.com/Reidond/kedra/actions/runs/36302126927) and private agent runtimes [36302126944](https://github.com/Reidond/kedra/actions/runs/36302126944).
     - not-run — RPM refresh, which runs only on main.
   - not-run — a model session invoking the plugins.
   - blocked, then resolved by the owner — Claude Code refused to change its own configuration. The owner ran `claude plugin marketplace add ./ --scope project` (a bare `.` is rejected) and both `claude plugin install … --scope project` commands, then replaced the absolute marketplace path the CLI wrote with `./`.
@@ -1053,4 +1053,4 @@ Last updated: 2026-09-27 (UTC).
   - Confirm that `./` resolves in a fresh clone. `claude plugin marketplace add ./ --scope local` is the documented local fallback.
   - After merge, `START-HERE.md` (in the image) links the moved INSTALL.md.
   - A pre-move CLI refuses home review against a post-move checkout until the machine updates. After a rollback to a pre-move deployment, review state that already names moved paths is refused and preserved.
-- Next: confirm desktop and agents at `74ffaa6` on PR #20, merge, then check the main-only RPM refresh and the next publication of both targets.
+- Next: after the merge, check the main push runs, including the main-only RPM refresh and the release run, confirm the new signed publication of both targets, and record them in a follow-up entry.

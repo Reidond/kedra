@@ -1125,5 +1125,8 @@ Last updated: 2026-09-27 (UTC).
   - Confirmed: `unix-chkpwd` was loaded before the step and absent after, and the session now starts. utm 11/13, desktop 10/12.
   - Remaining: the Bitwarden window and the GTK 3 app. The kernel audit log shows `profile="unprivileged_userns"` denials for `bitwarden-app` (sys_admin) and `bwrap` (setpcap, net_admin).
   - The workflow now also sets `kernel.apparmor_restrict_unprivileged_userns=0` on the runner.
-- Next: record the outcome of test-container.yml on both runners in a follow-up entry and STATUS.
+- Third run [36316401867](https://github.com/Reidond/kedra/actions/runs/36316401867) at `35c0cfd`: the userns change fixed Bitwarden and GTK 3 startup. Desktop 11/12, utm 12/13.
+  - fail — desktop `toolkit_file_choosers`: the GTK 4 portal chooser lost the leading "/" and searched for the rest. The test now waits for niri to report the chooser focused, then uses Ctrl+L plus the full path for GTK 4; GTK 3 keeps "/".
+  - fail — utm `home_review_cycle`: `recovery.py` got exit 1 from `sysroot home recover <action>` after an interruption. It passed on desktop and in every local run. The probe now prints the journal phase before recovering and includes the CLI's stderr in failures, to tell a timing-dependent phase (published or validated) from a product defect.
+- Next: record the outcome of test-container.yml on both runners in a follow-up entry and STATUS; if the recovery failure repeats, analyze it from the captured stderr.
 

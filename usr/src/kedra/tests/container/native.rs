@@ -470,12 +470,34 @@ fn toolkit_file_choosers(context: &Context<'_>) -> Result<()> {
                     desk.type_text(toolkit, "\n")?
                 }
                 "dialog" => {
-                    // "/" opens the GTK chooser's location entry; let it take
-                    // focus before typing the rest of the path.
-                    desk.type_text(toolkit, "/")?;
-                    std::thread::sleep(Duration::from_millis(700));
+                    // The chooser must own keyboard focus before typing; the
+                    // portal's dialog is a separate process that maps later.
+                    desk.wait(
+                        "the file chooser to take focus",
+                        Duration::from_secs(30),
+                        || {
+                            let focused =
+                                desk.try_run(&["niri", "msg", "--json", "focused-window"])?;
+                            Ok(focused.stdout_text().contains("Select toolkit-sample.txt"))
+                        },
+                    )?;
+                    std::thread::sleep(Duration::from_millis(500));
                     let path = format!("{home}/toolkit-sample.txt");
-                    desk.type_text(toolkit, path.trim_start_matches('/'))?;
+                    match toolkit {
+                        // GTK 3: "/" opens the location entry (no chords via wlrctl).
+                        Toolkit::Gtk3 => {
+                            desk.type_text(toolkit, "/")?;
+                            std::thread::sleep(Duration::from_millis(700));
+                            desk.type_text(toolkit, path.trim_start_matches('/'))?;
+                        }
+                        // GTK 4: typing starts a search, so open the location
+                        // entry explicitly with Ctrl+L first.
+                        Toolkit::Gtk4 => {
+                            desk.run(&["wtype", "-M", "ctrl", "-k", "l", "-m", "ctrl"])?;
+                            std::thread::sleep(Duration::from_millis(700));
+                            desk.type_text(toolkit, &path)?;
+                        }
+                    }
                     // GTK debounces location edits before enabling Open.
                     std::thread::sleep(Duration::from_secs(1));
                     desk.screenshot(&format!("toolkit-{case}-submitted"))?;

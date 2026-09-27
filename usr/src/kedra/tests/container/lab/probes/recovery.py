@@ -35,7 +35,8 @@ def run(args, *, success=True):
     result = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True,
                             timeout=90, check=False)
     if (result.returncode == 0) != success:
-        raise RuntimeError(f"unexpected exit for {args[:2]}: {result.returncode}")
+        detail = result.stderr.decode(errors="replace").strip()[-1500:]
+        raise RuntimeError(f"unexpected exit for {args}: {result.returncode}: {detail}")
     return result.stdout
 
 
@@ -127,6 +128,7 @@ for action in ("abort", "resume", "keep-current"):
         run(home + ["recover", "abort"], success=False)
         if not response("recover")["pending"]:
             raise RuntimeError("conflicting abort cleared the pending operation")
+    print(f"recovery: {action} after interruption; pending={response('recover')['journal']['phase']}", flush=True)
     result = response("recover", action)
     expected = {"abort": later_theme, "resume": selected_theme, "keep-current": competing_theme}[action]
     if not (result["operation_completed"] and result["pending"] is None

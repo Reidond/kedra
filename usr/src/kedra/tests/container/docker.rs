@@ -313,10 +313,22 @@ impl Docker {
             ..Default::default()
         };
         match self.runtime.block_on(async {
-            tokio::time::timeout(
-                Duration::from_secs(30),
-                self.api.remove_container(id, Some(options)),
-            )
+            tokio::time::timeout(Duration::from_secs(30), async {
+                loop {
+                    match self.api.remove_container(id, Some(options.clone())).await {
+                        Err(bollard::errors::Error::DockerResponseServerError {
+                            status_code: 409,
+                            message,
+                        }) if message.contains("removal")
+                            && message.contains("already in progress") =>
+                        {
+                            // Testcontainers' signal watchdog may be removing the same ID.
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                        }
+                        outcome => break outcome,
+                    }
+                }
+            })
             .await
         }) {
             Ok(Ok(())) => Ok(()),

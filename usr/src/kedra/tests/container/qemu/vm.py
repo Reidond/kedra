@@ -87,17 +87,52 @@ def owned_process(state, key):
     return bool(entry and entry['identity'] and process_identity(entry['pid']) == entry['identity'])
 
 
+def check_process_ownership(state):
+    for key in ('qemu', 'swtpm'):
+        entry = state.get(key)
+        if not entry:
+            continue
+        if not isinstance(entry, dict) or type(entry.get('pid')) is not int or entry['pid'] <= 0:
+            raise ValueError('invalid process record: ' + key)
+        actual = process_identity(entry['pid'])
+        if actual and actual != entry.get('identity'):
+            raise ValueError(f'{key} PID belongs to another process; inspect the instance state before continuing')
+
+
 def ssh(directory, state, argv, *, data=None, timeout=30, connect_timeout=10, session=True):
     # Controller updates should not require rebuilding the OS disk. This trusted
     # transport runs only as the fixture account; argv stays separately quoted.
     remote = ['sh', '-c', (HERE / 'session-exec').read_text(), 'kedra-lab-session', *argv] if session else argv
+    remote = ['timeout', '--kill-after=2s', f'{max(0.1, timeout - 2):.3f}s', *remote]
     command = ['ssh', '-F', '/dev/null', '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'IdentityAgent=none',
                '-o', 'StrictHostKeyChecking=yes', '-o', 'GlobalKnownHostsFile=/dev/null',
                '-o', 'UserKnownHostsFile=' + str(directory / 'known_hosts'), '-o', 'HostKeyAlias=' + state['identity'],
                '-o', f'ConnectTimeout={connect_timeout}', '-o', 'ConnectionAttempts=1', '-o', 'LogLevel=ERROR',
                '-i', directory / 'client-key', '-p', str(state['ssh_port']), 'kedra-test@127.0.0.1',
                shlex.join(remote)]
-    return run(command, input=data, capture_output=True, timeout=timeout).stdout
+    try:
+        return run(command, input=data, capture_output=True, timeout=timeout).stdout
+    except subprocess.TimeoutExpired:
+        raise ValueError(f'guest command {shlex.join(argv)} timed out after {timeout}s') from None
+
+
+def check_renderer(directory, state, deadline=None):
+
+    def query(argv):
+        left = 30 if deadline is None else min(30, deadline - time.monotonic())
+        if left <= 0:
+            raise GraphicsError('graphics readiness deadline expired')
+        return ssh(directory, state, argv, timeout=left).decode()
+
+    journal = query(['journalctl', '--user', '-b', '-u', 'niri.service', '--no-pager', '-o', 'cat'])
+    renderers = re.findall(r'GL Renderer: "([^"]+)"', journal)
+    renderer_source = 'niri-journal'
+    if not renderers:
+        raise GraphicsError('niri did not report its actual renderer')
+    renderer = renderers[-1]
+    if 'virgl' not in renderer or 'ANGLE Metal Renderer:' not in renderer:
+        raise GraphicsError('accelerated profile refused compositor renderer: ' + renderer)
+    return renderer, renderer_source
 
 
 def create(directory, args):
@@ -118,7 +153,7 @@ def create(directory, args):
              'runtime': str(args.runtime), 'runtime_receipt': sha256(args.runtime / 'receipt.json'),
              'image': image, 'memory_mib': args.memory_mib, 'cpus': args.cpus,
              'display': {'width': width, 'height': height, 'scale': scale},
-             'graphics': 'software' if args.software else 'accelerated'}
+             'graphics': 'accelerated'}
     for name in ['client-key', 'host-key']:
         run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'disposable-kedra-lab', '-f', directory / name])
     host_public = (directory / 'host-key.pub').read_text().strip()
@@ -160,6 +195,7 @@ def up(directory, state):
         if state['mode'] == 'lab':
             ssh(directory, state, ['niri', 'msg', '--json', 'outputs'])
             ssh(directory, state, ['noctalia', 'msg', 'log-level-status'])
+            check_renderer(directory, state)
         print(json.dumps({'status': qmp(directory, state, 'query-status'), 'instance': str(directory)}, indent=2))
         return
     runtime = Path(state['runtime'])
@@ -195,12 +231,10 @@ def up(directory, state):
             raise ValueError('swtpm failed; see swtpm.log')
         time.sleep(0.1)
     display = state.get('display', {'width': 2560, 'height': 1600, 'scale': 2})
-    software = state.get('graphics') == 'software'
-    gpu = 'virtio-gpu-pci' if software else 'virtio-gpu-gl-pci'
     command = [runtime / 'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64', '-name', state['identity'],
                '-machine', 'virt', '-accel', 'hvf', '-cpu', 'host', '-smp', str(state['cpus']), '-m', str(state['memory_mib']),
-               '-nodefaults', '-display', 'cocoa' if software else 'cocoa,gl=es',
-               '-device', f'{gpu},xres={display["width"]},yres={display["height"]}',
+               '-nodefaults', '-display', 'cocoa,gl=es',
+               '-device', f'virtio-gpu-gl-pci,xres={display["width"]},yres={display["height"]}',
                '-device', 'virtio-keyboard-pci', '-device', 'virtio-tablet-pci', '-device', 'virtio-rng-pci',
                '-drive', f'if=pflash,format=raw,unit=0,readonly=on,file={runtime}/firmware/AAVMF_CODE.secboot.fd',
                '-drive', f'if=pflash,format=raw,unit=1,file={directory}/vars.fd',
@@ -226,30 +260,35 @@ def up(directory, state):
     write_json(directory / 'state.json', state)
     run(['/usr/sbin/taskpolicy', '-B', '-t', '0', '-l', '0', '-p', str(process.pid)])
     started = time.monotonic()
+    deadline = started + 120
     last_error = ''
-    while time.monotonic() - started < 120:
-        if process.poll() is not None:
-            raise ValueError('QEMU exited; inspect qemu.log (no software fallback)')
+
+    def ready(argv):
+        left = min(10, deadline - time.monotonic())
+        if left <= 0:
+            raise ValueError('desktop readiness deadline expired')
+        return ssh(directory, state, argv, timeout=left, connect_timeout=3)
+
+    while time.monotonic() < deadline:
+        exit_code = process.poll()
+        if exit_code is not None:
+            raise ValueError(f'QEMU exited with status {exit_code}; inspect qemu.log and serial.log (no software fallback)')
         try:
             qmp(directory, state, 'query-status')
             if state['mode'] != 'lab':
                 print('Native installer VM opened. Complete installation in its window; no lab access is added.')
                 return
-            outputs = json.loads(ssh(directory, state, ['niri', 'msg', '--json', 'outputs'], connect_timeout=3))
+            outputs = json.loads(ready(['niri', 'msg', '--json', 'outputs']))
             for name in outputs:
-                ssh(directory, state, ['niri', 'msg', 'output', name, 'scale', str(display['scale'])])
-            ssh(directory, state, ['noctalia', 'msg', 'log-level-status'])
-            journal = ssh(directory, state, ['journalctl', '--user', '-b', '-u', 'niri.service', '--no-pager', '-o', 'cat']).decode()
-            renderers = re.findall(r'GL Renderer: "([^"]+)"', journal)
-            if not renderers:
-                raise GraphicsError('niri did not report its actual renderer')
-            renderer = renderers[-1]
-            if not software and ('virgl' not in renderer or 'ANGLE Metal Renderer:' not in renderer):
-                raise GraphicsError('accelerated profile refused compositor renderer: ' + renderer)
+                ready(['niri', 'msg', 'output', name, 'scale', str(display['scale'])])
+            ready(['noctalia', 'msg', 'log-level-status'])
+            renderer, renderer_source = check_renderer(directory, state, deadline)
             state['renderer'] = renderer
+            state['renderer_source'] = renderer_source
             write_json(directory / 'state.json', state)
             print(json.dumps({'status': 'ready', 'instance': str(directory), 'boot_seconds': time.monotonic() - started,
                               'graphics': state.get('graphics', 'accelerated'), 'renderer': renderer,
+                              'renderer_source': renderer_source,
                               'gpu_qualified': False}, indent=2))
             return
         except GraphicsError:
@@ -293,6 +332,14 @@ def down(directory, state, force):
                 os.kill(state['qemu']['pid'], signal.SIGKILL)
     if owned_process(state, 'swtpm'):
         os.kill(state['swtpm']['pid'], signal.SIGTERM)
+        until = time.monotonic() + 5
+        while owned_process(state, 'swtpm') and time.monotonic() < until:
+            time.sleep(0.1)
+        if owned_process(state, 'swtpm'):
+            raise ValueError('owned TPM process did not exit; state retained for recovery')
+    state.pop('qemu', None)
+    state.pop('swtpm', None)
+    write_json(directory / 'state.json', state)
     print('Stopped; disk, firmware variables and TPM state retained.')
 
 
@@ -339,8 +386,9 @@ print(json.dumps({
     if len(active) != 1:
         raise ValueError('native capture expects exactly one active display')
     receipt = {'schema_version': 1, 'capture': 'guest-grim',
-               'mode': 'native-qemu-software' if state.get('graphics') == 'software' else 'native-qemu',
+               'mode': 'native-qemu',
                'renderer_at_startup': state.get('renderer'), 'gpu_qualified': False,
+               'renderer_source': state.get('renderer_source'),
                'width': width, 'height': height, 'sha256': sha256(path), 'source': source,
                'installed_source': source['source_revision'], 'home_source': home_source,
                'display': {'width': width, 'height': height, 'scale': active[0]['scale']},
@@ -367,7 +415,6 @@ def main():
     start.add_argument('--memory-mib', type=int, default=4096)
     start.add_argument('--cpus', type=int, default=6)
     start.add_argument('--display', default='2560x1600@2')
-    start.add_argument('--software', action='store_true')
     installer = sub.add_parser('installer')
     installer.add_argument('--iso', type=Path, required=True)
     installer.add_argument('--disk-gib', type=int, default=96)
@@ -403,6 +450,7 @@ def main():
         state = json.loads((directory / 'state.json').read_text())
         if state.get('schema_version') != 1:
             raise ValueError('unsupported instance state')
+        check_process_ownership(state)
         print(json.dumps(qmp(directory, state, 'query-status') if owned_process(state, 'qemu') else {'status': 'stopped'}))
         return
     with (directory.parent / (args.name + '.lock')).open('w') as lock:
@@ -421,8 +469,9 @@ def main():
             state = json.loads(record.read_text())
             if state.get('schema_version') != 1:
                 raise ValueError('unsupported instance state')
-            if args.operation == 'up' and args.software and state.get('graphics') != 'software':
-                raise ValueError('a retained instance cannot change graphics profile; choose a new name')
+            check_process_ownership(state)
+            if args.operation == 'up' and state.get('graphics', 'accelerated') != 'accelerated':
+                raise ValueError('unsupported retired graphics profile; create a new GPU instance')
         else:
             if directory.exists():
                 raise ValueError('instance directory exists without a receipt; inspect it before removing it')

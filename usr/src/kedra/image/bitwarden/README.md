@@ -50,7 +50,7 @@ license files, corresponding source and `/usr/share/sysroot/bitwarden.json`
 receipt. The tarball ships no package scripts. Its entry differs from the RPM's
 (`StartupWMClass=com.bitwarden.desktop` rather than `Bitwarden`, categories
 `System;Security;`); window/launcher matching under niri is unqualified until
-the qemu-arm64 image is checked in UTM. Linux arm64 support, NAPI loading and the SSH
+the qemu-arm64 image is checked in the native QEMU lab. Linux arm64 support, NAPI loading and the SSH
 agent on aarch64 are likewise not yet qualified.
 
 The login wrapper, systemd user environment and TTY login profile default to

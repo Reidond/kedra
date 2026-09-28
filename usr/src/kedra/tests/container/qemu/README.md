@@ -49,9 +49,10 @@ target/debug/kedra-lab vm down --name desktop --force
 target/debug/kedra-lab vm remove --name desktop
 ```
 
-An explicit diagnostic instance can use `vm up --name software --image IMAGE_JSON
---software`; its receipts say `native-qemu-software` and cannot qualify GPU behavior.
-The accelerated profile refuses a compositor renderer that is not VirGL/ANGLE Metal.
+Use the existing `kedra-lab up` / `shot` container workflow for explicitly software
+rendered diagnostics. Native VMs always require the qualified Cocoa/Metal path and
+refuse a compositor renderer that is not VirGL/ANGLE Metal. A raw Cocoa 2D-display
+experiment crashed on macOS 27.0 (26A428); that unused VM configuration is removed.
 
 These retained-instance commands require no Docker daemon. `vm sync` uses the same
 source archiver and validated guest transaction as container sync: additions,

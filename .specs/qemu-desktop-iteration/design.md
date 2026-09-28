@@ -389,3 +389,13 @@ remains blocked and unqualified.
 - [QEMU VirtIO GPU modes](https://www.qemu.org/docs/master/system/devices/virtio/virtio-gpu.html): 2D/software versus accelerated backends.
 - [QEMU invocation](https://www.qemu.org/docs/master/system/invocation.html): explicit accelerators, device/display options and private control transports.
 - Current repository implementation and existing ARM Secure Boot fixture at the inspected base; they define the safety and compatibility behavior to preserve.
+
+## Qualification adjustment — 2026-09-28
+
+Keep the two requested execution lanes: native QEMU always uses the verified
+Cocoa/Metal and VirGL path, and Testcontainers provides explicitly software-rendered
+diagnostics. The additional native software profile was removed after actual
+macOS 27 raw-Cocoa crashes (`ERROR_CGDataProvider_BufferIsNotBigEnough`) and a
+2D guest's shell-readiness failure. It adds no required capability beyond the
+existing software lab; native startup still refuses missing GPU evidence without
+falling back. TC-04 owns native refusal and TC-14 owns software-label evidence.

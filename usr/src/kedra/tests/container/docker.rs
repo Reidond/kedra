@@ -177,7 +177,13 @@ impl Docker {
         };
         let started = Instant::now();
         // Backstop in case the Engine stream itself hangs past timeout(1)'s kill.
-        let backstop = exec.timeout + Duration::from_secs(30);
+        let backstop = crate::cancel::budget(exec.timeout + Duration::from_secs(30));
+        if backstop.is_zero() {
+            return Err(Error::Timeout {
+                what: "diagnostics collection".into(),
+                after: Duration::from_secs(30),
+            });
+        }
         let result = self.runtime.block_on(crate::cancel::interrupt(async {
             tokio::time::timeout(backstop, async {
                 let created = self.api.create_exec(container, config).await?;

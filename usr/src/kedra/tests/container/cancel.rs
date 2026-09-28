@@ -6,14 +6,14 @@ use std::sync::{
     Arc, OnceLock,
     atomic::{AtomicBool, Ordering},
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::future::{Either, select};
 
 use crate::{Error, Result};
 
 static INTERRUPTED: OnceLock<Arc<AtomicBool>> = OnceLock::new();
-thread_local! { static CLEANUP: Cell<bool> = const { Cell::new(false) }; }
+thread_local! { static CLEANUP: Cell<Option<Instant>> = const { Cell::new(None) }; }
 
 pub fn install() -> Result<()> {
     let flag = Arc::new(AtomicBool::new(false));
@@ -34,18 +34,29 @@ pub fn requested() -> bool {
 }
 
 pub fn check() -> Result<()> {
-    if requested() && !CLEANUP.get() {
+    if requested() && CLEANUP.get().is_none() {
         Err(Error::Interrupted)
     } else {
         Ok(())
     }
 }
 
-pub struct Cleanup(bool);
+/// Remaining shared diagnostics budget, including screenshots and nested collection.
+pub fn budget(default: Duration) -> Duration {
+    CLEANUP.get().map_or(default, |deadline| {
+        default.min(deadline.saturating_duration_since(Instant::now()))
+    })
+}
+
+pub struct Cleanup(Option<Instant>);
 
 impl Cleanup {
     pub fn enter() -> Self {
-        Self(CLEANUP.replace(true))
+        let previous = CLEANUP.get();
+        CLEANUP.set(Some(
+            previous.unwrap_or_else(|| Instant::now() + Duration::from_secs(30)),
+        ));
+        Self(previous)
     }
 }
 

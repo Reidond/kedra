@@ -24,6 +24,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 
+class GraphicsError(ValueError):
+    """A ready compositor selected a renderer incompatible with its profile."""
+
+
 def run(argv, *, timeout=30, **kwargs):
     return subprocess.run(list(map(str, argv)), check=True, timeout=timeout, **kwargs)
 
@@ -110,7 +114,8 @@ def create(directory, args):
     state = {'schema_version': 1, 'mode': 'lab', 'identity': 'kedra-' + args.name + '-' + secrets.token_hex(12),
              'runtime': str(args.runtime), 'runtime_receipt': sha256(args.runtime / 'receipt.json'),
              'image': image, 'memory_mib': args.memory_mib, 'cpus': args.cpus,
-             'display': {'width': width, 'height': height, 'scale': scale}}
+             'display': {'width': width, 'height': height, 'scale': scale},
+             'graphics': 'software' if args.software else 'accelerated'}
     for name in ['client-key', 'host-key']:
         run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'disposable-kedra-lab', '-f', directory / name])
     host_public = (directory / 'host-key.pub').read_text().strip()
@@ -187,9 +192,12 @@ def up(directory, state):
             raise ValueError('swtpm failed; see swtpm.log')
         time.sleep(0.1)
     display = state.get('display', {'width': 2560, 'height': 1600, 'scale': 2})
+    software = state.get('graphics') == 'software'
+    gpu = 'virtio-gpu-pci' if software else 'virtio-gpu-gl-pci'
     command = [runtime / 'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64', '-name', state['identity'],
                '-machine', 'virt', '-accel', 'hvf', '-cpu', 'host', '-smp', str(state['cpus']), '-m', str(state['memory_mib']),
-               '-nodefaults', '-display', 'cocoa,gl=es', '-device', f'virtio-gpu-gl-pci,xres={display["width"]},yres={display["height"]}',
+               '-nodefaults', '-display', 'cocoa' if software else 'cocoa,gl=es',
+               '-device', f'{gpu},xres={display["width"]},yres={display["height"]}',
                '-device', 'virtio-keyboard-pci', '-device', 'virtio-tablet-pci', '-device', 'virtio-rng-pci',
                '-drive', f'if=pflash,format=raw,unit=0,readonly=on,file={runtime}/firmware/AAVMF_CODE.secboot.fd',
                '-drive', f'if=pflash,format=raw,unit=1,file={directory}/vars.fd',
@@ -228,9 +236,21 @@ def up(directory, state):
             for name in outputs:
                 ssh(directory, state, ['niri', 'msg', 'output', name, 'scale', str(display['scale'])])
             ssh(directory, state, ['noctalia', 'msg', 'log-level-status'])
+            journal = ssh(directory, state, ['journalctl', '--user', '-b', '-u', 'niri.service', '--no-pager', '-o', 'cat']).decode()
+            renderers = re.findall(r'GL Renderer: "([^"]+)"', journal)
+            if not renderers:
+                raise GraphicsError('niri did not report its actual renderer')
+            renderer = renderers[-1]
+            if not software and ('virgl' not in renderer or 'ANGLE Metal Renderer:' not in renderer):
+                raise GraphicsError('accelerated profile refused compositor renderer: ' + renderer)
+            state['renderer'] = renderer
+            write_json(directory / 'state.json', state)
             print(json.dumps({'status': 'ready', 'instance': str(directory), 'boot_seconds': time.monotonic() - started,
+                              'graphics': state.get('graphics', 'accelerated'), 'renderer': renderer,
                               'gpu_qualified': False}, indent=2))
             return
+        except GraphicsError:
+            raise
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             detail = getattr(error, 'stderr', None)
             last_error = detail.decode(errors='replace')[-1500:] if isinstance(detail, bytes) else str(error)
@@ -315,7 +335,9 @@ print(json.dumps({
     active = [output['logical'] for output in outputs.values() if output.get('logical')]
     if len(active) != 1:
         raise ValueError('native capture expects exactly one active display')
-    receipt = {'schema_version': 1, 'capture': 'guest-grim', 'mode': 'native-qemu', 'gpu_qualified': False,
+    receipt = {'schema_version': 1, 'capture': 'guest-grim',
+               'mode': 'native-qemu-software' if state.get('graphics') == 'software' else 'native-qemu',
+               'renderer_at_startup': state.get('renderer'), 'gpu_qualified': False,
                'width': width, 'height': height, 'sha256': sha256(path), 'source': source,
                'installed_source': source['source_revision'], 'home_source': home_source,
                'display': {'width': width, 'height': height, 'scale': active[0]['scale']},
@@ -341,6 +363,7 @@ def main():
     start.add_argument('--memory-mib', type=int, default=4096)
     start.add_argument('--cpus', type=int, default=6)
     start.add_argument('--display', default='2560x1600@2')
+    start.add_argument('--software', action='store_true')
     installer = sub.add_parser('installer')
     installer.add_argument('--iso', type=Path, required=True)
     installer.add_argument('--disk-gib', type=int, default=96)
@@ -367,8 +390,8 @@ def main():
     directory = args.root / 'instances' / args.name
     if any(char in str(directory) + str(args.runtime) for char in ',\n\r') or len(str(directory / 'qmp.sock').encode()) >= 104:
         parser.error('QEMU paths must fit Unix socket limits and contain no commas/newlines')
-    if directory.is_symlink():
-        parser.error('instance directory is a symlink')
+    if directory.is_symlink() or directory.parent.is_symlink():
+        parser.error('instance directory or its parent is a symlink')
     if not directory.exists() and args.operation not in ('up', 'installer'):
         parser.error('instance does not exist')
     directory.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -385,12 +408,17 @@ def main():
         except BlockingIOError:
             raise ValueError('instance is busy with another lifecycle or sync operation; retry when it finishes') from None
         record = directory / 'state.json'
+        for child in ('state.json', 'disk.qcow2', 'vars.fd', 'tpm', 'seed.json', 'client-key', 'known_hosts'):
+            if (directory / child).is_symlink():
+                raise ValueError('unsafe symlink in instance: ' + child)
         if record.exists():
             if args.operation == 'installer':
                 raise ValueError('instance already exists; choose a new --name')
             state = json.loads(record.read_text())
             if state.get('schema_version') != 1:
                 raise ValueError('unsupported instance state')
+            if args.operation == 'up' and args.software and state.get('graphics') != 'software':
+                raise ValueError('a retained instance cannot change graphics profile; choose a new name')
         else:
             if directory.exists():
                 raise ValueError('instance directory exists without a receipt; inspect it before removing it')

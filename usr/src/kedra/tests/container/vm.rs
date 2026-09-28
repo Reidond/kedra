@@ -68,6 +68,9 @@ pub enum VmCommand {
         cpus: u32,
         #[arg(long, default_value = "2560x1600@2")]
         display: String,
+        /// Explicit software-rendered diagnostic VM; never GPU qualification.
+        #[arg(long)]
+        software: bool,
     },
     /// Read the actual QEMU running state.
     Status(Instance),
@@ -300,6 +303,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             memory_mib,
             cpus,
             display,
+            software,
         } => {
             let mut command = instance_script(&instance, "up");
             command
@@ -309,6 +313,9 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 .arg(cpus.to_string())
                 .arg("--display")
                 .arg(display);
+            if software {
+                command.arg("--software");
+            }
             if let Some(image) = image {
                 command.arg("--image").arg(image);
             }

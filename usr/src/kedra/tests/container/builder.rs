@@ -97,6 +97,8 @@ fn archiver_directory(cache: &Path) -> Result<PathBuf> {
             "Cargo.lock",
             "rust-toolchain.toml",
             "usr/src/kedra/crates",
+            "usr/src/kedra/image/release/targets.json",
+            "usr/src/kedra/image/release/compatibility.json",
         ],
     )?;
     let mut names: Vec<&[u8]> = listed

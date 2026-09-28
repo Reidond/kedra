@@ -87,13 +87,16 @@ def owned_process(state, key):
     return bool(entry and entry['identity'] and process_identity(entry['pid']) == entry['identity'])
 
 
-def ssh(directory, state, argv, *, data=None, timeout=30, connect_timeout=10):
+def ssh(directory, state, argv, *, data=None, timeout=30, connect_timeout=10, session=True):
+    # Controller updates should not require rebuilding the OS disk. This trusted
+    # transport runs only as the fixture account; argv stays separately quoted.
+    remote = ['sh', '-c', (HERE / 'session-exec').read_text(), 'kedra-lab-session', *argv] if session else argv
     command = ['ssh', '-F', '/dev/null', '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'IdentityAgent=none',
                '-o', 'StrictHostKeyChecking=yes', '-o', 'GlobalKnownHostsFile=/dev/null',
                '-o', 'UserKnownHostsFile=' + str(directory / 'known_hosts'), '-o', 'HostKeyAlias=' + state['identity'],
                '-o', f'ConnectTimeout={connect_timeout}', '-o', 'ConnectionAttempts=1', '-o', 'LogLevel=ERROR',
                '-i', directory / 'client-key', '-p', str(state['ssh_port']), 'kedra-test@127.0.0.1',
-               shlex.join(['/usr/libexec/kedra-lab/session-exec', *argv])]
+               shlex.join(remote)]
     return run(command, input=data, capture_output=True, timeout=timeout).stdout
 
 
@@ -265,7 +268,7 @@ def down(directory, state, force):
             # A desktop shell may inhibit the ACPI power key to display its menu.
             # The fixture permits exactly this shutdown command through sudo.
             try:
-                ssh(directory, state, ['sudo', '-n', '/usr/bin/systemctl', 'poweroff', '--no-block'], timeout=10)
+                ssh(directory, state, ['sudo', '-n', '/usr/bin/systemctl', 'poweroff', '--no-block'], timeout=10, session=False)
             except subprocess.CalledProcessError as error:
                 # sshd can stop before sending its successful exit status. Only
                 # accept that disconnect if the owned QEMU process really exits.
@@ -344,6 +347,7 @@ print(json.dumps({
                'capture_ms': round(elapsed * 1000), 'captured_at_unix_ms': time.time_ns() // 1000000,
                'timing_scope': 'compositor capture and PNG transfer; excludes metadata collection',
                'runtime_receipt': state['runtime_receipt'], 'image': state['image']['inputs'],
+               'controller_sha256': sha256(Path(__file__)), 'session_transport_sha256': sha256(HERE / 'session-exec'),
                'outputs': outputs}
     write_json(path.with_suffix('.json'), receipt)
     print(path)

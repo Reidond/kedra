@@ -13,7 +13,6 @@ RUN rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=
     rm /tmp/base-rpms /tmp/lab-rpms && dnf clean all && rm -rf /var/lib/dnf /var/cache/libdnf5
 COPY seed.py /usr/libexec/kedra-lab/seed
 COPY seed.service /usr/lib/systemd/system/kedra-lab-seed.service
-COPY session-exec /usr/libexec/kedra-lab/session-exec
 COPY session-start /usr/libexec/kedra-lab/session-start
 COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
 COPY probes/ /usr/libexec/kedra-lab/probes/

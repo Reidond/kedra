@@ -49,11 +49,18 @@ target/debug/kedra-lab vm down --name desktop --force
 target/debug/kedra-lab vm remove --name desktop
 ```
 
+An explicit diagnostic instance can use `vm up --name software --image IMAGE_JSON
+--software`; its receipts say `native-qemu-software` and cannot qualify GPU behavior.
+The accelerated profile refuses a compositor renderer that is not VirGL/ANGLE Metal.
+
 These retained-instance commands require no Docker daemon. `vm sync` uses the same
 source archiver and validated guest transaction as container sync: additions,
 changes and deletions of niri/Noctalia defaults, conflict refusal, retained GUI
 overrides and interrupted-write recovery. Package/rootfs changes require a newly
-prepared image. Runtime changes require a new instance; receipts reject substitution.
+prepared image. The ordinary-user session transport comes from the controller at
+execution time, so updating lab control code does not rebuild the OS disk. Capture
+receipts include controller/transport hashes. Shutdown bypasses desktop environment
+lookup; a stopped user manager cannot block the poweroff request. Runtime changes require a new instance; receipts reject substitution.
 
 Click inside the native window to capture input; Control+Option+G releases it.
 `vm key` sends QEMU virtual-hardware qcodes, including modifier combinations, for

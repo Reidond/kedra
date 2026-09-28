@@ -343,7 +343,6 @@ fn prepare_kind(docker: &Docker, request: &Request, native: bool) -> Result<LabI
             "tools.Containerfile",
             "seed.py",
             "seed.service",
-            "session-exec",
             "session-start",
         ]
     } else {

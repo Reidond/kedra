@@ -6,6 +6,10 @@ export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 # Read the live session, including its GTK/Qt renderer choices and current sockets.
 # An old socket left by a crashed compositor must not win a filesystem glob.
+manager=$(timeout --kill-after=1s 5s systemctl --user show-environment) || {
+    echo 'Desktop user manager did not answer; inspect the VM journal' >&2
+    exit 1
+}
 while IFS='=' read -r name value; do
     case "$name" in
         WAYLAND_DISPLAY|NIRI_SOCKET|DISPLAY|GSK_RENDERER|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|XDG_SESSION_DESKTOP|QT_QPA_PLATFORM|QT_QPA_PLATFORMTHEME|GTK_THEME)
@@ -13,6 +17,6 @@ while IFS='=' read -r name value; do
             ;;
     esac
 done <<MANAGER
-$(systemctl --user show-environment)
+$manager
 MANAGER
 exec "$@"

@@ -4,7 +4,7 @@ description: >
   Installed-image checks that need no session: packaged desktop programs,
   validated account defaults, enabled/masked units, toolkit integration
   packages, the private Bitwarden and Codex runtimes. Formerly the host-side
-  podman checks of test-desktop.yml and part of utm-image/image-check.sh.
+  podman checks of test-desktop.yml and part of qemu-arm64-image/image-check.sh.
 profile: system
 steps:
   - exec:

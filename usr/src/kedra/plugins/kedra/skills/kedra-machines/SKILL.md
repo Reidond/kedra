@@ -20,24 +20,15 @@ until selected/qualified. Use a second synthetic VM target to prove architecture
 without pretending it certifies any Dell model. Both targets may build from the
 same source commit/base but produce different image digests and installers.
 
-2026-09-25 (spec for this change; source only until qualified): `utm` is the second
-enabled target: aarch64, `ghcr.io/reidond/kedra-utm`, `hardware_status = "virtual"`.
-It is an Apple Silicon Mac guest in UTM 5.0.6's QEMU backend (HVF, `virtio-gpu-gl-pci`,
-UEFI + TPM Secure Boot), not a hardware claim. The closed table is
-`usr/src/kedra/image/release/targets.json`, embedded by sysroot-core and read by
-the Python tooling; any other (target, architecture) pair is refused, and xps
-stays disabled. It has its own key, signing environment, runner and rank history.
-Keep niri output/scale/input overrides out of the utm overlay
-(`usr/src/kedra/image/targets/utm/`) until measured in UTM. Facts found in
-disposable containers on 2026-09-25:
-- Fedora 44 `qemu-guest-agent-10.2.2-1.fc44` blocks no RPCs (`QEMU_GA_ARGS` is
-  commented out in `/etc/sysconfig/qemu-ga`). UTM always attaches its port, and
-  `utmctl exec`/`file` use it (UTM v5.0.6 `Scripting/UTMScripting*Impl.swift`).
-  The utm overlay therefore blocks the exec, file, password and SSH-key RPCs in a
-  qemu-guest-agent drop-in.
-- Bitwarden has no aarch64 RPM. `usr/src/kedra/image/bitwarden/prepare.py`
-  accepts only the reviewed flat layout of the arm64 tarball. Its desktop entry keeps upstream `%u`, and
-  niri/Noctalia app-id matching on utm is unmeasured.
+The enabled ARM target is `qemu-arm64`, a native Apple Silicon QEMU/HVF guest.
+The owner explicitly retired the old `utm` identity on 2026-09-28. Its closed
+entry is in `image/release/targets.json`, embedded by sysroot-core and read by
+Python tooling. It has its own repository, public key and signing environment.
+Keep output/scale overrides in disposable lab state unless a product default is
+measured. The target preserves qemu-guest-agent's restricted RPC list; fixture
+SSH grants do not enter production. SPICE integration and Venus diagnostics were
+removed because the native backend uses Cocoa/VirGL/ANGLE Metal, not SPICE/Venus.
+Bitwarden uses the reviewed official arm64 tarball because no arm64 RPM exists.
 
 ## Provenance and identity
 

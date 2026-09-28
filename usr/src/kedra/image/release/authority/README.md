@@ -12,15 +12,20 @@ a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
 
 The owner provisioned and backed up this authority separately from Bitwarden-held SSH keys.
 
-## utm
+## qemu-arm64
 
-The public key is `utm.pub`; `utm.sha256` records its SPKI DER SHA-256:
+This replaces the retired `utm` identity at the owner's explicit request on
+2026-09-28. It has a fresh dedicated P-256 key, separate from desktop and from the
+old ARM authority. `qemu-arm64.pub` / `qemu-arm64.sha256` record its public SPKI:
 
 ```text
-76ca7a65915adb1907acbe0885af83c5c569dd2964b87decbfb67059dee366c6
+80551368732ccb49be7916db9ccfd1e3caa11a767e86749378565ec0b8a1a515
 ```
 
-That value was read from `utm.sha256` and matches `openssl pkey -pubin -in utm.pub -outform DER | sha256sum` (checked 2026-09-25). The `kedra-utm-signing` environment, its secrets/variables and the public `kedra-utm`/`kedra-utm-builds` packages are pending owner provisioning; see [STATUS](../../../docs/STATUS.md) for whether that has happened. Until then the utm build fails closed at its environment-policy or registry-absence check, and desktop publication is unaffected.
+The main-only `kedra-qemu-arm64-signing` environment is provisioned with its own
+secrets/variables and administrator bypass disabled. Package initialization,
+first signed publication and old environment/package retirement are tracked in
+[STATUS](../../../docs/STATUS.md). Do not reuse or relabel old signed images.
 
 ## Rules for every target
 
@@ -31,7 +36,7 @@ The `kedra-<target>-signing` GitHub environment must allow only the `main` deplo
 | Target | Secrets (environment) | Variables (environment) |
 |---|---|---|
 | `desktop` | `KEDRA_DESKTOP_SIGNING_KEY`, `KEDRA_DESKTOP_SIGNING_PASSPHRASE` | `KEDRA_DESKTOP_PUBLIC_KEY`, `KEDRA_DESKTOP_KEY_SHA256` |
-| `utm` | `KEDRA_UTM_SIGNING_KEY`, `KEDRA_UTM_SIGNING_PASSPHRASE` | `KEDRA_UTM_PUBLIC_KEY`, `KEDRA_UTM_KEY_SHA256` |
+| `qemu-arm64` | `KEDRA_QEMU_ARM64_SIGNING_KEY`, `KEDRA_QEMU_ARM64_SIGNING_PASSPHRASE` | `KEDRA_QEMU_ARM64_PUBLIC_KEY`, `KEDRA_QEMU_ARM64_KEY_SHA256` |
 
 The key secret is the encrypted OCI signing key and the passphrase secret its passphrase. The variables are independently reviewed public values that must match the checkout's `<target>.pub`/`<target>.sha256`. Do not store these as repository secrets. `release.yml` uses `secrets: inherit`, which a called job needs to see its environment's secrets (probe run 36191986665); with no repository-level secrets, the reusable signer job still reads only the values of the environment it declares.
 

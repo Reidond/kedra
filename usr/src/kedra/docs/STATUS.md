@@ -2,6 +2,81 @@
 
 The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
 
+## Active completion and identity replacement (2026-09-28)
+
+The owner explicitly requires finishing the missing qualification and retiring
+existing Kedra UTM VMs plus the signed `utm` identity. Current source now defines
+`qemu-arm64` with separate `kedra-qemu-arm64` / `kedra-qemu-arm64-builds` images
+and a fresh dedicated authority `80551368…1a515`. Its main-only GitHub signing
+environment is provisioned; the namespace-only bootstrap images are currently
+private, awaiting GitHub browser sign-in to set their visibility. No replacement
+OS has been signed/published yet. The old signing environment/packages remain
+until replacement publication can complete without an interruption.
+
+UTM CLI and native UI report an empty VM list; no owner VM has been removed by
+this follow-up. The default native lab currently uses the earlier `utm` fixture;
+a clean `qemu-arm64` native disk build is in progress. New-source local CLI E2E
+passes, including refusal of the retired target. The earlier results below remain
+historical evidence, not the full qualification of this new identity. See
+WL-20260928-08 for the active work and outstanding browser authentication.
+
+## Current development scope (2026-09-28)
+
+The owner requested a custom QEMU replacement for local UTM tooling, with fast
+GPU-rendered manual desktop testing on this Apple Silicon Mac, alongside an
+extended Testcontainers edit/sync/screenshot workflow. The
+[requirements](../../../../.specs/qemu-desktop-iteration/requirements.md) are
+approved by the owner on 2026-09-28. The
+[design](../../../../.specs/qemu-desktop-iteration/design.md) is also approved;
+the [12 tasks](../../../../.specs/qemu-desktop-iteration/tasks.md),
+[28 cases](../../../../.specs/qemu-desktop-iteration/test-cases.md) and
+[verification plan](../../../../.specs/qemu-desktop-iteration/test-plan.md) are
+approved for implementation. The local replacement is implemented: `kedra-lab vm`
+prepares a locked private QEMU/HVF/Cocoa runtime and disposable native disks, keeps
+named desktops, applies validated home changes, captures guest pixels and controls
+input/lifecycle. Actual niri and Wayland EGL rendering report
+`virgl (ANGLE (Apple, ANGLE Metal Renderer: Apple M2 Pro, ...))`; the same desktop
+was inspected in the native window. Secure Boot is enabled, SELinux is Enforcing,
+the generated keyring is unlocked and no failed system units were observed.
+
+The UTM launcher, cocoa-way/waypipe build/bridge and unused live-view code are
+removed. The renamed ARM boot workflow `test-qemu-arm64.yml` retains its security
+assertions. Signed target identity `utm`, release authority and owner VM data are
+preserved. Signed-media preparation now lives in `installer/macos`; the existing
+verified ISO reached Anaconda with its Secure Boot/signature readiness markers.
+A new ISO build and fresh encrypted installation through this launcher are not-run.
+
+Native sources, compiler archives, ANGLE dependencies and patches are pinned in
+`tests/container/qemu/inputs.json` and its companion locks. Besides the EGL/Cocoa
+compatibility patches, the runtime includes upstream stable-11.0 HVF WFI fix
+`3b98370b55de7fff540092c1a6760726a6816625`: the unpatched idle VM consumed several
+host cores. The corrected runtime measured 2.9% host CPU during a quiet 10 s sample.
+Authorized prerequisites were installed; no system QEMU or UTM libraries are used.
+
+Inspected base is `main` at `a3a39a4a8a1d7777f02ab68d80ad4f39abf40c87`.
+Its workspace run [36326037562](https://github.com/Reidond/kedra/actions/runs/36326037562)
+passes; new changes are local/uncommitted, with no new-source CI result. Five final
+ARM container runs passed 13/13 each: suite median 85.61 s, max 124.80 s; complete
+command median 91.03 s, max 133.37 s. They use cached ARM base `45fe5f72…e5fdc`
+and working-tree overlay. Container sync validation/conflict/deletion/override and
+interrupted-write recovery passed. A real timeout defect was fixed: observations
+cannot pass after their deadline, including fractional-second command limits.
+Active eventually cancellation exited 130 in 0.536 s with its partial report,
+zero remaining execution containers and the retained lab healthy.
+
+Five native warm starts measured median 24.443 s / max 44.929 s. The final native
+edit+capture loop measured median 4.676 s / max 8.959 s; captures median 1.043 s /
+max 1.636 s. Container edit+capture measured median 5.000 s / max 9.177 s and
+captures median 0.331 s / max 0.467 s. Native image evidence is a cached unsigned
+local candidate plus working-tree payload, not a newly published complete OS.
+Instance key/disk isolation, Docker-independent sync, failed-start cleanup and
+valid/invalid native edits passed. Frame pacing, audio/full toolkit and physical
+modifier-key checks, the complete fault matrix and x86/new-source CI remain open.
+See WL-20260928-07 and the [delivery review](../../../../.specs/qemu-desktop-iteration/review.md)
+for exact evidence and remaining qualification.
+Earlier production and qualification records below retain their original dates and
+source revisions.
+
 ## Current summary (2026-09-25)
 
 - **Production.** `ghcr.io/reidond/kedra-desktop:stable` resolves to `sha256:3fb355b4151ca5741fb5cfb53689eaade6ea262dabdfb7f74fd124f9ecaae85f`, published by push release run [36132498983](https://github.com/Reidond/kedra/actions/runs/36132498983) (run #26) from main `664ffc1088cef1a3374f665b61bc261cfcb0c673` (PR #15, bootc 1.16.13, Fedora base 44.20260925.0). Anonymous registry readback on 2026-09-25 confirms the digest and identity (run 26, attempt 1). Fourteen signed stable publications exist in total; see the table below.

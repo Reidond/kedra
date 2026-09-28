@@ -1,0 +1,18 @@
+#!/bin/sh
+# Guest-only ordinary-user desktop transport. Never evaluate shell configuration.
+set -eu
+test "$(id -un)" = kedra-test
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+# Read the live session, including its GTK/Qt renderer choices and current sockets.
+# An old socket left by a crashed compositor must not win a filesystem glob.
+while IFS='=' read -r name value; do
+    case "$name" in
+        WAYLAND_DISPLAY|NIRI_SOCKET|DISPLAY|GSK_RENDERER|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|XDG_SESSION_DESKTOP|QT_QPA_PLATFORM|QT_QPA_PLATFORMTHEME|GTK_THEME)
+            export "$name=$value"
+            ;;
+    esac
+done <<MANAGER
+$(systemctl --user show-environment)
+MANAGER
+exec "$@"

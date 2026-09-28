@@ -1,0 +1,13 @@
+[Unit]
+Description=Install disposable Kedra QEMU access keys
+Before=sshd.service greetd.service
+After=local-fs.target
+ConditionPathExists=/usr/share/kedra-lab/added-rpms.txt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/kedra-lab/seed
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

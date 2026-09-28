@@ -11,6 +11,11 @@ Use edition 2024, resolver 3, one Cargo.lock and explicit binary/library paths. 
 
 Use typed errors, explicit process arguments and separate stdout data/stderr diagnostics. Preserve subprocess failure. Avoid input panics and unsafe shortcuts; safe Rust alone does not prove privilege, race, signature or recovery correctness.
 
+The container crate also uses the workspace base64 dependency for bounded desktop
+payloads and signal-hook 0.4.4 for cooperative interruption. `prepare-sync` caches
+the host-native source archiver; config-only sync must not call the Linux binary
+builder. Rust/Cargo/toolchain input changes invalidate that cache explicitly.
+
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings

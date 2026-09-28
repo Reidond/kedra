@@ -38,10 +38,17 @@ Earlier display/GPU context is not a live hardware probe.
 Measured 2026-09-27 (niri 26.04, Noctalia 5.1.0, OrbStack 2.2.3 on an M2 Pro): the real session renders in a container. The harness README has the details (usr/src/kedra/tests/container).
 
 - **How it runs.** `kedra-session` starts through the greetd PAM service with `PAMName=greetd`, which gives a real logind session. niri runs nested through its winit backend: `niri --session` drops `WAYLAND_DISPLAY` unless `WSL_DISTRO_NAME` is set (src/main.rs, v26.04). The parent is a headless sway (pixman). Rendering is llvmpipe; Noctalia, GTK 3/4, Qt and Electron (Bitwarden) render.
-- **Screenshots.** `kedra-lab up`, edit etc/skel, `kedra-lab sync` (niri reloads its config), then `kedra-lab shot`. The default output is 2560×1600 at scale 2, set by `niri msg output winit scale`, because niri's `output` config does not size a winit output. Show the owner the PNGs.
-- **Live view on macOS.** `kedra-lab live-tools` builds pinned cocoa-way 2.0.3 and waypipe-darwin 0.11.0 without Homebrew taps; it needs libxkbcommon, lz4, zstd, pixman and Xcode's libclang. Then `kedra-lab up --live`. OrbStack refuses container connections to macOS-created Unix sockets, so waypipe goes through a loopback TCP bridge to `host.docker.internal`. cocoa-way gave niri a 1600×1200 output at scale 1.
+- **Screenshots.** `kedra-lab up`, edit supported niri/Noctalia defaults in etc/skel, then `kedra-lab sync --shot changed`. `up` prepares the host source archiver; a stale one requires `prepare-sync`. Sync validates first, preserves guest edits/GUI overrides and tracks managed deletions; it does not compile Rust. PNG receipts read actual niri output scale and identify image/home source. The default output is 2560×1600 at scale 2, set by niri IPC. Show the owner the PNGs.
 - **Input.** niri's virtual keyboard reaches foot, GTK 3 (wlrctl's standard keymap only) and GTK 4 (wtype, which sends a real Return). Xwayland (xwayland-satellite) and Qt 6.11 clients received no key events. A nested niri reads raw keycodes with its own keymap, so wtype through the parent compositor types wrong characters. Keyboard-driven Qt/Xwayland checks stay in the VM.
 - **Not the hardware.** Container screenshots show layout, theme and palette, not GPU, scaling-on-hardware or accessibility behavior. The kernel, uptime and hardware sensors are the host's.
+
+Measured 2026-09-28: Noctalia 5.1's `config validate` accepts an unknown
+`theme.mode` string, even with an explicit directory. Malformed TOML is rejected.
+The sync helper uses an explicit staging directory and captures native errors;
+inspect the effective rendering instead of treating validator success as semantic
+proof. Evidence: WL-20260928-04 and `usr/src/kedra/tests/container/lab/probes/sync-home.py`.
+Native QEMU renderer/scanout evidence is recorded below; `vm tools check` still
+only inspects prerequisites and never infers GPU qualification from readiness.
 
 ## Greeter adoption boundary
 
@@ -180,3 +187,26 @@ Primary references: [niri](https://niri-wm.github.io/niri/),
 [Fedora Noctalia package](https://packages.fedoraproject.org/pkgs/noctalia/noctalia/),
 [Noctalia configuration](https://docs.noctalia.dev/noctalia/configuration/) and
 [systemd environment scope](https://man7.org/linux/man-pages/man5/environment.d.5.html).
+
+Native Mac lab (2026-09-28): `kedra-lab vm` builds pinned QEMU 11/HVF/Cocoa,
+VirGL and ANGLE Metal independently of UTM. See `tests/container/qemu/README.md`.
+A real ARM guest reported Secure Boot enabled, Enforcing SELinux and the Apple M2
+Pro Metal renderer; guest grim and the native Cocoa window showed the same desktop.
+This is separate from the software container renderer and from unmeasured frame
+pacing. CUA synthetic modifier keys did not follow the same path as letters and
+clicks; do not infer full manual keyboard qualification from those alone. QMP
+`vm key` is available for virtual hardware input. Noctalia can intercept the ACPI
+power key; the disposable fixture grants one exact sudo poweroff command for
+bounded shutdown. Never add these fixture grants to production images.
+The old UTM frontend, cocoa-way builder and waypipe TCP bridge were removed.
+
+Pinned QEMU 11 HVF correction (2026-09-28): candidate `29d25d77` contains the
+idle WFI regression described in [upstream issue 3433](https://gitlab.com/qemu-project/qemu/-/work_items/3433).
+An idle guest (load about 0.03) consumed 437.3% host CPU in Activity Monitor.
+`qemu/patches/hvf-wfi.patch` is the exact reviewed stable-11.0 backport
+[3b98370](https://github.com/qemu/qemu/commit/3b98370b55de7fff540092c1a6760726a6816625),
+which halts idle vCPUs and arms their wake timers. Retain its checksum and upstream
+attribution when refreshing the graphics fork. Measure CPU-time deltas over an
+idle interval; lifetime `ps %cpu` hides bursts. The Cocoa activity guard addresses
+App Nap separately and allows ordinary Mac idle sleep. Startup, background SSH,
+frame capture and idle load must be rechecked after runtime changes.

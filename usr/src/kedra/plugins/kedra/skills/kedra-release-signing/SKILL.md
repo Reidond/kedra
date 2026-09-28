@@ -10,9 +10,13 @@ Read usr/src/kedra/docs/RELEASES.md, usr/src/kedra/docs/UPDATES.md and usr/src/k
 | Target | Repository | Builds repository | Environment | Secret/variable prefix | Authority |
 |---|---|---|---|---|---|
 | desktop (x86_64) | ghcr.io/reidond/kedra-desktop | ghcr.io/reidond/kedra-desktop-builds | kedra-desktop-signing | KEDRA_DESKTOP | usr/src/kedra/image/release/authority/desktop.pub, .sha256 |
-| utm (aarch64) | ghcr.io/reidond/kedra-utm | ghcr.io/reidond/kedra-utm-builds | kedra-utm-signing | KEDRA_UTM | usr/src/kedra/image/release/authority/utm.pub, .sha256 |
+| qemu-arm64 (aarch64) | ghcr.io/reidond/kedra-qemu-arm64 | ghcr.io/reidond/kedra-qemu-arm64-builds | kedra-qemu-arm64-signing | KEDRA_QEMU_ARM64 | usr/src/kedra/image/release/authority/qemu-arm64.pub, .sha256 |
 
-Recorded 2026-09-25. The utm key was generated offline for the owner (encrypted P-256, fingerprint `76ca7a65…66c6`); its main-only environment and public, repository-linked packages exist. See usr/src/kedra/docs/STATUS.md. Ranks and high-water marks are per repository. A key never signs another target's repository. Legacy protocol-1 release files stay desktop/x86_64 only.
+The owner authorized retiring `utm` on 2026-09-28. The replacement `qemu-arm64`
+authority has fingerprint `80551368…1a515` and its own main-only environment.
+See STATUS for actual first publication/retirement. Never relabel an old signed
+image: target, repository and source are part of its signed identity. Ranks and
+high-water marks are per repository; legacy protocol-1 remains desktop-only.
 
 Use the dedicated OS-image authority, separate from SSH keys. The isolated automatic signer runs no checkout, candidate or repository code while private keys are available. There is no human-review/signing gate; main-only environment restrictions, exact current-main/rank checks and strict signature verification remain. Preserve signatures and native OCI digest through copies.
 

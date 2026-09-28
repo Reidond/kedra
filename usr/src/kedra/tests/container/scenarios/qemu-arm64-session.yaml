@@ -1,0 +1,10 @@
+version: 1
+name: qemu_arm64_session_graphics
+description: The qemu-arm64 target keeps GTK 4 on the GL renderer in the real session.
+profile: desktop
+targets: [qemu-arm64]
+steps:
+  - exec:
+      as: user
+      argv: [systemctl, --user, show-environment]
+      expect: {stdout_contains: ["GSK_RENDERER=gl\n"]}

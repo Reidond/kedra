@@ -105,11 +105,33 @@ pub struct Owned {
 }
 
 impl Docker {
+    /// BuildKit requires a named FROM reference, not a bare local sha256 image ID.
+    pub fn pin_local(&self, id: &str) -> Result<String> {
+        let digest = id
+            .strip_prefix("sha256:")
+            .filter(|value| value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit()))
+            .ok_or_else(|| invalid("container engine returned an invalid image ID"))?;
+        let reference = format!("kedra-lab-base:{digest}");
+        if let Some((found, _)) = self.image(&reference)? {
+            if found != id {
+                return Err(invalid("local base cache tag points at another image"));
+            }
+        } else {
+            let options = bollard::query_parameters::TagImageOptions {
+                repo: Some("kedra-lab-base".into()),
+                tag: Some(digest.into()),
+            };
+            self.runtime
+                .block_on(self.api.tag_image(id, Some(options)))?;
+        }
+        Ok(reference)
+    }
+
     pub fn connect() -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
-        let api = bollard::Docker::connect_with_local_defaults()?;
+        let api = bollard::Docker::connect_with_defaults()?;
         Ok(Docker { runtime, api })
     }
 
@@ -120,18 +142,22 @@ impl Docker {
             .ok_or_else(|| Error::Docker("engine did not report its architecture".into()))
     }
 
+    /// Bind native disk preparation to the same engine as Testcontainers.
+    pub fn identity(&self) -> Result<String> {
+        self.runtime
+            .block_on(self.api.info())?
+            .id
+            .ok_or_else(|| Error::Docker("engine did not report its identity".into()))
+    }
+
     /// Run `argv` bounded by `timeout(1)` inside the container, so an expired
     /// deadline kills the process instead of leaving it running.
     pub fn exec(&self, container: &str, exec: &Exec) -> Result<Output> {
         if exec.argv.is_empty() {
             return Err(invalid("empty command"));
         }
-        let seconds = exec.timeout.as_secs().max(1);
-        let mut cmd = vec![
-            "timeout".to_owned(),
-            "--kill-after=5s".to_owned(),
-            format!("{seconds}s"),
-        ];
+        let timeout = format!("{:.3}s", exec.timeout.as_secs_f64().max(0.001));
+        let mut cmd = vec!["timeout".to_owned(), "--kill-after=5s".to_owned(), timeout];
         cmd.extend(exec.argv.iter().cloned());
         let env: Vec<String> = exec
             .env
@@ -152,7 +178,7 @@ impl Docker {
         let started = Instant::now();
         // Backstop in case the Engine stream itself hangs past timeout(1)'s kill.
         let backstop = exec.timeout + Duration::from_secs(30);
-        let result = self.runtime.block_on(async {
+        let result = self.runtime.block_on(crate::cancel::interrupt(async {
             tokio::time::timeout(backstop, async {
                 let created = self.api.create_exec(container, config).await?;
                 let mut stdout = Vec::new();
@@ -180,7 +206,7 @@ impl Docker {
                 Ok::<_, Error>((inspected.exit_code, stdout, stderr))
             })
             .await
-        });
+        }))?;
         let (exit, stdout, stderr) = match result {
             Ok(outcome) => outcome?,
             Err(_) => {
@@ -280,9 +306,23 @@ impl Docker {
             v: true,
             ..Default::default()
         };
-        self.runtime
-            .block_on(self.api.remove_container(id, Some(options)))?;
-        Ok(())
+        match self.runtime.block_on(async {
+            tokio::time::timeout(
+                Duration::from_secs(30),
+                self.api.remove_container(id, Some(options)),
+            )
+            .await
+        }) {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(bollard::errors::Error::DockerResponseServerError {
+                status_code: 404, ..
+            })) => Ok(()),
+            Ok(Err(error)) => Err(error.into()),
+            Err(_) => Err(Error::Timeout {
+                what: "container removal".into(),
+                after: Duration::from_secs(30),
+            }),
+        }
     }
 
     /// Remove harness-built images (lab tools, overlays, builders, local
@@ -403,7 +443,7 @@ impl Docker {
             }
             tail.push_back(line);
         };
-        let outcome = self.runtime.block_on(async {
+        let outcome = self.runtime.block_on(crate::cancel::interrupt(async {
             let mut stream = self.api.build_image(
                 options,
                 None,
@@ -439,7 +479,7 @@ impl Docker {
                 }
             }
             Ok(())
-        });
+        }))?;
         outcome.map_err(|error| Error::Command {
             what: format!("image build {}", build.tag),
             exit: 1,
@@ -458,12 +498,12 @@ impl Docker {
             ..Default::default()
         };
         eprintln!("kedra-lab: pulling {reference} ({platform})");
-        self.runtime.block_on(async {
+        self.runtime.block_on(crate::cancel::interrupt(async {
             let mut stream = self.api.create_image(Some(options), None, None);
             while let Some(item) = stream.next().await {
                 item?;
             }
             Ok::<_, Error>(())
-        })
+        }))?
     }
 }

@@ -9,7 +9,7 @@ source:
 | Target | Architecture | Official package | Needs |
 |---|---|---|---|
 | desktop | x86_64 | `Bitwarden-2026.8.0-x86_64.rpm` | `rpm`, `rpm2cpio`, `cpio` |
-| utm | aarch64 | `bitwarden_2026.8.0_arm64.tar.gz` (no aarch64 RPM exists) | Python only |
+| qemu-arm64 | aarch64 | `bitwarden_2026.8.0_arm64.tar.gz` (no aarch64 RPM exists) | Python only |
 
 It checks exact sizes/SHA-256, and emits a deterministic root-owned tar for the
 explicit build context plus the same receipt as evidence. It does not execute
@@ -50,7 +50,7 @@ license files, corresponding source and `/usr/share/sysroot/bitwarden.json`
 receipt. The tarball ships no package scripts. Its entry differs from the RPM's
 (`StartupWMClass=com.bitwarden.desktop` rather than `Bitwarden`, categories
 `System;Security;`); window/launcher matching under niri is unqualified until
-the utm image is checked in UTM. Linux arm64 support, NAPI loading and the SSH
+the qemu-arm64 image is checked in UTM. Linux arm64 support, NAPI loading and the SSH
 agent on aarch64 are likewise not yet qualified.
 
 The login wrapper, systemd user environment and TTY login profile default to

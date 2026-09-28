@@ -61,7 +61,7 @@ pub const STATUS_JSON: &str = r#"{
     },
     "targets": {
       "implemented": true, "platform": "portable",
-      "enabled": {"desktop": "x86_64", "utm": "aarch64"},
+      "enabled": {"desktop": "x86_64", "qemu-arm64": "aarch64"},
       "requires": ["separately signed image per target"]
     }
   },
@@ -72,7 +72,7 @@ pub const STATUS_JSON: &str = r#"{
     "codex_bundled_runtime": "native_vm_pass",
     "claude_bundled_runtime": "not_packaged_pending_owner_terms",
     "agent_authentication": "not_qualified",
-    "utm_target": "implemented_not_qualified",
+    "qemu_arm64_target": "implemented_not_qualified",
     "secure_boot_enforcement": "implemented_not_qualified",
     "tpm_unlock": "implemented_not_qualified"
   },

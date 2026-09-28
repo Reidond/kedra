@@ -23,11 +23,11 @@ Facts for Fedora 44 aarch64, observed 2026-09-25 in TCG prototypes with Ubuntu `
 - shim-aa64 16.1-5 is signed only through Microsoft UEFI CA 2023.
 - Its `fbaa64.efi`/`mmaa64.efi` carry a Red Hat test certificate, so the removable path `\EFI\BOOT\BOOTAA64.EFI` with fallback present fails with `Security Violation`.
 - The installer ISO is unaffected. The pinned builder's `org.osbuild.grub2.iso` copies only shim, mm and `gcdaa64.efi` from `EFI/fedora` (usr/src/kedra/installer/README.md).
-- Installed and bootc-image-builder disks carry fallback. Installed disks need bootupd's `--update-firmware` NVRAM entry for `\EFI\fedora\shimaa64.efi`; that is source-read, not observed on utm. Test disks get an explicit `virt-fw-vars --append-boot-filepath` entry (usr/src/kedra/tests/vm/utm-image/boot.sh).
+- Installed and bootc-image-builder disks carry fallback. Installed disks need bootupd's `--update-firmware` NVRAM entry for `\EFI\fedora\shimaa64.efi`; that is source-read, not observed on qemu-arm64. Test disks get an explicit `virt-fw-vars --append-boot-filepath` entry (usr/src/kedra/tests/vm/qemu-arm64/boot.sh).
 - Do not reset UEFI variables. Recover through the firmware Boot Maintenance Manager.
 - bootc-image-builder appends `console=ttyS0` after the image kargs on test disks.
 
-`usr/src/kedra/image/targets/utm` adds `kargs.d/30-kedra-utm-console.toml` (`console=ttyAMA0,115200 console=tty0`, aarch64 only). The aarch64 installer uses `grub2-efi-aa64-cdboot` and still needs `grub2-pc-modules`, because image-builder v82 always adds the i386-pc El Torito stage.
+`usr/src/kedra/image/targets/qemu-arm64` adds `kargs.d/30-kedra-qemu-arm64-console.toml` (`console=ttyAMA0,115200 console=tty0`, aarch64 only). The aarch64 installer uses `grub2-efi-aa64-cdboot` and still needs `grub2-pc-modules`, because image-builder v82 always adds the i386-pc El Torito stage.
 
 Native tests must distinguish image build, signed update/rollback, fresh installation, graphical health and physical hardware. Key rotation, old-reader compatibility and physical devices require independent evidence.
 

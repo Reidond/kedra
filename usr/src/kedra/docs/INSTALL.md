@@ -1,6 +1,6 @@
 # Build and install local media
 
-Kedra publishes signed container images per target: `ghcr.io/reidond/kedra-desktop` (x86_64) and `ghcr.io/reidond/kedra-utm` (aarch64, an Apple Silicon Mac running UTM). Installation media is constructed locally from an explicitly reviewed digest. No GitHub Release or ISO download is required.
+Kedra publishes signed container images per target: `ghcr.io/reidond/kedra-desktop` (x86_64) and `ghcr.io/reidond/kedra-qemu-arm64` (aarch64, a native QEMU VM on Apple Silicon). Installation media is constructed locally from an explicitly reviewed digest. No GitHub Release or ISO download is required.
 
 ## Secure Boot prerequisites
 
@@ -23,7 +23,7 @@ The pinned image-builder only builds media for its own architecture. Use a build
 | Target | Image repository | Build host |
 |---|---|---|
 | desktop | `ghcr.io/reidond/kedra-desktop` | x86_64 Linux |
-| utm | `ghcr.io/reidond/kedra-utm` | aarch64 Linux, or an Apple Silicon Mac through [usr/src/kedra/installer/utm](../installer/utm/README.md) |
+| qemu-arm64 | `ghcr.io/reidond/kedra-qemu-arm64` | aarch64 Linux, or an Apple Silicon Mac through [macOS media tooling](../installer/macos/README.md) |
 
 A Linux build host needs uv (it runs the script with the Python 3.12 pinned by the checkout's `.python-version`), sudo, rootful Podman using its default `/var/lib/containers/storage`, Podman's Netavark network helper, Skopeo and OpenSSL already installed. On Ubuntu, include the `netavark` package explicitly when installing Podman with `--no-install-recommends`; omitting it can prevent cleanup of inspection containers. Allow sufficient temporary disk space for the payload, Anaconda image and ISO. The script does not install prerequisites or change host trust policy.
 
@@ -33,14 +33,14 @@ Use a trusted Kedra checkout and independently confirm the target's public-key f
 
 ```text
 desktop  a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
-utm      76ca7a65915adb1907acbe0885af83c5c569dd2964b87decbfb67059dee366c6
+qemu-arm64      76ca7a65915adb1907acbe0885af83c5c569dd2964b87decbfb67059dee366c6
 ```
 
 Review the signed image's exact digest through the completed Actions signing result or [image verification](RELEASES.md). Substitute that full digest:
 
 ```sh
 uv run usr/src/kedra/installer/build-local.py --image ghcr.io/reidond/kedra-desktop@sha256:REVIEWED_DIGEST --output-dir /absolute/path/to/new-installer
-uv run usr/src/kedra/installer/build-local.py --image ghcr.io/reidond/kedra-utm@sha256:REVIEWED_DIGEST --output-dir /absolute/path/to/new-installer
+uv run usr/src/kedra/installer/build-local.py --image ghcr.io/reidond/kedra-qemu-arm64@sha256:REVIEWED_DIGEST --output-dir /absolute/path/to/new-installer
 ```
 
 The repository selects the target. Other repositories, tags and cross-architecture builds are refused. The output directory must not already exist.
@@ -58,25 +58,31 @@ For an additional diskless startup check on a host with usable KVM, add `--smoke
 
 The ISO boots as a CD through UEFI Secure Boot without disks. The check passes only if the guest reports Secure Boot enabled with kernel lockdown, successful embedded signature verification and Anaconda startup. It does not perform an installation. Apple M1/M2 Macs have no KVM, so the macOS wrapper builds without `--smoke`.
 
-## UTM on an Apple Silicon Mac
+## Native QEMU on an Apple Silicon Mac
 
-The `utm` target runs in UTM's QEMU backend with UEFI boot and a TPM. With both enabled, UTM uses its Secure Boot firmware with a variable store that enrolls the Microsoft UEFI CAs. `usr/src/kedra/installer/utm/kedra-utm.py` runs with `uv run` from the checkout root and has four steps:
+The legacy signed target ID is `qemu-arm64`; the local frontend is now `kedra-lab vm`.
+It uses standalone QEMU/HVF, Cocoa with VirGL/ANGLE Metal, a private Microsoft-
+enrolled Secure Boot variable store and swtpm. Prepare the runtime once, then:
 
 ```sh
-uv run usr/src/kedra/installer/utm/kedra-utm.py check-host --automation
+target/debug/kedra-lab vm tools prepare
 mkdir -p ~/Kedra
-uv run usr/src/kedra/installer/utm/kedra-utm.py iso --image ghcr.io/reidond/kedra-utm@sha256:REVIEWED_DIGEST --output ~/Kedra/iso-REVIEWED
-uv run usr/src/kedra/installer/utm/kedra-utm.py create --iso ~/Kedra/iso-REVIEWED/kedra-utm-44-DIGEST16.iso
-# install in UTM as below, shut the VM down, then:
-uv run usr/src/kedra/installer/utm/kedra-utm.py detach-installer --bundle ~/VMs/Kedra.utm
+target/debug/kedra-lab vm iso --image ghcr.io/reidond/kedra-qemu-arm64@sha256:REVIEWED_DIGEST --output ~/Kedra/iso-REVIEWED
+target/debug/kedra-lab vm installer --name install --iso ~/Kedra/iso-REVIEWED/kedra-qemu-arm64-44-DIGEST16.iso
+# Install in the native window as below, then shut it down:
+target/debug/kedra-lab vm detach-installer --name install
+target/debug/kedra-lab vm up --name install
 ```
 
-- `check-host` is read-only. `--automation` additionally runs `utmctl list` (this starts UTM hidden) and fails if macOS blocks Automation access to UTM.
-- `iso` runs the unchanged `build-local.py` (without `--smoke`) in a disposable arm64 Linux container on the local Docker engine and checks `SHA256SUMS` on macOS. The parent of `--output` must exist; the output directory itself must not.
-- `create` makes a UTM bundle with UEFI, TPM, the keyed Secure Boot variable store, `virtio-gpu-gl-pci`, the ISO as a read-only CD, an empty VirtIO system disk and a serial console in UTM's built-in terminal. A localhost TCP serial port is added only with `--serial-port`; anyone who can connect to it has the VM's physical-console access, including firmware setup and GRUB editing.
-- `detach-installer` removes the installer drive from the stopped VM and asks UTM to reload it through `utmctl` and AppleScript. If macOS denies Automation access (Apple Events error -1743) or you work over SSH, allow the terminal app under System Settings > Privacy & Security > Automation, or quit UTM and rerun with `--utm-quit`.
+The media builder preserves `build-local.py`'s fixed-key verification. The new
+instance gets a private ISO clone, empty VirtIO disk and firmware/TPM state;
+the former UTM target is retired. Installer VMs receive no lab account or SSH seed.
+QMP, guest-agent and TPM sockets are private Unix sockets; serial output is a
+private file. The host still has physical-console authority over its VM.
 
-See [usr/src/kedra/installer/utm/README.md](../installer/utm/README.md) for the exact flow, graphics notes, guest-agent limits and serial console.
+See the [native QEMU lab](../tests/container/qemu/README.md) and
+[macOS media builder](../installer/macos/README.md) for commands and current
+qualification limits. The earlier UTM launcher and Apple Events flow were removed.
 
 Fedora 44's shim-aa64 16.1-5 ships test-signed fallback and MokManager binaries. The installer ISO does not include the fallback binary, so it boots normally. The installed disk does include it, so it boots only through the NVRAM entry the installer creates for `\EFI\fedora\shimaa64.efi`; the removable-media fallback path fails with a Security Violation. Do not reset the VM's UEFI variables or queue MOK requests. To recover, add a boot option for `\EFI\fedora\shimaa64.efi` in the firmware's Boot Maintenance Manager.
 
@@ -131,15 +137,15 @@ Why PCR 7 alone:
 
 Recovery: the passphrase stays enrolled. When the TPM refuses, boot asks for the passphrase. After logging in:
 
-- if PCR 7 changed (Secure Boot toggled, a firmware key or dbx update, a shim SBAT update, a reset UTM variable store), run `sysroot setup tpm-unlock --replace`;
-- if the TPM was cleared or replaced (UTM: the TPM toggled or `Data/tpmdata` replaced), PCR 7 is unchanged, so `--replace` keeps the old slot, which can no longer be unsealed. Run `sysroot setup tpm-unlock --remove`, then `sysroot setup tpm-unlock`.
+- if PCR 7 changed (Secure Boot toggled, a firmware key or dbx update, a shim SBAT update, a reset VM variable store), run `sysroot setup tpm-unlock --replace`;
+- if the TPM was cleared or replaced (for example, the VM TPM state directory was replaced), PCR 7 is unchanged, so `--replace` keeps the old slot, which can no longer be unsealed. Run `sysroot setup tpm-unlock --remove`, then `sysroot setup tpm-unlock`.
 
 When unsure, run `--replace` first; it reports when it kept the old slot. Keep the passphrase: installation media also opens the volume with it.
 
 Security scope:
 
 - The initramfs and kernel command line are not signed and not part of PCR 7, and GRUB has no password. Someone at the console can boot an edited command line, for example with a debug shell, and get a root shell once the TPM has unlocked the disk. Without `--with-pin`, TPM unlock protects a disk separated from its machine, not a stolen machine.
-- In a virtual machine the host keeps the TPM state. On UTM, anyone who can read the bundle's `Data/tpmdata` can recover the key without the passphrase, the PCR 7 state or a PIN (see [usr/src/kedra/installer/utm](../installer/utm/README.md#secure-boot-and-tpm-semantics)).
+- In a virtual machine the host keeps the TPM state. Anyone who can read the VM's `tpm/` state can recover the key without the passphrase, the PCR 7 state or a PIN.
 - `sysroot doctor` does not report the enrollment: reading LUKS2 token metadata means opening the block device, which only root can do.
 
-The enrollment, replace and remove arguments were exercised with systemd 259.9 against a software TPM and a generated LUKS2 file. Boot unlock on UTM and on hardware is not yet qualified; see [status](STATUS.md).
+The enrollment, replace and remove arguments were exercised with systemd 259.9 against a software TPM and a generated LUKS2 file. Boot unlock on native QEMU and on hardware is not yet qualified; see [status](STATUS.md).

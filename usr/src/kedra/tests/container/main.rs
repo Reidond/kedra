@@ -18,11 +18,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use kedra_container_tests::docker::Docker;
-use kedra_container_tests::environment::{Environment, Extras, Kind};
+use kedra_container_tests::environment::{Environment, Kind};
 use kedra_container_tests::image::{self, LabImage, Request};
 use kedra_container_tests::report::{self, Report, TestResult};
 use kedra_container_tests::scenario::{self, Context, Fixture, Profile, Runner, Scenario, Setup};
-use kedra_container_tests::session::{self, Display, Host};
+use kedra_container_tests::session::{self, Display};
 use kedra_container_tests::{Error, artifact_root, clip, execution_id, harness_dir};
 use libtest_mimic::{Arguments, Failed, Trial};
 
@@ -41,6 +41,7 @@ struct Shared {
     keep: Keep,
     results: Mutex<Vec<TestResult>>,
     setups: std::collections::BTreeMap<String, Setup>,
+    selected_count: usize,
 }
 
 enum Body {
@@ -105,6 +106,9 @@ fn sanitize(name: &str) -> String {
 }
 
 fn execute(shared: &Shared, name: &str, body: &Body) -> Result<(), Failed> {
+    if kedra_container_tests::cancel::requested() {
+        return Err(Failed::from("execution interrupted; case was not started"));
+    }
     let started = Instant::now();
     let docker = &shared.docker;
     let artifacts = shared.run_dir.join(sanitize(name));
@@ -126,7 +130,6 @@ fn execute(shared: &Shared, name: &str, body: &Body) -> Result<(), Failed> {
             execution: shared.execution.clone(),
             test: name.to_owned(),
         },
-        &Extras::default(),
     );
     let failure: Option<String> = match environment {
         Err(error) => Some(format!("environment startup: {error}")),
@@ -154,7 +157,6 @@ fn execute(shared: &Shared, name: &str, body: &Body) -> Result<(), Failed> {
                         &environment,
                         user,
                         Display::default(),
-                        Host::Headless,
                     )?);
                 }
                 Ok(())
@@ -182,6 +184,7 @@ fn execute(shared: &Shared, name: &str, body: &Body) -> Result<(), Failed> {
                 serde_json::to_vec_pretty(&result.steps).unwrap_or_default(),
             );
             if failure.is_some() || shared.keep == Keep::Always {
+                let _cleanup = kedra_container_tests::cancel::Cleanup::enter();
                 if let Some(session) = &context.session {
                     let _ = session::screenshot(
                         docker,
@@ -236,14 +239,44 @@ fn execute(shared: &Shared, name: &str, body: &Body) -> Result<(), Failed> {
     });
     if let Ok(mut results) = shared.results.lock() {
         results.push(result);
+        if let Err(error) = report::write(
+            &shared.run_dir,
+            &Report {
+                schema_version: 1,
+                interrupted: kedra_container_tests::cancel::requested(),
+                selected_count: shared.selected_count,
+                execution: &shared.execution,
+                image: Some(&shared.image),
+                results: &results,
+            },
+        ) {
+            eprintln!("{name}: could not preserve partial results: {error}");
+            if outcome.is_ok() {
+                if let Some(result) = results.last_mut() {
+                    result.outcome = "failed";
+                    result.failure = Some(format!("could not preserve test results: {error}"));
+                }
+                return Err(Failed::from(format!(
+                    "could not preserve test results: {error}"
+                )));
+            }
+        }
     }
     outcome
 }
 
 fn main() -> ExitCode {
+    if let Err(error) = kedra_container_tests::cancel::install() {
+        eprintln!("container tests: {error}");
+        return ExitCode::FAILURE;
+    }
     let mut args = Arguments::from_args();
-    // Scenarios run one at a time; parallel scenarios wait for isolation evidence.
-    args.test_threads = Some(1);
+    // Keep the quiet default; explicit two-worker runs retain a fresh container per case.
+    let workers = *args.test_threads.get_or_insert(1);
+    if !(1..=2).contains(&workers) {
+        eprintln!("container tests: use --test-threads 1 or 2; nothing was provisioned");
+        return ExitCode::from(2);
+    }
     let targets: Vec<String> = match image::targets() {
         Ok(targets) => targets.into_iter().map(|target| target.id).collect(),
         Err(error) => {
@@ -287,6 +320,16 @@ fn main() -> ExitCode {
             .iter()
             .map(|test| (format!("native::{}", test.name), Body::Native(test))),
     );
+    match std::env::var("KEDRA_LAB_ORDER").as_deref() {
+        Ok("reverse") => bodies.reverse(),
+        Err(_) | Ok("") | Ok("forward") => {}
+        Ok(other) => {
+            eprintln!(
+                "container tests: KEDRA_LAB_ORDER={other:?} must be forward or reverse; nothing was provisioned"
+            );
+            return ExitCode::from(2);
+        }
+    }
 
     if args.list {
         let trials = bodies
@@ -334,6 +377,12 @@ fn main() -> ExitCode {
         })
         .map(|(name, _)| name.clone())
         .collect();
+    if applicable.is_empty() {
+        eprintln!(
+            "container tests: no selected cases apply to {target}; no image or container was prepared (no coverage)"
+        );
+        return libtest_mimic::run(&args, Vec::new()).exit_code();
+    }
     let execution = execution_id();
     let run_dir = artifact_root().join("runs").join(&execution);
     let preparation = Instant::now();
@@ -345,6 +394,8 @@ fn main() -> ExitCode {
                 &run_dir,
                 &Report {
                     schema_version: 1,
+                    interrupted: kedra_container_tests::cancel::requested(),
+                    selected_count: applicable.len(),
                     execution: &execution,
                     image: None,
                     results: &[],
@@ -368,6 +419,7 @@ fn main() -> ExitCode {
         keep,
         results: Mutex::new(Vec::new()),
         setups: suite.setups,
+        selected_count: applicable.len(),
     });
     let trials: Vec<Trial> = bodies
         .into_iter()
@@ -388,6 +440,8 @@ fn main() -> ExitCode {
         &run_dir,
         &Report {
             schema_version: 1,
+            interrupted: kedra_container_tests::cancel::requested(),
+            selected_count: shared.selected_count,
             execution: &execution,
             image: Some(&shared.image),
             results: &results,
@@ -407,5 +461,9 @@ fn main() -> ExitCode {
             clip(result.failure.as_deref().unwrap_or_default(), 600)
         );
     }
-    conclusion.exit_code()
+    if kedra_container_tests::cancel::requested() {
+        ExitCode::from(130)
+    } else {
+        conclusion.exit_code()
+    }
 }

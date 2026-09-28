@@ -10,7 +10,7 @@ const SETUP_MODE: &str = "/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2
 const LOCKDOWN: &str = "/sys/kernel/security/lockdown";
 
 /// Operator guidance for a missing or disabled Secure Boot state.
-pub const GUIDANCE: &str = "Enable UEFI Secure Boot with the Microsoft third-party UEFI CA allowed in the firmware settings (on UTM, enable UEFI boot and TPM); see docs/INSTALL.md.";
+pub const GUIDANCE: &str = "Enable UEFI Secure Boot with the Microsoft third-party UEFI CA allowed in the firmware settings (on QEMU, use Secure Boot firmware and a retained TPM); see docs/INSTALL.md.";
 
 #[derive(Debug)]
 pub enum Error {

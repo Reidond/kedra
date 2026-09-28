@@ -1,0 +1,32 @@
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -1232,6 +1232,7 @@
+ @interface QemuCocoaAppController : NSObject
+                                        <NSWindowDelegate, NSApplicationDelegate>
+ {
++    id vmActivity;
+ }
+ - (void)doToggleFullScreen:(id)sender;
+ - (void)showQEMUDoc:(id)sender;
+@@ -1312,6 +1313,10 @@
+ {
+     COCOA_DEBUG("QemuCocoaAppController: dealloc\n");
+ 
++    if (vmActivity) {
++        [[NSProcessInfo processInfo] endActivity:vmActivity];
++        [vmActivity release];
++    }
+     [cocoaView release];
+     [cbowner release];
+     cbowner = nil;
+@@ -1322,6 +1327,10 @@
+ - (void)applicationDidFinishLaunching: (NSNotification *) note
+ {
+     COCOA_DEBUG("QemuCocoaAppController: applicationDidFinishLaunching\n");
++    /* A retained VM must keep answering control/SSH while its window is hidden. */
++    vmActivity = [[[NSProcessInfo processInfo]
++        beginActivityWithOptions:NSActivityUserInitiatedAllowingIdleSystemSleep
++        reason:@"Running a virtual machine"] retain];
+     allow_events = true;
+ }
+ 

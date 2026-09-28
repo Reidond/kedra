@@ -28,7 +28,7 @@ qualified_bootc = json.loads(cli.with_name('compatibility.json').read_text())['b
 private, public = workdir / 'disposable.key', workdir / 'public.pem'
 # Independent expectations for the closed target table.
 TARGETS = {'desktop': {'architecture': 'x86_64', 'oci': 'amd64', 'repository': 'ghcr.io/reidond/kedra-desktop'},
-           'utm': {'architecture': 'aarch64', 'oci': 'arm64', 'repository': 'ghcr.io/reidond/kedra-utm'}}
+           'qemu-arm64': {'architecture': 'aarch64', 'oci': 'arm64', 'repository': 'ghcr.io/reidond/kedra-qemu-arm64'}}
 
 
 def encode(value):

@@ -48,6 +48,26 @@ pub fn file_sha256(path: &Path) -> Result<String> {
     Ok(sha256_hex(&fs::read(path)?))
 }
 
+fn cache_object(cache: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf> {
+    let digest = sha256_hex(bytes);
+    let directory = cache.join("objects").join(&digest);
+    fs::create_dir_all(&directory)?;
+    let path = directory.join(name);
+    if path.is_file() {
+        if file_sha256(&path)? != digest {
+            return Err(invalid(format!(
+                "cached build object changed: {}",
+                path.display()
+            )));
+        }
+    } else {
+        let pending = directory.join(format!("{name}-{}.pending", crate::execution_id()));
+        fs::write(&pending, bytes)?;
+        fs::rename(pending, &path)?;
+    }
+    Ok(path)
+}
+
 /// Short content key for image tags and cache entries.
 pub fn content_key(parts: &[&[u8]]) -> String {
     let mut hasher = Sha256::new();
@@ -59,6 +79,166 @@ pub fn content_key(parts: &[&[u8]]) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+/// Prepared host archiver and its exact source inputs. Home sync needs no Linux build.
+fn archiver_directory(cache: &Path) -> Result<PathBuf> {
+    let repo = crate::repository_root();
+    let listed = git_output(
+        &repo,
+        &[
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "--",
+            "Cargo.toml",
+            "Cargo.lock",
+            "rust-toolchain.toml",
+            "usr/src/kedra/crates",
+        ],
+    )?;
+    let mut names: Vec<&[u8]> = listed
+        .split(|byte| *byte == 0)
+        .filter(|v| !v.is_empty())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    let mut parts = vec![
+        std::env::consts::OS.as_bytes().to_vec(),
+        std::env::consts::ARCH.as_bytes().to_vec(),
+    ];
+    for name in names {
+        let name =
+            std::str::from_utf8(name).map_err(|_| invalid("non-UTF-8 archiver source path"))?;
+        let path = repo.join(name);
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.is_file() => {
+                parts.push(name.as_bytes().to_vec());
+                parts.push(fs::read(path)?);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(_) => {
+                return Err(invalid(format!(
+                    "archiver input is not a regular file: {name}"
+                )));
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    let parts: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
+    Ok(cache.join("host-archiver").join(content_key(&parts)))
+}
+
+fn prepared_archiver(directory: &Path) -> Result<PathBuf> {
+    let binary = directory.join("sysroot");
+    let digest = directory.join("sha256");
+    if !binary.is_file() || !digest.is_file() {
+        return Err(invalid(
+            "host source archiver is not prepared for these inputs; run kedra-lab prepare-sync",
+        ));
+    }
+    if file_sha256(&binary)? != fs::read_to_string(digest)?.trim() {
+        return Err(invalid(
+            "prepared source archiver hash changed; run kedra-lab prepare-sync",
+        ));
+    }
+    Ok(binary)
+}
+
+/// Explicit cold preparation; subsequent config-only syncs never invoke Cargo.
+pub fn prepare_archiver(cache: &Path) -> Result<PathBuf> {
+    fs::create_dir_all(cache)?;
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(cache.join("host-archiver.lock"))?;
+    lock.lock()?;
+    let directory = archiver_directory(cache)?;
+    if let Ok(binary) = prepared_archiver(&directory) {
+        return Ok(binary);
+    }
+    eprintln!("kedra-lab: preparing the host source archiver (once per Rust source revision)");
+    let repo = crate::repository_root();
+    let target = cache.join("host-build");
+    let status = Command::new("cargo")
+        .current_dir(&repo)
+        .env("RUSTUP_TOOLCHAIN", "1.98.1")
+        .env("CARGO_TARGET_DIR", &target)
+        .args(["build", "--release", "--locked", "-p", "sysroot"])
+        .stdin(Stdio::null())
+        .status()?;
+    if !status.success() {
+        return Err(invalid("host source archiver build failed"));
+    }
+    if archiver_directory(cache)? != directory {
+        return Err(invalid(
+            "archiver source changed during compilation; prepare again",
+        ));
+    }
+    fs::create_dir_all(&directory)?;
+    let pending = directory.join("sysroot.pending");
+    fs::copy(target.join("release/sysroot"), &pending)?;
+    let digest = file_sha256(&pending)?;
+    fs::rename(&pending, directory.join("sysroot"))?;
+    fs::write(directory.join("sha256.pending"), digest)?;
+    fs::rename(directory.join("sha256.pending"), directory.join("sha256"))?;
+    prepared_archiver(&directory)
+}
+
+pub struct SourceArchive {
+    pub payload: PathBuf,
+    pub snapshot_commit: String,
+    pub source_commit: Option<String>,
+}
+
+/// Archive the current tree with the already-prepared host CLI, without Docker/Cargo.
+pub fn archive_worktree(target: &str, cache: &Path) -> Result<SourceArchive> {
+    let binary = prepared_archiver(&archiver_directory(cache)?)?;
+    let scratch = cache.join(format!("home-source-{}", crate::execution_id()));
+    let outcome = (|| {
+        let (snapshot_commit, source_commit) =
+            snapshot(&crate::repository_root(), &Stage::Worktree, &scratch)?;
+        let directory = cache.join("home-payloads");
+        fs::create_dir_all(&directory)?;
+        let payload = directory.join(format!("{target}-{snapshot_commit}.tar"));
+        if !payload.is_file() {
+            let pending = directory.join(format!("{target}-{}.pending", crate::execution_id()));
+            let result = Command::new(&binary)
+                .args(["source", "archive", "--repo"])
+                .arg(&scratch)
+                .args(["--host", target, "--output"])
+                .arg(&pending)
+                .stdin(Stdio::null())
+                .output()?;
+            if !result.status.success() {
+                let _ = fs::remove_file(&pending);
+                return Err(Error::Command {
+                    what: "host sysroot source archive".into(),
+                    exit: i64::from(result.status.code().unwrap_or(-1)),
+                    stderr: String::from_utf8_lossy(&result.stderr).into_owned(),
+                });
+            }
+            fs::rename(pending, &payload)?;
+        }
+        Ok(SourceArchive {
+            payload,
+            snapshot_commit,
+            source_commit,
+        })
+    })();
+    if scratch.exists() {
+        let cleanup = fs::remove_dir_all(&scratch);
+        if let Err(error) = cleanup {
+            eprintln!(
+                "kedra-lab: could not remove source snapshot {}: {error}",
+                scratch.display()
+            );
+        }
+    }
+    outcome
 }
 
 /// Git with inherited `GIT_*` state removed, like `sysroot` itself runs it.
@@ -243,13 +423,17 @@ pub fn prepare(
     fs::create_dir_all(&bundles)?;
     let bundle = bundles.join(format!("{snapshot_commit}.bundle"));
     if !bundle.is_file() {
+        let pending = bundles.join(format!(
+            "{}-{}.pending",
+            snapshot_commit,
+            crate::execution_id()
+        ));
         git_output(
             &snapshot_dir,
-            &["bundle", "create", &bundle.to_string_lossy(), "HEAD"],
+            &["bundle", "create", &pending.to_string_lossy(), "HEAD"],
         )?;
+        fs::rename(pending, &bundle)?;
     }
-    let outputs = cache.join(architecture);
-    fs::create_dir_all(&outputs)?;
 
     eprintln!("kedra-lab: preparing Linux sysroot binaries and the {target} payload");
     let request = builder_image(docker, &format!("linux/{}", oci_architecture(architecture)))?
@@ -275,27 +459,27 @@ pub fn prepare(
         .start()?;
     let id = container.id().to_owned();
 
-    let sysroot = outputs.join("sysroot");
-    let helper = outputs.join("sysroot-helper");
+    let sysroot;
+    let helper;
     // Prebuilt binaries never enter the shared Cargo target volume.
-    let mut archiver = "/target/release/sysroot";
+    let archiver;
     match prebuilt {
         Some(directory) => {
-            fs::copy(directory.join("sysroot"), &sysroot)?;
-            fs::copy(directory.join("sysroot-helper"), &helper)?;
+            sysroot = cache_object(cache, "sysroot", &fs::read(directory.join("sysroot"))?)?;
+            helper = cache_object(
+                cache,
+                "sysroot-helper",
+                &fs::read(directory.join("sysroot-helper"))?,
+            )?;
             archiver = "/usr/local/bin/kedra-lab-sysroot";
             docker.write_file(&id, archiver, &fs::read(&sysroot)?, "root", "0755")?;
         }
         None => {
+            // The Cargo volume is shared across checkouts and engines' clients.
+            // Hold its lock through copying into this container's private /tmp.
             let mut build = Exec::new([
-                "cargo",
-                "build",
-                "--release",
-                "--locked",
-                "-p",
-                "sysroot",
-                "-p",
-                "sysroot-helper",
+                "flock", "--timeout", "1800", "/target/kedra-build.lock", "sh", "-ec",
+                "cargo build --release --locked -p sysroot -p sysroot-helper; cp /target/release/sysroot /tmp/kedra-sysroot; cp /target/release/sysroot-helper /tmp/kedra-sysroot-helper",
             ])
             .timeout(Duration::from_secs(30 * 60));
             // Build the stage itself: the snapshot is the working tree or the commit.
@@ -305,15 +489,20 @@ pub fn prepare(
             if let Some(last) = log.lines().rev().find(|line| !line.trim().is_empty()) {
                 eprintln!("kedra-lab: {}", last.trim());
             }
-            fs::write(&sysroot, docker.read_file(&id, "/target/release/sysroot")?)?;
-            fs::write(
-                &helper,
-                docker.read_file(&id, "/target/release/sysroot-helper")?,
+            sysroot = cache_object(
+                cache,
+                "sysroot",
+                &docker.read_file(&id, "/tmp/kedra-sysroot")?,
             )?;
+            helper = cache_object(
+                cache,
+                "sysroot-helper",
+                &docker.read_file(&id, "/tmp/kedra-sysroot-helper")?,
+            )?;
+            archiver = "/tmp/kedra-sysroot";
         }
     }
 
-    let payload = outputs.join(format!("payload-{target}-{snapshot_commit}.tar"));
     docker.run(
         &id,
         &Exec::new([
@@ -328,7 +517,11 @@ pub fn prepare(
             "/tmp/payload.tar",
         ]),
     )?;
-    fs::write(&payload, docker.read_file(&id, "/tmp/payload.tar")?)?;
+    let payload = cache_object(
+        cache,
+        "payload.tar",
+        &docker.read_file(&id, "/tmp/payload.tar")?,
+    )?;
     container.rm()?;
     fs::remove_dir_all(&snapshot_dir)?;
     Ok(Outputs {

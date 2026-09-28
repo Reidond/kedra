@@ -8,15 +8,17 @@
 
 pub mod actions;
 pub mod builder;
+pub mod cancel;
+pub mod capture;
 pub mod docker;
 pub mod environment;
 pub mod image;
-#[cfg(unix)]
-pub mod live;
+pub mod lab_sync;
 pub mod localbuild;
 pub mod report;
 pub mod scenario;
 pub mod session;
+pub mod vm;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -25,6 +27,7 @@ use std::time::Duration;
 /// Harness failure with enough context to act on without a debugger.
 #[derive(Debug)]
 pub enum Error {
+    Interrupted,
     /// Docker Engine API or Testcontainers failure.
     Docker(String),
     Io(std::io::Error),
@@ -46,6 +49,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::Interrupted => f.write_str("execution interrupted"),
             Error::Docker(message) => write!(f, "container runtime: {message}"),
             Error::Io(error) => write!(f, "{error}"),
             Error::Command { what, exit, stderr } => {

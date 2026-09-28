@@ -1,6 +1,6 @@
 # Update and recover
 
-Kedra updates use the signed GHCR `stable` image of the installed target: `ghcr.io/reidond/kedra-desktop` for desktop (x86_64) and `ghcr.io/reidond/kedra-utm` for the utm virtual machine (aarch64). The tag locates a candidate; the installed helper verifies signature, repository, target, architecture, image identity and retained ordering before switching to its exact digest. It never follows another target's repository. No GitHub Release files or checkpoint renewal is involved.
+Kedra updates use the signed GHCR `stable` image of the installed target: `ghcr.io/reidond/kedra-desktop` for desktop (x86_64) and `ghcr.io/reidond/kedra-qemu-arm64` for the qemu-arm64 virtual machine (aarch64). The tag locates a candidate; the installed helper verifies signature, repository, target, architecture, image identity and retained ordering before switching to its exact digest. It never follows another target's repository. No GitHub Release files or checkpoint renewal is involved.
 
 ## Current-source commands
 
@@ -18,7 +18,7 @@ Checking records verified image ordering and last-check state in the root-owned 
 
 ## Downloads and disk use
 
-Every `enroll`, `check` and `stage` verifies the exact digest again with a policy-enforcing Skopeo copy from the registry, so the signature is checked on every run. The copy's destination is a root-only OCI layout, `/var/lib/sysroot/verified-oci`, which is kept between runs. The first verification downloads the whole image (about 6.3 GB for the current desktop and utm images). Later verifications fetch the manifest, configuration and signature, plus only layers the cache does not hold. A `check` followed by `stage` therefore downloads a new image's changed layers once. `bootc switch` then fetches whatever ostree lacks into its own store. Progress is printed to the terminal.
+Every `enroll`, `check` and `stage` verifies the exact digest again with a policy-enforcing Skopeo copy from the registry, so the signature is checked on every run. The copy's destination is a root-only OCI layout, `/var/lib/sysroot/verified-oci`, which is kept between runs. The first verification downloads the whole image (about 6.3 GB for the current desktop and qemu-arm64 images). Later verifications fetch the manifest, configuration and signature, plus only layers the cache does not hold. A `check` followed by `stage` therefore downloads a new image's changed layers once. `bootc switch` then fetches whatever ostree lacks into its own store. Progress is printed to the terminal.
 
 The helper keeps layers for the booted, staged and rollback images, the journal's recorded operation and the digest being verified. Before each copy it removes every other image, so a failed transfer never leaves stale images in place. After a successful copy it also removes leftover layers of interrupted transfers. A failed or interrupted copy keeps the layers it completed, so a retry resumes rather than starting over. Expect the cache to use about one image's size plus the layers unique to the other kept images, on top of ostree's deployments.
 

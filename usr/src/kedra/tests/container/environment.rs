@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use testcontainers::core::{CgroupnsMode, Host, Mount};
+use testcontainers::core::{CgroupnsMode, Mount};
 use testcontainers::runners::SyncRunner;
 use testcontainers::{Container, GenericImage, ImageExt};
 
@@ -23,12 +23,6 @@ pub enum Kind {
     Test { execution: String, test: String },
     /// A retained interactive lab environment.
     Lab { name: String },
-}
-
-/// Extra host resources, e.g. the waypipe socket directory for live viewing.
-#[derive(Clone, Debug, Default)]
-pub struct Extras {
-    pub bind_mounts: Vec<(String, String)>,
 }
 
 pub struct Environment {
@@ -55,16 +49,21 @@ fn sanitize(text: &str) -> String {
 
 impl Environment {
     /// Start systemd on `image` and wait until boot finished.
-    pub fn start(docker: &Docker, image: &LabImage, kind: &Kind, extras: &Extras) -> Result<Self> {
+    pub fn start(docker: &Docker, image: &LabImage, kind: &Kind) -> Result<Self> {
+        crate::cancel::check()?;
         let (name, kind_label, execution) = match kind {
             Kind::Test { execution, test } => (
-                format!("kedra-test-{execution}-{}", sanitize(test)),
+                format!(
+                    "kedra-test-{execution}-{}-{}",
+                    sanitize(test),
+                    crate::builder::content_key(&[test.as_bytes()])
+                ),
                 "test",
                 execution.clone(),
             ),
             Kind::Lab { name } => (format!("kedra-lab-{}", sanitize(name)), "lab", name.clone()),
         };
-        let mut request = GenericImage::new(&image.name, &image.tag)
+        let request = GenericImage::new(&image.name, &image.tag)
             .with_privileged(true)
             .with_cgroupns_mode(CgroupnsMode::Private)
             .with_mount(Mount::tmpfs_mount("/run"))
@@ -72,8 +71,6 @@ impl Environment {
             .with_mount(Mount::tmpfs_mount("/tmp"))
             .with_env_var("container", "docker")
             .with_hostname("kedra-lab")
-            // Engines on Linux need this mapping; macOS engines provide it.
-            .with_host("host.docker.internal", Host::HostGateway)
             .with_container_name(&name)
             .with_label(docker::OWNER_LABEL, docker::OWNER)
             .with_label(docker::KIND_LABEL, kind_label)
@@ -81,9 +78,6 @@ impl Environment {
             .with_label(docker::TARGET_LABEL, &image.target)
             .with_label(docker::IMAGE_LABEL, image.reference())
             .with_startup_timeout(Duration::from_secs(120));
-        for (source, target) in &extras.bind_mounts {
-            request = request.with_mount(Mount::bind_mount(source, target));
-        }
         let container = request.start()?;
         let environment = Environment {
             id: container.id().to_owned(),
@@ -172,6 +166,7 @@ impl Environment {
     /// Save journal, unit and process state for a failed or inspected run.
     /// Each item is best effort; the first error is returned after trying all.
     pub fn collect(&self, docker: &Docker, directory: &Path) -> Result<()> {
+        let _cleanup = crate::cancel::Cleanup::enter();
         fs::create_dir_all(directory)?;
         let items: [(&str, &[&str]); 5] = [
             (
@@ -228,10 +223,12 @@ impl Environment {
 
     /// Stop and remove the container, reporting failures instead of hiding them.
     pub fn terminate(mut self, docker: &Docker) -> Result<()> {
-        match self.container.take() {
-            Some(container) => container.rm().map_err(Error::from),
-            None => docker.remove(&self.id),
+        let outcome = docker.remove(&self.id);
+        if let Some(container) = self.container.take() {
+            // Removal already ran with a deadline; do not repeat an unbounded Drop request.
+            std::mem::forget(container);
         }
+        outcome
     }
 }
 
@@ -239,8 +236,12 @@ impl Drop for Environment {
     fn drop(&mut self) {
         // Testcontainers removes an owned container when its handle drops,
         // which also covers panics between start and terminate.
-        if self.container.is_some() {
+        if let Some(container) = self.container.take() {
             eprintln!("kedra-lab: removing {} after an interrupted run", self.name);
+            if let Err(error) = Docker::connect().and_then(|docker| docker.remove(&self.id)) {
+                eprintln!("kedra-lab: cleanup of {} failed: {error}", self.id);
+            }
+            std::mem::forget(container);
         }
     }
 }

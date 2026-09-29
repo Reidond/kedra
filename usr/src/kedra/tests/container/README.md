@@ -43,6 +43,7 @@ Settings are environment variables for `cargo test`, or flags for `kedra-lab`:
 | `KEDRA_LAB_OVERLAY` / `--overlay` | `worktree` (layer the working tree), `none` | `worktree`; `none` for `build` |
 | `KEDRA_LAB_BINARIES` / `--binaries` | directory with Linux `sysroot` and `sysroot-helper` | built in the lab builder |
 | `KEDRA_LAB_ARTIFACTS` | output directory | `target/kedra-lab` |
+| `KEDRA_QEMU_HOME` | native QEMU runtime and retained VM root | durable per-user paths (see `qemu/README.md`) |
 | `KEDRA_LAB_KEEP` | `never`, `failed`, `always` | `never` |
 | `KEDRA_LAB_ORDER` | `forward`, `reverse` | `forward` |
 

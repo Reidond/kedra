@@ -15,6 +15,7 @@ import shlex
 import shutil
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -38,14 +39,94 @@ def sha256(path):
 
 
 def write_json(path, value):
-    pending = path.with_suffix('.pending')
-    with pending.open('w') as stream:
-        os.fchmod(stream.fileno(), 0o600)
-        json.dump(value, stream, indent=2)
-        stream.write('\n')
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(pending, path)
+    pending = path.with_name(path.name + '.pending-' + secrets.token_hex(8))
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, 'O_NOFOLLOW'):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(pending, flags, 0o600)
+    try:
+        with os.fdopen(descriptor, 'w') as stream:
+            descriptor = -1
+            json.dump(value, stream, indent=2)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(pending, path)
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        pending.unlink(missing_ok=True)
+
+
+def safe_artifact(path, kind, *, required=True):
+    try:
+        status = path.lstat()
+    except FileNotFoundError:
+        if required:
+            raise ValueError('missing instance artifact: ' + path.name) from None
+        return
+    expected = stat.S_ISDIR(status.st_mode) if kind == 'directory' else stat.S_ISREG(status.st_mode)
+    if not expected or status.st_uid != os.geteuid() or (kind == 'file' and status.st_nlink != 1):
+        raise ValueError('unsafe instance artifact: ' + path.name)
+    if status.st_mode & 0o022:
+        raise ValueError('group/other-writable instance artifact: ' + path.name)
+
+
+def safe_tree(path):
+    count = 0
+    for root, directories, files in os.walk(path, followlinks=False):
+        for name in directories:
+            safe_artifact(Path(root) / name, 'directory')
+            count += 1
+        for name in files:
+            safe_artifact(Path(root) / name, 'file')
+            count += 1
+        if count > 256:
+            raise ValueError('too many files in instance artifact: ' + path.name)
+
+
+def validate_instance(directory, state):
+    mode = state.get('mode')
+    if mode not in ('lab', 'installer'):
+        raise ValueError('unsupported instance mode')
+    if state.get('installer') not in (None, 'installer.iso'):
+        raise ValueError('unsupported installer attachment')
+    sentinel = state.get('sentinel')
+    if sentinel is not None and (mode != 'installer' or not isinstance(sentinel, dict)
+                                 or sentinel.get('filename') != 'sentinel.raw'
+                                 or sentinel.get('size_bytes') != 64 * 1024 * 1024
+                                 or not re.fullmatch('[a-f0-9]{64}', str(sentinel.get('sha256', '')))):
+        raise ValueError('unsupported installer sentinel')
+    safe_artifact(directory, 'directory')
+    safe_artifact(directory / 'state.json', 'file')
+    safe_artifact(directory / 'disk.qcow2', 'file')
+    safe_artifact(directory / 'vars.fd', 'file')
+    safe_artifact(directory / 'tpm', 'directory')
+    safe_tree(directory / 'tpm')
+    if state.get('mode') == 'lab':
+        for name in ('seed.json', 'client-key', 'client-key.pub', 'host-key', 'host-key.pub', 'known_hosts'):
+            safe_artifact(directory / name, 'file')
+    if state.get('installer'):
+        safe_artifact(directory / 'installer.iso', 'file')
+    if state.get('sentinel'):
+        safe_artifact(directory / 'sentinel.raw', 'file')
+    for name in ('qemu.log', 'serial.log', 'swtpm.log', 'installer-events.log'):
+        safe_artifact(directory / name, 'file', required=False)
+
+
+def read_state(path):
+    safe_artifact(path, 'file')
+    if path.stat().st_size > 4 * 1024 * 1024:
+        raise ValueError('oversized instance state')
+    state = json.loads(path.read_text())
+    if not isinstance(state, dict) or state.get('schema_version') != 1:
+        raise ValueError('unsupported instance state')
+    return state
 
 
 def runtime_check(runtime):
@@ -181,10 +262,25 @@ def create_installer(directory, args):
              'installer': 'installer.iso', 'installer_probe': args.probe}
     # APFS copy-on-write clone; the reviewed source ISO remains untouched.
     run(['/bin/cp', '-c', args.iso, directory / 'installer.iso'], timeout=1800)
+    (directory / 'installer.iso').chmod(0o600)
     if sha256(directory / 'installer.iso') != image['installer']['sha256']:
         raise ValueError('cloned installer checksum mismatch')
     run([args.runtime / 'bin/qemu-img', 'create', '-f', 'qcow2', directory / 'disk.qcow2', str(args.disk_gib) + 'G'])
     shutil.copy2(args.runtime / 'firmware/AAVMF_VARS.ms.fd', directory / 'vars.fd')
+    (directory / 'vars.fd').chmod(0o600)
+    if args.sentinel:
+        sentinel = directory / 'sentinel.raw'
+        size = 64 * 1024 * 1024
+        marker = secrets.token_bytes(4096)
+        descriptor = os.open(sentinel, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            os.ftruncate(descriptor, size)
+            os.pwrite(descriptor, marker, 0)
+            os.pwrite(descriptor, marker[::-1], size - len(marker))
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        state['sentinel'] = {'filename': sentinel.name, 'size_bytes': size, 'sha256': sha256(sentinel)}
     (directory / 'tpm').mkdir(mode=0o700)
     write_json(directory / 'state.json', state)
     return state
@@ -231,6 +327,7 @@ def up(directory, state):
             raise ValueError('swtpm failed; see swtpm.log')
         time.sleep(0.1)
     display = state.get('display', {'width': 2560, 'height': 1600, 'scale': 2})
+    disk_serial = 'KEDRALAB' if state['mode'] == 'lab' else 'KEDRAINSTALL'
     command = [runtime / 'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64', '-name', state['identity'],
                '-machine', 'virt', '-accel', 'hvf', '-cpu', 'host', '-smp', str(state['cpus']), '-m', str(state['memory_mib']),
                '-nodefaults', '-display', 'cocoa,gl=es',
@@ -238,7 +335,8 @@ def up(directory, state):
                '-device', 'virtio-keyboard-pci', '-device', 'virtio-tablet-pci', '-device', 'virtio-rng-pci',
                '-drive', f'if=pflash,format=raw,unit=0,readonly=on,file={runtime}/firmware/AAVMF_CODE.secboot.fd',
                '-drive', f'if=pflash,format=raw,unit=1,file={directory}/vars.fd',
-               '-drive', f'if=none,id=os,format=qcow2,file={directory}/disk.qcow2', '-device', 'virtio-blk-pci,drive=os,serial=KEDRALAB',
+               '-drive', f'if=none,id=os,format=qcow2,file={directory}/disk.qcow2',
+               '-device', f'virtio-blk-pci,drive=os,serial={disk_serial}',
                '-netdev', network, '-device', 'virtio-net-pci,netdev=net,romfile=',
                '-chardev', f'socket,id=tpm,path={directory}/tpm.sock', '-tpmdev', 'emulator,id=tpm,chardev=tpm', '-device', 'tpm-tis-device,tpmdev=tpm',
                '-device', 'virtio-serial-pci', '-chardev', f'socket,id=qga,path={directory}/qga.sock,server=on,wait=off',
@@ -254,6 +352,9 @@ def up(directory, state):
             command += ['-smbios', 'type=11,value=io.systemd.credential:kedra.research=1',
                         '-chardev', f'file,id=events,path={directory}/installer-events.log',
                         '-device', 'virtserialport,chardev=events,name=org.kedra.events']
+    if state.get('sentinel'):
+        command += ['-drive', f'if=none,id=sentinel,format=raw,file={directory}/sentinel.raw',
+                    '-device', 'virtio-blk-pci,drive=sentinel,serial=KEDRASENTINEL']
     with (directory / 'qemu.log').open('ab') as log:
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, start_new_session=True)
     state['qemu'] = {'pid': process.pid, 'identity': process_identity(process.pid)}
@@ -421,6 +522,7 @@ def main():
     installer.add_argument('--memory-mib', type=int, default=8192)
     installer.add_argument('--cpus', type=int, default=6)
     installer.add_argument('--probe', action='store_true')
+    installer.add_argument('--sentinel', action='store_true')
     sub.add_parser('detach-installer')
     sub.add_parser('status')
     stop = sub.add_parser('down')
@@ -447,9 +549,8 @@ def main():
         parser.error('instance does not exist')
     directory.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     if args.operation == 'status':
-        state = json.loads((directory / 'state.json').read_text())
-        if state.get('schema_version') != 1:
-            raise ValueError('unsupported instance state')
+        state = read_state(directory / 'state.json')
+        validate_instance(directory, state)
         check_process_ownership(state)
         print(json.dumps(qmp(directory, state, 'query-status') if owned_process(state, 'qemu') else {'status': 'stopped'}))
         return
@@ -460,15 +561,11 @@ def main():
         except BlockingIOError:
             raise ValueError('instance is busy with another lifecycle or sync operation; retry when it finishes') from None
         record = directory / 'state.json'
-        for child in ('state.json', 'disk.qcow2', 'vars.fd', 'tpm', 'seed.json', 'client-key', 'known_hosts'):
-            if (directory / child).is_symlink():
-                raise ValueError('unsafe symlink in instance: ' + child)
         if record.exists():
             if args.operation == 'installer':
                 raise ValueError('instance already exists; choose a new --name')
-            state = json.loads(record.read_text())
-            if state.get('schema_version') != 1:
-                raise ValueError('unsupported instance state')
+            state = read_state(record)
+            validate_instance(directory, state)
             check_process_ownership(state)
             if args.operation == 'up' and state.get('graphics', 'accelerated') != 'accelerated':
                 raise ValueError('unsupported retired graphics profile; create a new GPU instance')
@@ -487,6 +584,7 @@ def main():
             finally:
                 if pending.exists():
                     shutil.rmtree(pending)
+            validate_instance(directory, state)
         if args.operation in ('exec', 'shot', 'logs', 'sync') and state['mode'] != 'lab':
             raise ValueError('guest automation is available only in a disposable lab fixture')
         if args.operation in ('up', 'installer'):
@@ -507,6 +605,11 @@ def main():
                 raise ValueError('stop the VM before detaching media')
             if state.get('installer') != 'installer.iso':
                 raise ValueError('this instance has no attached installer')
+            sentinel = state.get('sentinel')
+            if sentinel and (sentinel.get('filename') != 'sentinel.raw'
+                             or sentinel.get('size_bytes') != (directory / 'sentinel.raw').stat().st_size
+                             or sentinel.get('sha256') != sha256(directory / 'sentinel.raw')):
+                raise ValueError('installer sentinel disk changed; installation may have selected the wrong disk')
             state.pop('installer')
             write_json(record, state)
             (directory / 'installer.iso').unlink()

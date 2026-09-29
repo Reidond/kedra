@@ -23,8 +23,9 @@ standard review plus relevant compiler/linter/end-to-end checks. Phase three get
 the full post-task review and the verification plan's complete required gates.
 
 All paths below are relative to `usr/src/kedra/`, except explicit root paths.
-No task modifies owner VMs, personal tools/configuration, release keys/identities,
-the signed target table or `.github/workflows/release.yml`. No unit/model/mock
+No task modifies registered owner VMs or personal tools/configuration. The owner
+subsequently directed replacement of the signed `utm` identity, so T10 includes
+the reviewed `qemu-arm64` target/repository/authority migration. No unit/model/mock
 tests, doctests, source assertions or repository scanners are introduced.
 No task independently authorizes external tool installation, commit, push or CI dispatch.
 
@@ -93,7 +94,10 @@ No task independently authorizes external tool installation, commit, push or CI 
 - **Test requirements:** TC-03, TC-04, TC-05, TC-27. Presentation timing is
   measured at this gate when instrumentation exists; its explicit exception
   remains available. The complete sync-based independence case belongs to T10.
-- **Status:** [ ] Core GPU path passes — actual niri/EGL ANGLE Metal renderer, Cocoa presentation, basic input, QMP modifier chord, screenshot, Secure Boot and enforcing SELinux. Full toolkit/audio/scaling/physical-key matrix and frame pacing remain unqualified; no software/debug profile implemented.
+- **Status:** [ ] Core GPU path and all six GTK3 Wayland/Xwayland, libadwaita,
+  Qt5 and Qt6 chooser workflows pass, with captures viewed. Audio, scaling/resize,
+  physical modifier input and unlocked-window presentation timing remain
+  unqualified. Native remains GPU-only; software diagnostics stay in Testcontainers.
 
 ## T05 — Separate source archiving from Linux compilation
 
@@ -154,7 +158,14 @@ No task independently authorizes external tool installation, commit, push or CI 
   for engine-loss tests, never interrupt the owner's shared OrbStack engine.
   Keep one-scenario concurrency unless measured evidence justifies a later change.
 - **Test requirements:** TC-15, TC-16, TC-17, TC-18, TC-19, TC-20.
-- **Status:** [ ] Core harness passes — five final 13/13 ARM runs, earlier reverse/two-worker runs, empty selection, long-name isolation, active-case cancellation and real eventual/fractional deadline probes. Private-engine-loss, startup/second-signal and x86/current-source CI variants remain open.
+- **Status:** [ ] Core harness passes — five final 13/13 ARM runs, reverse/two-worker
+  runs, empty selection, malformed input, wrong expectation, long-name isolation,
+  active/startup cancellation, forced second signal, real eventual/fractional
+  deadline probes and private-engine-loss recovery were exercised. Exact-source
+  container CI passes on ARM and x86; the remaining independent-execution variants
+  and current performance targets keep this task open. Post-optimization run
+  `1790706590-5077` passed 12/13; home review failed because its image source commit
+  was absent from the checkout, so a corrected-source full rerun is required.
 
 ## T09 — Preserve media creation and manual installation
 
@@ -168,23 +179,34 @@ No task independently authorizes external tool installation, commit, push or CI 
   Installer-mode startup reports window/process state, not lab readiness, and
   refuses automatic exec/sync. Qualify a fresh disposable installation and ISO-free boot.
 - **Test requirements:** TC-21, TC-22, TC-28.
-- **Status:** [ ] Implemented; partially qualified — signed-media path extracted to installer/macos; verified existing ISO boots Secure Boot/signature probe and Anaconda. Installer has no fixture SSH/seed, refuses exec/sync and live detach. Fresh encrypted install/ISO-free installed boot and new ISO build are not-run.
+- **Status:** [ ] Implemented; partially qualified — signed-media path extracted to
+  installer/macos; verified existing ISO boots Secure Boot/signature probe and
+  Anaconda. Installer has no fixture SSH/seed, refuses exec/sync and live detach.
+  The controller now offers an owned writable sentinel and refuses detach if its
+  full hash changed, but this new path has only diagnostic checks. Fresh encrypted
+  install/ISO-free boot, real sentinel qualification and new ISO build are not-run.
 
 ## T10 — Retire UTM-specific source and retain boot-level coverage
 
 - **Size / dependencies:** M; T04/T06/T07/T08/T09 all qualified.
 - **Mechanism:** replace UTM launch/control paths with the proven native workflow,
-  while migrating operational CI naming without changing signed target identity.
+  migrate operational CI naming and replace the signed target identity as later
+  explicitly directed by the owner.
 - **Files:** `tests/vm/utm-image/` → `tests/vm/qemu-arm64/`;
   `.github/workflows/test-utm-image.yml` → `test-qemu-arm64.yml`;
   UTM-specific installer script/pins after extraction; old launcher directory removed as explicitly requested. Update inbound operational references, not historical entries.
 - **Acceptance:** no normal local command depends on UTM binaries/libraries or
   Apple Events. ARM bootc/Secure Boot/SELinux/unit assertions and remaining VM
-  coverage run on the resulting source. Keep release.yml, target table and keys
-  unchanged. If CI publication is not authorized, record the exact outstanding
-  run requirement; never substitute an earlier revision's pass.
+  coverage run on the resulting source. Use a fresh per-target authority and
+  repository names without reusing the old key. Retire old external resources only
+  after the first replacement publication is independently verified.
 - **Test requirements:** TC-23, TC-24.
-- **Status:** [x] Superseded source removed after native GPU/control/sync/capture proof and explicit owner cleanup instruction. ARM workflow/scenarios/observer renamed with assertions preserved; signed utm identity and owner data unchanged. Exact-source CI is not-run, not a borrowed historical pass.
+- **Status:** [ ] Superseded source removed after native GPU/control/sync/capture
+  proof and explicit owner cleanup instruction. ARM workflow/scenarios/observer
+  renamed with assertions preserved. Source, repository names and fresh authority
+  now use `qemu-arm64`; exact-source ARM boot and both-architecture container CI
+  pass. First replacement publication and deletion of old external `utm` resources
+  remain pending, so identity retirement is not yet complete.
 
 ## T11 — Measure the complete warm loop
 
@@ -199,7 +221,13 @@ No task independently authorizes external tool installation, commit, push or CI 
   identical; remeasure after relevant changes. Unavailable instrumentation leaves
   NFR-05 unverified. Do not stop unrelated workloads or remove assertions to improve timings.
 - **Test requirements:** TC-25, TC-26, TC-27.
-- **Status:** [ ] Five native warm starts/edit/capture and five full ARM suites measured; medians meet their targets. Container edit/capture also measured. Five-run cached container startup/filter timing and actual presentation timing remain unmeasured.
+- **Status:** [ ] Earlier native warm starts/edit/capture and full ARM-suite medians
+  met their targets. After the container startup fix, five filtered desktop-session
+  results have median 6.680 s/max 7.714 s and complete command median 7.038 s,
+  passing the 15 s target. Five complete public cached `up` samples have median
+  4.091 s, passing 20 s; they use a clean cached base without an overlay and exclude
+  one-time overlay preparation. Presentation timing remains unqualified. Deleted
+  native evidence must be regenerated for final proof.
 
 ## T12 — Final review, standard gates and owner handoff
 
@@ -217,7 +245,11 @@ No task independently authorizes external tool installation, commit, push or CI 
   Handoff includes first setup, fast daily commands and recovery, measured costs,
   and every fail/blocked/not-run result. No commit/push without authorization.
 - **Test requirements:** TC-28, plus completion review of TC-01 through TC-27.
-- **Status:** [x] Local delivery review, documentation, standard gates and owner screenshot completed; review/test-plan list remaining qualification. Work remains uncommitted; no publication or production installation.
+- **Status:** [ ] Implementation is committed and pushed as draft PR #23; exact-source
+  workspace, ARM boot, both-architecture container, desktop and signed-home checks
+  pass at `1de0d8a`. Documentation is being reconciled. Final manual qualification,
+  performance repair, replacement publication/old-resource retirement, fresh
+  encrypted installation and final handoff remain open.
 
 ## Coverage ownership
 

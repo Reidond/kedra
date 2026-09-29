@@ -38,7 +38,7 @@ include the agent opening the captured images and showing them to the owner.
 | Foreign-resource controls | Another generated VM directory/process and retained container, identifiable before/after; no inspection or capture of real owner home/vault contents |
 | Installer | Exact reviewed signed ARM image/media, generated empty/sentinel disks, synthetic account/passphrase; preserve original media |
 | CI evidence | Exact implementation source and run/attempt URLs; local authorization does not imply push or dispatch authorization |
-| Artifacts | Existing ignored `target/kedra-lab` output and private instance directories; never commit raw logs/screenshots/keys |
+| Artifacts | Default macOS runtime/build/image cache under `~/Library/Caches/kedra/qemu`; per-checkout instance state under `~/.local/share/kedra/lab/<checkout-key>`; ignored reports elsewhere as recorded by receipts. Never place durable VM assets under Cargo `target/` or commit raw logs/screenshots/keys. |
 
 Images are pinned once per execution and the same resulting image is used for
 functional checks and timing observations. When tooling layers are applied, record
@@ -137,39 +137,41 @@ behavior; use the existing Linux CI for that coverage. No source-text tests or
 custom check runners. Repeat successful checks only after relevant changes or
 new failures justify it.
 
-## Current verification state — 2026-09-28
+## Current verification state — 2026-09-29
 
-Base `a3a39a4`; local uncommitted implementation. Outcomes apply only to the
-observed variants below. A partial result never qualifies the full parameterized
-case. Evidence is ignored local data under `target/kedra-lab/`; no new-source CI
-or published build is claimed. Noctalia 5.1 accepts unknown theme strings; malformed
-TOML is the observed rejection case, not semantic-value validation.
+Draft PR #23 is pushed at `1de0d8a` from `codex/qemu-desktop-complete`, based on
+`a3a39a4`. Outcomes apply only to the observed variants below; a partial result
+never qualifies a full parameterized case. The owner later deleted the local Rust
+`target/` tree, including the ignored QEMU runtime, disks, screenshots and raw
+reports. Results below therefore distinguish historical observations recorded in
+WL-20260928-08 from reproducible exact-source Actions evidence. No replacement OS
+has yet been signed or published.
 
 | Cases | Actual result and remaining variants |
 |---|---|
 | TC-01/02 | pass: private locked runtime preparation/package replay, signatures/firmware/receipt checks, missing binary/changed firmware refusal and native disk construction. Every interruption/corrupt-cache variant is not-run. |
 | TC-03 | pass for actual niri + Wayland EGL Metal rendering, Cocoa presentation, basic input, visible edit/capture, Secure Boot and SELinux; full animation/presentation gate not measured. |
 | TC-04 | pass: failed QEMU startup leaves no owned QEMU/TPM and another VM stays running. No automatic software fallback. Explicit software/debug profile not implemented. |
-| TC-05 | partial: basic native keyboard/pointer and QMP Super+Return pass at 2560×1600 scale 2. Full toolkit, chooser, resize/scaling, physical modifier and audio matrix not-run. |
+| TC-05 | partial: basic native keyboard/pointer, QMP Super+Return and all six GTK3 Wayland/Xwayland, libadwaita, Qt5 and Qt6 chooser workflows pass. Their captures were viewed. Resize/scaling, physical modifier and audio remain not-run. |
 | TC-06 | pass: retained disk/firmware/TPM, five distinct restart boot IDs, fresh second instance, separate home/keys/ports, prepared operations with unavailable Docker endpoint. |
-| TC-07 | partial: live detach and invalid startup refuse; runtime integrity negatives are covered by TC-01. Complete corrupt-state/symlink/stale foreign PID matrix not-run. |
-| TC-08 | partial: correct pinned SSH access and cross-instance wrong-key denial pass. Complete host-key/token negative matrix not-run. |
+| TC-07 | pass for the previously observed refusal matrix: live detach, unsupported state, changed runtime receipt, stale foreign PID, linked disk/instance parent, missing QEMU/TPM, changed firmware and a non-emulator executable all refuse without touching generated foreign sentinels. New exclusive atomic state writes and ownership/permission/hard-link/nested-tree validation pass diagnostic checks; public-CLI rerun against the restored runtime is not-run. Interrupted preparation remains TC-01/02 coverage. |
+| TC-08 | pass: correct pinned SSH access, cross-instance/wrong client key, wrong pinned host key and wrong instance token were denied; no requested guest marker was created. |
 | TC-09 | partial: clean/explicit force stop, second-instance preservation and failed-start cleanup pass. Deliberately nonresponsive shutdown case not-run. |
 | TC-10/11/12 | pass for container apply/add/delete/no-op, invalid KDL/TOML, target/rootfs/stale archiver refusal, guest/GUI edits, concurrent lock refusal and real interrupted-write recovery preserving newer edits. |
 | TC-13/14 | pass: native valid/invalid config workflow, actual changed screenshot, source/display receipts; container capture/receipts and failure/partial reports. |
-| TC-15 | pass: five final ARM runs, 13/13 each. x86 and exact-source CI not-run. |
-| TC-16 | partial: offline listing/empty applicable selection and filtered execution pass. Full malformed YAML/wrong-wallpaper expectation matrix not-run. |
+| TC-15 | pass: five recorded ARM runs completed 13/13; exact-source container CI [36478409572](https://github.com/Reidond/kedra/actions/runs/36478409572) passes on ARM and x86. |
+| TC-16 | pass for observed variants: offline listing/empty selection, filtered execution, malformed YAML/unknown action refusal before provisioning, and a deliberate wrong-wallpaper expectation preserving the actual value and report. |
 | TC-17 | pass for forward/reverse ordering, two workers, colliding-prefix long names and retained-lab preservation. Every two-independent-execution variant not-run. |
-| TC-18 | pass for active native-probe and active eventually cancellation, exit 130, durable report, no remaining execution containers. Startup/second-signal variants not-run. |
+| TC-18 | pass for active eventually cancellation, startup kill/SIGINT and forced second SIGINT. Reports remain durable, exact-execution cleanup succeeds after engine recovery, and the retained lab stays healthy. |
 | TC-19 | pass for positive suite observations and genuine impossible-deadline probes: 6 s observation capped by 2 s eventually deadline, and 500 ms command deadline. |
-| TC-20 | not-run: private-engine-loss/teardown fault; shared engine was never stopped. |
+| TC-20 | pass: a separate disposable Docker daemon was stopped only after a real observation failure; the original failure, bounded diagnostics and teardown failure were preserved, then exact cleanup succeeded after that daemon resumed. Shared OrbStack was not stopped. |
 | TC-21 | partial: extracted verifier accepts original signed ISO; ISO unchanged after boot. Full fresh build/corrupt-media matrix not-run. |
-| TC-22 | partial: Anaconda and signed ISO Secure Boot/signature readiness markers, installer isolation and stopped detach pass. Fresh encrypted install/ISO-free installed boot not-run. |
-| TC-23 | pass: standalone retained native start/exec/sync/shot/stop uses private runtime, no UTM libraries/Apple Events; signed identity and owner data retained. |
-| TC-24 | not-run: implementation not committed/pushed; no new-source workflow pass. |
-| TC-25/26 | measured results below; cached-container startup and filtered-case five-run samples remain open. |
+| TC-22 | partial: Anaconda and signed ISO Secure Boot/signature readiness markers, installer isolation and stopped detach pass. Owned writable sentinel creation/full-hash detach refusal is implemented and diagnostically checked, but fresh encrypted install, real sentinel preservation and ISO-free installed boot are not-run. |
+| TC-23 | pass: standalone retained native start/exec/sync/shot/stop uses a private runtime with no UTM libraries/Apple Events. UTM source and target identity are retired; six owned old-target prototypes were removed, while UTM CLI/UI showed no registered owner VM. |
+| TC-24 | pass at `1de0d8a`: workspace [36478416455](https://github.com/Reidond/kedra/actions/runs/36478416455) / [36478409648](https://github.com/Reidond/kedra/actions/runs/36478409648), ARM boot [36478409639](https://github.com/Reidond/kedra/actions/runs/36478409639), container [36478409572](https://github.com/Reidond/kedra/actions/runs/36478409572), desktop [36478409495](https://github.com/Reidond/kedra/actions/runs/36478409495) and signed-home [36478409677](https://github.com/Reidond/kedra/actions/runs/36478409677) all pass. |
+| TC-25/26 | partial: optimized filtered execution and complete public cached container `up` now pass their five-run medians. Earlier native edit/capture and warm-start medians passed, but their deleted evidence must be regenerated after runtime restoration. |
 | TC-27 | not measured: no frame-presentation instrumentation collected; no 60 Hz or latency claim. |
-| TC-28 | partial: actual instance/client-key/disk isolation, original ISO preservation, no raw host disk or owner VM changes, scope review and cleanup. Exhaustive generated foreign-resource matrix not-run. |
+| TC-28 | partial: actual instance/client-key/disk isolation, foreign PID/file/link sentinels, original ISO preservation, no raw host disk or registered owner VM changes, owned prototype cleanup and scope review pass. Final publication/removal boundaries and regenerated evidence remain open. |
 
 | Requirement | Five-sample result (seconds; median / maximum) |
 |---|---|
@@ -178,30 +180,36 @@ TOML is the observed rejection case, not semantic-value validation.
 | NFR-02 native capture | 1.043 / 1.636 — pass |
 | NFR-02 container capture | 0.331 / 0.467 — pass |
 | NFR-03 native warm start | 24.443 / 44.929 — pass; samples 44.929, 24.328, 24.443, 26.345, 21.006 |
-| NFR-03 cached container start | One earlier 5.6 s session observation; five-run gate not measured |
+| NFR-03 current-target cached container start | 4.091 / 10.125 — pass; complete public `up` samples 10.125, 4.087, 4.438, 4.016, 4.091; clean cached base `6288…`, no overlay, excludes one-time source/overlay preparation; observed stdout, no separate raw timing file |
 | NFR-04 full ARM suite, two workers | 85.610 / 124.800 — median passes; samples 63.29, 106.68, 71.67, 85.61, 124.80 |
-| NFR-04 complete test command | 91.030 / 133.366; includes Cargo/preparation. Filtered five-run gate not measured |
+| NFR-04 complete test command | 91.030 / 133.366; includes Cargo/preparation |
+| NFR-04 current-target filtered case | 6.680 / 7.714 — pass; scenario samples 6.680, 7.714, 6.578, 7.181, 6.256; complete command wall median 7.038 |
 | NFR-05 presentation | Unverified; framebuffer/renderer evidence does not establish frame pacing |
 | NFR-06/07/08 scope, lifecycle, evidence | Observed variants above pass; missing fault variants stay unqualified |
 
-Final native loop: `qemu-optimized-native-loop.json`; final runtime warm starts:
-`qemu-verified-warm-restarts.json`; quiet CPU: `qemu-hvf-idle-after.json` (2.9%
-over 10.007 s). Earlier native loop regressed to median 6.009 s; batching screenshot
-metadata reduced the final loop to 4.676 s, without removing provenance.
-Source was restored after every generated edit. Cold builds and overlapping heavy
-build runs are excluded from warm qualification, but their failures remain logged.
+Optimized filtered receipts are runs `1790706424-99511`, `1790706431-99651`,
+`1790706439-99793`, `1790706446-99900` and `1790706454-153`. The scenario durations
+come from their durable reports/JUnit output; command-wall median was recorded by
+the invoking measurement. Post-change full two-worker run `1790706590-5077` passed
+12/13. `native::home_review_cycle` failed in 19.037 s because image source revision
+`48ebd03f…` was absent from the checkout (`fatal: bad object`); cleanup itself had
+no failure. A corrected-source full rerun is required.
 
-Final suite receipts: `qemu-final-suite-timings.json`, runs
-`1790611201-3265`, `1790611277-4245`, `1790611389-7582`, `1790611466-8673`,
-`1790611558-9581`. Deadline probes: `1790610926-1880` (2030 ms, expected failure),
-`1790610971-2251` (566 ms, expected failure). Cancellation:
-`qemu-eventually-cancel-result.json`, `1790611066-2626` (exit 130 in 0.536 s).
-Native boundaries: `qemu-instance-isolation.json`, `qemu-failed-start-cleanup.json`,
-`qemu-installer-boundaries.json`, `qemu-media-after-smoke.json` and
-`qemu-hvf-fixed-qualification.txt`. Earlier container transaction evidence is listed
-in worklog WL-20260928-04. The native base is cached unsigned image
-`kedra-local-utm:f5dd4ba37115d3b2` plus working-tree payload; the container base is
-`sha256:45fe5f72…e5fdc` plus working-tree overlay, not a new signed OS release.
+The native loop, warm-start and quiet-CPU results (2.9% over 10.007 s) were
+recorded before local artifacts were deleted. Earlier native loop regression to
+6.009 s median was reduced to 4.676 s by batching screenshot metadata without
+dropping provenance. Source was restored after every generated edit. Current-target
+filtered execution and complete public cached container startup now pass after
+optimizing the actual software-rendered desktop startup. The startup scope excludes
+one-time source/overlay preparation; source-sensitive native home coverage requires
+the working-tree overlay. The deleted native JSON files cannot serve as final
+retained artifacts.
+
+Recorded run IDs and fault results are retained in worklog WL-20260928-07/08; their
+ignored files are no longer present. The last clean native candidate was
+`kedra-local-qemu-arm64:95f324568fb66b5e`; it was an unsigned local test image, not
+a signed release. Exact-source CI artifacts remain available in the linked Actions
+runs. Final manual evidence must be regenerated from the restored external runtime.
 
 ## Reconciliation and remaining decisions
 
@@ -216,6 +224,7 @@ in worklog WL-20260928-04. The native base is cached unsigned image
 
 Prerequisites and implementation are authorized and completed for the delivered
 local workflows. The full packet remains partially qualified: outstanding cases
-above need actual manual/fault/CI execution. No further approval is needed for
-ordinary local iteration; publication and owner-account tests retain their separate
+above need actual manual execution, performance repair and replacement-publication
+evidence. Exact-source CI is complete for the listed workflows. No further approval
+is needed for ordinary local iteration; owner-account tests retain their separate
 boundaries.

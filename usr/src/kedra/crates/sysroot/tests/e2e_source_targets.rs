@@ -6,23 +6,37 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const IMAGE: &str = "usr/src/kedra/image";
 const TARGET: &str = "id='{id}'\narchitecture='{architecture}'\nimage='ghcr.io/reidond/kedra-{id}'\nfedora_release=44\ncandidate_target={enabled}\nhardware_status='synthetic'\n";
+static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "kedra-source-targets-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir_all(path.join("checkout")).unwrap();
-        Self(path)
+        loop {
+            let path = std::env::temp_dir().join(format!(
+                "kedra-source-targets-{}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+                NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
+            ));
+            match fs::create_dir(&path) {
+                Ok(()) => {
+                    fs::create_dir(path.join("checkout")).unwrap();
+                    return Self(path);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!(
+                    "cannot create fixture directory {}: {error}",
+                    path.display()
+                ),
+            }
+        }
     }
     fn repo(&self) -> PathBuf {
         self.0.join("checkout")

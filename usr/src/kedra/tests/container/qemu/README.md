@@ -8,6 +8,21 @@ The runtime and first disposable disk are prepared once. A running desktop stays
 available for manual use, guest commands, screenshots and validated home sync.
 Cold builds take minutes; they are outside the edit/capture loop.
 
+Native QEMU data is deliberately outside Cargo's `target` directory, so
+`cargo clean` cannot erase the private runtime or retained VM disks. By default,
+rebuildable runtime/build/image data lives under
+`~/Library/Caches/kedra/qemu`, while retained instances, writable disks, TPM
+state, keys, logs and screenshots live under
+`~/.local/share/kedra/lab/<checkout-key>`. The eight-character stable checkout key
+keeps Unix socket paths below the macOS limit and prevents different checkouts
+from controlling the same named instance.
+
+Set `KEDRA_QEMU_HOME` to an absolute directory to place all native runtime,
+build, image and retained-instance data below one root. Explicit `--runtime` and
+`--workdir` arguments take precedence. For compatibility, an explicitly set
+`KEDRA_LAB_ARTIFACTS` also keeps native QEMU data below its `qemu/` subdirectory;
+other container-harness artifacts retain their existing meaning.
+
 ```sh
 cargo build -p kedra-container-tests --bin kedra-lab --locked
 target/debug/kedra-lab vm tools check
@@ -72,17 +87,18 @@ the retained desktop.
 Default display is 2560×1600 at scale 2, six vCPUs and 4 GiB RAM; initial `up`
 accepts `--display`, `--cpus` and `--memory-mib`. `shot` captures through guest
 `grim`, with a PNG/source/image/runtime/display receipt under
-`target/kedra-lab/qemu/shots`. A screenshot alone never asserts GPU qualification.
+`~/.local/share/kedra/lab/<checkout-key>/shots`. A screenshot alone never
+asserts GPU qualification.
 Private QMP/TPM/guest-agent sockets, serial logs and state live below
-`target/kedra-lab/qemu/instances/<name>`. The only network listener is loopback
-SSH with per-instance credentials. No host disk, production home or existing VM
-is enrolled, migrated or reformatted.
+`~/.local/share/kedra/lab/<checkout-key>/instances/<name>`. The only network
+listener is loopback SSH with per-instance credentials. No host disk, production
+home or existing VM is enrolled, migrated or reformatted.
 
 ## Signed installer workflow
 
 ```sh
 target/debug/kedra-lab vm iso --image ghcr.io/reidond/kedra-qemu-arm64@sha256:REVIEWED_DIGEST --output /new/iso/directory
-target/debug/kedra-lab vm installer --name install --iso /path/to/kedra-qemu-arm64-44-DIGEST16.iso
+target/debug/kedra-lab vm installer --name install --sentinel --iso /path/to/kedra-qemu-arm64-44-DIGEST16.iso
 # Finish installation in the native window, then shut it down:
 target/debug/kedra-lab vm detach-installer --name install
 target/debug/kedra-lab vm up --name install
@@ -92,7 +108,10 @@ target/debug/kedra-lab vm up --name install
 fixed-key signed-image verification and installer receipts. The VM receives an
 APFS clone of the verified ISO and a new sparse disk; the original ISO is retained.
 Installer VMs have no lab SSH access, automatic login or fixture shutdown grant.
-Detaching media requires a stopped VM. The former UTM identity is retired; create a new QEMU instance.
+`--sentinel` adds only a generated, instance-owned marker disk and verifies its
+hash when detaching the installer; it never accepts a host disk path. Detaching
+media requires a stopped VM. The former UTM identity is retired; create a new
+QEMU instance.
 
 ## Inputs and qualification
 

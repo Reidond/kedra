@@ -2,23 +2,27 @@
 
 The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
 
-## Active completion and identity replacement (2026-09-28)
+## Active completion and identity replacement (2026-09-29)
 
 The owner explicitly requires finishing the missing qualification and retiring
 existing Kedra UTM VMs plus the signed `utm` identity. Current source now defines
 `qemu-arm64` with separate `kedra-qemu-arm64` / `kedra-qemu-arm64-builds` images
 and a fresh dedicated authority `80551368…1a515`. Its main-only GitHub signing
-environment is provisioned; the namespace-only bootstrap images are currently
-private, awaiting GitHub browser sign-in to set their visibility. No replacement
-OS has been signed/published yet. The old signing environment/packages remain
-until replacement publication can complete without an interruption.
+environment is provisioned. Both namespace-only bootstrap packages are public,
+linked only to `Reidond/kedra` for Actions write access, and contain no OS image.
+No replacement OS has been signed/published yet. The old signing environment and
+packages still exist only until replacement publication can be verified.
 
-UTM CLI and native UI report an empty VM list; no owner VM has been removed by
-this follow-up. The default native lab currently uses the earlier `utm` fixture;
-a clean `qemu-arm64` native disk build is in progress. New-source local CLI E2E
-passes, including refusal of the retired target. The earlier results below remain
-historical evidence, not the full qualification of this new identity. See
-WL-20260928-08 for the active work and outstanding browser authentication.
+UTM CLI and native UI report an empty VM list. Six stopped Kedra prototype
+instances using the old target were removed through the owned lab CLI; no
+registered owner VM was found or removed. Source now rejects the retired `utm`
+target and contains only `qemu-arm64` for this ARM identity. The clean replacement
+candidate booted with ANGLE Metal, Secure Boot and enforcing SELinux. Its ignored
+runtime, disks and raw reports were subsequently deleted with the Rust `target/`
+tree by the owner, so they are historical observations recorded in
+WL-20260928-08 rather than currently inspectable artifacts. Runtime restoration
+is in progress under `~/Library/Caches/kedra/qemu`; retained per-checkout VM state
+now lives under `~/.local/share/kedra/lab/<checkout-key>`, outside Cargo output.
 
 ## Current development scope (2026-09-28)
 
@@ -41,8 +45,10 @@ the generated keyring is unlocked and no failed system units were observed.
 
 The UTM launcher, cocoa-way/waypipe build/bridge and unused live-view code are
 removed. The renamed ARM boot workflow `test-qemu-arm64.yml` retains its security
-assertions. Signed target identity `utm`, release authority and owner VM data are
-preserved. Signed-media preparation now lives in `installer/macos`; the existing
+assertions. The signed source identity, repositories and authority are now
+`qemu-arm64`; old external `utm` package/environment resources await verified
+replacement publication before removal. Signed-media preparation now lives in
+`installer/macos`; the existing
 verified ISO reached Anaconda with its Secure Boot/signature readiness markers.
 A new ISO build and fresh encrypted installation through this launcher are not-run.
 
@@ -52,10 +58,23 @@ compatibility patches, the runtime includes upstream stable-11.0 HVF WFI fix
 `3b98370b55de7fff540092c1a6760726a6816625`: the unpatched idle VM consumed several
 host cores. The corrected runtime measured 2.9% host CPU during a quiet 10 s sample.
 Authorized prerequisites were installed; no system QEMU or UTM libraries are used.
+Rust development/test debuginfo is now disabled by default, with
+`CARGO_PROFILE_DEV_DEBUG=2` retaining an explicit full-debug path. One isolated
+before/after comparison measured clean `kedra-lab` compilation at 42.98 s versus
+39.85 s, touched-source rebuild at 1.39 s versus 1.15 s, and build-tree size at
+1,411,224 KiB versus 801,284 KiB. These are single comparisons, not a general
+percentage claim.
 
-Inspected base is `main` at `a3a39a4a8a1d7777f02ab68d80ad4f39abf40c87`.
-Its workspace run [36326037562](https://github.com/Reidond/kedra/actions/runs/36326037562)
-passes; new changes are local/uncommitted, with no new-source CI result. Five final
+Draft [PR #23](https://github.com/Reidond/kedra/pull/23) is pushed from
+`codex/qemu-desktop-complete` at `1de0d8a` against base
+`a3a39a4a8a1d7777f02ab68d80ad4f39abf40c87`. Exact-source workspace
+[36478416455](https://github.com/Reidond/kedra/actions/runs/36478416455) and
+[36478409648](https://github.com/Reidond/kedra/actions/runs/36478409648), ARM boot
+[36478409639](https://github.com/Reidond/kedra/actions/runs/36478409639), container
+[36478409572](https://github.com/Reidond/kedra/actions/runs/36478409572) on both
+architectures, desktop [36478409495](https://github.com/Reidond/kedra/actions/runs/36478409495),
+and signed-home [36478409677](https://github.com/Reidond/kedra/actions/runs/36478409677)
+checks pass. Five earlier final
 ARM container runs passed 13/13 each: suite median 85.61 s, max 124.80 s; complete
 command median 91.03 s, max 133.37 s. They use cached ARM base `45fe5f72…e5fdc`
 and working-tree overlay. Container sync validation/conflict/deletion/override and
@@ -67,12 +86,31 @@ zero remaining execution containers and the retained lab healthy.
 Five native warm starts measured median 24.443 s / max 44.929 s. The final native
 edit+capture loop measured median 4.676 s / max 8.959 s; captures median 1.043 s /
 max 1.636 s. Container edit+capture measured median 5.000 s / max 9.177 s and
-captures median 0.331 s / max 0.467 s. Native image evidence is a cached unsigned
-local candidate plus working-tree payload, not a newly published complete OS.
+captures median 0.331 s / max 0.467 s. Native image evidence was an unsigned local
+candidate plus working-tree payload, not a newly published complete OS; that local
+runtime/disk/evidence tree was later deleted as described above.
 Instance key/disk isolation, Docker-independent sync, failed-start cleanup and
-valid/invalid native edits passed. Frame pacing, audio/full toolkit and physical
-modifier-key checks, the complete fault matrix and x86/new-source CI remain open.
-See WL-20260928-07 and the [delivery review](../../../../.specs/qemu-desktop-iteration/review.md)
+valid/invalid native edits passed. All six native GTK3 Wayland/Xwayland,
+libadwaita, Qt5 and Qt6 chooser workflows passed and their screenshots were
+viewed. Authority/refusal, private-engine-loss, startup interruption and forced
+second-signal faults also passed. After the container image now precomputes
+ldconfig/hwdb/update watermarks and gives the whole user manager explicit software
+rendering, five real filtered desktop-session runs passed with durations 6.680,
+7.714, 6.578, 7.181 and 6.256 s (median 6.680, max 7.714); complete command wall
+median was 7.038 s, under the 15 s target. One hot internal session reached ready
+in about 3.6 s. Five complete public cached `up` samples were 10.125, 4.087,
+4.438, 4.016 and 4.091 s (median 4.091), passing the 20 s target. They use clean
+cached base `6288…`, no working-tree overlay, and exclude one-time source/overlay
+preparation; stdout was observed and these samples are recorded here without a
+separate persisted timing file. The earlier 37.861 s median remains pre-fix
+failure evidence.
+The first post-change two-worker regression (`1790706590-5077`) passed 12/13;
+`native::home_review_cycle` failed because the container image named source
+revision `48ebd03f…`, which was not present in this checkout (`fatal: bad object`).
+It is a recorded failure pending a corrected-source rerun, not a suite pass.
+Frame pacing, audio, scaling/resize, physical modifier-key checks, fresh encrypted
+installation and first signed replacement publication remain open. See
+WL-20260928-08 and the [delivery review](../../../../.specs/qemu-desktop-iteration/review.md)
 for exact evidence and remaining qualification.
 Earlier production and qualification records below retain their original dates and
 source revisions.

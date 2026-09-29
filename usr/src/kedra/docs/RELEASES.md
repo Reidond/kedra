@@ -6,7 +6,7 @@ The fixed public keys are `usr/src/kedra/image/release/authority/<target>.pub`. 
 
 ```text
 desktop  a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
-qemu-arm64      76ca7a65915adb1907acbe0885af83c5c569dd2964b87decbfb67059dee366c6
+qemu-arm64  80551368732ccb49be7916db9ccfd1e3caa11a767e86749378565ec0b8a1a515
 ```
 
 The installed root policy requires native Sigstore signatures from the installed target's key and its exact Kedra repository. A desktop system never accepts a `qemu-arm64` image and vice versa: target, architecture, OCI platform and repository are all bound by the signed image identity. Attachment discovery and initial-install policy must stay enabled. Never add permissive defaults or disable signature checks to make a pull work.

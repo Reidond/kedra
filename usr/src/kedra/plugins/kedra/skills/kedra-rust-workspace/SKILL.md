@@ -27,6 +27,15 @@ Only E2E/manual tests: no unit/model/mock/doctests or repository source scanners
 
 Use the pinned toolchain. RUSTUP_TOOLCHAIN can override rust-toolchain.toml; inspect rustup show active-toolchain and use the explicit installed pin rather than lowering rust-version. Do not install tools automatically. Source: https://rust-lang.github.io/rustup/overrides.html (local finding 2026-09-07).
 
+The workspace disables debuginfo in the Cargo `dev` profile; Cargo's `test`
+profile inherits it. This keeps local builds and their artifacts smaller while
+preserving debug assertions, overflow checks and incremental compilation. Set
+`CARGO_PROFILE_DEV_DEBUG=2` for a build that needs full debugger information.
+On the owner's M2 Pro with Rust 1.98.1 (2026-09-29), a clean `kedra-lab` build
+improved from 42.98 s to 39.85 s, a touched-source rebuild from 1.39 s to 1.15 s,
+and the resulting debug tree from 1,411,224 KiB to 801,284 KiB. Source:
+https://kobzol.github.io/rust/rustc/2025/05/20/disable-debuginfo-to-improve-rust-compile-times.html
+
 Keep canonical ordinary skill files and Codex/Claude manifests in usr/src/kedra/plugins/kedra, with the pinned upstream Rust skills in usr/src/kedra/plugins/rust-skills. Preserve upstream NOTICE/provenance and review snapshot/version updates. No symlinks, submodules, generated copies or OS skill provisioning; the plugins are registered for this repository only (AGENTS.md), and skill changes bump the plugin version. Manual file access does not prove automatic plugin discovery.
 
 Windows Git 2.55 rejected canonical verbatim paths in GIT_CONFIG_GLOBAL; use appropriate ordinary subprocess paths for generated fixtures, separately from filesystem path validation. Native CLI/VM E2E remains the acceptance boundary.

@@ -351,6 +351,7 @@ fn prepare_kind(docker: &Docker, request: &Request, native: bool) -> Result<LabI
             "kedra-lab-host",
             "kedra-lab-host.service",
             "niri-nested.conf",
+            "software-rendering.conf",
             "container-skip.conf",
             "rtkit-container.conf",
             "journald-container.conf",

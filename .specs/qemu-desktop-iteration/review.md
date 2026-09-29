@@ -1,9 +1,10 @@
-# Local delivery review — 2026-09-28
+# Delivery review — 2026-09-29
 
-Base `main` at `a3a39a4a8a1d7777f02ab68d80ad4f39abf40c87`. The changes,
-including new files, remain uncommitted. A clone of HEAD does not contain them.
-The working native GPU and Testcontainers workflows are delivered; the complete
-28-case qualification matrix is still partial, as recorded in [test-plan](test-plan.md).
+Draft PR #23 is pushed at `1de0d8a` from `codex/qemu-desktop-complete`, based on
+`main` at `a3a39a4a8a1d7777f02ab68d80ad4f39abf40c87`. Exact-source CI passes,
+but the replacement is not merged or published. The native GPU and Testcontainers
+workflows are implemented; the complete 28-case qualification matrix remains
+partial, as recorded in [test-plan](test-plan.md).
 
 ## Delivered behavior
 
@@ -20,7 +21,10 @@ partial reports, bounded cancellation/deadlines and optional two-worker executio
 It remains the sole container runner. Software container rendering is explicit.
 The UTM launcher, cocoa-way/waypipe builder and TCP bridge are removed. ARM boot
 workflow/scenarios/observer are renamed while retaining their boot assertions.
-Signed `utm` identity, release authority and existing owner data are unchanged.
+Source now uses the `qemu-arm64` target, repository names and a fresh authority;
+the retired `utm` target is rejected. Six stopped owned old-target prototype
+instances were removed. UTM CLI and UI showed no registered owner VM. Old external
+UTM packages/environment remain pending verified replacement publication.
 
 ## Dependent surfaces reviewed
 
@@ -32,12 +36,12 @@ Signed `utm` identity, release authority and existing owner data are unchanged.
 | Source/cache/sync | Existing source resolver is reused; compiler copy is locked; archive/cache publication atomic; both transports exercise guest validator/transaction |
 | Capture metadata | Native actual niri output and installed/synced source; container actual scale and explicit software status; screenshots independently viewed |
 | Cancellation/deadlines | Runner, scenario engine, Docker waits, cleanup and report writes reviewed; real active cancellation and negative deadline cases executed |
-| Media and ARM boot rename | Existing fixed-key media authority retained; signed ISO verifies/boots; boot-level assertion changes inspected; new-source CI remains not-run |
+| Media and ARM boot/identity rename | Fresh qemu-arm64 authority and repositories; existing historical ISO remains old-identity evidence; renamed ARM assertions and exact-source CI pass |
 | Removed live transport | Command callers, session host mode, packages and mounts removed together; final complete container suite passes |
 
 External strict report consumers are UNKNOWN; the repository's current report
-writer and artifact handling were inspected. No new public production CLI format
-or signing contract was changed.
+writer and artifact handling were inspected. No public report format changed; the
+target-specific signing contract deliberately changed from `utm` to `qemu-arm64`.
 
 ## Findings fixed during actual workflows
 
@@ -65,12 +69,23 @@ or signing contract was changed.
   experiment passed in 2.738 seconds with zero owned children remaining.
 - Four SSH round trips per native capture added latency; metadata is collected
   in one request without dropping source/display evidence.
+- Container startup inherited no software-rendering choice into the user manager,
+  causing Noctalia to probe Zink before falling back. A user-manager environment.d
+  setting now applies `LIBGL_ALWAYS_SOFTWARE=1`, while image construction finishes
+  ldconfig, hwdb and systemd-update-done work before runtime startup.
+- VM state publication now uses exclusive, symlink-safe atomic writes and validates
+  ownership, modes, link counts and nested TPM state. Installer mode can attach an
+  owned writable sentinel and refuses detach if its full hash changed. These new
+  controller paths still require public-CLI qualification after runtime restoration.
 
 ## Observed checks and performance
 
 Formatting, workspace all-target Clippy with warnings denied, ruff, release build,
 shell syntax and Git whitespace checks pass. Workspace CLI E2E ran two macOS cases;
 Linux-only targets were empty. Release/OpenSSL interop and material CLI checks pass.
+At `1de0d8a`, workspace runs 36478416455/36478409648, ARM boot 36478409639,
+both-architecture container run 36478409572, desktop 36478409495 and signed-home
+36478409677 pass.
 Five final full ARM suites passed 13/13 each, median 85.61 seconds (complete command
 91.03 seconds); earlier forward/reverse and two-worker runs also passed.
 The final native edit/capture loop median is 4.676 seconds, capture 1.043 seconds,
@@ -83,34 +98,59 @@ and removed execution containers while the retained lab stayed healthy. Actual
 validation, conflicts, GUI overrides, deletion, interrupted-write recovery and
 newer guest edits were exercised; all generated source edits were restored.
 
+All six native GTK3 Wayland/Xwayland, libadwaita, Qt5 and Qt6 chooser workflows
+passed and their screenshots were viewed. Wrong client/host/token authorities,
+state/runtime/symlink/foreign-PID refusals, private-engine loss, startup
+interruption and a forced second signal were exercised successfully. Current
+optimized filtered desktop-session samples are 6.680, 7.714, 6.578, 7.181 and
+6.256 seconds (median 6.680/max 7.714); complete command wall median is 7.038 s,
+so the 15 s gate passes. Five complete public cached `up` samples are 10.125,
+4.087, 4.438, 4.016 and 4.091 s (median 4.091/max 10.125), passing the 20 s gate.
+They use clean cached base `6288…` without a working-tree overlay and exclude
+one-time source/overlay preparation; stdout was observed without a separate raw
+timing file. Post-change full two-worker run
+`1790706590-5077` passed 12/13; home review failed because its image source revision
+`48ebd03f…` was absent from this checkout. Cleanup did not fail. This is a recorded
+suite failure pending a corrected-source rerun.
+
+The Rust dev/test profile disables debuginfo by default and keeps
+`CARGO_PROFILE_DEV_DEBUG=2` as the explicit full-debug path. A single isolated
+comparison measured clean build 42.98→39.85 s, touched-source rebuild 1.39→1.15 s
+and build tree 1,411,224→801,284 KiB; it does not support a broad percentage claim.
+
 ## Scope and unresolved qualification
 
 No unit/mock/doctest/source-scanner tests or replacement runner were added. Python
 uses uv on the host; guest/build scripts declare their own interpreter scope.
 Safe flat-workspace Rust and production privilege boundaries remain intact. No
-owner VM data, real accounts, workstation raw devices, signing keys, release
-workflow or global agent configuration changed. No commit/push/CI dispatch or
+registered owner VM data, real accounts, workstation raw devices or global agent
+configuration changed. A fresh qemu-arm64 signing authority/environment and public
+namespace-only repositories were configured; no replacement OS publication or
 production install occurred.
 
 The existing signed ISO reached Anaconda and reported its Secure Boot/signature
-markers; this is not a new ISO build or completed encrypted installation. Full
-GTK/Qt/Xwayland/audio/scaling/physical-key qualification, frame pacing, the private
-engine-loss and remaining cancellation/corrupt-state matrix, repeated cached
-container startup/filter budgets and x86/current-source CI remain open.
-The native fixture uses a cached unsigned base plus working-tree payload;
-container runs use a cached published ARM base plus working-tree overlay. Neither
-is a newly published complete OS. Automatic receipts retain `gpu_qualified: false`
+markers; this is not a new replacement ISO build or completed encrypted installation.
+Audio, scaling/resize, physical-key qualification and unlocked-window frame pacing
+remain open. Native timing evidence must be regenerated after runtime restoration.
+First signed replacement
+publication, old external identity removal and fresh encrypted installation remain
+open.
+The observed native fixture used an unsigned local `qemu-arm64` candidate;
+recorded container runs used a cached published ARM base plus working-tree overlay.
+Neither is a newly published complete OS. Automatic receipts retain `gpu_qualified: false`
 because successful startup/capture does not grant the whole manual GPU matrix.
 
 ## Documentation and handoff
 
-Updated README/INSTALL/STATUS, the container/native/media instructions, specs and
-worklog. Durable build/lifecycle/renderer findings were added to existing Kedra
-skills; both first-party manifests are 0.3.3. The AI changelog records that local
-knowledge update; no duplicate memory buffer or invented behavioral metrics.
-Historical worklog/production results remain intact.
+README/INSTALL/STATUS, container/native/media instructions, specs and worklog are
+being reconciled with the final source and evidence. Durable build/lifecycle and
+renderer findings are in the repository skills. Historical worklog and production
+records remain intact.
 
-Evidence is ignored under `target/kedra-lab/`; specific files and run IDs are in
-test-plan.md and WL-20260928-07. The default native desktop and retained container
-are available for manual and agent iteration. A user-visible screenshot completes
-the handoff. No claim that every planned case passed accompanies this delivery.
+The owner deleted the Rust `target/` tree, which also removed the ignored runtime,
+VM disks, screenshots and raw reports. Their recorded outcomes remain in
+WL-20260928-07/08, while exact-source CI artifacts remain in Actions. Runtime and
+images are being restored under `~/Library/Caches/kedra/qemu`, with retained
+per-checkout state under `~/.local/share/kedra/lab/<checkout-key>`, before final
+manual qualification.
+No claim that every planned case passed accompanies this review.

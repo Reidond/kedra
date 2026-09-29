@@ -34,8 +34,12 @@ COPY journald-container.conf /usr/lib/systemd/journald.conf.d/90-kedra-lab.conf
 COPY kedra-lab-host /usr/libexec/kedra-lab/host
 COPY kedra-lab-host.service /usr/lib/systemd/user/kedra-lab-host.service
 COPY niri-nested.conf /usr/lib/systemd/user/niri.service.d/90-kedra-lab-nested.conf
+COPY software-rendering.conf /usr/lib/environment.d/90-kedra-lab-software-rendering.conf
 COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
 COPY probes/ /usr/libexec/kedra-lab/probes/
-RUN chmod 0755 /usr/libexec/kedra-lab/host /usr/libexec/kedra-lab/probes/*
+RUN chmod 0755 /usr/libexec/kedra-lab/host /usr/libexec/kedra-lab/probes/* && \
+    ldconfig -X && \
+    systemd-hwdb update && \
+    /usr/lib/systemd/systemd-update-done
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]

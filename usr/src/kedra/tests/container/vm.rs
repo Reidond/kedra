@@ -8,8 +8,9 @@ use std::process::{Child, Command, ExitCode, Stdio};
 use std::time::{Duration, Instant};
 
 use clap::{Args, Subcommand};
+use sha2::{Digest, Sha256};
 
-use crate::{Result, artifact_root, harness_dir};
+use crate::{Result, harness_dir};
 
 #[derive(Args)]
 pub struct Instance {
@@ -53,6 +54,9 @@ pub enum VmCommand {
         /// Activate the signed media's read-only boot/signature readiness probe.
         #[arg(long)]
         probe: bool,
+        /// Attach an owned marker disk and verify that installation leaves it unchanged.
+        #[arg(long)]
+        sentinel: bool,
     },
     /// Detach the copied ISO from a stopped installer VM.
     DetachInstaller(Instance),
@@ -138,23 +142,70 @@ fn script(name: &str) -> Command {
     command
 }
 
-fn runtime(value: Option<&PathBuf>) -> PathBuf {
-    value
-        .cloned()
-        .unwrap_or_else(|| artifact_root().join("qemu/runtime"))
+fn configured_qemu_home() -> Option<PathBuf> {
+    std::env::var_os("KEDRA_QEMU_HOME")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
 }
 
-fn instance_script(instance: &Instance, operation: &str) -> Command {
+fn legacy_qemu_home() -> Option<PathBuf> {
+    std::env::var_os("KEDRA_LAB_ARTIFACTS")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .map(|path| path.join("qemu"))
+}
+
+fn user_home() -> Result<PathBuf> {
+    std::env::var_os("HOME")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .ok_or_else(|| crate::invalid("HOME must name an absolute directory for native QEMU"))
+}
+
+fn checkout_key() -> Result<String> {
+    let checkout = crate::repository_root().canonicalize()?;
+    let digest = Sha256::digest(checkout.as_os_str().as_encoded_bytes());
+    Ok(format!(
+        "{:02x}{:02x}{:02x}{:02x}",
+        digest[0], digest[1], digest[2], digest[3]
+    ))
+}
+
+fn qemu_cache_home() -> Result<PathBuf> {
+    if let Some(path) = configured_qemu_home().or_else(legacy_qemu_home) {
+        return Ok(path);
+    }
+    Ok(user_home()?.join("Library/Caches/kedra/qemu"))
+}
+
+fn qemu_state_home() -> Result<PathBuf> {
+    if let Some(path) = configured_qemu_home().or_else(legacy_qemu_home) {
+        return Ok(path);
+    }
+    Ok(user_home()?
+        .join(".local/share/kedra/lab")
+        .join(checkout_key()?))
+}
+
+fn runtime(value: Option<&PathBuf>) -> Result<PathBuf> {
+    match value {
+        Some(path) => Ok(path.clone()),
+        None => Ok(qemu_cache_home()?.join("runtime")),
+    }
+}
+
+fn instance_script(instance: &Instance, operation: &str) -> Result<Command> {
     let mut command = script("vm.py");
     command
         .arg("--root")
-        .arg(artifact_root().join("qemu"))
+        .arg(qemu_state_home()?)
         .arg("--runtime")
-        .arg(runtime(instance.runtime.as_ref()))
+        .arg(runtime(instance.runtime.as_ref())?)
         .arg("--name")
         .arg(&instance.name)
         .arg(operation);
-    command
+    Ok(command)
 }
 
 fn execute(command: &mut Command) -> Result<ExitCode> {
@@ -206,7 +257,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
         } => execute(
             script("check-runtime.py")
                 .arg("--runtime")
-                .arg(runtime(path.as_ref())),
+                .arg(runtime(path.as_ref())?),
         ),
         VmCommand::Tools {
             command:
@@ -215,15 +266,21 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                     workdir,
                     jobs,
                 },
-        } => execute(
-            script("prepare-runtime.py")
-                .arg("--runtime")
-                .arg(runtime(path.as_ref()))
-                .arg("--workdir")
-                .arg(workdir.unwrap_or_else(|| artifact_root().join("qemu/build")))
-                .arg("--jobs")
-                .arg(jobs.to_string()),
-        ),
+        } => {
+            let workdir = match workdir {
+                Some(path) => path,
+                None => qemu_cache_home()?.join("build"),
+            };
+            execute(
+                script("prepare-runtime.py")
+                    .arg("--runtime")
+                    .arg(runtime(path.as_ref())?)
+                    .arg("--workdir")
+                    .arg(workdir)
+                    .arg("--jobs")
+                    .arg(jobs.to_string()),
+            )
+        }
         VmCommand::Image { image, overlay } => {
             if std::env::var("DOCKER_HOST").is_ok_and(|host| !host.starts_with("unix://")) {
                 return Err(crate::invalid(
@@ -252,7 +309,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                     .arg("--engine-id")
                     .arg(docker.identity()?)
                     .arg("--cache")
-                    .arg(artifact_root().join("qemu")),
+                    .arg(qemu_cache_home()?),
             )
         }
         VmCommand::Iso {
@@ -279,8 +336,9 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             iso,
             disk_gib,
             probe,
+            sentinel,
         } => {
-            let mut command = instance_script(&instance, "installer");
+            let mut command = instance_script(&instance, "installer")?;
             command
                 .arg("--iso")
                 .arg(iso)
@@ -289,10 +347,13 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             if probe {
                 command.arg("--probe");
             }
+            if sentinel {
+                command.arg("--sentinel");
+            }
             execute(&mut command)
         }
         VmCommand::DetachInstaller(instance) => {
-            execute(&mut instance_script(&instance, "detach-installer"))
+            execute(&mut instance_script(&instance, "detach-installer")?)
         }
         VmCommand::Up {
             instance,
@@ -301,7 +362,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             cpus,
             display,
         } => {
-            let mut command = instance_script(&instance, "up");
+            let mut command = instance_script(&instance, "up")?;
             command
                 .arg("--memory-mib")
                 .arg(memory_mib.to_string())
@@ -314,26 +375,26 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             }
             execute(&mut command)
         }
-        VmCommand::Status(instance) => execute(&mut instance_script(&instance, "status")),
-        VmCommand::Remove(instance) => execute(&mut instance_script(&instance, "remove")),
-        VmCommand::Logs(instance) => execute(&mut instance_script(&instance, "logs")),
-        VmCommand::Key { instance, keys } => execute(instance_script(&instance, "key").args(keys)),
+        VmCommand::Status(instance) => execute(&mut instance_script(&instance, "status")?),
+        VmCommand::Remove(instance) => execute(&mut instance_script(&instance, "remove")?),
+        VmCommand::Logs(instance) => execute(&mut instance_script(&instance, "logs")?),
+        VmCommand::Key { instance, keys } => execute(instance_script(&instance, "key")?.args(keys)),
         VmCommand::Down { instance, force } => {
-            let mut command = instance_script(&instance, "down");
+            let mut command = instance_script(&instance, "down")?;
             if force {
                 command.arg("--force");
             }
             execute(&mut command)
         }
         VmCommand::Exec { instance, argv } => {
-            execute(instance_script(&instance, "exec").arg("--").args(argv))
+            execute(instance_script(&instance, "exec")?.arg("--").args(argv))
         }
         VmCommand::Shot { instance, label } => {
-            execute(instance_script(&instance, "shot").arg(label))
+            execute(instance_script(&instance, "shot")?.arg(label))
         }
         VmCommand::Sync { instance, shot } => {
             let payload = crate::lab_sync::request("qemu-arm64")?;
-            let mut command = instance_script(&instance, "sync");
+            let mut command = instance_script(&instance, "sync")?;
             command.stdin(Stdio::piped());
             #[cfg(unix)]
             command.process_group(0);
@@ -346,7 +407,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 return Ok(status);
             }
             if let Some(label) = shot {
-                execute(instance_script(&instance, "shot").arg(label))
+                execute(instance_script(&instance, "shot")?.arg(label))
             } else {
                 Ok(ExitCode::SUCCESS)
             }

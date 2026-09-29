@@ -42,7 +42,7 @@ groups remain unfinished.
 Do not run image-building scripts as a workstation package installer.
 
 Signed OS images are published per target: ghcr.io/reidond/kedra-desktop
-(x86_64) and ghcr.io/reidond/kedra-utm (aarch64 UTM virtual machine). Each
+(x86_64) and ghcr.io/reidond/kedra-qemu-arm64 (aarch64 QEMU virtual machine). Each
 system follows only its own target. Installation media is built locally on
 demand; no GitHub Release download is required. UEFI Secure Boot is required.
 Follow https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/INSTALL.md.

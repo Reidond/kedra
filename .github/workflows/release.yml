@@ -45,7 +45,7 @@ jobs:
       target: desktop
       runner: ubuntu-24.04
 
-  utm:
+  qemu-arm64:
     if: github.repository == 'Reidond/kedra' && github.ref == 'refs/heads/main' && vars.KEDRA_RELEASES_ENABLED == 'true'
     uses: ./.github/workflows/release-target.yml
     permissions:
@@ -54,5 +54,5 @@ jobs:
       packages: write
     secrets: inherit
     with:
-      target: utm
+      target: qemu-arm64
       runner: ubuntu-24.04-arm

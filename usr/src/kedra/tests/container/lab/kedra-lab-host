@@ -1,38 +1,18 @@
 #!/usr/bin/bash
-# Lab-only parent compositor for the nested niri session, run as the session
-# user. `headless` is a wlroots output in memory (sway) for screenshots and CI.
-# `waypipe` forwards the niri window to a Wayland compositor outside the
-# container (cocoa-way on macOS) through kedra-lab's TCP bridge.
+# Lab-only headless parent compositor, running as the disposable session user.
 set -euo pipefail
 # shellcheck source=/dev/null
 . /etc/kedra-lab/host.env
 socket="$XDG_RUNTIME_DIR/wayland-host"
-case "$KEDRA_LAB_HOST" in
-    headless)
-        config="$XDG_RUNTIME_DIR/kedra-lab-sway.conf"
-        printf '%s\n' \
-            "output HEADLESS-1 mode --custom ${KEDRA_LAB_WIDTH}x${KEDRA_LAB_HEIGHT}@60Hz position 0 0 scale 1" \
-            'default_border none' \
-            'default_floating_border none' \
-            'for_window [app_id=".*"] fullscreen enable' \
-            'focus_follows_mouse no' \
-            "exec ln -sfn \"\$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY\" \"$socket\"" \
-            > "$config"
-        rm -f "$socket"
-        export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_HEADLESS_OUTPUTS=1
-        exec /usr/bin/sway --config "$config"
-        ;;
-    waypipe)
-        # The Mac-side waypipe client is reached through kedra-lab's loopback
-        # TCP bridge; containers cannot connect to macOS-created Unix sockets.
-        bridge="$XDG_RUNTIME_DIR/kedra-lab-waypipe.sock"
-        rm -f "$bridge"
-        /usr/bin/socat "UNIX-LISTEN:$bridge,fork,mode=600" "TCP:host.docker.internal:$KEDRA_LAB_BRIDGE_PORT" &
-        for attempt in $(seq 1 50); do test -S "$bridge" && break; sleep 0.1; done
-        exec /usr/bin/waypipe --socket "$bridge" --display wayland-host server -- sleep infinity
-        ;;
-    *)
-        echo "Unknown lab host mode: $KEDRA_LAB_HOST" >&2
-        exit 64
-        ;;
-esac
+config="$XDG_RUNTIME_DIR/kedra-lab-sway.conf"
+printf '%s\n' \
+    "output HEADLESS-1 mode --custom ${KEDRA_LAB_WIDTH}x${KEDRA_LAB_HEIGHT}@60Hz position 0 0 scale 1" \
+    'default_border none' \
+    'default_floating_border none' \
+    'for_window [app_id=".*"] fullscreen enable' \
+    'focus_follows_mouse no' \
+    "exec ln -sfn \"\$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY\" \"$socket\"" \
+    > "$config"
+rm -f "$socket"
+export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_HEADLESS_OUTPUTS=1
+exec /usr/bin/sway --config "$config"

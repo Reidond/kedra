@@ -20,7 +20,7 @@ Nothing here enters the OS image, installer or release. A container does not boo
 - The pinned Rust toolchain.
 - Network access for pulling images, Fedora packages in the lab layer, and the pinned Codex/Bitwarden inputs of full builds.
 
-The engine's architecture selects the default target: `utm` (aarch64) on Apple Silicon, `desktop` (x86_64) on x86_64.
+The engine's architecture selects the default target: `qemu-arm64` (aarch64) on Apple Silicon, `desktop` (x86_64) on x86_64.
 
 ## Commands
 
@@ -28,6 +28,7 @@ The engine's architecture selects the default target: `utm` (aarch64) on Apple S
 |---|---|
 | Validate and list; provisions nothing | `cargo test -p kedra-container-tests --test container -- --list` |
 | Run all | `cargo test -p kedra-container-tests --test container` |
+| Run all with two isolated workers | `cargo test -p kedra-container-tests --test container -- --test-threads 2` |
 | Run one or a group; filtered before provisioning | `cargo test -p kedra-container-tests --test container -- desktop_session` |
 | Retain failed containers (local only; refused when `CI` is set) | `KEDRA_LAB_KEEP=failed cargo test …` |
 | Remove one execution's resources | `kedra-lab clean --execution <id>` |
@@ -37,12 +38,22 @@ Settings are environment variables for `cargo test`, or flags for `kedra-lab`:
 
 | Variable / flag | Values | Default |
 |---|---|---|
-| `KEDRA_LAB_TARGET` / `--target` | `desktop`, `utm` | engine architecture |
+| `KEDRA_LAB_TARGET` / `--target` | `desktop`, `qemu-arm64` | engine architecture |
 | `KEDRA_LAB_IMAGE` / `--image` | see the table below | `stable` |
 | `KEDRA_LAB_OVERLAY` / `--overlay` | `worktree` (layer the working tree), `none` | `worktree`; `none` for `build` |
 | `KEDRA_LAB_BINARIES` / `--binaries` | directory with Linux `sysroot` and `sysroot-helper` | built in the lab builder |
 | `KEDRA_LAB_ARTIFACTS` | output directory | `target/kedra-lab` |
+| `KEDRA_QEMU_HOME` | native QEMU runtime and retained VM root | durable per-user paths (see `qemu/README.md`) |
 | `KEDRA_LAB_KEEP` | `never`, `failed`, `always` | `never` |
+| `KEDRA_LAB_ORDER` | `forward`, `reverse` | `forward` |
+
+One worker remains the default; one or two workers are supported. Every case still
+gets a fresh container. A selection with no cases applicable to the target does
+not prepare an image and explicitly reports no coverage. Reports are atomically
+updated after every completed case. The first SIGINT/SIGTERM interrupts pending
+Docker command/build/pull waits and cleans owned containers; a second signal uses
+the normal forced-exit behavior. Reports identify interrupted runs and the planned
+case count. Engine removal has a 30-second bound; cleanup failures remain visible.
 
 ### Image stages
 
@@ -56,6 +67,10 @@ Every stage resolves to an immutable base and is recorded in the report.
 | `builds:<tag>` | an Actions candidate in `ghcr.io/reidond/kedra-<target>-builds` |
 | `ref:<reference>` | any local or pullable image, for example a CI candidate |
 | `build` / `build:<revision>` | a full local build of the working tree or one commit (below) |
+
+For an already cached `ref:` image, BuildKit receives a harness-owned
+`kedra-lab-base:<image-id>` tag because a bare local `sha256:...` in FROM is parsed
+as a Docker Hub image name. The report retains the actual immutable local image ID.
 
 **Overlay** (default for published stages) layers the working tree over the stage in two steps:
 
@@ -81,12 +96,12 @@ cargo run -p kedra-container-tests --bin kedra-lab -- up
 `up` starts a retained environment named `default` with the working tree over `stable`, at 2560×1600 and scale 2 (1280×800 logical). Other options:
 
 - `--image …`, `--target …`, `--display 2560x1600@2`, `--name …`.
-- `--live` shows the session on this Mac instead of headless (see Live view below).
 
 | Command | Effect |
 |---|---|
-| `shot [label]` | Saves a PNG of the whole niri output to `target/kedra-lab/shots/`. |
-| `sync` | Writes the working tree's account defaults (the `etc/skel` payload) into the running account. niri reloads its config on change. Takes about 2 s. |
+| `shot [label]` | Saves a PNG and JSON source/display/timing receipt to `target/kedra-lab/shots/`; scale comes from actual niri IPC. |
+| `prepare-sync` | Builds/caches the host-native source archiver once per relevant Rust/Cargo/toolchain input. `up` also prepares it. |
+| `sync [--shot LABEL]` | Validates and applies changed niri/Noctalia home files and managed deletions, then optionally captures the result. No Rust build, image pull or reboot in the hot path. |
 | `exec [--root] -- CMD…` | Runs a command in the session, as the test account unless `--root`. |
 | `logs` | Saves the journal, unit, session and process state. |
 | `ls`, `down`, `clean --all` | List and remove harness-owned containers only. Selection is by the `dev.kedra.lab.owner` label. |
@@ -96,30 +111,49 @@ cargo run -p kedra-container-tests --bin kedra-lab -- up
 A typical desktop change:
 
 1. Edit `etc/skel/.config/niri/config.kdl` or a Noctalia file.
-2. Run `kedra-lab sync`.
+2. Run `kedra-lab sync --shot changed` and inspect the PNG.
 3. Open a panel with `kedra-lab exec -- noctalia msg settings-toggle`.
 4. Run `kedra-lab shot settings` and look at the PNG.
 
 Timings on an M2 Pro with OrbStack, cached layers: environment and session ready in about 3–7 s; a full `up` in about 16 s.
 
-### Live view (cocoa-way)
+Sync manages only image-declared `.config/niri/` and `.config/noctalia/` files in
+the disposable `kedra-test` account. It refuses package/rootfs/target changes and
+guest-edited managed files. GUI overrides remain intact and conflicting setting
+names are reported. Staged configuration is checked by the installed applications;
+Noctalia 5.1 accepts some unknown enum-like strings, so validation is not a claim
+that every setting has its intended visible effect. Inspect the screenshot.
 
-[cocoa-way](https://github.com/J-x-Z/cocoa-way) is a macOS Wayland compositor. It shows the nested niri as a native window through waypipe.
+The lab keeps backups and a transaction under
+`~/.local/state/kedra-lab/sync` inside the guest. A subsequent sync recovers an
+interrupted write when current files still match its own writes; it refuses to
+overwrite newer guest edits. This is separate from production `sysroot home`.
+If the source archiver becomes stale, run `prepare-sync` explicitly. Other home
+groups, OS packages and system files require an overlay/full image rebuild.
 
-**Build the tools once** with `kedra-lab live-tools`. It needs no Homebrew tap: it downloads the pinned cocoa-way 2.0.3 and waypipe-darwin 0.11.0-darwin.1 sources, verifies the sha256 values the J-x-Z tap pins, and builds them into `target/kedra-lab/tools/bin`. It needs:
+Measured local working-tree results on 2026-09-28 (M2 Pro, OrbStack/Docker 29.4.0,
+cached ARM image plus overlay; software rendering): five edit+capture samples had
+median **5.000 s**, maximum **9.177 s**; five capture commands had median **0.331 s**,
+maximum **0.467 s** (millisecond reporting precision). All 13 scenarios passed in forward and reverse order, and a
+two-worker run passed all 13 in **111.60 s**. These suite timings are single-run
+observations, not the five-run suite performance gate. Active-case interruption
+exited 130 in **1.707 s**, retained its report and left no test container from that
+execution; a separate retained lab stayed usable. See worklog WL-20260928-04.
 
-- libxkbcommon, lz4, zstd and pixman, found through pkg-config
-- Xcode's libclang, for bindgen-cli 0.72.1
+### Native QEMU status
 
-**Start** with `kedra-lab up --live`. It:
+`kedra-lab vm tools check` is a read-only host/runtime preflight that does not
+require Docker. The native runtime and GPU VM lifecycle are not yet implemented
+or qualified; see [QEMU prerequisites](qemu/README.md). UTM tooling, ARM identity
+and existing boot-level CI remain unchanged until the replacement is qualified.
 
-1. reuses or starts cocoa-way;
-2. starts a waypipe client on cocoa-way's socket;
-3. starts a loopback TCP bridge to that client.
+### Manual GPU desktop
 
-OrbStack refuses container connections to macOS-created Unix sockets, whether bind-mounted at the same path or another. So inside the container, socat bridges a local socket to `host.docker.internal`, and the parent compositor is a waypipe server on it. `kedra-lab down` stops the client and bridge; cocoa-way keeps running.
-
-Measured 2026-09-27: the session came up in 4.8 s and niri got a 1600×1200 output at scale 1 from cocoa-way. The window itself has not been looked at by a person yet.
+Use [`kedra-lab vm`](qemu/README.md) for a retained native QEMU/HVF desktop on
+Apple Silicon. It shares the home-sync transaction with the container lab and
+captures actual guest pixels through grim. Container screenshots remain software
+rendered and cannot qualify GPU behavior. The old `--live`, `live-tools`,
+cocoa-way/waypipe builder and TCP bridge have been removed.
 
 ## How the environment works
 
@@ -132,6 +166,13 @@ Measured 2026-09-27: the session came up in 4.8 s and niri got a 1600×1200 outp
 | Native tests | `native.rs`, using the same `Context` as scenarios |
 | Diagnostics | `Environment::collect` (journal, failed units, sessions, processes, final screenshot) and `report.rs` (`report.json`, `junit.xml`) |
 
+Shared Linux Cargo output is locked through copying the built executables into
+the builder container's private storage. Host binary/payload caches are addressed
+by their actual content hashes, and source bundles are published atomically.
+Concurrent preparations therefore do not exchange mutable output files after
+compilation. Test container names include the full case-name hash, so valid long
+names with the same shortened prefix remain isolated with two workers.
+
 ### The session
 
 `/usr/libexec/kedra-session` runs as `kedra-lab-session.service` with `PAMName=greetd`. The Fedora greetd PAM session stack, including pam_systemd and pam_gnome_keyring, therefore registers a real logind session. The packaged `niri.service`, `kedra-noctalia.service`, portals, PipeWire and XDG autostart start as they do after a login.
@@ -140,12 +181,12 @@ Before that, the login keyring is created and unlocked with the account password
 
 ### Lab layer adaptations
 
-The lab tools layer (`lab/tools.Containerfile`) installs sway, grim, wlrctl, wtype, wayvnc, waypipe and the GUI probe bindings. It refuses to add, upgrade or remove any package of the image under test. It also makes these container-only adaptations, each explained in its file:
+The lab tools layer (`lab/tools.Containerfile`) installs sway, grim, wlrctl, wtype and the GUI probe bindings. It refuses to add, upgrade or remove any package of the image under test. It also makes these container-only adaptations, each explained in its file:
 
 | Adaptation | Why |
 |---|---|
 | `niri.service` drop-in: `WAYLAND_DISPLAY=wayland-host WSL_DISTRO_NAME=kedra-lab` | There is no DRM device. niri 26.04 keeps `WAYLAND_DISPLAY`, and so selects its winit backend as a window of the parent, when `WSL_DISTRO_NAME` is set. |
-| `kedra-lab-host.service`: sway headless (pixman) at the requested size, or a waypipe server | Parent compositor. niri's output is `winit`; the harness sets its scale over IPC. |
+| `kedra-lab-host.service`: sway headless (pixman) at the requested size | Parent compositor. niri's output is `winit`; the harness sets its scale over IPC. |
 | greetd and bootloader-update: `ConditionVirtualization=!container` | No VT and no bootloader. Their enablement state stays testable. |
 | rtkit `--no-limit-resources` | rtkit's per-UID `RLIMIT_NPROC` counts every container's rtkit on a shared kernel. A second lab container's rtkit then fails, and `xdg-desktop-portal` times out on it. |
 | journald `ReadKMsg=no` | The kernel log belongs to the host. |
@@ -174,7 +215,7 @@ Files live in `scenarios/*.yaml` and reusable steps in `setups/*.yaml`. Parsing 
 version: 1
 name: noctalia_appearance          # [a-z0-9_], unique
 profile: desktop                   # system | desktop (desktop implies test_user + desktop_session)
-targets: [utm]                     # optional
+targets: [qemu-arm64]                     # optional
 timeout: 5m                        # optional scenario deadline (default 10m)
 fixtures: [test_user]              # optional for profile: system
 steps:
@@ -251,11 +292,11 @@ Control flow belongs in native tests or probes.
 | Artifacts | `target/kedra-lab/runs/<execution>/` (ignored by Git); uploaded by `test-container.yml` |
 | HTTP/database operations | Not applicable. `exec`/`observe` against the OS take their place. |
 | Unit tests for the parser and assertions | None, by owner decision (AGENTS.md). Strict parsing and assertion sensitivity are checked by running the harness. |
-| Parallel scenarios, container reuse | Deferred until measured and isolation-checked |
+| Parallel scenarios, container reuse | One or two isolated workers; default one. A two-worker ARM run passed on 2026-09-28. No mutable container reuse between tests. |
 
 ## Acceptance status
 
-Local runs on 2026-09-27: M2 Pro, OrbStack 2.2.3, utm target. See `worklog.md` WL-20260927-02.
+Local runs on 2026-09-27: M2 Pro, OrbStack 2.2.3, qemu-arm64 target. See `worklog.md` WL-20260927-02.
 
 | Case | Status |
 |---|---|

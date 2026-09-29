@@ -1,0 +1,5 @@
+# Native QEMU guest integration. RPCs granting root access are explicitly blocked
+# by the qemu-guest-agent service drop-in; lab SSH access is a separate fixture.
+qemu-guest-agent
+# Actual OpenGL renderer qualification; the native runtime exposes no Venus device.
+egl-utils

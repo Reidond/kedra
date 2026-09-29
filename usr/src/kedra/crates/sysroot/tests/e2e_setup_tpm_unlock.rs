@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
 //! Public `sysroot setup tpm-unlock` refusals that need no TPM, LUKS volume or sudo.
-//! Enrollment itself is qualified manually in a disposable UTM VM.
+//! Enrollment itself is qualified manually in a disposable QEMU VM.
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 

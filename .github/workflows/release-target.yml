@@ -6,7 +6,7 @@ on:
   workflow_call:
     inputs:
       target:
-        description: Closed Kedra release target (desktop or utm)
+        description: Closed Kedra release target (desktop or qemu-arm64)
         type: string
         required: true
       runner:
@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$KEDRA_TARGET:$KEDRA_RUNNER:$(uname -m)" in
-            desktop:ubuntu-24.04:x86_64 | utm:ubuntu-24.04-arm:aarch64) ;;
+            desktop:ubuntu-24.04:x86_64 | qemu-arm64:ubuntu-24.04-arm:aarch64) ;;
             *) echo 'Unsupported release target, runner or native architecture'; exit 1 ;;
           esac
           environment="kedra-$KEDRA_TARGET-signing"
@@ -177,7 +177,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$KEDRA_TARGET:$(uname -m)" in
-            desktop:x86_64 | utm:aarch64) ;;
+            desktop:x86_64 | qemu-arm64:aarch64) ;;
             *) echo 'Unsupported signing target or native architecture'; exit 1 ;;
           esac
           sudo apt-get update
@@ -187,7 +187,7 @@ jobs:
           python3 - <<'PY'
           import hashlib, json, os, re, subprocess
           # Closed target table (usr/src/kedra/image/release/targets.json); this job has no checkout.
-          targets = {'desktop': ('x86_64', 'amd64'), 'utm': ('aarch64', 'arm64')}
+          targets = {'desktop': ('x86_64', 'amd64'), 'qemu-arm64': ('aarch64', 'arm64')}
           target = os.environ['KEDRA_TARGET']
           architecture, oci_architecture = targets[target]
           repository = 'ghcr.io/reidond/kedra-' + target
@@ -219,10 +219,10 @@ jobs:
           CANDIDATE_DIGEST: ${{ needs.build.outputs.digest }}
           BUILD_FINGERPRINT: ${{ needs.build.outputs.fingerprint }}
           # Explicit per-target selection; an unknown target selects nothing.
-          APPROVED_FINGERPRINT: ${{ inputs.target == 'desktop' && vars.KEDRA_DESKTOP_KEY_SHA256 || inputs.target == 'utm' && vars.KEDRA_UTM_KEY_SHA256 || '' }}
-          RELEASE_PRIVATE_KEY: ${{ inputs.target == 'desktop' && secrets.KEDRA_DESKTOP_SIGNING_KEY || inputs.target == 'utm' && secrets.KEDRA_UTM_SIGNING_KEY || '' }}
-          RELEASE_PUBLIC_KEY: ${{ inputs.target == 'desktop' && vars.KEDRA_DESKTOP_PUBLIC_KEY || inputs.target == 'utm' && vars.KEDRA_UTM_PUBLIC_KEY || '' }}
-          RELEASE_PASSPHRASE: ${{ inputs.target == 'desktop' && secrets.KEDRA_DESKTOP_SIGNING_PASSPHRASE || inputs.target == 'utm' && secrets.KEDRA_UTM_SIGNING_PASSPHRASE || '' }}
+          APPROVED_FINGERPRINT: ${{ inputs.target == 'desktop' && vars.KEDRA_DESKTOP_KEY_SHA256 || inputs.target == 'qemu-arm64' && vars.KEDRA_QEMU_ARM64_KEY_SHA256 || '' }}
+          RELEASE_PRIVATE_KEY: ${{ inputs.target == 'desktop' && secrets.KEDRA_DESKTOP_SIGNING_KEY || inputs.target == 'qemu-arm64' && secrets.KEDRA_QEMU_ARM64_SIGNING_KEY || '' }}
+          RELEASE_PUBLIC_KEY: ${{ inputs.target == 'desktop' && vars.KEDRA_DESKTOP_PUBLIC_KEY || inputs.target == 'qemu-arm64' && vars.KEDRA_QEMU_ARM64_PUBLIC_KEY || '' }}
+          RELEASE_PASSPHRASE: ${{ inputs.target == 'desktop' && secrets.KEDRA_DESKTOP_SIGNING_PASSPHRASE || inputs.target == 'qemu-arm64' && secrets.KEDRA_QEMU_ARM64_SIGNING_PASSPHRASE || '' }}
         run: |
           set -euo pipefail
           [[ "$CANDIDATE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]

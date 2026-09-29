@@ -267,10 +267,6 @@ fn base(docker: &Docker, request: &Request) -> Result<(String, String)> {
     })
 }
 
-fn lab_file(name: &str) -> PathBuf {
-    crate::harness_dir().join("lab").join(name)
-}
-
 /// Image-build inputs changed between two commits (overlay blind spots).
 fn unapplied_build_inputs(from: &str, to: Option<&str>) -> Vec<String> {
     let repo = crate::repository_root();
@@ -322,19 +318,48 @@ fn base_source_revision(docker: &Docker, image: &str) -> Option<String> {
 
 /// Resolve, build and cache the lab image for `request`.
 pub fn prepare(docker: &Docker, request: &Request) -> Result<LabImage> {
+    prepare_kind(docker, request, false)
+}
+
+/// Native VM fixture, preserving kernel/DRM/SELinux and boot-only services.
+pub fn prepare_vm(docker: &Docker, request: &Request) -> Result<LabImage> {
+    prepare_kind(docker, request, true)
+}
+
+fn prepare_kind(docker: &Docker, request: &Request, native: bool) -> Result<LabImage> {
     let (base, described) = base(docker, request)?;
-    let lab_inputs = [
-        "tools.Containerfile",
-        "kedra-lab-host",
-        "kedra-lab-host.service",
-        "niri-nested.conf",
-        "container-skip.conf",
-        "rtkit-container.conf",
-        "journald-container.conf",
-    ];
+    let build_base = if base.starts_with("sha256:") {
+        docker.pin_local(&base)?
+    } else {
+        base.clone()
+    };
+    let lab_file = |name: &str| {
+        crate::harness_dir()
+            .join(if native { "qemu" } else { "lab" })
+            .join(name)
+    };
+    let lab_inputs: &[&str] = if native {
+        &[
+            "tools.Containerfile",
+            "seed.py",
+            "seed.service",
+            "session-start",
+        ]
+    } else {
+        &[
+            "tools.Containerfile",
+            "kedra-lab-host",
+            "kedra-lab-host.service",
+            "niri-nested.conf",
+            "software-rendering.conf",
+            "container-skip.conf",
+            "rtkit-container.conf",
+            "journald-container.conf",
+        ]
+    };
     let test_profile =
         crate::repository_root().join("usr/src/kedra/tests/common/test-profile.toml");
-    let probes_dir = lab_file("probes");
+    let probes_dir = crate::harness_dir().join("lab/probes");
     let mut probes: Vec<PathBuf> = fs::read_dir(&probes_dir)?
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .filter(|path| path.is_file())
@@ -375,7 +400,7 @@ pub fn prepare(docker: &Docker, request: &Request) -> Result<LabImage> {
         what: "lab tools layer; the first build per base image takes a few minutes",
         containerfile: &lab_file("tools.Containerfile"),
         files: &files,
-        args: &[("BASE", base.clone())],
+        args: &[("BASE", build_base)],
         platform: &request.target.platform(),
     })?;
     let tools_reference = format!("kedra-lab-tools:{tools_tag}");
@@ -406,18 +431,21 @@ pub fn prepare(docker: &Docker, request: &Request) -> Result<LabImage> {
         payload_sha256.as_bytes(),
         builder::file_sha256(&outputs.sysroot)?.as_bytes(),
         builder::file_sha256(&outputs.helper)?.as_bytes(),
-        &fs::read(lab_file("overlay.Containerfile"))?,
-        &fs::read(lab_file("overlay-apply.sh"))?,
+        &fs::read(crate::harness_dir().join("lab/overlay.Containerfile"))?,
+        &fs::read(crate::harness_dir().join("lab/overlay-apply.sh"))?,
     ]);
     docker.build(&Build {
         tag: &format!("kedra-lab:{overlay_key}"),
         what: "working-tree overlay",
-        containerfile: &lab_file("overlay.Containerfile"),
+        containerfile: &crate::harness_dir().join("lab/overlay.Containerfile"),
         files: &[
             ("sysroot".into(), outputs.sysroot.clone()),
             ("sysroot-helper".into(), outputs.helper.clone()),
             ("payload.tar".into(), outputs.payload.clone()),
-            ("overlay-apply.sh".into(), lab_file("overlay-apply.sh")),
+            (
+                "overlay-apply.sh".into(),
+                crate::harness_dir().join("lab/overlay-apply.sh"),
+            ),
         ],
         args: &[("BASE", tools_reference.clone())],
         platform: &request.target.platform(),

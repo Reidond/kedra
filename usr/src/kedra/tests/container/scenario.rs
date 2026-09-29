@@ -1043,7 +1043,18 @@ impl Runner<'_, '_> {
         Ok(left)
     }
 
-    fn run_command(&self, frame: &Frame, command: &Command) -> Result<Output> {
+    fn run_command(
+        &self,
+        frame: &Frame,
+        command: &Command,
+        budget: Option<Duration>,
+    ) -> Result<Output> {
+        if budget.is_some_and(|left| left.is_zero()) {
+            return Err(Error::Timeout {
+                what: "observation".into(),
+                after: Duration::ZERO,
+            });
+        }
         let argv = command
             .argv
             .iter()
@@ -1064,7 +1075,8 @@ impl Runner<'_, '_> {
             .map(parse_duration)
             .transpose()?
             .unwrap_or(Duration::from_secs(60))
-            .min(self.remaining()?);
+            .min(self.remaining()?)
+            .min(budget.unwrap_or(Duration::MAX));
         exec.timeout = limit;
         self.context.environment.exec(self.context.docker, &exec)
     }
@@ -1235,7 +1247,7 @@ impl Runner<'_, '_> {
                 Result<String, String>,
             ) = match step {
                 Step::Exec(command) => {
-                    let outcome = match self.run_command(frame, command) {
+                    let outcome = match self.run_command(frame, command, None) {
                         Ok(output) => match self.check(frame, &command.expect, &output) {
                             Ok(()) => self
                                 .capture(frame, command, &output)
@@ -1261,10 +1273,17 @@ impl Runner<'_, '_> {
                     let mut attempts = 0;
                     let outcome = loop {
                         attempts += 1;
-                        let last = match self.run_command(frame, &eventually.observe) {
+                        let left = until.saturating_duration_since(Instant::now());
+                        let last = match self.run_command(frame, &eventually.observe, Some(left)) {
                             Ok(output) => {
                                 match self.check(frame, &eventually.observe.expect, &output) {
                                     Ok(()) => {
+                                        if Instant::now() >= until {
+                                            break Err(format!(
+                                                "observation completed after {limit:?} deadline; {}",
+                                                describe(&output)
+                                            ));
+                                        }
                                         break self
                                             .capture(frame, &eventually.observe, &output)
                                             .map(|_| {
@@ -1279,7 +1298,9 @@ impl Runner<'_, '_> {
                                 }
                             }
                             // Permanent errors (bad identity, engine failure) fail immediately.
-                            Err(error @ (Error::Invalid(_) | Error::Docker(_))) => {
+                            Err(
+                                error @ (Error::Invalid(_) | Error::Docker(_) | Error::Interrupted),
+                            ) => {
                                 break Err(error.to_string());
                             }
                             Err(error) => error.to_string(),

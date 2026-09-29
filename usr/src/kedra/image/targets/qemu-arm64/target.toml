@@ -1,0 +1,8 @@
+# Target metadata read by `sysroot source plan|archive`. Native Apple Silicon QEMU
+# QEMU-backend virtual machine; not a physical-hardware claim.
+id = "qemu-arm64"
+architecture = "aarch64"
+image = "ghcr.io/reidond/kedra-qemu-arm64"
+fedora_release = 44
+candidate_target = true
+hardware_status = "virtual"

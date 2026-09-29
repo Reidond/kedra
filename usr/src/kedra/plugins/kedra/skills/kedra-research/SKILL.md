@@ -16,8 +16,32 @@ Choose the layer by what the behavior needs:
 
 Container adaptations and limits are listed in the harness README. Examples: no SELinux labels, a shared kernel (per-UID limits apply across containers), and bootc images hard-linked to their ostree objects. A passing container scenario never qualifies boot, firmware or hardware.
 
+Harness additions measured 2026-09-28 (M2 Pro, Docker 29.4.0): `--test-threads 2`
+runs two fresh isolated containers at once; all 13 ARM cases passed in 111.60 s
+in one run. Default remains one worker. `KEDRA_LAB_ORDER=reverse` also passed.
+The first interrupt preserves partial reports and attempts bounded owned cleanup;
+a second signal force-exits. An active-probe cancellation left no test containers
+from its execution while another retained lab stayed usable. Preserve the report's
+`interrupted` and `selected_count` fields when interpreting a partial run. An empty
+target-filtered selection explicitly gives no coverage and prepares no image.
+These are local results, not current-source CI or native GPU qualification.
+
+Use a named local tag for BuildKit FROM when the stage resolves to a bare image ID;
+`Docker::pin_local` verifies that owned tag against the exact ID and the report
+retains the ID. A bare `sha256:...` was treated as a Docker Hub image name and
+failed before provisioning (WL-20260928-04; `usr/src/kedra/tests/container/image.rs`).
+
 Image stages for local runs are `stable`, `run-*`, `sha256:*`, `builds:*`, `ref:*`, or `build[:rev]`, with an optional working-tree overlay. Local builds are unsigned and never pushed or installed. Published OS images are built and signed only in Actions; local on-demand ISO builds consume reviewed signed images. Local CLI E2E uses generated fixtures; never install over the workstation, enroll real home, use vault content or production signing keys as fixtures.
 
 Record source/run/attempt, exact artifacts, versions and expected/actual result. Separate pass/fail/not-run/blocked, build/boot/install/healthy and physical hardware. Link Actions evidence from usr/src/kedra/docs/STATUS.md and worklog.md; do not commit raw logs, screenshots or research reports. Historical evidence is retained in Git history.
 
 Update the relevant operational skill when a durable failure or version boundary is learned. Documentation is not test evidence; an untested integration stays unqualified.
+
+Native preparation facts (2026-09-28; `tests/container/qemu`): keep host Python
+build dependencies in the uv project pinned to 3.12. `uv run --with` temporary
+interpreter paths can disappear between Meson setup and install; the persistent
+uv project prevents that. virt-firmware 26.8 on Python 3.13 pulled crypt-r, which
+failed on macOS without crypt.h; Python 3.12 uses its existing crypt implementation.
+The QEMU fixture preserves DRM and SELinux instead of inheriting container unit
+skips. Native disk export verifies both engine identity and immutable image ID
+before mutations, avoiding a Docker CLI-context mismatch with Testcontainers.

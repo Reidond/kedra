@@ -87,16 +87,6 @@ impl std::str::FromStr for Display {
     }
 }
 
-/// How the nested niri window is presented.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Host {
-    /// In-memory sway output: screenshots and CI.
-    Headless,
-    /// waypipe to a compositor outside the container (cocoa-way on macOS),
-    /// through kedra-lab's loopback TCP bridge on this port.
-    Waypipe { bridge_port: u16 },
-}
-
 #[derive(Clone, Debug)]
 pub struct Session {
     pub user: TestUser,
@@ -168,7 +158,7 @@ pub fn existing_user(docker: &Docker, environment: &Environment) -> Result<TestU
 }
 
 impl TestUser {
-    fn runtime_dir(&self) -> String {
+    pub fn runtime_dir(&self) -> String {
         format!("/run/user/{}", self.uid)
     }
 
@@ -261,17 +251,12 @@ pub fn start(
     environment: &Environment,
     user: &TestUser,
     display: Display,
-    host: Host,
 ) -> Result<Session> {
-    let (mode, port) = match host {
-        Host::Headless => ("headless", 0),
-        Host::Waypipe { bridge_port } => ("waypipe", bridge_port),
-    };
     docker.write_file(
         &environment.id,
         "/etc/kedra-lab/host.env",
         format!(
-            "KEDRA_LAB_HOST={mode}\nKEDRA_LAB_WIDTH={}\nKEDRA_LAB_HEIGHT={}\nKEDRA_LAB_BRIDGE_PORT={port}\n",
+            "KEDRA_LAB_WIDTH={}\nKEDRA_LAB_HEIGHT={}\n",
             display.width, display.height
         )
         .as_bytes(),
@@ -354,19 +339,40 @@ pub fn start(
             .exit
             == 0)
     })?;
-    if host == Host::Headless {
-        environment.run(
-            docker,
-            &session.exec([
-                "niri",
-                "msg",
-                "output",
-                "winit",
-                "scale",
-                &display.scale.to_string(),
-            ]),
-        )?;
-    }
+    // Portal activation can outlast compositor startup; a desktop fixture must
+    // answer the same bus used by doctor and native application dialogs.
+    environment.run(
+        docker,
+        &session
+            .exec(["systemctl", "--user", "start", "xdg-desktop-portal.service"])
+            .timeout(Duration::from_secs(60)),
+    )?;
+    environment.run(
+        docker,
+        &session
+            .exec([
+                "busctl",
+                "--user",
+                "--timeout=10s",
+                "call",
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.DBus.Peer",
+                "Ping",
+            ])
+            .timeout(Duration::from_secs(15)),
+    )?;
+    environment.run(
+        docker,
+        &session.exec([
+            "niri",
+            "msg",
+            "output",
+            "winit",
+            "scale",
+            &display.scale.to_string(),
+        ]),
+    )?;
     Ok(session)
 }
 
@@ -381,24 +387,44 @@ pub fn existing(docker: &Docker, environment: &Environment) -> Result<Session> {
             .map(|(_, value)| value.clone())
             .ok_or_else(|| invalid(format!("the lab session has no {name}; is it running?")))
     };
-    let host = docker.read_file(&environment.id, "/etc/kedra-lab/host.env")?;
-    let host = String::from_utf8_lossy(&host);
-    let field = |name: &str| {
-        host.lines()
-            .find_map(|line| line.strip_prefix(&format!("{name}=")))
-            .and_then(|value| value.parse::<u32>().ok())
-            .unwrap_or_default()
-    };
-    Ok(Session {
+    let mut session = Session {
         wayland_display: lookup("WAYLAND_DISPLAY")?,
         niri_socket: lookup("NIRI_SOCKET")?,
-        display: Display {
-            width: field("KEDRA_LAB_WIDTH"),
-            height: field("KEDRA_LAB_HEIGHT"),
-            scale: 0.0,
-        },
+        display: Display::default(),
         user,
-    })
+    };
+    let output = environment.run(docker, &session.exec(["niri", "msg", "--json", "outputs"]))?;
+    let outputs: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| invalid(format!("niri outputs: {e}")))?;
+    let outputs = outputs
+        .as_object()
+        .filter(|values| values.len() == 1)
+        .ok_or_else(|| invalid("the nested lab must have exactly one niri output"))?;
+    let output = outputs
+        .values()
+        .next()
+        .ok_or_else(|| invalid("niri has no output"))?;
+    let index = output["current_mode"]
+        .as_u64()
+        .and_then(|n| usize::try_from(n).ok())
+        .ok_or_else(|| invalid("niri output has no current mode"))?;
+    let mode = &output["modes"][index];
+    let dimension = |key: &str| {
+        mode[key]
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .filter(|n| *n > 0)
+            .ok_or_else(|| invalid(format!("niri output has no {key}")))
+    };
+    session.display = Display {
+        width: dimension("width")?,
+        height: dimension("height")?,
+        scale: output["logical"]["scale"]
+            .as_f64()
+            .filter(|n| n.is_finite() && *n > 0.0)
+            .ok_or_else(|| invalid("niri output has no valid scale"))?,
+    };
+    Ok(session)
 }
 
 /// Capture the whole niri output as PNG into `destination`.

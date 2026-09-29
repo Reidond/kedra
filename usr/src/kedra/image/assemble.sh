@@ -13,7 +13,7 @@ case "$architecture" in
     aarch64) bitwarden_napi=linux-arm64-gnu ;;
     *) echo "Unsupported image architecture: $architecture" >&2; exit 1 ;;
 esac
-jq -e --arg architecture "$architecture" '.schema_version == 1 and .target.fedora_release == 44 and .target.architecture == $architecture and .target.candidate_target == true and ([.target.id, .target.architecture] | IN(["desktop", "x86_64"], ["utm", "aarch64"]))' "$manifest" >/dev/null
+jq -e --arg architecture "$architecture" '.schema_version == 1 and .target.fedora_release == 44 and .target.architecture == $architecture and .target.candidate_target == true and ([.target.id, .target.architecture] | IN(["desktop", "x86_64"], ["qemu-arm64", "aarch64"]))' "$manifest" >/dev/null
 jq -e '(.packages + .remove_packages) | all(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9+._-]*$"))' "$manifest" >/dev/null
 mapfile -t packages < <(jq -r '.packages[]' "$manifest")
 mapfile -t remove < <(jq -r '.remove_packages[]' "$manifest")

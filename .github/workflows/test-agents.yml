@@ -24,7 +24,7 @@ jobs:
         include:
           - target: desktop
             runner: ubuntu-24.04
-          - target: utm
+          - target: qemu-arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30

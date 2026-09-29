@@ -7,7 +7,7 @@ profile: desktop
 steps:
   - exec:
       as: session
-      argv: [systemd-run, --user, --unit=kedra-bitwarden-research, --collect, --service-type=exec, /usr/bin/bitwarden]
+      argv: [systemd-run, --user, --unit=kedra-bitwarden-research, --collect, --service-type=exec, --property=TimeoutStopSec=5s, /usr/bin/bitwarden]
   - eventually:
       name: Bitwarden maps a window
       timeout: 90s
@@ -28,4 +28,4 @@ steps:
       name: cleanup; Electron may abort on the cgroup-wide SIGTERM, which is not asserted
       as: user
       argv: [systemctl, --user, stop, kedra-bitwarden-research.service]
-      timeout: 2m
+      timeout: 15s

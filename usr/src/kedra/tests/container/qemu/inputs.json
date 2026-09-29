@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "platform": "macos-arm64",
+  "graphics": "cocoa-virgl-angle-metal",
+  "qualification": "not-run",
+  "sources": {
+    "qemu": {
+      "url": "https://github.com/akihikodaki/qemu.git",
+      "revision": "29d25d77c771ecd9a9b901aa631d19ad4a886b77"
+    },
+    "angle": {
+      "url": "https://github.com/akihikodaki/angle.git",
+      "revision": "b4f38bcd8f6366c11546e12849b823cdcaa134ba"
+    },
+    "libepoxy": {
+      "url": "https://github.com/akihikodaki/libepoxy.git",
+      "revision": "923f67e8064687aaa7aa0a4fd064c6e4782ca985"
+    },
+    "virglrenderer": {
+      "url": "https://github.com/akihikodaki/virglrenderer.git",
+      "revision": "619f0a056a4c13b9e57a5d6f9de426f2bf7069db"
+    },
+    "depot_tools": {
+      "url": "https://chromium.googlesource.com/chromium/tools/depot_tools",
+      "revision": "06b875921815b3d28e6f739b2f31138a233c53bd"
+    },
+    "libtpms": {
+      "url": "https://github.com/stefanberger/libtpms.git",
+      "revision": "03ff2481e133540be3b3ffe3daa1483d2a73d967"
+    },
+    "swtpm": {
+      "url": "https://github.com/stefanberger/swtpm.git",
+      "revision": "32b5a0575991a73398de9749d63cafd847008af2"
+    }
+  },
+  "firmware": {
+    "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/e/edk2/qemu-efi-aarch64_2024.02-2ubuntu0.9_all.deb",
+    "sha256": "50d7c5f780f215db81677e08d21e681b61295ffe9040429cff9d9c2a0d03fe3d",
+    "code": "AAVMF_CODE.secboot.fd",
+    "code_sha256": "e37b6dcdce78c96f629ab7f48803e809a76df5c1c2582c6d997fad3041aadf60",
+    "vars": "AAVMF_VARS.ms.fd",
+    "vars_sha256": "5266c6c60f28de37c0f478bf59b156540be05e2cd691a638dc4178e9627af4c0"
+  },
+  "build_tools": {
+    "meson": "1.12.1",
+    "pyyaml": "6.0.3",
+    "virt_firmware": "26.8"
+  },
+  "closure_locked": true,
+  "archives": {
+    "clang": {
+      "url": "https://commondatastorage.googleapis.com/chromium-browser-clang/Mac_arm64/clang-llvmorg-23-init-2224-g5bd8dadb-3.tar.xz",
+      "sha256": "eb6086a89ae63808cb85a3b274b5c3870b832385f81b607f966d28b09971191f"
+    },
+    "llvmobjdump": {
+      "url": "https://commondatastorage.googleapis.com/chromium-browser-clang/Mac_arm64/llvmobjdump-llvmorg-23-init-2224-g5bd8dadb-3.tar.xz",
+      "sha256": "2656c91e724e5efaf844fdde1b2e14aeaf31bcb0766a7e28aa58f59a09b2b6b2"
+    }
+  },
+  "patches": {
+    "qemu": [
+      {
+        "path": "patches/egl-native-display.patch",
+        "sha256": "b8e8301d989e783a4bbc0d8d8c2d6f588e17320233f597a988714a0bc34fc02a"
+      },
+      {
+        "path": "patches/cocoa-activity.patch",
+        "sha256": "4a481e1eb489e6a3ef2f1c1453d9c3e4fac6bb833835a5f6df166da4b4aa589a"
+      },
+      {
+        "path": "patches/hvf-wfi.patch",
+        "sha256": "f842d22c5be52e2a3d824d115c919f91535ba7f7fc235300d703ce7c60a76485",
+        "upstream_commit": "3b98370b55de7fff540092c1a6760726a6816625"
+      }
+    ]
+  }
+}

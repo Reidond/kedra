@@ -1,0 +1,258 @@
+{
+  ".": {
+    "rev": "b4f38bcd8f6366c11546e12849b823cdcaa134ba",
+    "url": "https://github.com/akihikodaki/angle.git"
+  },
+  "build": {
+    "rev": "6efd145f258a1ba389bd1ee5e32c2f0a80193f95",
+    "url": "https://chromium.googlesource.com/chromium/src/build.git"
+  },
+  "buildtools": {
+    "rev": "6a18683f555b4ac8b05ac8395c29c84483ac9588",
+    "url": "https://chromium.googlesource.com/chromium/src/buildtools.git"
+  },
+  "buildtools/mac:gn/gn/mac-${arch}": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/gn/gn/mac-arm64/+/CNy6hTeNLoUjYRw_gF4j74QBfBv1tHMfcyX9rhjC0W4C"
+  },
+  "buildtools/reclient:infra/rbe/client/${platform}": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/infra/rbe/client/mac-arm64/+/MDM5Hn41yaFLSKD962CO0Nv4swiX0VfgbQMIl13fZUMC"
+  },
+  "testing": {
+    "rev": "67ba60aaf81dc778947026122385872dceffae20",
+    "url": "https://chromium.googlesource.com/chromium/src/testing"
+  },
+  "third_party/EGL-Registry/src": {
+    "rev": "7dea2ed79187cd13f76183c4b9100159b9e3e071",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/EGL-Registry"
+  },
+  "third_party/OpenCL-Docs/src": {
+    "rev": "5b4ca15f0e5a5be87b56b99f652f728e05cab587",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/OpenCL-Docs"
+  },
+  "third_party/OpenGL-Registry/src": {
+    "rev": "d38ff693f3e99ac5a61e3858de76c6c02976fa67",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/OpenGL-Registry"
+  },
+  "third_party/Python-Markdown": {
+    "rev": "0f4473546172a64636f5d841410c564c0edad625",
+    "url": "https://chromium.googlesource.com/chromium/src/third_party/Python-Markdown"
+  },
+  "third_party/SwiftShader": {
+    "rev": "3b5edab3497f7f15c56e4ccf4ecbd0139e657755",
+    "url": "https://swiftshader.googlesource.com/SwiftShader"
+  },
+  "third_party/VK-GL-CTS/src": {
+    "rev": "1698899cb078aacfb11d6b8eb5c4753d86bd2661",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/VK-GL-CTS"
+  },
+  "third_party/abseil-cpp": {
+    "rev": "675d3d37ecbec78fd51378c6774c45715b1e4382",
+    "url": "https://chromium.googlesource.com/chromium/src/third_party/abseil-cpp"
+  },
+  "third_party/astc-encoder/src": {
+    "rev": "2319d9c4d4af53a7fc7c52985e264ce6e8a02a9b",
+    "url": "https://chromium.googlesource.com/external/github.com/ARM-software/astc-encoder"
+  },
+  "third_party/catapult": {
+    "rev": "39805a224bb6c6e80e403a4ebe9a150c7ca0b4d1",
+    "url": "https://chromium.googlesource.com/catapult.git"
+  },
+  "third_party/cherry": {
+    "rev": "4f8fb08d33ca5ff05a1c638f04c85bbb8d8b52cc",
+    "url": "https://android.googlesource.com/platform/external/cherry"
+  },
+  "third_party/clang-format/script": {
+    "rev": "c2725e0622e1a86d55f14514f2177a39efea4a0e",
+    "url": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git"
+  },
+  "third_party/depot_tools": {
+    "rev": "06b875921815b3d28e6f739b2f31138a233c53bd",
+    "url": "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
+  },
+  "third_party/glmark2/src": {
+    "rev": "6edcf02205fd1e8979dc3f3964257a81959b80c8",
+    "url": "https://chromium.googlesource.com/external/github.com/glmark2/glmark2"
+  },
+  "third_party/glslang/src": {
+    "rev": "968eb87c07f957520b7a96433933bb8d2bb0fc3c",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/glslang"
+  },
+  "third_party/googletest/src": {
+    "rev": "4fe3307fb2d9f86d19777c7eb0e4809e9694dde7",
+    "url": "https://chromium.googlesource.com/external/github.com/google/googletest.git"
+  },
+  "third_party/jinja2": {
+    "rev": "c3027d884967773057bf74b957e3fea87e5df4d7",
+    "url": "https://chromium.googlesource.com/chromium/src/third_party/jinja2"
+  },
+  "third_party/jsoncpp": {
+    "rev": "f62d44704b4da6014aa231cfc116e7fd29617d2a",
+    "url": "https://chromium.googlesource.com/chromium/src/third_party/jsoncpp"
+  },
+  "third_party/jsoncpp/source": {
+    "rev": "42e892d96e47b1f6e29844cc705e148ec4856448",
+    "url": "https://chromium.googlesource.com/external/github.com/open-source-parsers/jsoncpp.git"
+  },
+  "third_party/libc++/src": {
+    "rev": "7ab65651aed6802d2599dcb7a73b1f82d5179d05",
+    "url": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git"
+  },
+  "third_party/libc++abi/src": {
+    "rev": "8f11bb1d4438d0239d0dfc1bd9456a9f31629dda",
+    "url": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git"
+  },
+  "third_party/libdrm/src": {
+    "rev": "369990d9660a387f618d0eedc341eb285016243b",
+    "url": "https://chromium.googlesource.com/chromiumos/third_party/libdrm.git"
+  },
+  "third_party/libjpeg_turbo": {
+    "rev": "6bb85251a8382b5e07f635a981ac685cc5ab5053",
+    "url": "https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git"
+  },
+  "third_party/libpng/src": {
+    "rev": "8cc222cd3e79fa5190f3aa039a03a4cbea6cfbe7",
+    "url": "https://android.googlesource.com/platform/external/libpng"
+  },
+  "third_party/libunwind/src": {
+    "rev": "ba19d93d6d4f467fba11ff20fe2fc7c056f79345",
+    "url": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git"
+  },
+  "third_party/llvm-libc/src": {
+    "rev": "5705ee75b1fafbf96ff11534a9976f10d6c47dfd",
+    "url": "https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc.git"
+  },
+  "third_party/lunarg-vulkantools/src": {
+    "rev": "dcbd02e0e7a6ed2892af97bfeb3c9871c53fd7de",
+    "url": "https://chromium.googlesource.com/external/github.com/LunarG/VulkanTools"
+  },
+  "third_party/markupsafe": {
+    "rev": "4256084ae14175d38a3ff7d739dca83ae49ccec6",
+    "url": "https://chromium.googlesource.com/chromium/src/third_party/markupsafe"
+  },
+  "third_party/nasm": {
+    "rev": "af5eeeb054bebadfbb79c7bcd100a95e2ad4525f",
+    "url": "https://chromium.googlesource.com/chromium/deps/nasm.git"
+  },
+  "third_party/ninja:infra/3pp/tools/ninja/${platform}": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/infra/3pp/tools/ninja/mac-arm64/+/xem0_6s7Lt77xBhJ_IHxFsjQR7JYkGvswGG-nsrwSv0C"
+  },
+  "third_party/protobuf": {
+    "rev": "a0f4dc977fa2ef7f47708aec914a4fbfeefc6103",
+    "url": "https://chromium.googlesource.com/chromium/src/third_party/protobuf"
+  },
+  "third_party/rapidjson/src": {
+    "rev": "781a4e667d84aeedbeb8184b7b62425ea66ec59f",
+    "url": "https://chromium.googlesource.com/external/github.com/Tencent/rapidjson"
+  },
+  "third_party/re2/src": {
+    "rev": "972a15cedd008d846f1a39b2e88ce48d7f166cbd",
+    "url": "https://chromium.googlesource.com/external/github.com/google/re2.git"
+  },
+  "third_party/rust": {
+    "rev": "7649ef4b38da70bd03ca037078f6a2157cd8ed6a",
+    "url": "https://chromium.googlesource.com/chromium/src/third_party/rust"
+  },
+  "third_party/siso/cipd:build/siso/${platform}": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/build/siso/mac-arm64/+/DmeuYwId_-DeKhsyNT4bGwTl80Uu-3frAHvNC3nWiLUC"
+  },
+  "third_party/spirv-cross/src": {
+    "rev": "b8fcf307f1f347089e3c46eb4451d27f32ebc8d3",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/SPIRV-Cross"
+  },
+  "third_party/spirv-headers/src": {
+    "rev": "f31ca173eff866369e54d35e53375fadbabd58f4",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/SPIRV-Headers"
+  },
+  "third_party/spirv-tools/src": {
+    "rev": "f139c64525c7c449c83d299a9fda4e1657bf37ab",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/SPIRV-Tools"
+  },
+  "third_party/vulkan-deps": {
+    "rev": "2f6156bf1b61ec983847b768c8253086c80e33ad",
+    "url": "https://chromium.googlesource.com/vulkan-deps"
+  },
+  "third_party/vulkan-headers/src": {
+    "rev": "49f1a381e2aec33ef32adf4a377b5a39ec016ec4",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Headers"
+  },
+  "third_party/vulkan-loader/src": {
+    "rev": "5ad4fe5f3eaf7db453b8719ba170021b6c4ddbab",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Loader"
+  },
+  "third_party/vulkan-tools/src": {
+    "rev": "39a19dccf79d28951516c3c7c9f1ee4a606fb733",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Tools"
+  },
+  "third_party/vulkan-utility-libraries/src": {
+    "rev": "50af38b6cd43afb1462f9ad26b8d015382d11a3d",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Utility-Libraries"
+  },
+  "third_party/vulkan-validation-layers/src": {
+    "rev": "c03d37fb7b4d873d4af7ad8cec46bf168f3ddf59",
+    "url": "https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-ValidationLayers"
+  },
+  "third_party/vulkan_memory_allocator": {
+    "rev": "cb0597213b0fcb999caa9ed08c2f88dc45eb7d50",
+    "url": "https://chromium.googlesource.com/external/github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator"
+  },
+  "third_party/zlib": {
+    "rev": "7eda07b1e067ef3fd7eea0419c88b5af45c9a776",
+    "url": "https://chromium.googlesource.com/chromium/src/third_party/zlib"
+  },
+  "tools/clang": {
+    "rev": "7fd7d7092fa5ee06380f06f66f1b7bd03fca71a8",
+    "url": "https://chromium.googlesource.com/chromium/src/tools/clang.git"
+  },
+  "tools/luci-go:infra/tools/luci/cas/${platform}": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/infra/tools/luci/cas/mac-arm64/+/Xf0aV-RvrmCfQbZcqxBVypZvC4N3eLzgr5-kf0oYxL8C"
+  },
+  "tools/luci-go:infra/tools/luci/isolate/${platform}": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/infra/tools/luci/isolate/mac-arm64/+/zS4ufgTc1bqLz_wMkB3J7XU8jZt6XC6fF3CDxj2nRCQC"
+  },
+  "tools/luci-go:infra/tools/luci/swarming/${platform}": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/infra/tools/luci/swarming/mac-arm64/+/w7-WIXSI-BVlhf4kUNNORCXv2omrGYRqyalRk3bdX_MC"
+  },
+  "tools/mb": {
+    "rev": "1fc5adbbce8acd2a5fdccefde5af9865b982429d",
+    "url": "https://chromium.googlesource.com/chromium/src/tools/mb"
+  },
+  "tools/md_browser": {
+    "rev": "b7cfebc8143108734248df4e855a1bff01173f77",
+    "url": "https://chromium.googlesource.com/chromium/src/tools/md_browser"
+  },
+  "tools/memory": {
+    "rev": "b635f27e932356a2e29450e5cfa544cdcc9ea6bb",
+    "url": "https://chromium.googlesource.com/chromium/src/tools/memory"
+  },
+  "tools/perf": {
+    "rev": "0ae85181ad9c30876f8518ba5f0d0b1c5e4e87dd",
+    "url": "https://chromium.googlesource.com/chromium/src/tools/perf"
+  },
+  "tools/protoc_wrapper": {
+    "rev": "3438d4183bfc7c0d6850e8b970204cc8189f0323",
+    "url": "https://chromium.googlesource.com/chromium/src/tools/protoc_wrapper"
+  },
+  "tools/rust": {
+    "rev": "a8d07a67ce71dfee67aeea6e290809796e9df29e",
+    "url": "https://chromium.googlesource.com/chromium/src/tools/rust.git"
+  },
+  "tools/skia_goldctl/mac_amd64:skia/tools/goldctl/mac-amd64": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/skia/tools/goldctl/mac-amd64/+/CQxD5gOiwSWT8BsyHNRT_nSFsuEWa4vCOhp5f4y671IC"
+  },
+  "tools/skia_goldctl/mac_arm64:skia/tools/goldctl/mac-arm64": {
+    "rev": null,
+    "url": "https://chrome-infra-packages.appspot.com/p/skia/tools/goldctl/mac-arm64/+/hVuIUdzKbmoh8bsK3MXRkoft8ghayRtE4w9OtjBbj1wC"
+  },
+  "tools/valgrind": {
+    "rev": "da34b95fdbf2032df6cda5f3828c2ba421592644",
+    "url": "https://chromium.googlesource.com/chromium/src/tools/valgrind"
+  }
+}

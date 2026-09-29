@@ -35,6 +35,11 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+# Keep the default edit/build/test loop small and fast. Set
+# CARGO_PROFILE_DEV_DEBUG=2 for a build that needs full debugger information.
+[profile.dev]
+debug = false
+
 [profile.release]
 lto = "thin"
 strip = "debuginfo"

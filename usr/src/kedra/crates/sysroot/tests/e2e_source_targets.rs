@@ -6,23 +6,37 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const IMAGE: &str = "usr/src/kedra/image";
 const TARGET: &str = "id='{id}'\narchitecture='{architecture}'\nimage='ghcr.io/reidond/kedra-{id}'\nfedora_release=44\ncandidate_target={enabled}\nhardware_status='synthetic'\n";
+static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "kedra-source-targets-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir_all(path.join("checkout")).unwrap();
-        Self(path)
+        loop {
+            let path = std::env::temp_dir().join(format!(
+                "kedra-source-targets-{}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+                NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
+            ));
+            match fs::create_dir(&path) {
+                Ok(()) => {
+                    fs::create_dir(path.join("checkout")).unwrap();
+                    return Self(path);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!(
+                    "cannot create fixture directory {}: {error}",
+                    path.display()
+                ),
+            }
+        }
     }
     fn repo(&self) -> PathBuf {
         self.0.join("checkout")
@@ -133,13 +147,13 @@ fn source_cli_accepts_only_enabled_target_architectures() {
         &format!("{IMAGE}/targets/desktop/packages.list"),
         "# none\n",
     );
-    f.host("utm", "aarch64", true);
+    f.host("qemu-arm64", "aarch64", true);
     f.write(
-        &format!("{IMAGE}/targets/utm/packages.list"),
+        &format!("{IMAGE}/targets/qemu-arm64/packages.list"),
         "qemu-guest-agent\n",
     );
     f.write(
-        &format!("{IMAGE}/targets/utm/usr/lib/environment.d/70-fixture.conf"),
+        &format!("{IMAGE}/targets/qemu-arm64/usr/lib/environment.d/70-fixture.conf"),
         "GSK_RENDERER=gl\n",
     );
     f.host("xps", "x86_64", false);
@@ -148,14 +162,18 @@ fn source_cli_accepts_only_enabled_target_architectures() {
     f.write(&format!("{IMAGE}/targets/arm/packages.list"), "# none\n");
     f.commit("generated targets");
 
-    for (host, architecture) in [("desktop", "x86_64"), ("utm", "aarch64")] {
+    for (host, architecture) in [("desktop", "x86_64"), ("qemu-arm64", "aarch64")] {
         let plan = f.plan(host);
         assert_eq!(plan["target"]["id"], host);
         assert_eq!(plan["target"]["architecture"], architecture);
     }
 
-    let archive = f.0.join("utm.tar");
-    let output = f.source("archive", "utm", &["--output", archive.to_str().unwrap()]);
+    let archive = f.0.join("qemu-arm64.tar");
+    let output = f.source(
+        "archive",
+        "qemu-arm64",
+        &["--output", archive.to_str().unwrap()],
+    );
     assert!(
         output.status.success(),
         "{}",
@@ -178,9 +196,12 @@ fn source_cli_accepts_only_enabled_target_architectures() {
     }
     assert!(paths.contains(&"usr/lib/environment.d/70-fixture.conf".to_owned()));
     let manifest = manifest.expect("archive embeds its source manifest");
-    assert_eq!(manifest["target"]["id"], "utm");
+    assert_eq!(manifest["target"]["id"], "qemu-arm64");
     assert_eq!(manifest["target"]["architecture"], "aarch64");
-    assert_eq!(manifest["target"]["image"], "ghcr.io/reidond/kedra-utm");
+    assert_eq!(
+        manifest["target"]["image"],
+        "ghcr.io/reidond/kedra-qemu-arm64"
+    );
     assert!(
         manifest["packages"]
             .as_array()
@@ -194,16 +215,21 @@ fn source_cli_accepts_only_enabled_target_architectures() {
         "arm",
         "target arm with architecture \"aarch64\" is not enabled",
     );
-    f.host("utm", "x86_64", true);
+    f.host("qemu-arm64", "x86_64", true);
     f.host("desktop", "aarch64", true);
+    f.host("utm", "aarch64", true);
     f.commit("mismatched architectures");
     f.refused(
-        "utm",
-        "target utm with architecture \"x86_64\" is not enabled",
+        "qemu-arm64",
+        "target qemu-arm64 with architecture \"x86_64\" is not enabled",
     );
     f.refused(
         "desktop",
         "target desktop with architecture \"aarch64\" is not enabled",
+    );
+    f.refused(
+        "utm",
+        "target utm with architecture \"aarch64\" is not enabled",
     );
 }
 

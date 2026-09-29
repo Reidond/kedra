@@ -126,7 +126,7 @@ mod linux {
                 }
                 Self::Kept(slot) => write!(
                     f,
-                    "systemd-cryptenroll kept TPM key slot {slot} instead of re-sealing it, because it already holds an enrollment for the current PCR 7 value without a PIN. If boot asked for the passphrase although PCR 7 is unchanged, the TPM was cleared or its state replaced (UTM: Data/tpmdata) and this slot can no longer be unsealed: run sysroot setup tpm-unlock --remove, then sysroot setup tpm-unlock."
+                    "systemd-cryptenroll kept TPM key slot {slot} instead of re-sealing it, because it already holds an enrollment for the current PCR 7 value without a PIN. If boot asked for the passphrase although PCR 7 is unchanged, the TPM was cleared or its state replaced (QEMU: the instance tpm directory) and this slot can no longer be unsealed: run sysroot setup tpm-unlock --remove, then sysroot setup tpm-unlock."
                 ),
             }
         }
@@ -734,7 +734,7 @@ mod linux {
                 "Your disk passphrase stays enrolled. Boot asks for it whenever the TPM refuses. After Secure Boot, firmware key (db/dbx) or shim SBAT changes, log in and run: sysroot setup tpm-unlock --replace"
             );
             println!(
-                "After a TPM clear (UTM: a new Data/tpmdata), PCR 7 is unchanged and --replace keeps the old slot; run sysroot setup tpm-unlock --remove, then sysroot setup tpm-unlock."
+                "After a TPM clear (QEMU: a new instance tpm directory), PCR 7 is unchanged and --replace keeps the old slot; run sysroot setup tpm-unlock --remove, then sysroot setup tpm-unlock."
             );
             if options.with_pin {
                 println!(
@@ -762,7 +762,7 @@ mod linux {
                 );
             }
             println!(
-                "  - In a virtual machine the host keeps the TPM state (UTM: Data/tpmdata in the VM bundle). Whoever can read it can recover the key without the passphrase, the PCR state or a PIN."
+                "  - In a virtual machine the host keeps the TPM state (QEMU: the instance tpm directory in the VM bundle). Whoever can read it can recover the key without the passphrase, the PCR state or a PIN."
             );
         }
     }

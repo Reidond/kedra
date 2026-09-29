@@ -1,5 +1,5 @@
 # Test-only lab layer over a Kedra OS image. Never sign, promote or install it.
-# Adds a headless parent compositor (sway), capture, input and remote-view tools
+# Adds a headless parent compositor (sway), capture and input tools
 # and GUI probe bindings,
 # and adapts boot-only units to a container. The OS content under test is
 # otherwise unchanged: installing these tools may not add, upgrade or remove
@@ -9,7 +9,7 @@ FROM ${BASE}
 LABEL dev.kedra.lab.owner=kedra-container-tests
 RUN rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort > /tmp/kedra-lab-base-rpms && \
     dnf -y --best --setopt=install_weak_deps=False --repo=fedora --repo=updates install \
-        sway grim wlrctl wtype wayvnc waypipe socat python3-gobject python3-qt5-base python3-pyqt6-base && \
+        sway grim wlrctl wtype python3-gobject python3-qt5-base python3-pyqt6-base && \
     rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort > /tmp/kedra-lab-lab-rpms && \
     changed=$(LC_ALL=C comm -23 /tmp/kedra-lab-base-rpms /tmp/kedra-lab-lab-rpms) && \
     if test -n "$changed"; then echo "Lab tools changed packages of the image under test:" >&2; echo "$changed" >&2; exit 1; fi && \
@@ -34,8 +34,12 @@ COPY journald-container.conf /usr/lib/systemd/journald.conf.d/90-kedra-lab.conf
 COPY kedra-lab-host /usr/libexec/kedra-lab/host
 COPY kedra-lab-host.service /usr/lib/systemd/user/kedra-lab-host.service
 COPY niri-nested.conf /usr/lib/systemd/user/niri.service.d/90-kedra-lab-nested.conf
+COPY software-rendering.conf /usr/lib/environment.d/90-kedra-lab-software-rendering.conf
 COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
 COPY probes/ /usr/libexec/kedra-lab/probes/
-RUN chmod 0755 /usr/libexec/kedra-lab/host /usr/libexec/kedra-lab/probes/*
+RUN chmod 0755 /usr/libexec/kedra-lab/host /usr/libexec/kedra-lab/probes/* && \
+    ldconfig -X && \
+    systemd-hwdb update && \
+    /usr/lib/systemd/systemd-update-done
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]

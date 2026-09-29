@@ -84,10 +84,10 @@ try:
         repository = pathlib.Path(__file__).resolve().parents[5]
         desktop_plan = json.loads(subprocess.check_output([str(binary), 'source', 'plan', '--host', 'desktop', '--json'],
                                                           cwd=repository))
-        # The utm plan is generated from the actual committed desktop plan so this
+        # The qemu-arm64 plan is generated from the actual committed desktop plan so this
         # exercises trust preparation independently of which hosts are committed.
-        utm_plan = dict(desktop_plan, target=dict(desktop_plan['target'], id='utm', architecture='aarch64',
-                                                  image='ghcr.io/reidond/kedra-utm', hardware_status='virtual'))
+        qemu_plan = dict(desktop_plan, target=dict(desktop_plan['target'], id='qemu-arm64', architecture='aarch64',
+                                                  image='ghcr.io/reidond/kedra-qemu-arm64', hardware_status='virtual'))
 
         def prepare_trust(name, plan_value, fingerprint):
             plan = root / ('public-source-plan-' + name + '.json')
@@ -98,7 +98,7 @@ try:
                 '--sysroot', str(binary), '--output', str(destination)], capture_output=True, check=False)
             return result, destination
 
-        for plan_value in (desktop_plan, utm_plan):
+        for plan_value in (desktop_plan, qemu_plan):
             scope = plan_value['target']
             for name, fingerprint, accepted in [('accepted', expected, True), ('wrong', '0' * 64, False), ('missing', '', False)]:
                 result, destination = prepare_trust(scope['id'] + '-' + name, plan_value, fingerprint)
@@ -115,14 +115,14 @@ try:
                                                        'fedora_release': 44, 'repository': scope['image']}
                 else:
                     assert result.returncode != 0 and not destination.exists(), 'Untrusted fingerprint produced public trust'
-        print('PASS: desktop and utm public trust accept the exact key fingerprint and refuse missing/wrong authority', flush=True)
+        print('PASS: desktop and qemu-arm64 public trust accept the exact key fingerprint and refuse missing/wrong authority', flush=True)
         for name, target_changes in [
-            ('utm-x86_64', {'id': 'utm', 'architecture': 'x86_64', 'image': 'ghcr.io/reidond/kedra-utm'}),
-            ('utm-desktop-repository', {'id': 'utm', 'architecture': 'aarch64', 'image': 'ghcr.io/reidond/kedra-desktop'}),
+            ('qemu-arm64-x86_64', {'id': 'qemu-arm64', 'architecture': 'x86_64', 'image': 'ghcr.io/reidond/kedra-qemu-arm64'}),
+            ('qemu-arm64-desktop-repository', {'id': 'qemu-arm64', 'architecture': 'aarch64', 'image': 'ghcr.io/reidond/kedra-desktop'}),
             ('desktop-aarch64', {'architecture': 'aarch64'}),
-            ('desktop-utm-repository', {'image': 'ghcr.io/reidond/kedra-utm'}),
+            ('desktop-qemu-arm64-repository', {'image': 'ghcr.io/reidond/kedra-qemu-arm64'}),
             ('disabled-xps', {'id': 'xps', 'image': 'ghcr.io/reidond/kedra-xps'}),
-            ('utm-not-candidate', {'id': 'utm', 'architecture': 'aarch64', 'image': 'ghcr.io/reidond/kedra-utm',
+            ('qemu-arm64-not-candidate', {'id': 'qemu-arm64', 'architecture': 'aarch64', 'image': 'ghcr.io/reidond/kedra-qemu-arm64',
                                    'candidate_target': False}),
         ]:
             refused = dict(desktop_plan, target=dict(desktop_plan['target'], **target_changes))
@@ -299,10 +299,10 @@ try:
         print('PASS: CLI channel unpack and downstream verification; replay/tamper/authority/existing-output refusal', flush=True)
         verify(signature, key=wrong_public, expected=False)
         # Desktop-scoped legacy protocol-1 metadata is never accepted for another target.
-        legacy_utm = subprocess.run([str(binary), "release", "verify", "--manifest", str(payload),
+        legacy_qemu = subprocess.run([str(binary), "release", "verify", "--manifest", str(payload),
             "--signature", str(signature), "--public-key", str(public), "--artifact", str(artifact),
-            "--target", "utm", "--json"], capture_output=True, check=False)
-        assert legacy_utm.returncode != 0 and not legacy_utm.stdout, "Desktop legacy metadata verified as utm"
+            "--target", "qemu-arm64", "--json"], capture_output=True, check=False)
+        assert legacy_qemu.returncode != 0 and not legacy_qemu.stdout, "Desktop legacy metadata verified as qemu-arm64"
         altered = root / "altered.json"
         altered.write_bytes(payload.read_bytes() + b" ")
         verify(signature, manifest=altered, expected=False)

@@ -11,6 +11,16 @@ use crate::Result;
 use crate::image::LabImage;
 use crate::scenario::StepRecord;
 
+fn replace(path: &Path, contents: impl AsRef<[u8]>) -> Result<()> {
+    use std::io::Write;
+    let pending = path.with_extension("pending");
+    let mut file = fs::File::create(&pending)?;
+    file.write_all(contents.as_ref())?;
+    file.sync_all()?;
+    fs::rename(pending, path)?;
+    Ok(())
+}
+
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct TestResult {
     pub name: String,
@@ -28,6 +38,8 @@ pub struct TestResult {
 #[derive(Debug, serde::Serialize)]
 pub struct Report<'a> {
     pub schema_version: u32,
+    pub interrupted: bool,
+    pub selected_count: usize,
     pub execution: &'a str,
     pub image: Option<&'a LabImage>,
     pub results: &'a [TestResult],
@@ -50,8 +62,8 @@ fn escape(text: &str) -> String {
 /// Write report.json and a JUnit XML file for CI test reporters.
 pub fn write(directory: &Path, report: &Report<'_>) -> Result<()> {
     fs::create_dir_all(directory)?;
-    fs::write(
-        directory.join("report.json"),
+    replace(
+        &directory.join("report.json"),
         serde_json::to_vec_pretty(report).map_err(|error| crate::invalid(error.to_string()))?,
     )?;
     let failures = report
@@ -100,6 +112,6 @@ pub fn write(directory: &Path, report: &Report<'_>) -> Result<()> {
         xml.push_str("  </testcase>\n");
     }
     xml.push_str("</testsuite>\n");
-    fs::write(directory.join("junit.xml"), xml)?;
+    replace(&directory.join("junit.xml"), xml)?;
     Ok(())
 }

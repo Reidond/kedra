@@ -12,16 +12,16 @@
       "public_key": "usr/src/kedra/image/release/authority/desktop.pub",
       "key_sha256": "usr/src/kedra/image/release/authority/desktop.sha256"
     },
-    "utm": {
+    "qemu-arm64": {
       "architecture": "aarch64",
       "oci_architecture": "arm64",
-      "repository": "ghcr.io/reidond/kedra-utm",
-      "builds": "ghcr.io/reidond/kedra-utm-builds",
+      "repository": "ghcr.io/reidond/kedra-qemu-arm64",
+      "builds": "ghcr.io/reidond/kedra-qemu-arm64-builds",
       "runner": "ubuntu-24.04-arm",
-      "environment": "kedra-utm-signing",
-      "prefix": "KEDRA_UTM",
-      "public_key": "usr/src/kedra/image/release/authority/utm.pub",
-      "key_sha256": "usr/src/kedra/image/release/authority/utm.sha256"
+      "environment": "kedra-qemu-arm64-signing",
+      "prefix": "KEDRA_QEMU_ARM64",
+      "public_key": "usr/src/kedra/image/release/authority/qemu-arm64.pub",
+      "key_sha256": "usr/src/kedra/image/release/authority/qemu-arm64.sha256"
     }
   }
 }

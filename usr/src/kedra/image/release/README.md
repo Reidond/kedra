@@ -5,7 +5,7 @@ The workflow publishes independently signed OCI images per enabled target. It do
 | Target | Architecture (OCI) | Signed repository | Unsigned builds | Runner | Signing environment | Authority |
 |---|---|---|---|---|---|---|
 | `desktop` | x86_64 (`amd64`) | `ghcr.io/reidond/kedra-desktop` | `ghcr.io/reidond/kedra-desktop-builds` | `ubuntu-24.04` | `kedra-desktop-signing` | `authority/desktop.pub`, `desktop.sha256` |
-| `utm` | aarch64 (`arm64`) | `ghcr.io/reidond/kedra-utm` | `ghcr.io/reidond/kedra-utm-builds` | `ubuntu-24.04-arm` | `kedra-utm-signing` | `authority/utm.pub`, `utm.sha256` |
+| `qemu-arm64` | aarch64 (`arm64`) | `ghcr.io/reidond/kedra-qemu-arm64` | `ghcr.io/reidond/kedra-qemu-arm64-builds` | `ubuntu-24.04-arm` | `kedra-qemu-arm64-signing` | `authority/qemu-arm64.pub`, `qemu-arm64.sha256` |
 
 The closed table is `targets.json`, read by `material.py` and the other Python tooling and embedded by the Rust crates. `xps` stays disabled and any other target/architecture pair is refused. Each repository has its own `stable` tag, rank history and high-water mark; the identity schema, `workflow` value (`.github/workflows/release.yml`), epoch and rank semantics are shared.
 
@@ -18,7 +18,7 @@ gh workflow run release.yml --ref main
 gh run list --workflow release.yml --limit 5
 ```
 
-`release.yml` holds the single `release-44` concurrency group and calls the reusable `release-target.yml` once per target. The two callers are independent: a failed `utm` run never blocks `desktop`. Each call runs build, isolated signing and stable publication natively on the target's runner, with target-named artifacts (`image-build-<target>-<run>-<attempt>`, `stable-publication-<target>-<run>-<attempt>`).
+`release.yml` holds the single `release-44` concurrency group and calls the reusable `release-target.yml` once per target. The two callers are independent: a failed `qemu-arm64` run never blocks `desktop`. Each call runs build, isolated signing and stable publication natively on the target's runner, with target-named artifacts (`image-build-<target>-<run>-<attempt>`, `stable-publication-<target>-<run>-<attempt>`).
 
 Runner queues affect delivery time. For each target the workflow resolves the reviewed official Fedora 44 base index to that target's no-variant platform and full native RPM closure, then compares source, package header/payload identities, artifacts and recipes against the signature-verified stable image of the same repository. Recipes include both workflow files and the target's own authority files, so changing them rebuilds that target once.
 
@@ -38,10 +38,10 @@ No separate promotion workflow or release/checkpoint signing remains. Consumers 
 
 ## First publication of a new target
 
-Anonymous registry reads of a repository that does not exist yet return `DENIED`, not `manifest unknown` (observed for `kedra-utm` and `kedra-utm-builds` on 2026-09-25). The build therefore cannot establish that `stable` is absent and fails closed; this is intended. Before the first `utm` publication the owner must:
+Anonymous registry reads of a repository that does not exist yet return `DENIED`, not `manifest unknown` (observed during the former `utm` bootstrap on 2026-09-25). The build therefore cannot establish that `stable` is absent and fails closed; this is intended. Before the first `qemu-arm64` publication the owner must:
 
-1. Create the `kedra-utm-signing` environment and its secrets/variables as described in [authority](authority/README.md).
-2. Make `ghcr.io/reidond/kedra-utm` and `ghcr.io/reidond/kedra-utm-builds` exist, linked to `Reidond/kedra` with Actions write access, and **public**. The signer inspects builds anonymously and installed helpers read `stable` with an empty auth file, like `desktop`.
+1. Create the `kedra-qemu-arm64-signing` environment and its secrets/variables as described in [authority](authority/README.md).
+2. Make `ghcr.io/reidond/kedra-qemu-arm64` and `ghcr.io/reidond/kedra-qemu-arm64-builds` exist, linked to `Reidond/kedra` with Actions write access, and **public**. The signer inspects builds anonymously and installed helpers read `stable` with an empty auth file, like `desktop`.
 
 Never relax the absence check or treat `DENIED` as absent to bootstrap a repository.
 

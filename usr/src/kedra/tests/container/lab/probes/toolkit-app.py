@@ -8,6 +8,7 @@ disposable test account runs this program.
 import json
 import pathlib
 import sys
+import time
 
 case = sys.argv[1]
 result = pathlib.Path(sys.argv[2])
@@ -156,6 +157,8 @@ else:
         raise RuntimeError("Explicit KDE user font preference was not honored")
 
     def open_file():
+        dialog_deadline = time.monotonic() + 15
+
         def dialog_ready():
             # Plasma integration v6.7.5 (qt5 and qt6) constructs a
             # KDEPlatformFileDialog containing a KFileWidget. Inspect the
@@ -170,6 +173,9 @@ else:
                                 if widget.inherits("KFileWidget") and widget.isVisibleTo(dialogs[0])
                                 and widget.width() > 0 and widget.height() > 0]
             if len(dialogs) != 1 or len(file_widgets) != 1:
+                if time.monotonic() < dialog_deadline:
+                    QtCore.QTimer.singleShot(100, dialog_ready)
+                    return
                 report("failed", reason="Visible KDE native file chooser was not found",
                        visible_window_classes=[widget.metaObject().className() for widget in visible])
                 app.exit(1)
@@ -177,7 +183,7 @@ else:
             report("dialog", kde_file_dialog=True,
                    dialog_class=dialogs[0].metaObject().className(),
                    file_widget_class=file_widgets[0].metaObject().className())
-        QtCore.QTimer.singleShot(1000, dialog_ready)
+        QtCore.QTimer.singleShot(100, dialog_ready)
         filename, _filter = QtWidgets.QFileDialog.getOpenFileName(window, "Select toolkit-sample.txt", str(pathlib.Path.home()))
         if not filename:
             report("failed", reason="file selection cancelled")

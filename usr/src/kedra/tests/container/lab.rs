@@ -10,9 +10,9 @@ use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use kedra_container_tests::docker::{self, Docker, Exec};
-use kedra_container_tests::environment::{Environment, Extras, Kind};
+use kedra_container_tests::environment::{Environment, Kind};
 use kedra_container_tests::image::{self, Overlay, Request, Source};
-use kedra_container_tests::session::{self, Display, Host};
+use kedra_container_tests::session::{self, Display};
 use kedra_container_tests::{Error, Result, artifact_root, builder};
 
 #[derive(Parser)]
@@ -27,7 +27,7 @@ struct Cli {
 
 #[derive(clap::Args, Clone)]
 struct ImageArgs {
-    /// Image target (desktop, utm); defaults to the engine's native architecture.
+    /// Image target (desktop, qemu-arm64); defaults to the engine's native architecture.
     #[arg(long)]
     target: Option<String>,
     /// stable, run-<id>-<attempt>, sha256:<hex>, builds:<tag>, ref:<reference>, build or build:<revision>.
@@ -43,6 +43,13 @@ struct ImageArgs {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Native QEMU readiness and development operations.
+    Vm {
+        #[command(subcommand)]
+        command: kedra_container_tests::vm::VmCommand,
+    },
+    /// Prepare the native source archiver once; hot config sync never builds Rust.
+    PrepareSync,
     /// Resolve and build the lab image, then print it.
     Image(ImageArgs),
     /// Start a retained desktop environment and print how to use it.
@@ -55,9 +62,6 @@ enum Command {
         /// Parent output and niri scale, e.g. 2560x1600@2.
         #[arg(long, default_value = "2560x1600@2")]
         display: String,
-        /// Show the session live on this Mac through cocoa-way (waypipe) instead of headless.
-        #[arg(long)]
-        live: bool,
     },
     /// Save a screenshot of the running session.
     Shot {
@@ -76,6 +80,9 @@ enum Command {
         name: Option<String>,
         #[arg(long)]
         target: Option<String>,
+        /// Capture the resulting desktop with this label after readiness succeeds.
+        #[arg(long)]
+        shot: Option<String>,
     },
     /// Run a command in the session (as the test user unless --root).
     Exec {
@@ -97,16 +104,6 @@ enum Command {
     Down {
         #[arg(long)]
         name: Option<String>,
-    },
-    /// Build cocoa-way and waypipe from their pinned sources into target/kedra-lab/tools (macOS).
-    LiveTools,
-    /// Forward loopback TCP to a waypipe client socket (started by `up --live`).
-    #[command(hide = true)]
-    Bridge {
-        #[arg(long)]
-        socket: PathBuf,
-        #[arg(long)]
-        port_file: PathBuf,
     },
     /// Remove harness-owned containers: one execution's, or all stopped/retained ones.
     Clean {
@@ -137,21 +134,14 @@ fn request(docker: &Docker, args: &ImageArgs) -> Result<Request> {
     })
 }
 
-fn up(docker: &Docker, args: &ImageArgs, name: &str, display: &str, live: bool) -> Result<()> {
+fn up(docker: &Docker, args: &ImageArgs, name: &str, display: &str) -> Result<()> {
     let display: Display = display.parse()?;
+    builder::prepare_archiver(&artifact_root().join("cache"))?;
     let lab = image::prepare(docker, &request(docker, args)?)?;
-    let extras = Extras::default();
-    let host = if live {
-        Host::Waypipe {
-            bridge_port: kedra_container_tests::live::prepare(name)?,
-        }
-    } else {
-        Host::Headless
-    };
-    let environment = Environment::start(docker, &lab, &Kind::Lab { name: name.into() }, &extras)?;
+    let environment = Environment::start(docker, &lab, &Kind::Lab { name: name.into() })?;
     let started = (|| {
         let user = session::create_user(docker, &environment)?;
-        session::start(docker, &environment, &user, display, host)
+        session::start(docker, &environment, &user, display)
     })();
     if let Err(error) = started {
         let evidence = artifact_root().join("lab").join(&environment.name);
@@ -195,68 +185,81 @@ fn up(docker: &Docker, args: &ImageArgs, name: &str, display: &str, live: bool) 
 fn shot(docker: &Docker, label: &str, name: Option<&str>, output: Option<PathBuf>) -> Result<()> {
     let environment = Environment::attach(docker, name)?;
     let session = session::existing(docker, &environment)?;
-    let destination = output.unwrap_or_else(|| {
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_secs())
-            .unwrap_or_default();
-        artifact_root()
-            .join("shots")
-            .join(format!("{label}-{stamp}.png"))
-    });
-    let path = session::screenshot(docker, &environment, &session, &destination)?;
+    capture_session(docker, &environment, &session, label, output)
+}
+
+fn capture_session(
+    docker: &Docker,
+    environment: &Environment,
+    session: &session::Session,
+    label: &str,
+    output: Option<PathBuf>,
+) -> Result<()> {
+    let destination = match output {
+        Some(path) => path,
+        None => kedra_container_tests::capture::destination(label)?,
+    };
+    let started = std::time::Instant::now();
+    let path = session::screenshot(docker, environment, session, &destination)?;
+    let receipt = kedra_container_tests::capture::container_receipt(
+        docker,
+        environment,
+        session,
+        &path,
+        started.elapsed(),
+    )?;
     println!("{}", path.display());
+    eprintln!("capture receipt: {}", receipt.display());
     Ok(())
 }
 
-/// Push the working tree's home-baseline files into the running account.
-/// niri reloads its config on change; Noctalia watches its own files.
-fn sync(docker: &Docker, name: Option<&str>, target: Option<&str>) -> Result<()> {
+/// Validate and apply supported desktop files in the retained disposable account.
+fn sync(
+    docker: &Docker,
+    name: Option<&str>,
+    target: Option<&str>,
+    capture: Option<&str>,
+) -> Result<()> {
     let environment = Environment::attach(docker, name)?;
     let session = session::existing(docker, &environment)?;
-    let target = image::target(docker, target)?;
-    let cache = artifact_root().join("cache");
-    let outputs = builder::prepare(
-        docker,
-        &target.id,
-        &target.architecture,
-        &builder::Stage::Worktree,
-        None,
-        &cache,
-    )?;
-    let mut archive = tar::Archive::new(std::fs::File::open(&outputs.payload)?);
-    let mut count = 0;
-    for entry in archive.entries()? {
-        let mut entry = entry?;
-        let path = entry.path()?.to_string_lossy().into_owned();
-        let Some(relative) = path.strip_prefix("usr/share/sysroot/home/default/") else {
-            continue;
-        };
-        if !entry.header().entry_type().is_file() {
-            continue;
-        }
-        let mut data = Vec::new();
-        std::io::Read::read_to_end(&mut entry, &mut data)?;
-        let destination = format!("{}/{relative}", session.user.home);
-        let mode = format!("{:o}", entry.header().mode()? & 0o777);
-        docker.write_file(
-            &environment.id,
-            &destination,
-            &data,
-            &session.user.name,
-            &mode,
-        )?;
-        println!("synced ~/{relative}");
-        count += 1;
-    }
-    let validation = environment.exec(docker, &session.exec(["niri", "validate"]))?;
-    if validation.exit != 0 {
-        eprintln!("{}", validation.stderr_text());
+    let installed: serde_json::Value = serde_json::from_slice(
+        &docker.read_file(&environment.id, "/usr/share/sysroot/source.json")?,
+    )
+    .map_err(|e| Error::Invalid(format!("installed source manifest: {e}")))?;
+    let actual = installed["target"]["id"]
+        .as_str()
+        .ok_or_else(|| Error::Invalid("installed image has no target".into()))?;
+    if target.is_some_and(|target| target != actual) {
         return Err(Error::Invalid(
-            "niri rejected the synced configuration".into(),
+            "requested sync target differs from the running image".into(),
         ));
     }
-    println!("{count} files synced; niri reloads its configuration automatically.");
+    let request = kedra_container_tests::lab_sync::request(actual)?;
+    let script = format!(
+        "{}/kedra-sync-{}.py",
+        session.user.runtime_dir(),
+        kedra_container_tests::execution_id()
+    );
+    docker.write_file(
+        &environment.id,
+        &script,
+        &std::fs::read(kedra_container_tests::harness_dir().join("lab/probes/sync-home.py"))?,
+        &session.user.name,
+        "0700",
+    )?;
+    let outcome = environment.run(
+        docker,
+        &session
+            .exec(["python3", &script])
+            .stdin(request)
+            .timeout(Duration::from_secs(30)),
+    );
+    let _ = environment.exec(docker, &session.exec(["rm", "-f", &script]));
+    let result = outcome?;
+    println!("{}", result.stdout_text().trim());
+    if let Some(label) = capture {
+        capture_session(docker, &environment, &session, label, None)?;
+    }
     Ok(())
 }
 
@@ -275,8 +278,36 @@ fn exec(docker: &Docker, name: Option<&str>, root: bool, argv: Vec<String>) -> R
 }
 
 fn main() -> ExitCode {
+    if let Err(error) = kedra_container_tests::cancel::install() {
+        eprintln!("kedra-lab: {error}");
+        return ExitCode::FAILURE;
+    }
     let cli = Cli::parse();
+    if let Command::Vm { command } = cli.command {
+        return match kedra_container_tests::vm::run(command) {
+            Ok(code) => code,
+            Err(Error::Interrupted) => ExitCode::from(130),
+            Err(error) => {
+                eprintln!("kedra-lab: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+    if matches!(cli.command, Command::PrepareSync) {
+        return match builder::prepare_archiver(&artifact_root().join("cache")) {
+            Ok(path) => {
+                println!("{}", path.display());
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("kedra-lab: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let outcome = Docker::connect().and_then(|docker| match cli.command {
+        Command::Vm { .. } => unreachable!("dispatched without Docker"),
+        Command::PrepareSync => unreachable!("dispatched without Docker"),
         Command::Image(args) => {
             let lab = image::prepare(&docker, &request(&docker, &args)?)?;
             println!("{}", serde_json::to_string_pretty(&lab).unwrap_or_default());
@@ -286,15 +317,15 @@ fn main() -> ExitCode {
             image,
             name,
             display,
-            live,
-        } => up(&docker, &image, &name, &display, live).map(|_| ExitCode::SUCCESS),
+        } => up(&docker, &image, &name, &display).map(|_| ExitCode::SUCCESS),
         Command::Shot {
             label,
             name,
             output,
         } => shot(&docker, &label, name.as_deref(), output).map(|_| ExitCode::SUCCESS),
-        Command::Sync { name, target } => {
-            sync(&docker, name.as_deref(), target.as_deref()).map(|_| ExitCode::SUCCESS)
+        Command::Sync { name, target, shot } => {
+            sync(&docker, name.as_deref(), target.as_deref(), shot.as_deref())
+                .map(|_| ExitCode::SUCCESS)
         }
         Command::Exec { name, root, argv } => exec(&docker, name.as_deref(), root, argv),
         Command::Logs { name } => {
@@ -322,16 +353,10 @@ fn main() -> ExitCode {
             }
             Ok(ExitCode::SUCCESS)
         }
-        Command::LiveTools => kedra_container_tests::live::build_tools().map(|_| ExitCode::SUCCESS),
-        Command::Bridge { socket, port_file } => {
-            kedra_container_tests::live::bridge(&socket, &port_file).map(|_| ExitCode::SUCCESS)
-        }
         Command::Down { name } => {
             let environment = Environment::attach(&docker, name.as_deref())?;
             let label = environment.name.clone();
             environment.terminate(&docker)?;
-            let short = label.strip_prefix("kedra-lab-").unwrap_or(&label);
-            kedra_container_tests::live::stop(short);
             println!("removed {label}");
             Ok(ExitCode::SUCCESS)
         }

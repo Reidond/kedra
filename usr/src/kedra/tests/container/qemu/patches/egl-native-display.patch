@@ -1,0 +1,11 @@
+--- a/ui/egl-helpers.c
++++ b/ui/egl-helpers.c
+@@ -609,7 +609,7 @@
+     /* In practise any EGL 1.5 implementation would support the EXT extension */
+     if (epoxy_has_egl_extension(NULL, "EGL_EXT_platform_base")) {
+         if (platform != 0) {
+-            dpy = eglGetPlatformDisplayEXT(platform, native, NULL);
++            dpy = eglGetPlatformDisplayEXT(platform, (void *)(uintptr_t)native, NULL);
+         }
+     }
+ 

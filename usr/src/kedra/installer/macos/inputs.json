@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "resolved_on": "2026-09-28",
-  "build_container_tag": "quay.io/fedora/fedora:44",
-  "build_container_index": "sha256:1ccd18224d9b302fe62d3cefd0a9e0724c365ea8ac3bfb017c569540fe76433a",
-  "build_container": "quay.io/fedora/fedora@sha256:a0051694e58c460dc9f23774355f321bfbe6bf5039ef6e66bc4ee6d522e17f2e",
+  "resolved_on": "2026-09-29",
+  "build_container_tag": "docker.io/library/fedora:44",
+  "build_container_index": "sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80",
+  "build_container": "docker.io/library/fedora@sha256:e402cca673711fee025f9ce21c6c08b1bd25ee26b3c482119c8675fbaaedbc85",
   "architecture": "arm64"
 }

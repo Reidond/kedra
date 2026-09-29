@@ -1,5 +1,5 @@
 # Runs only inside Docker's Linux VM; no host root privileges.
-FROM quay.io/fedora/fedora@sha256:a0051694e58c460dc9f23774355f321bfbe6bf5039ef6e66bc4ee6d522e17f2e
+FROM docker.io/library/fedora@sha256:e402cca673711fee025f9ce21c6c08b1bd25ee26b3c482119c8675fbaaedbc85
 LABEL dev.kedra.lab.owner=kedra-container-tests
 RUN dnf -y --setopt=install_weak_deps=False install podman skopeo qemu-img jq && dnf clean all
 COPY build-disk.sh /usr/local/bin/kedra-build-disk

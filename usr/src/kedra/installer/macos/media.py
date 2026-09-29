@@ -214,7 +214,9 @@ def build_iso(args):
 def load_pins():
     pins = json.loads(read_bounded(HERE / 'inputs.json'))
     require(pins.get('schema_version') == 1 and pins.get('architecture') == SPEC['oci_architecture']
-            and re.fullmatch(r'quay\.io/fedora/fedora@sha256:[a-f0-9]{64}', str(pins.get('build_container', ''))),
+            and pins.get('build_container_tag') == 'docker.io/library/fedora:44'
+            and re.fullmatch(r'sha256:[a-f0-9]{64}', str(pins.get('build_container_index', '')))
+            and re.fullmatch(r'docker\.io/library/fedora@sha256:[a-f0-9]{64}', str(pins.get('build_container', ''))),
             'Unexpected macOS media builder pins')
     return pins
 

@@ -494,20 +494,106 @@ pub fn source_bundle(docker: &Docker, container: &str) -> Result<PathBuf> {
         return Ok(path);
     }
     fs::create_dir_all(&bundles)?;
-    let output = std::process::Command::new("git")
+    let git = || {
+        let mut command = std::process::Command::new("git");
+        for (name, _) in std::env::vars_os() {
+            if name.to_string_lossy().starts_with("GIT_") {
+                command.env_remove(name);
+            }
+        }
+        command
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .env("GIT_OPTIONAL_LOCKS", "0")
+            .args([
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "commit.gpgsign=false",
+            ]);
+        command
+    };
+    let repo = crate::repository_root();
+    let verify = git()
         .arg("-C")
-        .arg(crate::repository_root())
-        .args(["bundle", "create"])
-        .arg(&path)
-        .arg(revision)
+        .arg(&repo)
+        .args(["rev-parse", "--verify", &format!("{revision}^{{commit}}")])
         .stdin(std::process::Stdio::null())
         .output()?;
-    if !output.status.success() {
-        let _ = fs::remove_file(&path);
+    if !verify.status.success() || String::from_utf8_lossy(&verify.stdout).trim() != revision {
         return Err(invalid(format!(
             "source revision {revision} of the image is not in this checkout; fetch it first ({})",
-            String::from_utf8_lossy(&output.stderr).trim()
+            String::from_utf8_lossy(&verify.stderr).trim()
         )));
     }
+    // `git bundle create <path> <raw-object-id>` refuses an empty bundle even
+    // when the commit exists. Give that exact commit a name in a throwaway bare
+    // repository whose object alternate reads the checkout without changing its
+    // refs, index or objects.
+    let scratch = bundles.join(format!(".{revision}-{}", crate::execution_id()));
+    let pending = bundles.join(format!("{revision}-{}.pending", crate::execution_id()));
+    fs::create_dir(&scratch)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&scratch, fs::Permissions::from_mode(0o700))?;
+    }
+    let checked = |command: &mut std::process::Command, operation: &str| -> Result<()> {
+        let output = command.stdin(std::process::Stdio::null()).output()?;
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(invalid(format!(
+                "{operation} failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            )))
+        }
+    };
+    let result = (|| -> Result<()> {
+        checked(
+            git()
+                .args(["clone", "--bare", "--shared", "--no-tags"])
+                .arg(&repo)
+                .arg(&scratch),
+            "private source clone",
+        )?;
+        checked(
+            git().arg("--git-dir").arg(&scratch).args([
+                "update-ref",
+                "refs/heads/kedra-source",
+                revision,
+            ]),
+            "private source ref",
+        )?;
+        checked(
+            git().arg("--git-dir").arg(&scratch).args([
+                "symbolic-ref",
+                "HEAD",
+                "refs/heads/kedra-source",
+            ]),
+            "private source HEAD",
+        )?;
+        checked(
+            git()
+                .arg("--git-dir")
+                .arg(&scratch)
+                .args(["bundle", "create"])
+                .arg(&pending)
+                .arg("HEAD"),
+            "source bundle",
+        )
+    })();
+    let cleanup = fs::remove_dir_all(&scratch);
+    if let Err(error) = result {
+        let _ = fs::remove_file(&pending);
+        let _ = cleanup;
+        return Err(error);
+    }
+    if let Err(error) = cleanup {
+        let _ = fs::remove_file(&pending);
+        return Err(error.into());
+    }
+    fs::rename(pending, &path)?;
     Ok(path)
 }

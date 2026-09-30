@@ -14,7 +14,10 @@ all six jobs and published stable digest
 `sha256:7795329a030d2fc2697d6b88a666ca73f8ff7938f84b245863f90ec16ffab877`.
 The old `kedra-utm` and `kedra-utm-builds` packages now return API 404, and the old
 signing environment is deleted; environment readback lists only desktop and
-qemu-arm64 authorities.
+qemu-arm64 authorities. The exact local old UTM signing backup was also removed
+without reading key contents; the historical `~/VMs/Kedra.utm` bundle is absent.
+An undocumented old Keychain passphrase entry still needs targeted identification
+after unlock; no secret was extracted or unknown item deleted.
 
 UTM CLI and native UI report an empty VM list. Six stopped Kedra prototype
 instances using the old target were removed through the owned lab CLI; no

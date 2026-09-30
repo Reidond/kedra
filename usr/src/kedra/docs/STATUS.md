@@ -66,8 +66,7 @@ historical only and the current verifier correctly refuses its retired identity.
 The owner completed both credential handoffs and fresh encrypted installation
 completed on the new 96 GiB disk. The 64 MiB sentinel and original ISO retain their
 full hashes; stopped detach passes. ISO-free boot reaches signed Fedora/GRUB and
-LUKS, but the missing initramfs GPU/input drivers leave Cocoa inactive. Corrected
-signed media and a healthy installed boot remain required.
+LUKS, but the missing initramfs GPU/input drivers leave Cocoa inactive. Corrected signed media and the separately observed healthy installed boot now pass.
 TC21's private APFS media-refusal matrix passes: changed ISO byte/checksum,
 SHA256SUMS/manifest mismatch, wrong desktop target, changed image-digest identity
 and existing output all refuse with exit 1; valid verification exits 0, corrupt
@@ -95,24 +94,50 @@ architectures, desktop, signed-home, direct-GHCR, signed-update and agent workfl
 pass. ARM run [36617035132](https://github.com/Reidond/kedra/actions/runs/36617035132)
 attempt 1 retains its 90-minute PID 1 freeze before the observer starts. Exact same
 SHA attempt 2 passes, completing 2026-09-29 21:21:02 UTC with the boot step in
-5m06s (21:15:52–21:20:58). Main CI is green; later uncommitted follow-up fixes have
-only the local checks recorded below and still need publication/CI.
-Follow-up [PR #24](https://github.com/Reidond/kedra/pull/24) contains implementation
-`4e0f4fc`: installer mount, stopped-lab cleanup/empty-selector refusal and early
-PID1 fatal-boot reporting. Workspace checks pass on both architectures at `1e157f4`
-and ARM passes at `4e0f4fc` with the new fatal monitor. The first container run
-fails only its Noctalia-version home guard; the local correction below is not yet
-committed or covered by exact-source CI.
+5m06s (21:15:52–21:20:58). Main CI is green; later PR24/PR25 follow-up state is
+recorded separately below.
+Follow-up [PR #24](https://github.com/Reidond/kedra/pull/24) merged as `5dc7b99`;
+its final `ad8f385` workflow set is green. The first subsequent release
+[36692694223](https://github.com/Reidond/kedra/actions/runs/36692694223) built both
+targets, then both validate jobs failed solely because the raw-SHA Git bundle was
+empty. Signing/publication were skipped and stable stayed at `7795329a…ab877`,
+demonstrating the new guard fails closed.
 
 Current Fedora 44 now resolves Noctalia 5.2.0. The narrow two-file qualification
 preserves persisted `APP_VERSION=5.0.1`, accepts exact 5.2 output and refuses
 unknown versions. Native validation/export still exposes only three approved typed
 fields from a 29-section live export; private weather/plugins stay excluded. Home
 case `1790750757-17043` passes in 14.31 s and full ARM worktree run
-`1790751520-28479` passes 13/13 with two workers in 109.92 s and no cleanup failure.
-This source remains uncommitted and needs exact-source CI. A key-free exact-candidate
-full-harness gate is implemented before signing in about 100 workflow lines without
-changing no-change behavior; its first execution is not-run.
+`1790751520-28479` passes 13/13 with two workers in 109.92 s/no cleanup failure.
+The final five visible 5.2 sync+shot samples are 5.136, 4.319, 4.606, 4.453 and
+4.335 s (median 4.453/max 5.136); five warm starts have median 18.690/max 23.580 s,
+captures median 0.937/max 1.055 s, and five presentation rates span
+96.57–101.01/s (median 99.055, every p95 16.667 ms with `sce_`). The guest/source
+were restored; final Settings shows Metal, Secure Boot, enforcing SELinux,
+Noctalia 5.2 and no failed units. Evidence and screenshot
+`final-native-qualification-summary.json` and
+`final-ready-settings-1790763286328579000.PNG` are outside Cargo output.
+
+PR #25 fixes the exact-candidate source bundle through a private 0700 named ref
+with sanitized Git environment. The previously failed candidate `91e…` had no
+overlay; hostile-environment home cycle `1790761204-42859` passes in 50.82 s and
+the complete report binds exact `5dc` HEAD while leaving the checkout unchanged.
+Old/new commit and payload SHA values match. Materialized snapshot and six review
+risks pass, including literal/private-key/hard-link/FIFO/global-ignore/concurrent
+lock and SIGINT-130 cleanup. Latest head `193bb0e` changes four final-scope files;
+workspace/container runs `36701445476`, `36701440939` and `36701441228` pass.
+PR #25 merged as `f3d69dbaba0a50fc167efeb2e0e5d3a6caf6b2c8`. Root CLI E2E passes 2/2 on macOS (Linux-only targets provide zero local
+coverage); release build passes in 25.89 s, and fresh-directory release interop and
+material checks pass after existing directories correctly refused overwrite.
+Independent review found the signer checked remote main while the publisher used
+only its checkout; the current fix rechecks remote main immediately before publish.
+Release [36702944904](https://github.com/Reidond/kedra/actions/runs/36702944904)
+passes all eight jobs: both exact candidates pass the full harness before isolated
+signing and strict stable publication. QEMU stable is `sha256:9d6eb030a55f86232e7f6df46551d5394599b70b2ad7837a41a5cde300550e71`.
+Corrected ISO export `cb8578a4…49504` passes the independent public media verifier
+and full checksum after its host wrapper was interrupted. Corrected encrypted
+graphical boot is now qualified by the separate corrected fresh-install/ISO-free
+unlock/login and installed-system checks, not by export alone.
 
 Five stable-tag worktree-overlay suites pass 13/13 with wall times 58.959, 66.322,
 64.764, 65.563 and 72.787 s (median 65.563/max 72.787), image tag
@@ -122,7 +147,8 @@ no-overlay stale-provenance refusal remains recorded. Independent concurrent
 Bitwarden (`1790709593-88410`) and desktop (`1790709593-88411`) executions both
 pass, clean up independently and leave the default retained lab healthy.
 
-Five native full-CLI warm starts are 19.239, 19.348, 18.461, 21.253 and 18.533 s
+The initial restored desktop's five full-CLI warm starts were 19.239, 19.348,
+18.461, 21.253 and 18.533 s
 (median 19.239/max 21.253), with median readiness 16.437 s and five distinct boot
 IDs reporting Metal. Capture wall times are 0.869, 0.874, 0.875, 0.883 and 0.893 s
 (median 0.875/max 0.893). Final state is an unlocked, healthy 2560×1600 scale-2
@@ -151,19 +177,16 @@ public remove passes. The default was stopped before/after with stale PIDs, so t
 case makes no running-default preservation claim; the separate 10-second variant
 provides that evidence.
 
-The signed ISO replay, fresh encrypted installation, sentinel preservation and
-stopped detach pass. ISO-free boot fails graphical unlock: the image initramfs
-lacks virtual display/input modules. The stopped disk/TPM/variables are retained
-for diagnosis. QEMU-target dracut `force_drivers` plus explicit image-build initramfs
-regeneration produce unsigned sanctioned candidate `3c744556…`. Its exact 7.2.7
-initrd `3f37ce…` contains GPU/input dependencies plus generic crypt, TPM, bootc,
-OSTree, EROFS and overlay support; it is mode 0644 with one link. Twelve lint checks
-pass with only pre-existing warnings. Corrected signed media and a healthy boot
-remain unqualified. The encrypted disk/TPM/variables are stopped
-and retained for diagnosis; the default native VM is stopped and the default
-container remains running. No owner action is currently required; corrected media
-must be produced first. New current fixture image `6303cf1f…` is prepared but
-not yet booted or hot-synced. For the pushed follow-up, formatting, ruff and workspace
+The corrected signed ISO was freshly installed on only the new 96 GiB disk. Visible
+ISO-free LUKS unlock and greetd login now pass. Installed doctor, Secure Boot/
+lockdown, enforcing SELinux, Metal, LUKS2 and read-only TPM/PCR7 dry-run pass;
+bootc confirms exact 9d6 signed image with no staged/rollback deployment. Original
+ISO and full unselected 64 MiB sentinel hashes remain equal after final stop. The
+final graceful stop timed out and explicit public force was required. The corrected
+installed VM is retained stopped; the obsolete diagnostic VM is absent. Native
+and container defaults are restored running. Evidence: `tc22-fixed-summary.json`
+outside Cargo output. Earlier missing-driver failure is historical and preserved.
+For the pushed follow-up, formatting, ruff and workspace
 all-target Clippy pass (30.32 s); empty/whitespace `down` selectors exit 1 while
 the default stays healthy, and exact stopped-owned removal passes using the rebuilt
 release binary. Fresh container Settings capture
@@ -631,3 +654,17 @@ that target force_drivers for virtio_gpu/virtio_input includes both and
 virtio_dma_buf. Target configuration and explicit qemu-only image-build initramfs
 regeneration are implemented and undergoing actual candidate validation. Neither
 that build nor the earlier successful installation is a healthy-boot pass.
+
+### Final corrected encrypted installation (2026-09-30)
+
+The owner entered credentials directly in the guest; none were captured. Corrected
+image 9d6/ISO cb8578 passes fresh encrypted installation, visible ISO-free LUKS unlock
+and greetd login. The installed system has all doctor checks passing, active Metal
+rendering, enforcing SELinux, Secure Boot/lockdown integrity, LUKS2/Btrfs and no
+failed services. Read-only TPM dry-run finds TPM2/PCR7/LUKS UUID correctly; no
+enrollment was performed. Bootc reports signature verification and the exact signed
+image, no staged or rollback state. ISO/sentinel full hashes remain unchanged.
+The final graceful stop required explicit force; this limitation remains recorded.
+The native development desktop is restored and visibly healthy; its expected
+unsigned-development release-trust notice is separate from the installed signed
+VM's full trust pass. The original broken installation is absent.

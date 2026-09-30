@@ -78,7 +78,12 @@ execution time, so updating lab control code does not rebuild the OS disk. Captu
 receipts include controller/transport hashes. Shutdown bypasses desktop environment
 lookup; a stopped user manager cannot block the poweroff request. Runtime changes require a new instance; receipts reject substitution.
 
-Click inside the native window to capture input; Control+Option+G releases it.
+Click inside the native window until its title shows `Ctrl+Option+G` as the release
+shortcut; this confirms input capture. Control+Option+G releases it. Recapture
+after reopening or switching away before using Command shortcuts. Physical
+Command+Left/Right was verified to move niri focus while remaining on VT1 and
+workspace 1. The broader Cocoa full-grab event tap stays disabled; normal capture
+does not require global keyboard monitoring.
 `vm key` sends QEMU virtual-hardware qcodes, including modifier combinations, for
 repeatable agent-driven input. The launcher restores normal scheduling/I/O policy
 for its own QEMU and TPM processes so a background agent shell does not throttle
@@ -133,25 +138,30 @@ with Apple's linker because the pinned LLD cannot parse macOS 27's new SDK TAPI
 architecture; Xcode provides the build-time libLTO bridge. Upstream sudo/vmnet,
 Pipenv and update scripts are not executed.
 
-Current local evidence (2026-09-28): runtime build/relocation/signatures and
+Current local evidence (2026-09-30): runtime build/relocation/signatures and
 Secure Boot firmware checks pass. Native niri and Wayland EGL report
-`virgl (ANGLE (Apple, ANGLE Metal Renderer: Apple M2 Pro, ...))`; Secure Boot is
-enabled and SELinux Enforcing. The native window, basic keyboard/pointer input,
-virtual-hardware modifier chord, configuration edits and guest captures were
-inspected. Guest capture is 2560×1600 at scale 2. Five warm starts measured median
-24.443 s / max 44.929 s; five edit+capture commands median 4.676 s / max 8.959 s;
-five captures median 1.043 s / max 1.636 s. These are warm measurements on an M2 Pro
-with unrelated workloads left running, using a cached unsigned OS candidate plus
-the working-tree payload. Cold runtime/disk preparation is separate.
+`virgl (ANGLE (Apple, ANGLE Metal Renderer: Apple M2 Pro, ...))`; the Noctalia 5.2
+fixture is healthy with Secure Boot enabled and SELinux Enforcing. Physical
+Command+Enter, Command+arrows after capture, scrolling, window movement and audible
+output were confirmed by the owner. Native toolkit/chooser workflows, unlocked
+scaling and restored 2560×1600 scale 2 geometry pass.
+
+Five final visible edit/capture samples pass median 4.453 s/max 5.136 s; warm boots
+median 18.690 s/max 23.580 s and captures median 0.937 s/max 1.055 s. Five 30 s presentation
+observations pass at 96.57–101.01 Hz with p95 interval 16.667 ms on guest Virtual-1.
+These are measured warm results on this M2 Pro and the recorded fixture; cold
+runtime/disk preparation and other hosts are separate.
 
 Generated instance keys/disks are isolated; prepared sync/capture works without
-Docker. Failed startup stops its owned children and preserves disk/logs. Graceful
-stop allows 30 s; explicit force allows 10 s for QEMU. The verified signed ISO
-reached Anaconda and its Secure Boot/signature readiness markers in installer
-mode, which exposes no fixture SSH access. A fresh encrypted install/new ISO build,
-audio/full toolkit matrix, physical modifier keys and frame-presentation timing
-remain unqualified. Startup/capture JSON deliberately keeps `gpu_qualified: false`:
-it does not infer a full qualification pass from process readiness or a PNG.
+Docker. Failed startup and literal shutdown/explicit-force workflows preserve
+owned storage and unrelated state. First signed-media fresh encrypted installation,
+original ISO/sentinel preservation and stopped detach pass. Its ISO-free graphical
+unlock exposed missing early virtual GPU/input drivers; the corrected signed image
+and verified ISO were freshly installed. Visible LUKS unlock, greetd login,
+installed doctor/security/Metal/TPM dry-run and exact signed bootc status pass.
+Final graceful stop required explicit force; ISO/sentinel hashes still match. Readiness JSON
+keeps `gpu_qualified: false`: process startup or a PNG does not establish every
+manual qualification case.
 See [STATUS](../../../docs/STATUS.md) and the
 [verification packet](../../../../../../.specs/qemu-desktop-iteration/test-plan.md).
 

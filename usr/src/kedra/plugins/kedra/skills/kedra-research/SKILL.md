@@ -45,3 +45,15 @@ failed on macOS without crypt.h; Python 3.12 uses its existing crypt implementat
 The QEMU fixture preserves DRM and SELinux instead of inheriting container unit
 skips. Native disk export verifies both engine identity and immutable image ID
 before mutations, avoiding a Docker CLI-context mismatch with Testcontainers.
+
+Measured 2026-09-30 on the Mac/Noctalia 5.2 fixture: hot sync uses an ephemeral
+private 0700 bare Git repository and independent indexes instead of copying every
+checkout file. Preserve owner global ignores only for read-only path listing;
+sanitize private Git configuration, use literal paths, refuse unsafe file types/
+hardlinks, require matching content trees/HEAD/path sets, and remove ephemeral
+objects. Full builds retain materialized snapshots; the production source archiver
+continues layout, rootfs, target and private-key validation. Exact old/new commit
+and payload SHA equality plus real refusal/concurrency/interruption workflows pass.
+Five visibly changed native sync/capture samples pass median 4.453 s/max 5.136 s;
+phase metrics distinguish source, transport and capture. Measure after unrelated
+host load finishes and preserve contended samples as diagnostics.

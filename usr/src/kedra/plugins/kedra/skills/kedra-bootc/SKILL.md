@@ -43,5 +43,9 @@ Image assembly explicitly rebuilds every installed kernel initramfs after RPM
 transactions, because an unchanged kernel does not trigger regeneration merely
 when a target config is added. Actual unsigned candidate `3c744556…a14f4` retains
 generic crypt, TPM, bootc/OSTree, EROFS and overlay support and includes all three
-drivers. Keep this target-specific; signed-media graphical unlock/healthy boot
-must still be observed after publication. Evidence: worklog WL-20260930-01.
+drivers. Keep this target-specific. Corrected signed image 9d6eb030… and ISO cb8578…
+were freshly installed with LUKS2; owner confirms visible unlock and greetd login.
+Installed doctor, Secure Boot/lockdown, enforcing SELinux, Metal rendering and
+read-only TPM/PCR7 dry-run pass, with no failed services. Bootc reports the exact
+signed digest and no staged/rollback deployment. Evidence: worklog WL-20260930-01;
+the original inactive-screen failure remains recorded.

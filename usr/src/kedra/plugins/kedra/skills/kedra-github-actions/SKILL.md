@@ -40,7 +40,7 @@ Local installer changes retain pinned image-builder, labeling, offline payload v
 
 Update STATUS/worklog with exact observed outcomes. Never call staged booted, signed installed or syntax qualified.
 
-Exact-candidate validation (implemented 2026-09-30; first release execution pending):
+Exact-candidate validation (qualified 2026-09-30, release 36702944904):
 `release-target.yml` requires build → validate-candidate → isolated sign → stable
 publication. Validation runs the complete sanctioned Testcontainers harness against
 the immutable public builds-repository digest with KEDRA_LAB_OVERLAY=none, on the
@@ -53,3 +53,8 @@ Do not substitute the independent container workflow: rebuilding the same source
 SHA against refreshed Fedora repositories can test a different RPM snapshot.
 A fresh Noctalia 5.2.0 candidate exposed exactly that compatibility gap. Keep test
 execution out of the signer and never send test executables or raw reports to it.
+The first gate run 36692694223 failed closed because Git cannot bundle a raw
+commit ID without a named ref. The corrected private 0700 named-ref bundle preserves
+exact image provenance and checkout state under hostile Git settings. Release
+36702944904 passes both full exact-candidate suites, signing and strict publication
+(all eight jobs); validation is observed, not inferred from workflow text.

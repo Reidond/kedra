@@ -393,24 +393,50 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             execute(instance_script(&instance, "shot")?.arg(label))
         }
         VmCommand::Sync { instance, shot } => {
+            let started = Instant::now();
+            let source_started = Instant::now();
             let payload = crate::lab_sync::request("qemu-arm64")?;
+            let source_ms = source_started.elapsed().as_millis();
             let mut command = instance_script(&instance, "sync")?;
             command.stdin(Stdio::piped());
             #[cfg(unix)]
             command.process_group(0);
+            let transport_started = Instant::now();
             let mut child = command.spawn()?;
             if let Some(mut input) = child.stdin.take() {
                 input.write_all(&payload)?;
             }
             let status = wait_child(&mut child)?;
+            let transport_ms = transport_started.elapsed().as_millis();
             if status != ExitCode::SUCCESS {
+                eprintln!(
+                    "kedra-lab: native sync timing {}",
+                    serde_json::json!({
+                        "source_ms": source_ms,
+                        "transport_ms": transport_ms,
+                        "capture_ms": null,
+                        "total_ms": started.elapsed().as_millis(),
+                    })
+                );
                 return Ok(status);
             }
-            if let Some(label) = shot {
-                execute(instance_script(&instance, "shot")?.arg(label))
+            let (status, capture_ms) = if let Some(label) = shot {
+                let capture_started = Instant::now();
+                let status = execute(instance_script(&instance, "shot")?.arg(label))?;
+                (status, Some(capture_started.elapsed().as_millis()))
             } else {
-                Ok(ExitCode::SUCCESS)
-            }
+                (ExitCode::SUCCESS, None)
+            };
+            eprintln!(
+                "kedra-lab: native sync timing {}",
+                serde_json::json!({
+                    "source_ms": source_ms,
+                    "transport_ms": transport_ms,
+                    "capture_ms": capture_ms,
+                    "total_ms": started.elapsed().as_millis(),
+                })
+            );
+            Ok(status)
         }
     }
 }

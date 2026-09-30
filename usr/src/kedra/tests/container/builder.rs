@@ -6,7 +6,9 @@
 //! overlays and private-key refusal to the snapshot's committed tree.
 
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
+#[cfg(unix)]
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -84,7 +86,7 @@ pub fn content_key(parts: &[&[u8]]) -> String {
 /// Prepared host archiver and its exact source inputs. Home sync needs no Linux build.
 fn archiver_directory(cache: &Path) -> Result<PathBuf> {
     let repo = crate::repository_root();
-    let listed = git_output(
+    let listed = git_listing_output(
         &repo,
         &[
             "ls-files",
@@ -196,13 +198,213 @@ pub struct SourceArchive {
     pub source_commit: Option<String>,
 }
 
+fn worktree_paths(repo: &Path) -> Result<Vec<u8>> {
+    let listed = git_listing_output(
+        repo,
+        &[
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ],
+    )?;
+    #[cfg(unix)]
+    let owner = fs::symlink_metadata(repo)?.uid();
+    let mut existing = Vec::with_capacity(listed.len());
+    for raw in listed
+        .split(|byte| *byte == 0)
+        .filter(|raw| !raw.is_empty())
+    {
+        let relative =
+            std::str::from_utf8(raw).map_err(|_| invalid("non-UTF-8 path in the working tree"))?;
+        match fs::symlink_metadata(repo.join(relative)) {
+            Ok(metadata) if metadata.is_file() => {
+                #[cfg(unix)]
+                if metadata.nlink() != 1 || metadata.uid() != owner {
+                    return Err(invalid(format!(
+                        "working tree input has unsafe ownership or link count: {relative}"
+                    )));
+                }
+                existing.extend_from_slice(raw);
+                existing.push(0);
+            }
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                existing.extend_from_slice(raw);
+                existing.push(0);
+            }
+            Ok(_) => {
+                return Err(invalid(format!(
+                    "working tree input is not a regular file or symlink: {relative}"
+                )));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(existing)
+}
+
+/// Build the same deterministic single-commit snapshot as `snapshot`, using a
+/// private bare repository and index instead of copying the whole checkout.
+/// This is only for the host-side home hot path; Linux/full image builds still
+/// receive an ordinary materialized checkout.
+fn snapshot_worktree_bare(repo: &Path, destination: &Path) -> Result<(String, Option<String>)> {
+    if destination.exists() {
+        return Err(invalid("private home sync snapshot path already exists"));
+    }
+    fs::create_dir(destination)?;
+    #[cfg(unix)]
+    fs::set_permissions(destination, fs::Permissions::from_mode(0o700))?;
+    let private = fs::symlink_metadata(destination)?;
+    if !private.is_dir() || private.file_type().is_symlink() {
+        return Err(invalid("private home sync snapshot is not a directory"));
+    }
+    #[cfg(unix)]
+    if private.uid() != fs::symlink_metadata(repo)?.uid() || private.mode() & 0o777 != 0o700 {
+        return Err(invalid(
+            "private home sync snapshot has unsafe ownership or permissions",
+        ));
+    }
+    let paths = worktree_paths(repo)?;
+    let head = git_output(repo, &["rev-parse", "--verify", "HEAD^{commit}"])?;
+    let source_commit = String::from_utf8_lossy(&head).trim().to_owned();
+    let initialized = git(destination).args(["init", "-q", "--bare"]).output()?;
+    if !initialized.status.success() {
+        return Err(Error::Command {
+            what: "private snapshot git init".into(),
+            exit: i64::from(initialized.status.code().unwrap_or(-1)),
+            stderr: String::from_utf8_lossy(&initialized.stderr).into_owned(),
+        });
+    }
+    let private_git = |index: &Path| {
+        let mut command = git(repo);
+        command
+            .arg("--git-dir")
+            .arg(destination)
+            .env("GIT_WORK_TREE", repo)
+            .env("GIT_INDEX_FILE", index);
+        command
+    };
+    let checked = |command: &mut Command, operation: &str| -> Result<Vec<u8>> {
+        let output = command.output()?;
+        if output.status.success() {
+            Ok(output.stdout)
+        } else {
+            Err(Error::Command {
+                what: operation.into(),
+                exit: i64::from(output.status.code().unwrap_or(-1)),
+                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            })
+        }
+    };
+    let build_tree = |index: &Path, paths: &[u8]| -> Result<String> {
+        checked(
+            private_git(index).args(["read-tree", "--empty"]),
+            "private snapshot read-tree",
+        )?;
+        let mut add = private_git(index);
+        add.args(["add", "--pathspec-from-file=-", "--pathspec-file-nul"])
+            .stdin(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = add.spawn()?;
+        child
+            .stdin
+            .take()
+            .ok_or_else(|| invalid("private snapshot Git has no stdin"))?
+            .write_all(paths)?;
+        let added = child.wait_with_output()?;
+        if !added.status.success() {
+            return Err(Error::Command {
+                what: "private snapshot git add".into(),
+                exit: i64::from(added.status.code().unwrap_or(-1)),
+                stderr: String::from_utf8_lossy(&added.stderr).into_owned(),
+            });
+        }
+        let tree = checked(
+            private_git(index).args(["write-tree"]),
+            "private snapshot write-tree",
+        )?;
+        Ok(String::from_utf8_lossy(&tree).trim().to_owned())
+    };
+    let first_index = destination.join("snapshot-first.index");
+    let second_index = destination.join("snapshot-second.index");
+    let tree = build_tree(&first_index, &paths)?;
+    let final_paths = worktree_paths(repo)?;
+    let final_head = git_output(repo, &["rev-parse", "--verify", "HEAD^{commit}"])?;
+    let final_tree = build_tree(&second_index, &final_paths)?;
+    if final_tree != tree
+        || final_paths != paths
+        || String::from_utf8_lossy(&final_head).trim() != source_commit
+    {
+        return Err(invalid(
+            "working tree changed while preparing the home sync snapshot; retry",
+        ));
+    }
+    let mut commit = private_git(&first_index);
+    commit
+        .args(["commit-tree", &tree])
+        .env("GIT_AUTHOR_NAME", "kedra-lab")
+        .env("GIT_AUTHOR_EMAIL", "kedra-lab@example.invalid")
+        .env("GIT_AUTHOR_DATE", "1970-01-01T00:00:00Z")
+        .env("GIT_COMMITTER_NAME", "kedra-lab")
+        .env("GIT_COMMITTER_EMAIL", "kedra-lab@example.invalid")
+        .env("GIT_COMMITTER_DATE", "1970-01-01T00:00:00Z")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = commit.spawn()?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| invalid("private snapshot commit has no stdin"))?
+        .write_all(b"kedra-lab snapshot\n")?;
+    let committed = child.wait_with_output()?;
+    if !committed.status.success() {
+        return Err(Error::Command {
+            what: "private snapshot commit-tree".into(),
+            exit: i64::from(committed.status.code().unwrap_or(-1)),
+            stderr: String::from_utf8_lossy(&committed.stderr).into_owned(),
+        });
+    }
+    let snapshot_commit = String::from_utf8_lossy(&committed.stdout).trim().to_owned();
+    checked(
+        private_git(&first_index).args(["update-ref", "HEAD", &snapshot_commit]),
+        "private snapshot update-ref",
+    )?;
+    Ok((snapshot_commit, Some(source_commit)))
+}
+
+fn remove_private_snapshot(repo: &Path, path: &Path) -> Result<()> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(invalid("private home sync snapshot changed type"));
+    }
+    #[cfg(unix)]
+    if metadata.uid() != fs::symlink_metadata(repo)?.uid() {
+        return Err(invalid("private home sync snapshot changed owner"));
+    }
+    fs::remove_dir_all(path)?;
+    Ok(())
+}
+
 /// Archive the current tree with the already-prepared host CLI, without Docker/Cargo.
 pub fn archive_worktree(target: &str, cache: &Path) -> Result<SourceArchive> {
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(cache.join("home-source.lock"))?;
+    lock.lock()?;
+    let repo = crate::repository_root();
     let binary = prepared_archiver(&archiver_directory(cache)?)?;
     let scratch = cache.join(format!("home-source-{}", crate::execution_id()));
     let outcome = (|| {
-        let (snapshot_commit, source_commit) =
-            snapshot(&crate::repository_root(), &Stage::Worktree, &scratch)?;
+        let (snapshot_commit, source_commit) = snapshot_worktree_bare(&repo, &scratch)?;
         let directory = cache.join("home-payloads");
         fs::create_dir_all(&directory)?;
         let payload = directory.join(format!("{target}-{snapshot_commit}.tar"));
@@ -231,14 +433,11 @@ pub fn archive_worktree(target: &str, cache: &Path) -> Result<SourceArchive> {
             source_commit,
         })
     })();
-    if scratch.exists() {
-        let cleanup = fs::remove_dir_all(&scratch);
-        if let Err(error) = cleanup {
-            eprintln!(
-                "kedra-lab: could not remove source snapshot {}: {error}",
-                scratch.display()
-            );
-        }
+    if let Err(error) = remove_private_snapshot(&repo, &scratch) {
+        return Err(invalid(format!(
+            "could not safely remove source snapshot {}: {error}",
+            scratch.display()
+        )));
     }
     outcome
 }
@@ -254,10 +453,55 @@ fn git(repo: &Path) -> Command {
     command
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_OPTIONAL_LOCKS", "0")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        )
+        .env("GIT_LITERAL_PATHSPECS", "1")
+        .args([
+            "-c",
+            "core.hooksPath=",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.autocrlf=false",
+        ])
         .arg("-C")
         .arg(repo)
         .stdin(Stdio::null());
     command
+}
+
+/// Read the owner's effective ignore rules without allowing inherited Git
+/// environment state to redirect the checkout. `ls-files` does not run hooks
+/// or content filters; private staging uses the fully sanitized `git` above.
+fn git_listing(repo: &Path) -> Command {
+    let mut command = Command::new("git");
+    for (name, _) in std::env::vars_os() {
+        if name.to_string_lossy().starts_with("GIT_") {
+            command.env_remove(name);
+        }
+    }
+    command
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .args(["-c", "core.hooksPath=", "-C"])
+        .arg(repo)
+        .stdin(Stdio::null());
+    command
+}
+
+fn git_listing_output(repo: &Path, args: &[&str]) -> Result<Vec<u8>> {
+    let output = git_listing(repo).args(args).output()?;
+    if !output.status.success() {
+        return Err(Error::Command {
+            what: format!("git {}", args.join(" ")),
+            exit: i64::from(output.status.code().unwrap_or(-1)),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        });
+    }
+    Ok(output.stdout)
 }
 
 fn git_output(repo: &Path, args: &[&str]) -> Result<Vec<u8>> {
@@ -300,7 +544,7 @@ pub fn snapshot(
     fs::create_dir_all(destination)?;
     let source_commit = match stage {
         Stage::Worktree => {
-            let listed = git_output(
+            let listed = git_listing_output(
                 repo,
                 &[
                     "ls-files",

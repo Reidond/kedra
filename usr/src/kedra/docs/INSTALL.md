@@ -33,7 +33,7 @@ Use a trusted Kedra checkout and independently confirm the target's public-key f
 
 ```text
 desktop  a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
-qemu-arm64      76ca7a65915adb1907acbe0885af83c5c569dd2964b87decbfb67059dee366c6
+qemu-arm64  80551368732ccb49be7916db9ccfd1e3caa11a767e86749378565ec0b8a1a515
 ```
 
 Review the signed image's exact digest through the completed Actions signing result or [image verification](RELEASES.md). Substitute that full digest:

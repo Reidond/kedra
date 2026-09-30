@@ -45,7 +45,12 @@ No task independently authorizes external tool installation, commit, push or CI 
   a partial runtime. Preserve host installations and never execute upstream
   update/Pipenv/sudo scripts.
 - **Test requirements:** TC-01, TC-02, TC-28.
-- **Status:** [x] Implemented and exercised — dependency locks, private build/package replay, hashes, dylib closure, Hypervisor signature and CA2023 firmware inspection pass. Authorized prerequisites installed. See review for the upstream WFI fix.
+- **Status:** [x] Implemented and exercised — dependency locks, private build/package
+  replay, hashes, dylib closure, Hypervisor signature and CA2023 firmware inspection
+  pass. The rebuilt 218 MiB external runtime passes unchanged replay and all
+  prerequisite/reusability checks. A real interrupted private preparation exits
+  143 and incomplete pins exit 1 without selecting a runtime or receipt; the
+  selected runtime hash remains unchanged. See review for the upstream WFI fix.
 
 ## T02 — Prepare reusable VM disks and instance-specific guest access
 
@@ -63,7 +68,10 @@ No task independently authorizes external tool installation, commit, push or CI 
   is absent from production images and signed installer media.
 - **Test requirements:** TC-02, TC-06, TC-08, TC-28. Transport execution depends
   on T03; do not mark its qualification complete before that run.
-- **Status:** [x] Implemented and exercised — raw-to-sparse-QCOW2 preparation, canonical Docker/Podman identity check, cache receipt, native security and per-instance generated pinned keys. Two real instances retained separate writable state; cross-key SSH was denied.
+- **Status:** [x] Implemented and exercised — raw-to-sparse-QCOW2 preparation,
+  canonical Docker/Podman identity check, cache receipt, native security and
+  per-instance generated pinned keys. Runtime/base disk are restored outside Cargo
+  output. Two real instances retained separate writable state; cross-key SSH denied.
 
 ## T03 — Own QEMU processes and retained instance lifecycle
 
@@ -78,7 +86,16 @@ No task independently authorizes external tool installation, commit, push or CI 
   accurately; no automatic software fallback. Graceful and explicit forced stop
   follow design deadlines. Already-prepared VM operations do not connect to Docker.
 - **Test requirements:** TC-06, TC-07, TC-08, TC-09, TC-28.
-- **Status:** [x] Implemented and exercised — retained lifecycle, QMP/process identity, private locks, Docker-independent operations and five successful warm restarts. Failed QEMU startup reaps its TPM and preserves the other running VM. Exhaustive corrupt-state/nonresponsive variants remain unrun.
+- **Status:** [x] Implemented and exercised — retained lifecycle, QMP/process identity,
+  private locks, Docker-independent operations and historical five-start evidence.
+  The restored public CLI additionally refuses mutable-file hard links, TPM-tree
+  links, log links and a predictable pending-file link against a private clone,
+  preserving foreign data and the running default. Nonresponsive 10-second and
+  literal grace variants both pass: the latter reports accepted poweroff after
+  31.336 s without implicit force, verifies a 45-second unit ignores TERM, and
+  explicit force completes in 1.487 s preserving disk/VARS/foreign sentinel before
+  public removal. Its default was stopped; running-default evidence comes from the
+  separate 10-second variant.
 
 ## T04 — Qualify native graphics, input and actual captured content
 
@@ -94,10 +111,13 @@ No task independently authorizes external tool installation, commit, push or CI 
 - **Test requirements:** TC-03, TC-04, TC-05, TC-27. Presentation timing is
   measured at this gate when instrumentation exists; its explicit exception
   remains available. The complete sync-based independence case belongs to T10.
-- **Status:** [ ] Core GPU path and all six GTK3 Wayland/Xwayland, libadwaita,
-  Qt5 and Qt6 chooser workflows pass, with captures viewed. Audio, scaling/resize,
-  physical modifier input and unlocked-window presentation timing remain
-  unqualified. Native remains GPU-only; software diagnostics stay in Testcontainers.
+- **Status:** [x] Core GPU path and all six GTK3 Wayland/Xwayland, libadwaita,
+  Qt5 and Qt6 chooser workflows pass, with captures viewed. Audible audio passed
+  twice with owner confirmation; physical `abc` and Command+Enter pass. Five
+  visible 30 s EGL/SHM presentation runs meet the interval target for guest Virtual-1.
+  Physical scrolling/window movement and resize to 1920 pass; unlocked scale
+  1/1.5/2 screenshots were independently viewed, and reopening QEMU restored actual
+  2560×1600 scale 2. Native remains GPU-only; software diagnostics stay in Testcontainers.
 
 ## T05 — Separate source archiving from Linux compilation
 
@@ -158,14 +178,17 @@ No task independently authorizes external tool installation, commit, push or CI 
   for engine-loss tests, never interrupt the owner's shared OrbStack engine.
   Keep one-scenario concurrency unless measured evidence justifies a later change.
 - **Test requirements:** TC-15, TC-16, TC-17, TC-18, TC-19, TC-20.
-- **Status:** [ ] Core harness passes — five final 13/13 ARM runs, reverse/two-worker
+- **Status:** [x] Core harness passes — five stable current worktree-overlay suites
+  pass 13/13 with median 65.563 s/max 72.787 s, alongside reverse/two-worker
   runs, empty selection, malformed input, wrong expectation, long-name isolation,
   active/startup cancellation, forced second signal, real eventual/fractional
-  deadline probes and private-engine-loss recovery were exercised. Exact-source
-  container CI passes on ARM and x86; the remaining independent-execution variants
-  and current performance targets keep this task open. Post-optimization run
-  `1790706590-5077` passed 12/13; home review failed because its image source commit
-  was absent from the checkout, so a corrected-source full rerun is required.
+  deadline probes and private-engine-loss recovery. Main container CI passes ARM
+  and x86. Post-optimization no-overlay run
+  `1790706590-5077` passed 12/13 and correctly refused absent image provenance;
+  corrected worktree-overlay run `1790706944-44808` passes 13/13 with two workers
+  in 60.07 s. Two simultaneous independent executions now pass with isolated
+  cleanup while preserving the retained lab. Main container CI passes on both
+  architectures; the earlier deleted-Quay-input failure remains recorded.
 
 ## T09 — Preserve media creation and manual installation
 
@@ -180,11 +203,17 @@ No task independently authorizes external tool installation, commit, push or CI 
   refuses automatic exec/sync. Qualify a fresh disposable installation and ISO-free boot.
 - **Test requirements:** TC-21, TC-22, TC-28.
 - **Status:** [ ] Implemented; partially qualified — signed-media path extracted to
-  installer/macos; verified existing ISO boots Secure Boot/signature probe and
-  Anaconda. Installer has no fixture SSH/seed, refuses exec/sync and live detach.
+  installer/macos; the new signed qemu-arm64 ISO replay passes after correcting a
+  stale mount-root path. Installer has no fixture SSH/seed, refuses exec/sync and live detach.
   The controller now offers an owned writable sentinel and refuses detach if its
-  full hash changed, but this new path has only diagnostic checks. Fresh encrypted
-  install/ISO-free boot, real sentinel qualification and new ISO build are not-run.
+  full hash changed. The new ISO build/replay and complete private refusal matrix
+  pass without changing original media or starting QEMU. Fresh encrypted install,
+  original ISO/sentinel preservation and stopped detach pass. ISO-free Secure Boot
+  reaches LUKS, but Cocoa is inactive because the installed initramfs lacks virtual
+  GPU/input drivers. Unsigned sanctioned candidate `3c744556…` contains the
+  regenerated 7.2.7 initrd (`3f37ce…`) with the required GPU/input and generic
+  boot/storage dependencies; lint passes. Corrected signed media and healthy boot
+  remain open.
 
 ## T10 — Retire UTM-specific source and retain boot-level coverage
 
@@ -201,12 +230,14 @@ No task independently authorizes external tool installation, commit, push or CI 
   repository names without reusing the old key. Retire old external resources only
   after the first replacement publication is independently verified.
 - **Test requirements:** TC-23, TC-24.
-- **Status:** [ ] Superseded source removed after native GPU/control/sync/capture
+- **Status:** [x] Superseded source and external identity resources are removed after
+  native GPU/control/sync/capture
   proof and explicit owner cleanup instruction. ARM workflow/scenarios/observer
   renamed with assertions preserved. Source, repository names and fresh authority
-  now use `qemu-arm64`; exact-source ARM boot and both-architecture container CI
-  pass. First replacement publication and deletion of old external `utm` resources
-  remain pending, so identity retirement is not yet complete.
+  now use `qemu-arm64`. The first strict signed stable publication passes and old
+  packages return 404; the old signing environment is absent. Main container CI
+  passes both architectures. Main ARM run 36617035132 attempt 1 retains its
+  90-minute PID 1 freeze; exact same-SHA attempt 2 passes with a 5m06s boot step.
 
 ## T11 — Measure the complete warm loop
 
@@ -221,13 +252,12 @@ No task independently authorizes external tool installation, commit, push or CI 
   identical; remeasure after relevant changes. Unavailable instrumentation leaves
   NFR-05 unverified. Do not stop unrelated workloads or remove assertions to improve timings.
 - **Test requirements:** TC-25, TC-26, TC-27.
-- **Status:** [ ] Earlier native warm starts/edit/capture and full ARM-suite medians
-  met their targets. After the container startup fix, five filtered desktop-session
-  results have median 6.680 s/max 7.714 s and complete command median 7.038 s,
-  passing the 15 s target. Five complete public cached `up` samples have median
-  4.091 s, passing 20 s; they use a clean cached base without an overlay and exclude
-  one-time overlay preparation. Presentation timing remains unqualified. Deleted
-  native evidence must be regenerated for final proof.
+- **Status:** [x] Complete warm-loop measurements pass. Five stable worktree-overlay
+  suites have median 65.563 s/max 72.787 s; filtered desktop median is 6.680 s and
+  cached public `up` median 4.091 s. Five native full-CLI starts have median
+  19.239 s/max 21.253 s and captures median 0.875 s/max 0.893 s. Five 30 s
+  Virtual-1 observations have median 89.334 presentations/s, minimum 81.634, and
+  p95 interval 16.667 ms in every run. Scope excludes physical monitors/other hosts.
 
 ## T12 — Final review, standard gates and owner handoff
 
@@ -245,11 +275,15 @@ No task independently authorizes external tool installation, commit, push or CI 
   Handoff includes first setup, fast daily commands and recovery, measured costs,
   and every fail/blocked/not-run result. No commit/push without authorization.
 - **Test requirements:** TC-28, plus completion review of TC-01 through TC-27.
-- **Status:** [ ] Implementation is committed and pushed as draft PR #23; exact-source
-  workspace, ARM boot, both-architecture container, desktop and signed-home checks
-  pass at `1de0d8a`. Documentation is being reconciled. Final manual qualification,
-  performance repair, replacement publication/old-resource retirement, fresh
-  encrypted installation and final handoff remain open.
+- **Status:** [ ] PR #23 merged to main as `bafd1884`; main workspace, both container
+  architectures, desktop, home, direct-GHCR, signed-update and agent checks pass.
+  Release 36617035503 published verified qemu-arm64 stable and old external UTM
+  resources are gone; exact same-SHA main ARM retry passes. Fresh encrypted
+  install/sentinel preservation pass, but healthy ISO-free graphical boot fails on
+  missing initramfs drivers. Current Noctalia 5.2 qualification passes locally,
+  while its source and installer/initramfs follow-ups remain uncommitted/without
+  exact CI. A key-free exact-candidate full-harness signer gate is implemented but
+  has not run; final handoff is therefore open.
 
 ## Coverage ownership
 

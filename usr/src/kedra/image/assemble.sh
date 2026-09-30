@@ -5,6 +5,7 @@ set -euo pipefail
 # usr/src/kedra/tests/container) runs the Containerfile RUN line as PID 1.
 test -f /run/.containerenv || grep -qF /tmp/kedra-assemble.sh /proc/1/cmdline
 manifest=/usr/share/sysroot/source.json
+target=$(jq -r '.target.id' "$manifest")
 # Build natively: the target's architecture must be this build's machine, and
 # only the closed (target, architecture) pairs are accepted.
 architecture=$(uname -m)
@@ -28,6 +29,38 @@ if test "${1:-}" = --resolve-packages; then
     rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
         | LC_ALL=C sort > /resolution/package-material.txt
     exit 0
+fi
+if test "$target" = qemu-arm64; then
+    shopt -s nullglob
+    module_dirs=(/usr/lib/modules/*)
+    test "${#module_dirs[@]}" -gt 0
+    for module_dir in "${module_dirs[@]}"; do
+        test -d "$module_dir" && test ! -L "$module_dir"
+        version=${module_dir##*/}
+        kernel="$module_dir/vmlinuz"
+        initramfs="$module_dir/initramfs.img"
+        test -f "$kernel" && test ! -L "$kernel"
+        test -f "$initramfs" && test ! -L "$initramfs"
+        expected=()
+        for driver in virtio_gpu virtio_input virtio_dma_buf; do
+            module=$(readlink -e "$(modinfo -k "$version" -n "$driver")")
+            test -n "$module" && test -f "$module" && test ! -L "$module"
+            case "$module" in
+                "$module_dir"/*) expected+=("${module#/}") ;;
+                *) echo "Driver $driver resolved outside $module_dir: $module" >&2; exit 1 ;;
+            esac
+        done
+        temporary=$(mktemp "/tmp/kedra-initramfs-$version.XXXXXX")
+        listing=$(mktemp "/tmp/kedra-initramfs-list-$version.XXXXXX")
+        dracut --force "$temporary" "$version"
+        lsinitrd "$temporary" > "$listing"
+        for module in "${expected[@]}"; do
+            grep -Fq -- "$module" "$listing"
+        done
+        chmod --reference="$initramfs" "$temporary"
+        mv -f -- "$temporary" "$initramfs"
+        rm -f -- "$listing"
+    done
 fi
 # Its invisible capture window becomes a focused black tile under niri.
 # Keep the native launcher, but exclude this session from bridge autostart.

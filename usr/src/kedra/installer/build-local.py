@@ -202,7 +202,7 @@ def main():
         run([tools['sudo'], tools['podman'], 'run', '--rm', '--name', media_container, '--privileged',
              '--security-opt', 'label=type:unconfined_t', '-e', 'KEDRA_INSTALLER_PAYLOAD=' + args.image,
              '-e', 'KEDRA_INSTALLER_IMAGE=' + media_tag, '-v', str(media) + ':/output',
-             '-v', str(evidence) + ':/evidence', '-v', str(ROOT / 'installer') + ':/kedra-installer:ro',
+             '-v', str(evidence) + ':/evidence', '-v', str(HERE) + ':/kedra-installer:ro',
              '-v', '/var/lib/containers/storage:/var/lib/containers/storage',
              '--entrypoint', '/bin/bash', builder, '/kedra-installer/build-iso.sh'])
         images = list(media.rglob('*.iso'))

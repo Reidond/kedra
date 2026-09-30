@@ -11,21 +11,45 @@ The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and comple
 
 Build jobs have public trust. Automatic isolated signing executes no checkout/candidate/repository code while production keys exist. The main-only environment has no human approval gate. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
 
-Per-target releases (2026-09-25; none of this has run in Actions yet):
+Per-target releases (implemented 2026-09-25; release 36617035503 passes both targets on 2026-09-29):
 - release.yml keeps one non-cancelling `release-44` group. It calls reusable `release-target.yml` independently for desktop (`ubuntu-24.04`) and qemu-arm64 (`ubuntu-24.04-arm`).
 - Each target uses its own `kedra-<target>-signing` environment, secrets, builds repository and artifacts.
 - The callers use `secrets: inherit`, and only the signer job declares the environment. Observed 2026-09-25 (release run 36190624411 failed closed with empty signing secrets; probe run 36191986665): a called job that declares `environment:` sees that environment's secrets as empty unless the caller inherits secrets, despite the reusable-workflow docs. The repository has no repository-level secrets, so inheriting exposes nothing else.
 - check.yml adds a native `rust-aarch64` leg next to the required `rust` leg.
-- Hosted arm64 runners expose no `/dev/kvm`. test-qemu-arm64.yml therefore boots its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. A full-image TCG boot took 2–4 min locally on an M2; runner speed is unmeasured.
+- Hosted arm64 runners expose no `/dev/kvm`. test-qemu-arm64.yml therefore boots its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. Main run 36617035132 attempt 2 at `bafd1884` powers off with every security/bootc marker in 300 s.
 - The four x86 VM workflows boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd`, and require the guest's `KEDRA_SECUREBOOT_PASS`. test-signed-update adds a snakeoil-keys refusal case.
 - SMM under KVM on hosted runners is unverified until those runs.
 
-check.yml uses standard Cargo tools and actual CLI/OpenSSL workflows. test-container.yml (added 2026-09-27; not yet run) builds each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`, docker/BuildKit, KEDRA_LOCAL_BUILDER inputs). It then runs every container scenario and uploads report.json, junit.xml and screenshots. VM workflows keep boot-level coverage:
+check.yml uses standard Cargo tools and actual CLI/OpenSSL workflows. test-container.yml (added 2026-09-27; main run 36617035048 passes both architectures on 2026-09-29) builds each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`, docker/BuildKit, KEDRA_LOCAL_BUILDER inputs). It then runs every container scenario and uploads report.json, junit.xml and screenshots. VM workflows keep boot-level coverage:
 - test-desktop: tuigreet login, PAM keyring, doctor gate, Xwayland/Qt choosers.
 - test-qemu-arm64: the bootc contract and the TCG Secure Boot boot.
 - Signed update, direct GHCR, home transition and RPM refresh.
 Image-content and session checks moved from these workflows into container scenarios. No unit/model/mock/doctests or repository scanners.
 
+Observed 2026-09-29, QEMU 8.2.2 / Fedora systemd 259.9 / kernel 7.2.7:
+run 36617035132 attempt 1 froze PID 1 at guest 113.669 s, before the observer
+started, then consumed the full 90-minute bound. The serial line
+`systemd[1]: Freezing execution.` is a fatal boot outcome, not readiness.
+The same SHA, firmware and package closure pass in attempt 2; retain both
+artifacts rather than rewriting the first failure. `tests/vm/qemu-arm64/boot.sh`
+now detects that exact fatal line every 2 s, preserves it and terminates the
+owned timeout/QEMU process before failing. There is no automatic retry and all
+Secure Boot, SELinux, bootc, unit and digest assertions remain required.
+
 Local installer changes retain pinned image-builder, labeling, offline payload verification and deliberate disk choice. Media permissive SELinux never weakens installed enforcing SELinux/signature policy. Record actual local smoke/fresh-install results separately from image builds.
 
 Update STATUS/worklog with exact observed outcomes. Never call staged booted, signed installed or syntax qualified.
+
+Exact-candidate validation (implemented 2026-09-30; first release execution pending):
+`release-target.yml` requires build → validate-candidate → isolated sign → stable
+publication. Validation runs the complete sanctioned Testcontainers harness against
+the immutable public builds-repository digest with KEDRA_LAB_OVERLAY=none, on the
+native runner, without a signing environment or private keys. Its complete,
+non-interrupted report must match target/digest, contain passed results and no
+cleanup failures; only then is that digest passed to the signer. The signer
+independently requires equality with build.digest and retains its current-source,
+identity, ranking and namespace checks. No-change skips validation/sign/publication.
+Do not substitute the independent container workflow: rebuilding the same source
+SHA against refreshed Fedora repositories can test a different RPM snapshot.
+A fresh Noctalia 5.2.0 candidate exposed exactly that compatibility gap. Keep test
+execution out of the signer and never send test executables or raw reports to it.

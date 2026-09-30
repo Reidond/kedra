@@ -151,9 +151,109 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  sign-image:
+  validate-candidate:
     needs: build
     if: needs.build.outputs.changed == 'true'
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read
+    env:
+      CARGO_TERM_COLOR: always
+      KEDRA_TARGET: ${{ inputs.target }}
+      CANDIDATE_DIGEST: ${{ needs.build.outputs.digest }}
+      KEDRA_LAB_TARGET: ${{ inputs.target }}
+      # Exercise the exact installed candidate. A worktree overlay would replace
+      # its sysroot binaries and could hide a compatibility failure.
+      KEDRA_LAB_OVERLAY: none
+      KEDRA_LAB_ARTIFACTS: ${{ github.workspace }}/output/kedra-lab
+    outputs:
+      digest: ${{ steps.validated.outputs.digest }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Select the immutable public candidate by digest
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          builds=$(jq -er --arg target "$KEDRA_TARGET" '.targets[$target].builds' usr/src/kedra/image/release/targets.json)
+          case "$KEDRA_TARGET:$builds:$(uname -m)" in
+            desktop:ghcr.io/reidond/kedra-desktop-builds:x86_64 | qemu-arm64:ghcr.io/reidond/kedra-qemu-arm64-builds:aarch64) ;;
+            *) echo 'Unsupported candidate target, repository or native architecture'; exit 1 ;;
+          esac
+          reference="$builds@$CANDIDATE_DIGEST"
+          mkdir -p "$KEDRA_LAB_ARTIFACTS"
+          printf 'KEDRA_LAB_IMAGE=ref:%s\n' "$reference" >> "$GITHUB_ENV"
+          printf 'KEDRA_CANDIDATE_REFERENCE=%s\n' "$reference" >> "$GITHUB_ENV"
+          printf '%s\n' "$reference" > "$KEDRA_LAB_ARTIFACTS/candidate-reference.txt"
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Record the candidate test environment
+        run: |
+          {
+            date --utc --iso-8601=seconds
+            uname -a
+            nproc
+            free -h
+            df -h
+            docker version
+            docker info --format '{{.CgroupVersion}} {{.CgroupDriver}} {{.Driver}}'
+          } > "$KEDRA_LAB_ARTIFACTS/environment.txt"
+      - name: Keep Ubuntu host AppArmor policy off the candidate's programs
+        run: |
+          sudo aa-status > "$KEDRA_LAB_ARTIFACTS/apparmor-before.txt" 2>&1 || true
+          if test -f /etc/apparmor.d/unix-chkpwd; then
+            sudo apparmor_parser --remove /etc/apparmor.d/unix-chkpwd
+          fi
+          if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          sudo aa-status > "$KEDRA_LAB_ARTIFACTS/apparmor-after.txt" 2>&1 || true
+      - name: Validate scenarios before provisioning anything
+        run: cargo test -p kedra-container-tests --test container --locked -- --list
+      - name: Run the full container harness against the exact candidate
+        run: cargo test -p kedra-container-tests --test container --locked
+      - name: Bind successful harness evidence to the candidate digest
+        id: validated
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find "$KEDRA_LAB_ARTIFACTS/runs" -mindepth 2 -maxdepth 2 -name report.json -type f)
+          test "${#reports[@]}" -eq 1
+          jq -e --arg target "$KEDRA_TARGET" --arg reference "$KEDRA_CANDIDATE_REFERENCE" '
+            .schema_version == 1 and .selected_count > 0
+            and .selected_count == (.results | length) and .interrupted == false
+            and .image.target == $target and .image.source == $reference and .image.overlay == null
+            and all(.results[]; .outcome == "passed" and .cleanup_failure == null)
+          ' "${reports[0]}" > /dev/null
+          printf 'digest=%s\n' "$CANDIDATE_DIGEST" >> "$GITHUB_OUTPUT"
+      - name: Record host AppArmor denials
+        if: failure()
+        run: sudo dmesg | grep -F 'apparmor="DENIED"' | tail -n 200 > "$KEDRA_LAB_ARTIFACTS/apparmor-denials.txt" || true
+      - name: Preserve exact-candidate reports and diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: candidate-container-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/kedra-lab/candidate-reference.txt
+            output/kedra-lab/environment.txt
+            output/kedra-lab/apparmor-*.txt
+            output/kedra-lab/runs/
+            output/kedra-lab/cache/build-context-*/*.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Scope of the candidate result
+        if: always()
+        run: |
+          echo 'Validation scope: the full container harness must exercise the exact unsigned candidate digest with no worktree overlay.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Kernel boot, Secure Boot and enforcing SELinux remain separate VM gates.' >> "$GITHUB_STEP_SUMMARY"
+
+  sign-image:
+    needs: [build, validate-candidate]
+    if: needs.build.outputs.changed == 'true' && needs.validate-candidate.result == 'success'
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 25
     # Only this job declares the signing environment, so only it resolves the
@@ -172,10 +272,12 @@ jobs:
       - name: Prepare native signer and validate public image identity
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_DIGEST: ${{ needs.build.outputs.digest }}
+          CANDIDATE_DIGEST: ${{ needs.validate-candidate.outputs.digest }}
+          BUILD_DIGEST: ${{ needs.build.outputs.digest }}
           IDENTITY_SHA256: ${{ needs.build.outputs.identity_sha256 }}
         run: |
           set -euo pipefail
+          test "$CANDIDATE_DIGEST" = "$BUILD_DIGEST"
           case "$KEDRA_TARGET:$(uname -m)" in
             desktop:x86_64 | qemu-arm64:aarch64) ;;
             *) echo 'Unsupported signing target or native architecture'; exit 1 ;;
@@ -216,7 +318,8 @@ jobs:
         id: sign
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_DIGEST: ${{ needs.build.outputs.digest }}
+          CANDIDATE_DIGEST: ${{ needs.validate-candidate.outputs.digest }}
+          BUILD_DIGEST: ${{ needs.build.outputs.digest }}
           BUILD_FINGERPRINT: ${{ needs.build.outputs.fingerprint }}
           # Explicit per-target selection; an unknown target selects nothing.
           APPROVED_FINGERPRINT: ${{ inputs.target == 'desktop' && vars.KEDRA_DESKTOP_KEY_SHA256 || inputs.target == 'qemu-arm64' && vars.KEDRA_QEMU_ARM64_KEY_SHA256 || '' }}
@@ -226,6 +329,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$CANDIDATE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          test "$CANDIDATE_DIGEST" = "$BUILD_DIGEST"
           [[ "$APPROVED_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]
           test "$BUILD_FINGERPRINT" = "$APPROVED_FINGERPRINT"
           test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
@@ -289,6 +393,7 @@ jobs:
           trap 'rm -rf -- "$auth_dir"' EXIT
           printf '%s' "$GH_TOKEN" | skopeo login --authfile "$auth" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
           export KEDRA_REGISTRY_AUTH="$auth"
+          test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
           uv run usr/src/kedra/image/release/refresh.py publish --target "$KEDRA_TARGET" --work output/image-evidence
       - name: Preserve public stable publication receipt
         if: always()

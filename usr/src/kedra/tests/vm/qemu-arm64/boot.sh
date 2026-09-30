@@ -74,11 +74,33 @@ timeout --kill-after=60s 90m qemu-system-aarch64 \
     -device virtserialport,chardev=qga,name=org.qemu.guest_agent.0 \
     -netdev user,id=net0 -device virtio-net-pci,netdev=net0,romfile= \
     -display none -monitor none -no-reboot \
-    -serial "file:$evidence/serial.log" > "$evidence/qemu.log" 2>&1
+    -serial "file:$evidence/serial.log" > "$evidence/qemu.log" 2>&1 &
+emulator_pid=$!
+pid1_froze=false
+# A fatal PID 1 crash leaves the emulated machine frozen indefinitely. Detect
+# systemd's own serial diagnostic, preserve it and fail without hiding the crash
+# behind the outer 90-minute timeout (Actions run 36617035132 attempt 1).
+while kill -0 "$emulator_pid" 2>/dev/null; do
+    sleep 2
+    if grep -a -F -q 'systemd[1]: Freezing execution.' "$evidence/serial.log"; then
+        pid1_froze=true
+        grep -a -F 'systemd[1]: Freezing execution.' "$evidence/serial.log" \
+            > "$evidence/systemd-pid1-fatal.txt"
+        # GNU timeout relays signals it receives to the managed QEMU process.
+        kill -TERM "$emulator_pid" 2>/dev/null || true
+        break
+    fi
+done
+wait "$emulator_pid"
 status=$?
 set -e
 printf 'qemu_exit=%s elapsed_seconds=%s\n' "$status" "$((SECONDS - started))" | tee "$evidence/boot-timing.txt"
 virt-fw-vars --input "$work/AAVMF_VARS.fd" --print > "$evidence/firmware-vars-after.txt" 2>&1
+if test "$pid1_froze" = true; then
+    cat "$evidence/systemd-pid1-fatal.txt" >&2
+    echo 'FAIL: guest systemd PID 1 entered its fatal execution freeze' >&2
+    exit 1
+fi
 if test "$status" -eq 124 || test "$status" -eq 137; then
     echo 'FAIL: TCG Secure Boot VM did not power off within its bound' >&2
     exit 1

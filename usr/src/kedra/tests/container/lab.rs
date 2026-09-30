@@ -277,6 +277,64 @@ fn exec(docker: &Docker, name: Option<&str>, root: bool, argv: Vec<String>) -> R
     Ok(ExitCode::from(u8::try_from(output.exit).unwrap_or(1)))
 }
 
+fn down(docker: &Docker, selector: Option<&str>) -> Result<String> {
+    if selector.is_some_and(|value| value.trim().is_empty()) {
+        return Err(Error::Invalid(
+            "retained lab environment name must not be empty".into(),
+        ));
+    }
+    let canonical = selector.map(|text| {
+        let cleaned: String = text
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() || character == '-' {
+                    character.to_ascii_lowercase()
+                } else {
+                    '-'
+                }
+            })
+            .collect();
+        format!(
+            "kedra-lab-{}",
+            cleaned
+                .trim_matches('-')
+                .chars()
+                .take(40)
+                .collect::<String>()
+        )
+    });
+    let mut matching: Vec<_> = docker
+        .owned(&[(docker::KIND_LABEL, "lab")])?
+        .into_iter()
+        .filter(|item| match selector {
+            None => true,
+            Some(selector) => {
+                item.name == selector
+                    || canonical.as_deref() == Some(item.name.as_str())
+                    || item.id.starts_with(selector)
+            }
+        })
+        .collect();
+    matching.sort_by(|left, right| left.name.cmp(&right.name));
+    match matching.as_slice() {
+        [one] => {
+            docker.remove(&one.id)?;
+            Ok(one.name.clone())
+        }
+        [] => Err(Error::Invalid(
+            "no retained lab environment; start one with `kedra-lab up`".into(),
+        )),
+        many => Err(Error::Invalid(format!(
+            "{} retained lab environments exist; name one of: {}",
+            many.len(),
+            many.iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))),
+    }
+}
+
 fn main() -> ExitCode {
     if let Err(error) = kedra_container_tests::cancel::install() {
         eprintln!("kedra-lab: {error}");
@@ -354,9 +412,7 @@ fn main() -> ExitCode {
             Ok(ExitCode::SUCCESS)
         }
         Command::Down { name } => {
-            let environment = Environment::attach(&docker, name.as_deref())?;
-            let label = environment.name.clone();
-            environment.terminate(&docker)?;
+            let label = down(&docker, name.as_deref())?;
             println!("removed {label}");
             Ok(ExitCode::SUCCESS)
         }

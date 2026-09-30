@@ -218,6 +218,7 @@ pub(super) fn live() -> Result<Settings> {
     let runtime_version = match version.trim() {
         "noctalia v5.0.1 (v5.0.1)" => "5.0.1",
         "noctalia v5.1.0" => "5.1.0",
+        "noctalia v5.2.0" => "5.2.0",
         _ => return Err("installed Noctalia version is not qualified for home review".into()),
     };
     let bytes = output(&["config", "export", "full"], noctalia::MAX_EXPORT)?;

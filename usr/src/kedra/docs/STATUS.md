@@ -92,8 +92,10 @@ attempt 1 retains its 90-minute PID 1 freeze before the observer starts. Exact s
 SHA attempt 2 passes, completing 2026-09-29 21:21:02 UTC with the boot step in
 5m06s (21:15:52–21:20:58). Main CI is green; later uncommitted follow-up fixes have
 only the local checks recorded below and still need publication/CI.
-The local checkout also contains uncommitted installer-path and stopped-lab fixes;
-their passing local workflows do not change the merged-source identity.
+Follow-up [PR #24](https://github.com/Reidond/kedra/pull/24) contains implementation
+`4e0f4fc`: installer mount, stopped-lab cleanup/empty-selector refusal and early
+PID1 fatal-boot reporting. Its exact-source workspace/container/ARM CI is running;
+local workflow passes do not establish a merged follow-up.
 
 Five stable-tag worktree-overlay suites pass 13/13 with wall times 58.959, 66.322,
 64.764, 65.563 and 72.787 s (median 65.563/max 72.787), image tag
@@ -128,9 +130,9 @@ with controller 10 s behavior, disks, foreign/default instances unchanged. The
 literal 30-second grace variant remains not-run.
 
 The newly published signed ISO replay passes. The fresh installer is running at
-the LUKS dialog and awaits owner passphrase entry; no fresh encrypted-installation
+the LUKS dialog and awaits owner passphrase entry after the renewed Mac lock; no fresh encrypted-installation
 or ISO-free boot claim exists. New current fixture image `6303cf1f…` is prepared but not yet booted
-or hot-synced. For the uncommitted follow-up, formatting, ruff and workspace
+or hot-synced. For the pushed follow-up, formatting, ruff and workspace
 all-target Clippy pass (30.32 s); empty/whitespace `down` selectors exit 1 while
 the default stays healthy, and exact stopped-owned removal passes using the rebuilt
 release binary. Fresh container Settings capture

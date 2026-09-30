@@ -2,16 +2,19 @@
 
 The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
 
-## Active completion and identity replacement (2026-09-29)
+## Active completion and identity replacement (2026-09-30)
 
 The owner explicitly requires finishing the missing qualification and retiring
 existing Kedra UTM VMs plus the signed `utm` identity. Current source now defines
 `qemu-arm64` with separate `kedra-qemu-arm64` / `kedra-qemu-arm64-builds` images
 and a fresh dedicated authority `80551368…1a515`. Its main-only GitHub signing
-environment is provisioned. Both namespace-only bootstrap packages are public,
-linked only to `Reidond/kedra` for Actions write access, and contain no OS image.
-No replacement OS has been signed/published yet. The old signing environment and
-packages still exist only until replacement publication can be verified.
+environment produced the first strict signed publication. Release
+[36617035503](https://github.com/Reidond/kedra/actions/runs/36617035503) completed
+all six jobs and published stable digest
+`sha256:7795329a030d2fc2697d6b88a666ca73f8ff7938f84b245863f90ec16ffab877`.
+The old `kedra-utm` and `kedra-utm-builds` packages now return API 404, and the old
+signing environment is deleted; environment readback lists only desktop and
+qemu-arm64 authorities.
 
 UTM CLI and native UI report an empty VM list. Six stopped Kedra prototype
 instances using the old target were removed through the owned lab CLI; no
@@ -20,9 +23,11 @@ target and contains only `qemu-arm64` for this ARM identity. The clean replaceme
 candidate booted with ANGLE Metal, Secure Boot and enforcing SELinux. Its ignored
 runtime, disks and raw reports were subsequently deleted with the Rust `target/`
 tree by the owner, so they are historical observations recorded in
-WL-20260928-08 rather than currently inspectable artifacts. Runtime restoration
-is in progress under `~/Library/Caches/kedra/qemu`; retained per-checkout VM state
-now lives under `~/.local/share/kedra/lab/<checkout-key>`, outside Cargo output.
+WL-20260928-08 rather than currently inspectable artifacts. The 218 MiB runtime
+and base disk are rebuilt under `~/Library/Caches/kedra/qemu`; retained
+per-checkout VM state lives under `~/.local/share/kedra/lab/<checkout-key>`, outside
+Cargo output. Five restored starts reached actual Metal with distinct boot IDs;
+full CLI median is 19.239 s/max 21.253 s and readiness median is 16.437 s.
 
 ## Current development scope (2026-09-28)
 
@@ -46,11 +51,25 @@ the generated keyring is unlocked and no failed system units were observed.
 The UTM launcher, cocoa-way/waypipe build/bridge and unused live-view code are
 removed. The renamed ARM boot workflow `test-qemu-arm64.yml` retains its security
 assertions. The signed source identity, repositories and authority are now
-`qemu-arm64`; old external `utm` package/environment resources await verified
-replacement publication before removal. Signed-media preparation now lives in
-`installer/macos`; the existing
-verified ISO reached Anaconda with its Secure Boot/signature readiness markers.
-A new ISO build and fresh encrypted installation through this launcher are not-run.
+`qemu-arm64`; old external UTM package/environment resources are removed after
+verified replacement publication. Signed-media preparation now lives in
+`installer/macos`. Public replay produced
+`/Users/andriishafar/Kedra/iso-qemu-7795329a/kedra-qemu-arm64-44-7795329a030d2fc2.iso`
+(3,129,743,360 bytes, SHA-256
+`6351c4b9a81b81e654a9a967e2b79a0e5c0eb6d0564cd5e36a09c705c2b5cfff`).
+The first build's stale mount failure is preserved; `build-local.py` now mounts
+`str(HERE)`, the actual `usr/src/kedra/installer` directory, and replay passes. The old UTM ISO is
+historical only and the current verifier correctly refuses its retired identity.
+A fresh encrypted installation from the new ISO has not started. Anaconda is at
+the passphrase dialog with only the new 96 GiB disk selected and encryption
+enabled; the 64 MiB sentinel remains unselected. Owner passphrase entry is pending.
+TC21's private APFS media-refusal matrix passes: changed ISO byte/checksum,
+SHA256SUMS/manifest mismatch, wrong desktop target, changed image-digest identity
+and existing output all refuse with exit 1; valid verification exits 0, corrupt
+installer preflight creates no instance/QEMU, and original media metadata/content
+remain unchanged. Evidence is
+`~/.local/state/kedra/evidence/2026-09-30/media-refusal-matrix.json`; private copies
+were removed.
 
 Native sources, compiler archives, ANGLE dependencies and patches are pinned in
 `tests/container/qemu/inputs.json` and its companion locks. Besides the EGL/Cocoa
@@ -65,51 +84,58 @@ before/after comparison measured clean `kedra-lab` compilation at 42.98 s versus
 1,411,224 KiB versus 801,284 KiB. These are single comparisons, not a general
 percentage claim.
 
-Draft [PR #23](https://github.com/Reidond/kedra/pull/23) is pushed from
-`codex/qemu-desktop-complete` at `1de0d8a` against base
-`a3a39a4a8a1d7777f02ab68d80ad4f39abf40c87`. Exact-source workspace
-[36478416455](https://github.com/Reidond/kedra/actions/runs/36478416455) and
-[36478409648](https://github.com/Reidond/kedra/actions/runs/36478409648), ARM boot
-[36478409639](https://github.com/Reidond/kedra/actions/runs/36478409639), container
-[36478409572](https://github.com/Reidond/kedra/actions/runs/36478409572) on both
-architectures, desktop [36478409495](https://github.com/Reidond/kedra/actions/runs/36478409495),
-and signed-home [36478409677](https://github.com/Reidond/kedra/actions/runs/36478409677)
-checks pass. Five earlier final
-ARM container runs passed 13/13 each: suite median 85.61 s, max 124.80 s; complete
-command median 91.03 s, max 133.37 s. They use cached ARM base `45fe5f72…e5fdc`
-and working-tree overlay. Container sync validation/conflict/deletion/override and
-interrupted-write recovery passed. A real timeout defect was fixed: observations
-cannot pass after their deadline, including fractional-second command limits.
-Active eventually cancellation exited 130 in 0.536 s with its partial report,
-zero remaining execution containers and the retained lab healthy.
+PR [#23](https://github.com/Reidond/kedra/pull/23) merged to main as
+`bafd1884a569d4890e768c72e335514d824bbf1f`. Main workspace, container on both
+architectures, desktop, signed-home, direct-GHCR, signed-update and agent workflows
+pass. ARM run [36617035132](https://github.com/Reidond/kedra/actions/runs/36617035132)
+attempt 1 retains its 90-minute PID 1 freeze before the observer starts. Exact same
+SHA attempt 2 passes, completing 2026-09-29 21:21:02 UTC with the boot step in
+5m06s (21:15:52–21:20:58). Main CI is green; later uncommitted follow-up fixes have
+only the local checks recorded below and still need publication/CI.
+The local checkout also contains uncommitted installer-path and stopped-lab fixes;
+their passing local workflows do not change the merged-source identity.
 
-Five native warm starts measured median 24.443 s / max 44.929 s. The final native
-edit+capture loop measured median 4.676 s / max 8.959 s; captures median 1.043 s /
-max 1.636 s. Container edit+capture measured median 5.000 s / max 9.177 s and
-captures median 0.331 s / max 0.467 s. Native image evidence was an unsigned local
-candidate plus working-tree payload, not a newly published complete OS; that local
-runtime/disk/evidence tree was later deleted as described above.
-Instance key/disk isolation, Docker-independent sync, failed-start cleanup and
-valid/invalid native edits passed. All six native GTK3 Wayland/Xwayland,
-libadwaita, Qt5 and Qt6 chooser workflows passed and their screenshots were
-viewed. Authority/refusal, private-engine-loss, startup interruption and forced
-second-signal faults also passed. After the container image now precomputes
-ldconfig/hwdb/update watermarks and gives the whole user manager explicit software
-rendering, five real filtered desktop-session runs passed with durations 6.680,
-7.714, 6.578, 7.181 and 6.256 s (median 6.680, max 7.714); complete command wall
-median was 7.038 s, under the 15 s target. One hot internal session reached ready
-in about 3.6 s. Five complete public cached `up` samples were 10.125, 4.087,
-4.438, 4.016 and 4.091 s (median 4.091), passing the 20 s target. They use clean
-cached base `6288…`, no working-tree overlay, and exclude one-time source/overlay
-preparation; stdout was observed and these samples are recorded here without a
-separate persisted timing file. The earlier 37.861 s median remains pre-fix
-failure evidence.
-The first post-change two-worker regression (`1790706590-5077`) passed 12/13;
-`native::home_review_cycle` failed because the container image named source
-revision `48ebd03f…`, which was not present in this checkout (`fatal: bad object`).
-It is a recorded failure pending a corrected-source rerun, not a suite pass.
-Frame pacing, audio, scaling/resize, physical modifier-key checks, fresh encrypted
-installation and first signed replacement publication remain open. See
+Five stable-tag worktree-overlay suites pass 13/13 with wall times 58.959, 66.322,
+64.764, 65.563 and 72.787 s (median 65.563/max 72.787), image tag
+`6f95044a24e38c69`, reports `1790708814`, `1790708873`, `1790708939`,
+`1790709025` and `1790709090`, with the receipt outside Cargo output. The earlier
+no-overlay stale-provenance refusal remains recorded. Independent concurrent
+Bitwarden (`1790709593-88410`) and desktop (`1790709593-88411`) executions both
+pass, clean up independently and leave the default retained lab healthy.
+
+Five native full-CLI warm starts are 19.239, 19.348, 18.461, 21.253 and 18.533 s
+(median 19.239/max 21.253), with median readiness 16.437 s and five distinct boot
+IDs reporting Metal. Capture wall times are 0.869, 0.874, 0.875, 0.883 and 0.893 s
+(median 0.875/max 0.893). Final state is an unlocked, healthy 2560×1600 scale-2
+desktop. Unlocked scale-1/1.5/2 Noctalia Settings screenshots were independently
+viewed with valid geometry; resize to 1920 worked, and reopening QEMU restored
+actual 2560. Audio passed twice with owner confirmation; physical typing,
+Command+Enter, scrolling and window movement pass.
+
+Five 30 s Virtual-1 presentation observations after 5 s warmups report
+81.967, 91.126, 89.334, 81.634 and 90.500 presentations/s (median 89.334,
+minimum 81.634); every p95 interval is 16.667 ms. Visible EGL/SHM clients ran in
+native Cocoa. This qualifies guest Virtual-1 only, not a physical monitor or other
+hosts.
+
+Runtime unchanged replay passes. A real interrupted private-bundle preparation
+exits 143 without selecting a runtime/receipt; incomplete private pins exit 1 for
+missing ANGLE without selection; the current runtime hash matches its original
+state. Public CLI hard-link, TPM-tree link, log-link and predictable pending-file
+refusals preserve foreign data and the running default. A nonresponsive public-CLI
+stop refuses after 10.583 s without forcing; explicit force completes in 10.789 s,
+with controller 10 s behavior, disks, foreign/default instances unchanged. The
+literal 30-second grace variant remains not-run.
+
+The newly published signed ISO replay passes. The fresh installer is running at
+the LUKS dialog and awaits owner passphrase entry; no fresh encrypted-installation
+or ISO-free boot claim exists. New current fixture image `6303cf1f…` is prepared but not yet booted
+or hot-synced. For the uncommitted follow-up, formatting, ruff and workspace
+all-target Clippy pass (30.32 s); empty/whitespace `down` selectors exit 1 while
+the default stays healthy, and exact stopped-owned removal passes using the rebuilt
+release binary. Fresh container Settings capture
+`target/kedra-lab/shots/final-container-desktop-1790748508-70906.png` was viewed
+unlocked and healthy with explicit software rendering. See
 WL-20260928-08 and the [delivery review](../../../../.specs/qemu-desktop-iteration/review.md)
 for exact evidence and remaining qualification.
 Earlier production and qualification records below retain their original dates and

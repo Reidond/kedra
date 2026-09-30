@@ -200,6 +200,24 @@ power key; the disposable fixture grants one exact sudo poweroff command for
 bounded shutdown. Never add these fixture grants to production images.
 The old UTM frontend, cocoa-way builder and waypipe TCP bridge were removed.
 
+Qualification on 2026-09-29 (M2 Pro, rebuilt QEMU 11): five foreground native
+Cocoa observations used Weston EGL and presentation clients at 2560×1600,
+scale 2. Guest Virtual-1 presentation feedback measured 81.634–91.126 Hz,
+with p95 intervals 16.667 ms; this is not a physical-monitor timing claim.
+The owner confirmed physical Command+Enter, letters, scrolling, window movement
+and audible audio. A quiet test signal was initially inaudible: the 40% guest
+volume maps to about −23.88 dB, in addition to signal and host attenuation.
+Use a short modest signal, verify real stream routing and ask for audibility;
+restore temporary guest volume and leave host settings unchanged. `pw-play`
+success alone does not prove audible output. Evidence: worklog WL-20260929-01.
+
+Container startup correction (2026-09-29, systemd 259): service-local renderer
+environment does not propagate to Noctalia through the user manager. The lab
+sets software rendering through `environment.d`; its final image layer computes
+ldconfig/hwdb and runs `systemd-update-done`, preserving normal update conditions.
+Do not mask those services or label this container renderer as GPU acceleration.
+The actual recipe is `tests/container/lab/tools.Containerfile`.
+
 Pinned QEMU 11 HVF correction (2026-09-28): candidate `29d25d77` contains the
 idle WFI regression described in [upstream issue 3433](https://gitlab.com/qemu-project/qemu/-/work_items/3433).
 An idle guest (load about 0.03) consumed 437.3% host CPU in Activity Monitor.

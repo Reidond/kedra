@@ -4,7 +4,8 @@ PR #23 merged to main as `bafd1884a569d4890e768c72e335514d824bbf1f`.
 Release 36617035503 passes all six jobs and publishes strict qemu-arm64 stable
 `sha256:7795329a030d2fc2697d6b88a666ca73f8ff7938f84b245863f90ec16ffab877`.
 Main ARM run 36617035132 attempt 1 retains its 90-minute TCG boot failure; exact
-same-SHA attempt 2 passes. Fresh installation awaits owner unlock. The native GPU and Testcontainers
+same-SHA attempt 2 passes. Fresh encrypted installation/sentinel preservation pass,
+but ISO-free graphical boot fails on missing initramfs drivers. The native GPU and Testcontainers
 workflows are implemented; the complete 28-case qualification matrix remains
 partial, as recorded in [test-plan](test-plan.md).
 
@@ -137,6 +138,12 @@ run 30 seconds each at 81.967, 91.126, 89.334, 81.634 and 90.500 presentations/s
 (median 89.334/minimum 81.634), with p95 interval 16.667 ms in every run. This
 qualifies guest Virtual-1 only, not physical monitors or other hosts.
 
+Both nonresponsive lifecycle profiles pass. The literal grace case reports accepted
+poweroff after 31.336 s without implicit force while a 45-second ordinary unit is
+verified to ignore TERM; explicit force completes in 1.487 s and preserves
+disk/VARS/foreign sentinel before public removal. Its default was stopped with
+stale PIDs, so running-default preservation is scoped to the separate 10-second case.
+
 The Rust dev/test profile disables debuginfo by default and keeps
 `CARGO_PROFILE_DEV_DEBUG=2` as the explicit full-debug path. A single isolated
 comparison measured clean build 42.98→39.85 s, touched-source rebuild 1.39→1.15 s
@@ -163,6 +170,17 @@ Main ARM run 36617035132 attempt 1 retains its 90-minute PID 1 freeze before the
 observer starts. Exact same-SHA attempt 2 succeeds, completing at 21:21:02 UTC with
 the boot step in 5m06s. Main CI is green.
 
+Follow-up workspace checks pass on both architectures at `1e157f4`; ARM boot passes
+at `4e0f4fc` with the new fatal monitor in about 379 s. Its first container run
+fails only the home guard because Fedora now ships Noctalia 5.2.0. The narrow
+two-file qualification preserves `APP_VERSION=5.0.1`, exact 5.2 output and
+unknown-version refusal. Native validate/export still exposes only three approved
+typed fields from 29 live sections. Home run `1790750757-17043` passes in 14.31 s;
+full ARM run `1790751520-28479` passes 13/13 in 109.92 s with two workers and no
+cleanup failure. This correction remains uncommitted and needs exact-source CI.
+A key-free exact-candidate full-harness gate is implemented before signing in about
+100 workflow lines without changing the no-change path; its first execution is not-run.
+
 ## Scope and unresolved qualification
 
 No unit/mock/doctest/source-scanner tests or replacement runner were added. Python
@@ -178,9 +196,15 @@ The new signed qemu-arm64 ISO replay passes with exact size/hash after mounting
 current identity. The private APFS media-refusal matrix covers changed bytes/checksum,
 manifest/SHA mismatch, wrong target, changed digest identity and existing output;
 all refuse without starting QEMU or changing original media. Fresh encrypted
-installation/ISO-free boot awaits owner unlock.
-TC09's literal 30-second grace variant, new current fixture boot/hot-sync and
-publication of local post-merge fixes also remain open.
+installation, original ISO/sentinel preservation and stopped detach pass. ISO-free
+Secure Boot/GRUB reaches LUKS, but Cocoa stays inactive because the initramfs lacks
+virtual GPU/input drivers. QEMU-target force-drivers plus explicit image-build
+initramfs regeneration are implemented in the current candidate; corrected signed
+media and healthy boot remain open. Unsigned sanctioned candidate `3c744556…`
+contains exact 7.2.7 initrd `3f37ce…` with the virtual GPU/input dependencies and
+generic crypt/TPM/bootc/OSTree/EROFS/overlay support; file-mode/link and 12 lint
+checks pass with pre-existing warnings only.
+The new current fixture hot-loop and publication of local post-merge fixes remain open.
 Automatic receipts retain `gpu_qualified: false`; the complete manual Mac graphics,
 input, audio, scaling and presentation matrix is recorded separately.
 

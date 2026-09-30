@@ -32,3 +32,16 @@ Facts for Fedora 44 aarch64, observed 2026-09-25 in TCG prototypes with Ubuntu `
 Native tests must distinguish image build, signed update/rollback, fresh installation, graphical health and physical hardware. Key rotation, old-reader compatibility and physical devices require independent evidence.
 
 Primary references: [filesystems](https://bootc.dev/bootc/filesystem.html), [switch](https://bootc.dev/bootc/man/bootc-switch.8.html), [build guidance](https://bootc.dev/bootc/building/guidance.html), [physical root](https://bootc.dev/bootc/bootc-install.html#finding-and-configuring-the-physical-root-filesystem).
+
+Observed 2026-09-30, Fedora 44 aarch64 kernel 7.2.7 / native QEMU 11: a fresh
+encrypted installation reaches the installed Fedora NVRAM entry, signed shim and
+GRUB, but the generic bootc initramfs omits virtio_gpu, virtio_input and their
+virtio_dma_buf dependency. Cocoa then reports inactive output before LUKS unlock,
+while the output-only serial log shows the prompt; blind password entry is not a
+qualification. The qemu-arm64 vendor dracut config now forces GPU/input drivers.
+Image assembly explicitly rebuilds every installed kernel initramfs after RPM
+transactions, because an unchanged kernel does not trigger regeneration merely
+when a target config is added. Actual unsigned candidate `3c744556…a14f4` retains
+generic crypt, TPM, bootc/OSTree, EROFS and overlay support and includes all three
+drivers. Keep this target-specific; signed-media graphical unlock/healthy boot
+must still be observed after publication. Evidence: worklog WL-20260930-01.

@@ -86,14 +86,16 @@ No task independently authorizes external tool installation, commit, push or CI 
   accurately; no automatic software fallback. Graceful and explicit forced stop
   follow design deadlines. Already-prepared VM operations do not connect to Docker.
 - **Test requirements:** TC-06, TC-07, TC-08, TC-09, TC-28.
-- **Status:** [ ] Implemented and broadly exercised — retained lifecycle, QMP/process identity,
+- **Status:** [x] Implemented and exercised — retained lifecycle, QMP/process identity,
   private locks, Docker-independent operations and historical five-start evidence.
   The restored public CLI additionally refuses mutable-file hard links, TPM-tree
   links, log links and a predictable pending-file link against a private clone,
-  preserving foreign data and the running default. A real nonresponsive public-CLI
-  stop refuses in 10.583 s without force and explicit force completes in 10.789 s,
-  preserving disks and foreign/default instances; the literal 30-second grace
-  variant remains not-run.
+  preserving foreign data and the running default. Nonresponsive 10-second and
+  literal grace variants both pass: the latter reports accepted poweroff after
+  31.336 s without implicit force, verifies a 45-second unit ignores TERM, and
+  explicit force completes in 1.487 s preserving disk/VARS/foreign sentinel before
+  public removal. Its default was stopped; running-default evidence comes from the
+  separate 10-second variant.
 
 ## T04 — Qualify native graphics, input and actual captured content
 
@@ -204,11 +206,14 @@ No task independently authorizes external tool installation, commit, push or CI 
   installer/macos; the new signed qemu-arm64 ISO replay passes after correcting a
   stale mount-root path. Installer has no fixture SSH/seed, refuses exec/sync and live detach.
   The controller now offers an owned writable sentinel and refuses detach if its
-  full hash changed, but this new path has only diagnostic checks. The new ISO build
-  and replay pass; the complete private corrupt-media/existing-output refusal matrix
-  passes without changing original media or starting QEMU. Fresh encrypted
-  install/ISO-free boot and real sentinel
-  qualification await owner LUKS-passphrase entry and are not-run.
+  full hash changed. The new ISO build/replay and complete private refusal matrix
+  pass without changing original media or starting QEMU. Fresh encrypted install,
+  original ISO/sentinel preservation and stopped detach pass. ISO-free Secure Boot
+  reaches LUKS, but Cocoa is inactive because the installed initramfs lacks virtual
+  GPU/input drivers. Unsigned sanctioned candidate `3c744556…` contains the
+  regenerated 7.2.7 initrd (`3f37ce…`) with the required GPU/input and generic
+  boot/storage dependencies; lint passes. Corrected signed media and healthy boot
+  remain open.
 
 ## T10 — Retire UTM-specific source and retain boot-level coverage
 
@@ -273,9 +278,12 @@ No task independently authorizes external tool installation, commit, push or CI 
 - **Status:** [ ] PR #23 merged to main as `bafd1884`; main workspace, both container
   architectures, desktop, home, direct-GHCR, signed-update and agent checks pass.
   Release 36617035503 published verified qemu-arm64 stable and old external UTM
-  resources are gone; exact same-SHA main ARM retry passes. The fresh encrypted
-  installer awaits owner unlock, a new fixture awaits boot/sync, and local
-  post-merge fixes remain uncommitted; final handoff is therefore open.
+  resources are gone; exact same-SHA main ARM retry passes. Fresh encrypted
+  install/sentinel preservation pass, but healthy ISO-free graphical boot fails on
+  missing initramfs drivers. Current Noctalia 5.2 qualification passes locally,
+  while its source and installer/initramfs follow-ups remain uncommitted/without
+  exact CI. A key-free exact-candidate full-harness signer gate is implemented but
+  has not run; final handoff is therefore open.
 
 ## Coverage ownership
 

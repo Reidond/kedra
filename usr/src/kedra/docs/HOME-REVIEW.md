@@ -2,7 +2,7 @@
 
 For the separate niri line-selection workflow, see [ordinary text review](TEXT-REVIEW.md).
 
-The current Linux commands review three effective Noctalia settings (runtime 5.0.1 or 5.1.0 exactly):
+The current Linux commands review three effective Noctalia settings (runtime 5.0.1, 5.1.0 or 5.2.0 exactly):
 `theme.mode`, `shell.button_borders` and `shell.input_borders`. They store only
 these projected values in a private SQLite directory. Other exported settings,
 credentials and raw application exports do not enter that store.

@@ -16,8 +16,8 @@ The old `kedra-utm` and `kedra-utm-builds` packages now return API 404, and the 
 signing environment is deleted; environment readback lists only desktop and
 qemu-arm64 authorities. The exact local old UTM signing backup was also removed
 without reading key contents; the historical `~/VMs/Kedra.utm` bundle is absent.
-An undocumented old Keychain passphrase entry still needs targeted identification
-after unlock; no secret was extracted or unknown item deleted.
+The three exact old UTM signing/account/disk Keychain entries were identified by
+scoped metadata and removed, with item-not-found readback and no secret reads.
 
 UTM CLI and native UI report an empty VM list. Six stopped Kedra prototype
 instances using the old target were removed through the owned lab CLI; no
@@ -63,9 +63,11 @@ verified replacement publication. Signed-media preparation now lives in
 The first build's stale mount failure is preserved; `build-local.py` now mounts
 `str(HERE)`, the actual `usr/src/kedra/installer` directory, and replay passes. The old UTM ISO is
 historical only and the current verifier correctly refuses its retired identity.
-A fresh encrypted installation from the new ISO has not started. Anaconda is at
-the passphrase dialog with only the new 96 GiB disk selected and encryption
-enabled; the 64 MiB sentinel remains unselected. Owner passphrase entry is pending.
+The owner completed both credential handoffs and fresh encrypted installation
+completed on the new 96 GiB disk. The 64 MiB sentinel and original ISO retain their
+full hashes; stopped detach passes. ISO-free boot reaches signed Fedora/GRUB and
+LUKS, but the missing initramfs GPU/input drivers leave Cocoa inactive. Corrected
+signed media and a healthy installed boot remain required.
 TC21's private APFS media-refusal matrix passes: changed ISO byte/checksum,
 SHA256SUMS/manifest mismatch, wrong desktop target, changed image-digest identity
 and existing output all refuse with exit 1; valid verification exits 0, corrupt
@@ -97,8 +99,20 @@ SHA attempt 2 passes, completing 2026-09-29 21:21:02 UTC with the boot step in
 only the local checks recorded below and still need publication/CI.
 Follow-up [PR #24](https://github.com/Reidond/kedra/pull/24) contains implementation
 `4e0f4fc`: installer mount, stopped-lab cleanup/empty-selector refusal and early
-PID1 fatal-boot reporting. Its exact-source workspace/container/ARM CI is running;
-local workflow passes do not establish a merged follow-up.
+PID1 fatal-boot reporting. Workspace checks pass on both architectures at `1e157f4`
+and ARM passes at `4e0f4fc` with the new fatal monitor. The first container run
+fails only its Noctalia-version home guard; the local correction below is not yet
+committed or covered by exact-source CI.
+
+Current Fedora 44 now resolves Noctalia 5.2.0. The narrow two-file qualification
+preserves persisted `APP_VERSION=5.0.1`, accepts exact 5.2 output and refuses
+unknown versions. Native validation/export still exposes only three approved typed
+fields from a 29-section live export; private weather/plugins stay excluded. Home
+case `1790750757-17043` passes in 14.31 s and full ARM worktree run
+`1790751520-28479` passes 13/13 with two workers in 109.92 s and no cleanup failure.
+This source remains uncommitted and needs exact-source CI. A key-free exact-candidate
+full-harness gate is implemented before signing in about 100 workflow lines without
+changing no-change behavior; its first execution is not-run.
 
 Five stable-tag worktree-overlay suites pass 13/13 with wall times 58.959, 66.322,
 64.764, 65.563 and 72.787 s (median 65.563/max 72.787), image tag
@@ -129,13 +143,27 @@ missing ANGLE without selection; the current runtime hash matches its original
 state. Public CLI hard-link, TPM-tree link, log-link and predictable pending-file
 refusals preserve foreign data and the running default. A nonresponsive public-CLI
 stop refuses after 10.583 s without forcing; explicit force completes in 10.789 s,
-with controller 10 s behavior, disks, foreign/default instances unchanged. The
-literal 30-second grace variant remains not-run.
+with controller 10 s behavior, disks and foreign/default state unchanged. The
+literal grace case now passes: after 31.336 s it reports accepted poweroff without
+implicitly forcing; a 45-second ordinary guest unit is verified to ignore TERM.
+Explicit force completes in 1.487 s, preserving disk/VARS/foreign sentinel, then
+public remove passes. The default was stopped before/after with stale PIDs, so this
+case makes no running-default preservation claim; the separate 10-second variant
+provides that evidence.
 
-The newly published signed ISO replay passes. The fresh installer is running at
-the LUKS dialog and awaits owner passphrase entry after the renewed Mac lock; no fresh encrypted-installation
-or ISO-free boot claim exists. New current fixture image `6303cf1f…` is prepared but not yet booted
-or hot-synced. For the pushed follow-up, formatting, ruff and workspace
+The signed ISO replay, fresh encrypted installation, sentinel preservation and
+stopped detach pass. ISO-free boot fails graphical unlock: the image initramfs
+lacks virtual display/input modules. The stopped disk/TPM/variables are retained
+for diagnosis. QEMU-target dracut `force_drivers` plus explicit image-build initramfs
+regeneration produce unsigned sanctioned candidate `3c744556…`. Its exact 7.2.7
+initrd `3f37ce…` contains GPU/input dependencies plus generic crypt, TPM, bootc,
+OSTree, EROFS and overlay support; it is mode 0644 with one link. Twelve lint checks
+pass with only pre-existing warnings. Corrected signed media and a healthy boot
+remain unqualified. The encrypted disk/TPM/variables are stopped
+and retained for diagnosis; the default native VM is stopped and the default
+container remains running. No owner action is currently required; corrected media
+must be produced first. New current fixture image `6303cf1f…` is prepared but
+not yet booted or hot-synced. For the pushed follow-up, formatting, ruff and workspace
 all-target Clippy pass (30.32 s); empty/whitespace `down` selectors exit 1 while
 the default stays healthy, and exact stopped-owned removal passes using the rebuilt
 release binary. Fresh container Settings capture
@@ -587,3 +615,19 @@ The Ubuntu WSL build initially reported a Podman cleanup warning because `netava
 The earlier signed candidate 34697167136 at b4e9f78 passed its exact fresh encrypted offline installation and ten qualification checks. That historical installation result does not qualify installation of the newly published GHCR-only image or restore deleted Release assets.
 
 [INSTALL](INSTALL.md) describes local media construction; [UPDATES](UPDATES.md) describes direct updates and recovery. The [worklog](../../../../worklog.md) retains exact historical evidence and the next operational step.
+
+### Follow-up qualification correction (2026-09-30)
+
+Fresh Fedora container CI at implementation `4e0f4fc` exposed Noctalia 5.2.0,
+which the exact-version home guard correctly refused. Only that runtime/output
+string is now added; persisted projection identity stays 5.0.1 and unknown
+versions still refuse. Native validation/export, private-field exclusion and
+the real home-review cycle pass; full cached ARM `1790751520-28479` passes 13/13
+in 109.92 s with two workers and complete cleanup. New-source CI is still required.
+
+The encrypted boot defect is separate: the signed image has virtual GPU/input
+modules in rootfs but omits them from initramfs. A real dracut experiment confirms
+that target force_drivers for virtio_gpu/virtio_input includes both and
+virtio_dma_buf. Target configuration and explicit qemu-only image-build initramfs
+regeneration are implemented and undergoing actual candidate validation. Neither
+that build nor the earlier successful installation is a healthy-boot pass.

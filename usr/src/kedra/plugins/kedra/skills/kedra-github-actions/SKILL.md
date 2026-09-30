@@ -39,3 +39,17 @@ Secure Boot, SELinux, bootc, unit and digest assertions remain required.
 Local installer changes retain pinned image-builder, labeling, offline payload verification and deliberate disk choice. Media permissive SELinux never weakens installed enforcing SELinux/signature policy. Record actual local smoke/fresh-install results separately from image builds.
 
 Update STATUS/worklog with exact observed outcomes. Never call staged booted, signed installed or syntax qualified.
+
+Exact-candidate validation (implemented 2026-09-30; first release execution pending):
+`release-target.yml` requires build → validate-candidate → isolated sign → stable
+publication. Validation runs the complete sanctioned Testcontainers harness against
+the immutable public builds-repository digest with KEDRA_LAB_OVERLAY=none, on the
+native runner, without a signing environment or private keys. Its complete,
+non-interrupted report must match target/digest, contain passed results and no
+cleanup failures; only then is that digest passed to the signer. The signer
+independently requires equality with build.digest and retains its current-source,
+identity, ranking and namespace checks. No-change skips validation/sign/publication.
+Do not substitute the independent container workflow: rebuilding the same source
+SHA against refreshed Fedora repositories can test a different RPM snapshot.
+A fresh Noctalia 5.2.0 candidate exposed exactly that compatibility gap. Keep test
+execution out of the signer and never send test executables or raw reports to it.

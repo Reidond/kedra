@@ -228,3 +228,11 @@ attribution when refreshing the graphics fork. Measure CPU-time deltas over an
 idle interval; lifetime `ps %cpu` hides bursts. The Cocoa activity guard addresses
 App Nap separately and allows ordinary Mac idle sleep. Startup, background SSH,
 frame capture and idle load must be rechecked after runtime changes.
+
+Observed 2026-09-30: physical Command+Left/Right works after clicking inside
+QEMU until the title displays Ctrl+Option+G as the release shortcut. Actual niri
+focus changes while VT1/workspace1 remain active; the Cocoa source has no
+Command+arrow console shortcut. Reopening/losing capture can make host shortcuts
+interfere. Recapture before testing; do not change niri bindings to hide a capture
+problem. Cocoa full-grab uses a global CGEventTap/Accessibility permission, so it
+remains off by default. Source hashes stayed unchanged during the owner proof.

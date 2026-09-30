@@ -140,8 +140,8 @@ new failures justify it.
 ## Current verification state — 2026-09-30
 
 PR #23 merged to main as `bafd1884a569d4890e768c72e335514d824bbf1f`.
-The local checkout contains later installer/stopped-lab work plus uncommitted
-Noctalia 5.2 and qemu-arm64 initramfs corrections.
+The PR25 checkout contains the later installer/stopped-lab, Noctalia 5.2,
+qemu-arm64 initramfs and exact-candidate materialization corrections.
 Outcomes apply only to the observed variants below; a partial result
 never qualifies a full parameterized case. The owner later deleted the local Rust
 `target/` tree, including the ignored QEMU runtime, disks, screenshots and raw
@@ -159,35 +159,35 @@ has yet been signed or published.
 | TC-07 | pass for observed refusal matrix: live detach, unsupported state, changed runtime receipt, stale foreign PID, linked disk/instance parent, missing QEMU/TPM, changed firmware and a non-emulator executable refuse without touching generated foreign sentinels. The restored public CLI also refuses mutable-file hard links, TPM-tree links, log links and a predictable pending-file link against a private clone, preserving foreign data and the running default. Interrupted preparation remains TC-01/02 coverage. |
 | TC-08 | pass: correct pinned SSH access, cross-instance/wrong client key, wrong pinned host key and wrong instance token were denied; no requested guest marker was created. |
 | TC-09 | pass: clean/force stop, second-instance preservation and failed-start cleanup pass. The 10-second nonresponsive variant refuses without force and preserves the running default. The literal grace variant reports accepted poweroff after 31.336 s without implicit force; a 45-second ordinary unit ignores TERM, explicit force completes in 1.487 s preserving disk/VARS/foreign sentinel, and public remove passes. Its default was stopped before/after with stale PIDs, so it makes no running-default claim. Empty/whitespace selectors exit 1 safely. |
-| TC-10/11/12 | pass for container apply/add/delete/no-op, invalid KDL/TOML, target/rootfs/stale archiver refusal, guest/GUI edits, concurrent lock refusal and real interrupted-write recovery preserving newer edits. |
-| TC-13/14 | pass: native valid/invalid config workflow, actual changed screenshot, source/display receipts; container capture/receipts and failure/partial reports. Fresh unlocked software-rendered Settings capture `final-container-desktop-1790748508-70906.png` was viewed healthy. |
-| TC-15 | pass for merged source: main container CI passes ARM/x86 and five stable-tag worktree-overlay runs pass 13/13. Current uncommitted Noctalia 5.2 worktree run `1790751520-28479` also passes 13/13 with two workers in 109.92 s/no cleanup failure, but exact-source CI is pending. Earlier deleted-Quay-input and no-overlay stale-provenance failures remain recorded. |
+| TC-10/11/12 | pass for container apply/add/delete/no-op, invalid KDL/TOML, target/rootfs/stale archiver refusal, guest/GUI edits, concurrent lock refusal and interrupted-write recovery. Private Git materialization additionally passes literal/private-key/hard-link/FIFO/global-ignore/concurrent-lock risks with unchanged checkout and equal old/new commit+payload SHA. |
+| TC-13/14 | pass: native valid/invalid workflow, actual changed screenshots and source/display receipts. Final Noctalia 5.2 `final-native-qualification-summary.json` and Settings capture `final-ready-settings-1790763286328579000.PNG` live outside Cargo output; the image was viewed healthy with Metal, Secure Boot, enforcing SELinux and no failed units. Container software-rendered capture remains explicit. |
+| TC-15 | pass locally: merged source container CI passes ARM/x86; five stable-tag worktree-overlay runs pass 13/13. Noctalia 5.2 run `1790751520-28479` passes 13/13 in 109.92 s/no cleanup failure. PR25 exact-source workspace/container runs `36701445476`, `36701440939`, `36701441228` pass. Earlier deleted-input and stale-provenance failures remain recorded. |
 | TC-16 | pass for observed variants: offline listing/empty selection, filtered execution, malformed YAML/unknown action refusal before provisioning, and a deliberate wrong-wallpaper expectation preserving the actual value and report. |
 | TC-17 | pass for forward/reverse ordering, two workers, colliding-prefix long names and retained-lab preservation. Independent concurrent Bitwarden `1790709593-88410` and desktop `1790709593-88411` executions both pass, clean up independently and leave the default retained lab healthy. |
-| TC-18 | pass for active eventually cancellation, startup kill/SIGINT and forced second SIGINT. Reports remain durable, exact-execution cleanup succeeds after engine recovery, and the retained lab stays healthy. |
+| TC-18 | pass for active eventually cancellation, startup kill/SIGINT and forced second SIGINT. Private Git materialization SIGINT exits 130 with cleanup and unchanged checkout. Reports remain durable and retained resources stay healthy. |
 | TC-19 | pass for positive suite observations and genuine impossible-deadline probes: 6 s observation capped by 2 s eventually deadline, and 500 ms command deadline. |
 | TC-20 | pass: a separate disposable Docker daemon was stopped only after a real observation failure; the original failure, bounded diagnostics and teardown failure were preserved, then exact cleanup succeeded after that daemon resumed. Shared OrbStack was not stopped. |
 | TC-21 | pass: public replay builds/verifies the new signed qemu-arm64 ISO after fixing a stale mount-root path. Private APFS copies cover changed ISO byte/checksum, mismatched SHA256SUMS/manifest, wrong desktop target, changed image-digest identity and existing output; all refuse with exit 1. Valid verification exits 0, corrupt public installer preflight creates no instance/QEMU, original ISO/hash/manifest/checksum inode/mtime/content remain unchanged, and private copies were removed. Evidence: `~/.local/state/kedra/evidence/2026-09-30/media-refusal-matrix.json`. The old UTM ISO remains historical and is correctly refused. |
-| TC-22 | partial: fresh encrypted installation completes with only the 96 GiB disk selected; original ISO/unselected sentinel hashes and stopped detach pass. ISO-free Secure Boot/GRUB reaches LUKS, but Cocoa stays inactive because its initramfs lacks `virtio_gpu`, `virtio_input` and `virtio_dma_buf`. Unsigned sanctioned candidate `3c744556…` contains regenerated 7.2.7 initrd `3f37ce…` with those drivers/dependencies plus generic crypt/TPM/bootc/OSTree/EROFS/overlay support, mode 0644/nlink 1; 12 lint checks pass with pre-existing warnings only. Corrected signed media and healthy installed boot are not yet qualified. |
+| TC-22 | pass: corrected signed image 9d6/ISO cb8578 freshly installs LUKS2 on 96 GiB vda; 64 MiB vdb remains byte-identical. ISO-free visible LUKS unlock, greetd login, Metal desktop, full doctor, Secure Boot/lockdown, enforcing SELinux, no failed services, exact signed bootc image/no staged rollback and read-only TPM/PCR7 dry-run pass. Original ISO/full sentinel hashes and stopped detach pass. Final graceful stop timed out; explicit public force succeeds and integrity hashes remain unchanged. The original missing-driver failure is retained. |
 | TC-23 | pass: standalone retained native start/exec/sync/shot/stop uses a private runtime with no UTM libraries/Apple Events. UTM source/identity are retired; six owned prototypes were removed, no registered owner VM was found, old packages return API 404 and the old signing environment is absent. |
-| TC-24 | pass for merged `bafd1884`: main workflows, verified stable and exact same-SHA ARM retry pass. Follow-up workspace checks pass at `1e157f4` and ARM at `4e0f4fc`; local Noctalia 5.2 and initramfs corrections pass targeted/full local gates but remain uncommitted with CI pending. A key-free exact-candidate full-harness signer gate is implemented without changing no-change behavior; its first execution is not-run. |
-| TC-25/26 | pass: filtered/container startup, five stable suites, five restored native full-CLI starts and five captures meet their targets as recorded below. |
-| TC-27 | pass for guest Virtual-1 scope: five visible native-Cocoa EGL/SHM observations after 5 s warmups run 30 s each at 81.967, 91.126, 89.334, 81.634 and 90.500 presentations/s (median 89.334/min 81.634); every p95 interval is 16.667 ms. This does not qualify a physical monitor or other hosts. |
-| TC-28 | partial: instance/client-key/disk isolation, foreign sentinels, original ISO and unselected installer-sentinel preservation, no raw host disk/registered owner VM changes, signed publication and complete UTM resource/credential retirement pass. Healthy installed end-state and pending local-fix publication remain open. |
+| TC-24 | pass: PR24 merges as `5dc7b99` with green CI. Release `36692694223` builds both targets but validation fails solely on empty raw-SHA bundles; sign/publish skip and stable stays unchanged. PR25 private named-ref fix passes hostile/local gates, root CLI E2E 2/2, release build 25.89 s and fresh interop/material checks. It adds a remote-main recheck immediately before publish after review found the publisher otherwise used only its checkout. Final PR25 CI passes and release `36702944904` passes both exact-candidate tests, isolated signing and strict publication. Corrected QEMU image `9d6eb030…` is verified; exported ISO `cb8578a4…` passes public media identity and checksum verification. |
+| TC-25/26 | pass: final Noctalia 5.2 sync+shot, native starts/captures and container suite measurements meet their targets as recorded below. |
+| TC-27 | pass for guest Virtual-1 scope: five final visible native-Cocoa observations span 96.57–101.01 presentations/s (median 99.055); every p95 interval is 16.667 ms with `sce_`. This does not qualify a physical monitor or other hosts. |
+| TC-28 | pass for scoped boundaries: isolated keys/disks, foreign sentinels, original ISO/full unselected installer-sentinel hashes, no raw host disk mutation, signed publication and full UTM retirement pass. Corrected installed end-state is verified; default native/container desktops are restored, obsolete diagnostic VM absent. Credentials were owner-entered and never captured. Forced final stop remains reported. |
 
 | Requirement | Measured result (seconds unless stated) |
 |---|---|
-| NFR-01 native edit + capture | 4.676 / 8.959 — pass; samples 6.488, 8.959, 4.428, 4.676, 4.582 |
+| NFR-01 native edit + capture | 4.453 / 5.136 — pass; final Noctalia 5.2 sync+shot samples 5.136, 4.319, 4.606, 4.453, 4.335 |
 | NFR-01 container edit + capture | 5.000 / 9.177 — at median boundary; samples in qemu-final-timings.json |
-| NFR-02 native capture | 0.875 / 0.893 — pass; restored samples 0.869, 0.874, 0.875, 0.883, 0.893 |
+| NFR-02 native capture | 0.937 / 1.055 — pass; final Noctalia 5.2 set |
 | NFR-02 container capture | 0.331 / 0.467 — pass |
-| NFR-03 native warm start | 19.239 / 21.253 — pass; restored full-CLI samples 19.239, 19.348, 18.461, 21.253, 18.533; readiness median 16.437; five distinct boot IDs and Metal each |
+| NFR-03 native warm start | 18.690 / 23.580 — pass; final Noctalia 5.2 set, Metal each |
 | NFR-03 current-target cached container start | 4.091 / 10.125 — pass; complete public `up` samples 10.125, 4.087, 4.438, 4.016, 4.091; clean cached base `6288…`, no overlay, excludes one-time source/overlay preparation; observed stdout, no separate raw timing file |
 | NFR-04 full ARM suite, two workers | 85.610 / 124.800 — median passes; samples 63.29, 106.68, 71.67, 85.61, 124.80 |
 | NFR-04 stable worktree-overlay suite | 65.563 / 72.787 — pass; five 13/13 wall samples 58.959, 66.322, 64.764, 65.563, 72.787; tag `6f95044a24e38c69` |
 | NFR-04 complete test command | 91.030 / 133.366; includes Cargo/preparation |
 | NFR-04 current-target filtered case | 6.680 / 7.714 — pass; scenario samples 6.680, 7.714, 6.578, 7.181, 6.256; complete command wall median 7.038 |
-| NFR-05 presentation | pass for guest Virtual-1: five 30 s rates 81.967, 91.126, 89.334, 81.634, 90.500 presentations/s; median 89.334/min 81.634; every p95 interval 16.667 ms; physical monitors and other hosts unqualified |
+| NFR-05 presentation | pass for guest Virtual-1: five final rates span 96.57–101.01 presentations/s, median 99.055; every p95 interval 16.667 ms with `sce_`; physical monitors and other hosts unqualified |
 | NFR-06/07/08 scope, lifecycle, evidence | Observed variants above pass; missing fault variants stay unqualified |
 
 Optimized filtered receipts are runs `1790706424-99511`, `1790706431-99651`,
@@ -217,8 +217,8 @@ Recorded earlier run IDs and fault results are retained in worklog WL-20260928-0
 The restored 218 MiB runtime/disk live outside Cargo output. Current native evidence
 includes five Metal warm starts/captures, audio, all required input interactions,
 unlocked scaling/resize/restore, five presentation observations and refusal
-artifacts. The new current fixture image `6303cf1f…` is prepared but not yet booted
-or hot-synced. Exact-source CI artifacts remain available in the linked Actions runs.
+artifacts. Final 5.2 hot sync restores the source/guest and leaves the default
+healthy. Exact-source CI artifacts remain available in the linked Actions runs.
 
 ## Reconciliation and remaining decisions
 
@@ -231,11 +231,9 @@ or hot-synced. Exact-source CI artifacts remain available in the linked Actions 
 - Risk pairs and exclusions are inherited from design/test-cases; no second risk
   scoring system is introduced. No unresolved expected values remain.
 
-Prerequisites and implementation are authorized and completed for the delivered
-local workflows. The full packet remains partially qualified: outstanding cases
-above need corrected signed media plus a healthy ISO-free graphical boot,
-new-fixture hot-sync, first execution of the exact-candidate presigner gate and
-publication/CI of the Noctalia/initramfs follow-ups. TC09, fresh encrypted
-installation/sentinel preservation, main CI and signed replacement publication
-pass. No further approval is needed for ordinary local iteration; owner-account
-tests retain their separate boundaries.
+Implementation and scoped qualification are complete for this Mac delivery.
+Corrected encrypted graphical boot, full doctor/security/TPM read-only checks,
+exact-candidate validation, signing/publication and media/sentinel integrity pass.
+Final installed shutdown needed explicit force after graceful timeout; this is an
+observed recovery-path limit, not a clean graceful-shutdown claim. Physical hardware,
+other GPU hosts and real owner vault/account workflows retain their stated exclusions.

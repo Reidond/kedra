@@ -202,18 +202,14 @@ No task independently authorizes external tool installation, commit, push or CI 
   Installer-mode startup reports window/process state, not lab readiness, and
   refuses automatic exec/sync. Qualify a fresh disposable installation and ISO-free boot.
 - **Test requirements:** TC-21, TC-22, TC-28.
-- **Status:** [ ] Implemented; partially qualified — signed-media path extracted to
-  installer/macos; the new signed qemu-arm64 ISO replay passes after correcting a
-  stale mount-root path. Installer has no fixture SSH/seed, refuses exec/sync and live detach.
-  The controller now offers an owned writable sentinel and refuses detach if its
-  full hash changed. The new ISO build/replay and complete private refusal matrix
-  pass without changing original media or starting QEMU. Fresh encrypted install,
-  original ISO/sentinel preservation and stopped detach pass. ISO-free Secure Boot
-  reaches LUKS, but Cocoa is inactive because the installed initramfs lacks virtual
-  GPU/input drivers. Unsigned sanctioned candidate `3c744556…` contains the
-  regenerated 7.2.7 initrd (`3f37ce…`) with the required GPU/input and generic
-  boot/storage dependencies; lint passes. Corrected signed media and healthy boot
-  remain open.
+- **Status:** [x] Qualified — signed media generation and refusal matrix pass.
+  Corrected signed image 9d6/ISO cb8578 was freshly installed encrypted on only the
+  new 96 GiB target with its 64 MiB sentinel unselected. Original ISO/sentinel full hashes
+  and stopped detach pass. Visible ISO-free LUKS unlock and greetd login work;
+  installed doctor, Secure Boot/lockdown, enforcing SELinux, Metal, LUKS2, bootc
+  exact signed image status and read-only TPM/PCR7 dry-run pass. The first missing
+  initramfs-driver failure remains historical. Final graceful stop timed out and
+  explicit public force was required; post-stop integrity hashes still match.
 
 ## T10 — Retire UTM-specific source and retain boot-level coverage
 
@@ -254,10 +250,11 @@ No task independently authorizes external tool installation, commit, push or CI 
 - **Test requirements:** TC-25, TC-26, TC-27.
 - **Status:** [x] Complete warm-loop measurements pass. Five stable worktree-overlay
   suites have median 65.563 s/max 72.787 s; filtered desktop median is 6.680 s and
-  cached public `up` median 4.091 s. Five native full-CLI starts have median
-  19.239 s/max 21.253 s and captures median 0.875 s/max 0.893 s. Five 30 s
-  Virtual-1 observations have median 89.334 presentations/s, minimum 81.634, and
-  p95 interval 16.667 ms in every run. Scope excludes physical monitors/other hosts.
+  cached public `up` median 4.091 s. Final Noctalia 5.2 sync+shot median is
+  4.453 s/max 5.136 s; five native starts median 18.690/max 23.580 s and captures
+  median 0.937/max 1.055 s. Five Virtual-1 presentation rates span 96.57–101.01/s,
+  median 99.055, with p95 interval 16.667 ms and `sce_` in every run. Scope excludes
+  physical monitors/other hosts.
 
 ## T12 — Final review, standard gates and owner handoff
 
@@ -275,15 +272,14 @@ No task independently authorizes external tool installation, commit, push or CI 
   Handoff includes first setup, fast daily commands and recovery, measured costs,
   and every fail/blocked/not-run result. No commit/push without authorization.
 - **Test requirements:** TC-28, plus completion review of TC-01 through TC-27.
-- **Status:** [ ] PR #23 merged to main as `bafd1884`; main workspace, both container
-  architectures, desktop, home, direct-GHCR, signed-update and agent checks pass.
-  Release 36617035503 published verified qemu-arm64 stable and old external UTM
-  resources are gone; exact same-SHA main ARM retry passes. Fresh encrypted
-  install/sentinel preservation pass, but healthy ISO-free graphical boot fails on
-  missing initramfs drivers. Current Noctalia 5.2 qualification passes locally,
-  while its source and installer/initramfs follow-ups remain uncommitted/without
-  exact CI. A key-free exact-candidate full-harness signer gate is implemented but
-  has not run; final handoff is therefore open.
+- **Status:** [x] Delivery qualified — PR23/24/25 are merged; source CI and the
+  exact-candidate presigner gate pass on both architectures. Release 36702944904
+  signs and strictly publishes corrected image 9d6. All scoped functional/performance
+  cases are settled in test-plan.md, including corrected encrypted graphical boot
+  and final sentinel/ISO hashes. The default Metal VM and container desktop are
+  restored; corrected installed VM is retained stopped and obsolete diagnostic VM
+  is absent. Final documentation publication is being completed. The explicit-force
+  final stop observation and physical/other-host exclusions remain visible.
 
 ## Coverage ownership
 

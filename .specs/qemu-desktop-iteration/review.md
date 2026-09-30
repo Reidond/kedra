@@ -126,16 +126,18 @@ pass. The no-overlay refusal stays recorded for its actual stale-provenance scop
 The rebuilt 218 MiB external runtime/disk passes unchanged replay. A real interrupted
 private preparation exits 143, incomplete pins exit 1 for missing ANGLE, neither
 selects a runtime/receipt, and the current runtime hash matches its original state.
-Five full-CLI warm starts have median 19.239 seconds/max 21.253, readiness median
-16.437, five distinct boot IDs and Metal each. Captures have median 0.875/max 0.893.
+Final Noctalia 5.2 sync+shot samples are 5.136, 4.319, 4.606, 4.453 and
+4.335 seconds (median 4.453/max 5.136). Five warm starts have median 18.690/max
+23.580 and captures median 0.937/max 1.055, with Metal each.
+`final-native-qualification-summary.json` and viewed
+`final-ready-settings-1790763286328579000.PNG` live outside Cargo output.
 Native audio passed twice with owner confirmation; physical typing, Command+Enter,
 scrolling and window movement pass. Unlocked scale-1/1.5/2 screenshots were viewed
 with valid geometry; resize to 1920 passes and reopening QEMU restores actual
 2560×1600 scale 2.
 
-Five visible native-Cocoa EGL/SHM presentation observations after 5-second warmups
-run 30 seconds each at 81.967, 91.126, 89.334, 81.634 and 90.500 presentations/s
-(median 89.334/minimum 81.634), with p95 interval 16.667 ms in every run. This
+Five final visible native-Cocoa presentation rates span 96.57–101.01/s with median
+99.055, p95 interval 16.667 ms and `sce_` in every run. This
 qualifies guest Virtual-1 only, not physical monitors or other hosts.
 
 Both nonresponsive lifecycle profiles pass. The literal grace case reports accepted
@@ -149,7 +151,7 @@ The Rust dev/test profile disables debuginfo by default and keeps
 comparison measured clean build 42.98→39.85 s, touched-source rebuild 1.39→1.15 s
 and build tree 1,411,224→801,284 KiB; it does not support a broad percentage claim.
 
-For the uncommitted follow-up, formatting, ruff and workspace all-target Clippy
+Follow-up formatting, ruff and workspace all-target Clippy
 pass (30.32 s). Empty/whitespace `down` selectors exit 1 while the default stays
 healthy; exact stopped-owned removal passes using the rebuilt release binary.
 Fresh container Settings capture
@@ -170,16 +172,22 @@ Main ARM run 36617035132 attempt 1 retains its 90-minute PID 1 freeze before the
 observer starts. Exact same-SHA attempt 2 succeeds, completing at 21:21:02 UTC with
 the boot step in 5m06s. Main CI is green.
 
-Follow-up workspace checks pass on both architectures at `1e157f4`; ARM boot passes
-at `4e0f4fc` with the new fatal monitor in about 379 s. Its first container run
-fails only the home guard because Fedora now ships Noctalia 5.2.0. The narrow
-two-file qualification preserves `APP_VERSION=5.0.1`, exact 5.2 output and
-unknown-version refusal. Native validate/export still exposes only three approved
-typed fields from 29 live sections. Home run `1790750757-17043` passes in 14.31 s;
-full ARM run `1790751520-28479` passes 13/13 in 109.92 s with two workers and no
-cleanup failure. This correction remains uncommitted and needs exact-source CI.
-A key-free exact-candidate full-harness gate is implemented before signing in about
-100 workflow lines without changing the no-change path; its first execution is not-run.
+PR24 merged as `5dc7b99` with green final CI. Its first new release `36692694223`
+built both targets, then both validations failed solely because raw-SHA Git bundles
+were empty; signing/publication skipped and stable stayed unchanged. The narrow
+Noctalia 5.2 qualification preserves `APP_VERSION=5.0.1`, exact output and unknown
+refusal; final local home/full-suite and visible hot-loop gates pass.
+
+PR25 fixes source materialization through a private 0700 named ref with sanitized
+Git environment. Hostile home run `1790761204-42859` passes in 50.82 s; old/new
+commit and payload SHA match, the checkout stays unchanged, and literal/private-key/
+hard-link/FIFO/global-ignore/concurrent-lock/SIGINT cleanup risks pass. Latest head
+`193bb0e` changes four final-scope files; workspace/container CI passes, and PR25 is merged as `f3d69db`. Root
+CLI E2E passes 2/2 on macOS (Linux-only targets have zero local coverage), release
+build passes in 25.89 s, and fresh interop/material checks pass after existing
+directories correctly refuse overwrite. Independent review found the publisher
+needed its own remote-main check; current source rechecks immediately before
+publish. Release `36702944904` passes both key-free exact-candidate tests before signing and strict publication.
 
 ## Scope and unresolved qualification
 
@@ -204,7 +212,14 @@ media and healthy boot remain open. Unsigned sanctioned candidate `3c744556…`
 contains exact 7.2.7 initrd `3f37ce…` with the virtual GPU/input dependencies and
 generic crypt/TPM/bootc/OSTree/EROFS/overlay support; file-mode/link and 12 lint
 checks pass with pre-existing warnings only.
-The new current fixture hot-loop and publication of local post-merge fixes remain open.
+Corrected signed image `9d6eb030…` is published and ISO `cb8578a4…` passes public
+identity/checksum verification after interrupted-wrapper recovery. A new disposable
+fresh installation passes visible LUKS unlock, greetd login and healthy installed
+Metal desktop. Full doctor, Secure Boot/lockdown, enforcing SELinux, LUKS2, exact
+signed bootc status and read-only TPM/PCR7 dry-run pass. Final original ISO/sentinel
+hashes remain unchanged; graceful stop timed out and explicit public force was
+required. Default native/container desktops are restored, and the obsolete
+diagnostic VM is absent.
 Automatic receipts retain `gpu_qualified: false`; the complete manual Mac graphics,
 input, audio, scaling and presentation matrix is recorded separately.
 
@@ -221,3 +236,8 @@ remain in WL-20260928-07/08. Runtime/images are restored under
 `~/.local/share/kedra/lab/<checkout-key>`. New native artifacts cover Metal, five
 warm starts/captures, audio, input, scaling, presentation and refusal checks.
 No claim that every planned case passed accompanies this review.
+
+
+Final corrected TC22 evidence is `tc22-fixed-summary.json` outside Cargo output.
+Earlier inactive-screen and fail-closed candidate-gate attempts remain documented;
+they are superseded by observed corrections rather than relabelled as passes.

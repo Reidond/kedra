@@ -12,6 +12,12 @@ compatibility, signed remote substitution and whole-OS construction are later wo
 The typed `SystemDefinition` / `SystemFile` API now exports static native config
 and verified runtime closures over a retained Fedora foundation; see
 [system composition](../../docs/SYSTEM.md) for scope and actual qualification.
+`NativeDefinition`/`NativeStep` add closed declarations for GLib compilation,
+systemd links, initial account skeletons and QEMU initramfs generation. The model
+binds inputs/implementation; the existing Kedra harness owns isolated native
+execution and actual receipt validation. See [native artifacts](../../docs/NATIVE.md)
+and [package declarations](../../docs/PACKAGES.md); production signing integration
+and native kernel boot remain separate qualification.
 
 ## Authoring
 

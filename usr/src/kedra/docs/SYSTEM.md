@@ -66,9 +66,12 @@ image ID, and assign that tag before building with pulls/network disabled. Local
 Kedra image construction and installed behavior use the existing container
 harness; exported files carry no signing or installed-system authority.
 
-This is static composition over an already assembled foundation. Changed GLib
-overrides, initramfs inputs, unit files and home baselines can require schema
-compilation, initramfs regeneration, service enablement or home seeding. Those
-transformations and boot/update/install/SELinux qualification are separate gates.
+This is static composition over an already assembled foundation. The separate
+[native stage](NATIVE.md) compiles GLib schemas, changes declared service links,
+seeds initial account defaults and generates generic QEMU initramfs images.
+Changing the foundation RPM lists requires a matching rebuilt foundation;
+[PACKAGES](PACKAGES.md) describes declarations and delivery. Native generation
+and installed container workflows do not qualify boot/update/install/SELinux
+or production signing integration.
 See [actual evidence](../../../../.specs/nix-system-composition/verification.md)
 and [engine operations](ENGINE.md).

@@ -350,6 +350,24 @@ pub fn prepare_system(docker: &Docker, request: &Request) -> Result<LabImage> {
     }
 }
 
+/// Native generated artifacts enter the existing System profile without lab adaptation.
+pub fn prepare_native_system(
+    docker: &Docker,
+    request: &Request,
+    specification: &std::path::Path,
+    identity: &str,
+) -> Result<LabImage> {
+    let derived = crate::native_derivation::prepare(docker, request, specification, identity)?;
+    Ok(LabImage {
+        name: "sha256".into(),
+        tag: derived.image.trim_start_matches("sha256:").into(),
+        target: request.target.id.clone(),
+        source: format!("native:{}", derived.material.identity),
+        base: derived.image,
+        overlay: None,
+    })
+}
+
 /// Native VM fixture, preserving kernel/DRM/SELinux and boot-only services.
 pub fn prepare_vm(docker: &Docker, request: &Request) -> Result<LabImage> {
     prepare_kind(docker, request, true)

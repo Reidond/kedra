@@ -8,6 +8,8 @@ mod executor;
 #[cfg(unix)]
 mod image_archive;
 mod model;
+#[cfg(unix)]
+mod native;
 mod plan;
 #[cfg(unix)]
 mod profile;
@@ -20,6 +22,8 @@ mod tree;
 #[cfg(unix)]
 pub use context::VerifiedComposition;
 pub use model::*;
+#[cfg(unix)]
+pub use native::*;
 pub use plan::{plan, read_graph};
 #[cfg(unix)]
 pub use store::Store;

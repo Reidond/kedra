@@ -16,7 +16,7 @@ use crate::{Result, invalid};
 const IDENTITY: &str = "dev.kedra.composition.identity";
 const FOUNDATION: &str = "dev.kedra.composition.foundation";
 const PAYLOAD: &str = "dev.kedra.composition.payload";
-const RPM_FORMAT: &str =
+pub(crate) const RPM_FORMAT: &str =
     "%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -62,7 +62,7 @@ impl Replay {
     }
 }
 
-fn checked(docker: &Docker, image: &str, argv: &[&str]) -> Result<Vec<u8>> {
+pub(crate) fn checked(docker: &Docker, image: &str, argv: &[&str]) -> Result<Vec<u8>> {
     let result = docker.isolated(image, argv.iter().map(|s| (*s).to_owned()).collect())?;
     if result.exit != 0 {
         return Err(invalid(format!(
@@ -73,7 +73,7 @@ fn checked(docker: &Docker, image: &str, argv: &[&str]) -> Result<Vec<u8>> {
     Ok(result.stdout)
 }
 
-fn sorted_inventory(bytes: &[u8]) -> Result<String> {
+pub(crate) fn sorted_inventory(bytes: &[u8]) -> Result<String> {
     let text = std::str::from_utf8(bytes).map_err(|_| invalid("RPM inventory is not UTF-8"))?;
     let mut lines: Vec<_> = text
         .lines()
@@ -83,7 +83,7 @@ fn sorted_inventory(bytes: &[u8]) -> Result<String> {
     Ok(format!("{}\n", lines.join("\n")))
 }
 
-fn native_image(
+pub(crate) fn native_image(
     docker: &Docker,
     image: &str,
 ) -> Result<testcontainers::bollard::models::ImageInspect> {
@@ -186,7 +186,7 @@ struct Pending {
     image: Option<String>,
 }
 
-fn nonce() -> Result<String> {
+pub(crate) fn nonce() -> Result<String> {
     let mut bytes = [0u8; 16];
     fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
     Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
@@ -205,7 +205,7 @@ fn private_metadata(metadata: &fs::Metadata, links: u64) -> Result<()> {
     Ok(())
 }
 
-fn private_open(path: &Path, create: bool) -> Result<fs::File> {
+pub(crate) fn private_open(path: &Path, create: bool) -> Result<fs::File> {
     let file = OpenOptions::new()
         .read(true)
         .write(create)
@@ -223,7 +223,7 @@ fn private_open(path: &Path, create: bool) -> Result<fs::File> {
     Ok(file)
 }
 
-fn read_state<T: serde::de::DeserializeOwned>(path: &Path) -> Result<Option<T>> {
+pub(crate) fn read_state<T: serde::de::DeserializeOwned>(path: &Path) -> Result<Option<T>> {
     let file = match private_open(path, false) {
         Ok(file) => file,
         Err(crate::Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -241,7 +241,7 @@ fn read_state<T: serde::de::DeserializeOwned>(path: &Path) -> Result<Option<T>> 
         .map_err(|error| invalid(format!("composition state: {error}")))
 }
 
-fn sync_parent(path: &Path) -> Result<()> {
+pub(crate) fn sync_parent(path: &Path) -> Result<()> {
     fs::File::open(
         path.parent()
             .ok_or_else(|| invalid("composition state has no parent"))?,
@@ -252,7 +252,7 @@ fn sync_parent(path: &Path) -> Result<()> {
 
 /// A killed atomic publication may leave a partial next file or a second link to
 /// the completed binding. Only that checked transaction-local path is retired.
-fn retire_next(path: &Path) -> Result<()> {
+pub(crate) fn retire_next(path: &Path) -> Result<()> {
     let next = path.with_extension("next");
     let metadata = match fs::symlink_metadata(&next) {
         Ok(metadata) => metadata,
@@ -274,7 +274,7 @@ fn retire_next(path: &Path) -> Result<()> {
     sync_parent(path)
 }
 
-fn write_state(path: &Path, value: &impl Serialize, replace: bool) -> Result<()> {
+pub(crate) fn write_state(path: &Path, value: &impl Serialize, replace: bool) -> Result<()> {
     retire_next(path)?;
     if replace {
         // Never replace unknown or foreign state; callers validate its schema first.

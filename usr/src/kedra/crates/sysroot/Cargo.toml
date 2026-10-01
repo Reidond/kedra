@@ -36,6 +36,10 @@ path = "tests/e2e_system.rs"
 name = "e2e_context"
 path = "tests/e2e_context.rs"
 
+[[test]]
+name = "e2e_native"
+path = "tests/e2e_native.rs"
+
 [dependencies]
 sysroot-core.workspace = true
 clap.workspace = true

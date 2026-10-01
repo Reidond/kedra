@@ -55,6 +55,23 @@ enum Command {
     PrepareSync,
     /// Resolve and build the lab image, then print it.
     Image(ImageArgs),
+    /// Resolve a closed native artifact plan over an independently selected composition.
+    DerivePlan {
+        #[command(flatten)]
+        image: ImageArgs,
+        #[arg(long)]
+        native_plan: PathBuf,
+    },
+    /// Generate native OS artifacts offline in an isolated image build.
+    Derive {
+        #[command(flatten)]
+        image: ImageArgs,
+        #[arg(long)]
+        native_plan: PathBuf,
+        /// Independently selected identity printed by derive-plan.
+        #[arg(long)]
+        derivation_identity: String,
+    },
     /// Build only the verified static composition; optionally run one typed output.
     Replay {
         #[command(flatten)]
@@ -391,6 +408,36 @@ fn main() -> ExitCode {
     let outcome = Docker::connect().and_then(|docker| match cli.command {
         Command::Vm { .. } => unreachable!("dispatched without Docker"),
         Command::PrepareSync => unreachable!("dispatched without Docker"),
+        Command::DerivePlan { image, native_plan } => {
+            let plan = kedra_container_tests::native_derivation::plan(
+                &request(&docker, &image)?,
+                &native_plan,
+            )?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&plan)
+                    .map_err(|error| Error::Invalid(error.to_string()))?
+            );
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Derive {
+            image,
+            native_plan,
+            derivation_identity,
+        } => {
+            let receipt = kedra_container_tests::native_derivation::prepare(
+                &docker,
+                &request(&docker, &image)?,
+                &native_plan,
+                &derivation_identity,
+            )?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&receipt)
+                    .map_err(|error| Error::Invalid(error.to_string()))?
+            );
+            Ok(ExitCode::SUCCESS)
+        }
         Command::Replay {
             image,
             output,

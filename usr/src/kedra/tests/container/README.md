@@ -78,6 +78,22 @@ disabled. Verification consumes a private snapshot and checks foundation/load/ta
 payload semantics and cache image provenance. Interrupted owned cache publication
 resumes on retry; unknown/foreign state refuses.
 
+For closed native generation, use `kedra-lab derive-plan --image composition:…
+--composition-identity <parent> --native-plan /private/plan.json`, then `derive`
+with the independently retained `--derivation-identity <identity>`. The fixed
+offline recipe generates GLib schemas, declared systemd links, initial account
+skeletons and QEMU initramfs contents; it accepts no arbitrary script/command.
+It verifies unchanged RPM material, actual artifacts and exact parent image
+layers. See [native declarations and limits](../../docs/NATIVE.md).
+
+The installed native case uses `KEDRA_LAB_IMAGE=composition:…`,
+`KEDRA_LAB_COMPOSITION_IDENTITY`, `KEDRA_LAB_NATIVE_PLAN` and
+`KEDRA_LAB_DERIVATION_IDENTITY`, with filter `native_artifacts`. Both native
+variables are required together; ordinary and static-composition cases remain
+separate selections. It runs directly on the derived System-profile image without
+a lab-tools adaptation. TLS Docker endpoints use the already locked ring provider;
+retained archive import allows600s while ordinary requests keep120s.
+
 The composition-only `native::composition_unit` System-profile case consumes the
 static image and validates/starts a generated unit. Ordinary scenario discovery
 omits it. Lab desktop adaptation still runs its normal networked tools layer, and

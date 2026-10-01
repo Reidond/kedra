@@ -531,6 +531,7 @@ impl Docker {
     /// Load every byte of a retained archive without collecting it in memory.
     pub fn load_archive(&self, path: &std::path::Path, expected_bytes: u64) -> Result<()> {
         use std::io::Read;
+        let archive_api = self.api.clone().with_timeout(Duration::from_secs(600));
         let file = std::fs::File::open(path)?;
         if expected_bytes > 8 * 1024 * 1024 * 1024 || file.metadata()?.len() != expected_bytes {
             return Err(invalid("foundation archive size changed or exceeds 8 GiB"));
@@ -548,7 +549,7 @@ impl Docker {
             },
         );
         self.runtime.block_on(crate::cancel::interrupt(async {
-            let stream = self.api.import_image_stream(
+            let stream = archive_api.import_image_stream(
                 bollard::query_parameters::ImportImageOptions {
                     quiet: true,
                     ..Default::default()
@@ -596,8 +597,16 @@ impl Docker {
 
     /// Publish one replay tag only when absent or already bound to the exact image.
     pub fn publish_composition(&self, id: &str, tag: &str) -> Result<()> {
+        self.publish_derived(id, tag, "kedra-composition")
+    }
+
+    pub(crate) fn publish_native(&self, id: &str, tag: &str) -> Result<()> {
+        self.publish_derived(id, tag, "kedra-native")
+    }
+
+    fn publish_derived(&self, id: &str, tag: &str, repository: &str) -> Result<()> {
         let hex = tag
-            .strip_prefix("kedra-composition:")
+            .strip_prefix(&format!("{repository}:"))
             .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
             .ok_or_else(|| invalid("invalid composition tag"))?;
         if let Some((actual, _)) = self.image(tag)? {
@@ -610,7 +619,7 @@ impl Docker {
             self.runtime.block_on(self.api.tag_image(
                 id,
                 Some(bollard::query_parameters::TagImageOptions {
-                    repo: Some("kedra-composition".into()),
+                    repo: Some(repository.into()),
                     tag: Some(hex.into()),
                 }),
             ))?;
@@ -623,7 +632,15 @@ impl Docker {
 
     /// Remove only the exact temporary tag whose ownership was checked by replay.
     pub fn remove_composition_pending(&self, tag: &str, id: &str, nonce: &str) -> Result<()> {
-        if tag != format!("kedra-composition-pending:{nonce}") {
+        self.remove_derived_pending(tag, id, nonce, "composition")
+    }
+
+    pub(crate) fn remove_native_pending(&self, tag: &str, id: &str, nonce: &str) -> Result<()> {
+        self.remove_derived_pending(tag, id, nonce, "native")
+    }
+
+    fn remove_derived_pending(&self, tag: &str, id: &str, nonce: &str, kind: &str) -> Result<()> {
+        if tag != format!("kedra-{kind}-pending:{nonce}") {
             return Err(invalid("invalid temporary composition tag"));
         }
         let Some((actual, _)) = self.image(tag)? else {
@@ -636,9 +653,9 @@ impl Docker {
             .unwrap_or_default();
         if actual != id
             || labels.get(OWNER_LABEL).map(String::as_str) != Some(OWNER)
-            || labels.get(KIND_LABEL).map(String::as_str) != Some("composition")
+            || labels.get(KIND_LABEL).map(String::as_str) != Some(kind)
             || labels
-                .get("dev.kedra.composition.transaction")
+                .get(&format!("dev.kedra.{kind}.transaction"))
                 .map(String::as_str)
                 != Some(nonce)
         {
@@ -660,6 +677,15 @@ impl Docker {
 
     /// Direct isolated process on this exact API endpoint; no pull or entrypoint inheritance.
     pub fn isolated(&self, image: &str, argv: Vec<String>) -> Result<Output> {
+        self.isolated_process(image, argv, false)
+    }
+
+    /// Native inspectors get bounded guest scratch, never a host path or retained volume.
+    pub(crate) fn isolated_native(&self, image: &str, argv: Vec<String>) -> Result<Output> {
+        self.isolated_process(image, argv, true)
+    }
+
+    fn isolated_process(&self, image: &str, argv: Vec<String>, scratch: bool) -> Result<Output> {
         if argv.is_empty() {
             return Err(invalid("empty replay command"));
         }
@@ -676,6 +702,12 @@ impl Docker {
             host_config: Some(bollard::models::HostConfig {
                 network_mode: Some("none".into()),
                 readonly_rootfs: Some(true),
+                tmpfs: scratch.then(|| {
+                    HashMap::from([(
+                        "/tmp".into(),
+                        "rw,nosuid,nodev,noexec,size=64m,mode=1777".into(),
+                    )])
+                }),
                 cap_drop: Some(vec!["ALL".into()]),
                 security_opt: Some(vec!["no-new-privileges".into()]),
                 ..Default::default()

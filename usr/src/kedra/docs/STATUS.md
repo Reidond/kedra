@@ -6,13 +6,18 @@ The owner requested research into a sharable Rust Nix-style build system and
 declarative OS configuration, targeting Kedra. Kedranix is reference only and a
 future consumer after rewriting. Sources, citations and the completed research
 proposal are retained in [the research workspace](../../../../.specs/nix-recreation/README.md).
-Status: research complete, first independent Rust engine published as a draft,
-and typed static system composition locally implemented and tested.
+Status: research complete; engine, static composition and replay are published
+as dependent drafts. Closed native generation and installed container workflows
+are locally implemented and tested; fresh-daemon/fault qualification is active.
 The [engine guide](ENGINE.md) describes package planning/builds, immutable store,
 runtime closure transfer, profiles/develop and collection/recovery. The
 [system adapter](SYSTEM.md) exports typed config/runtime contexts over a retained
-Fedora44 ARM foundation. Derived OS transformations, Nix frontend/nixpkgs and OS backend replacement are
-subsequent phases. Existing Fedora bootc release and home contracts remain in force.
+Fedora44 ARM foundation. The [native stage](NATIVE.md) generates settings caches,
+unit links, initial account defaults and generic QEMU initramfs content.
+[Package declarations/delivery](PACKAGES.md) explains retained Fedora RPM lists
+and ordinary engine store artifacts. Nix frontend/nixpkgs and production backend
+integration remain subsequent phases. Existing Fedora bootc release and home
+contracts remain in force.
 
 The [proposal](../../../../.specs/nix-recreation/proposal.md) recommends an
 independent core, first aarch64/one-output build-and-transfer workflow, then
@@ -31,7 +36,7 @@ All observed engine checks pass, including both architecture workspace/container
 ARM boot, desktop, native, native-home and signed-VM workflows. The dependent
 `codex/nix-system-composition` is draft [PR29](https://github.com/Reidond/kedra/pull/29),
 implementation `bace56e`, with [concrete requirements](../../../../.specs/nix-system-composition/requirements.md).
-Both PRs are in native GitHub stack30 submitted through gh-stack; upper CI is pending.
+Both PRs are in native GitHub stack30 submitted through gh-stack; observed checks pass.
 Its final native Fedora composition workflow passes 2/2, including compiled Rust
 authoring, actual package/RPM observations, deterministic contexts, typed
 references, foundation passthrough and refusal/preservation cases. Workspace
@@ -48,12 +53,36 @@ interruption/retry passes. Current source3350732 now composes20 files/1435 RPM r
 and builds a complete static image. The adapter asserts assembly's existing0755
 session-wrapper mode while preserving raw source provenance. New branch
 `codex/nix-context-replay` is draft [PR31](https://github.com/Reidond/kedra/pull/31),
-implementation09473e1, above PR29 in gh-stack30. New-source CI is pending.
-Cold independent daemon, later cache-publication interruption windows, derived
-OS artifacts, boot/SELinux/install/update and signed integration remain not-run.
+implementation09473e1, above PR29 in gh-stack30. Both architecture workspace
+checks pass on exact head1c85ca4 in
+[run36869495760](https://github.com/Reidond/kedra/actions/runs/36869495760).
 
-Power-loss/ENOSPC windows, the complete adverse matrices, cold independent daemon,
-x86_64, further frontends/caches and new OS composition/boot qualification remain
+Continuation `codex/nix-native-artifacts` is the fourth local layer above exact
+PR31 head. Closed GLib/systemd/initial-skeleton/QEMU-initramfs derivations and
+fixed offline harness recipe bind actual artifacts, unchanged RPM material and
+exact parent filesystem layers. Final public native CLI passes1/1 in570.08s;
+installed harness passes1/1 in8.56s (report1790873248-91553). Fresh user defaults,
+explicit dconf preferences, unit start/mask/default, initial account/existing-home
+preservation and initramfs content are executed evidence. The first module-name
+and missing dbus-run-session fixture failures are preserved with their corrections
+in [native qualification](../../../../.specs/nix-native-artifacts/verification.md).
+Cold TLS attempts1/2 hit import timeout/disk budget and cleaned owned resources;
+serialized attempt3 passes194.55s on a new empty Docker29.8.1 daemon with exact
+ELF/library/config stdout and private binding. Final local workspace/compiler/
+legacy release CLI gates pass. Cache repeat and four actual static publication
+SIGKILL/retry windows pass: pre-ID rebuild, then exact-ID resume after journal,
+binding and final tag publication. A workspace build replaced the shared release
+path with a different dependency-feature variant; per-fault hashes were absent
+and remain a disclosed provenance limit. Corrective pinned final-executable cold
+replay140.43s / cache40.08s pass on another new empty daemon with identical
+before/after hashes. All four attempts' exact owned resources/credentials are
+removed; outer daemon/default are preserved. Final native cached readback64.14s
+passes with that same pinned executable, exact image/identity and actual material.
+Draft publication and new-source CI are pending. Native-cache publication faults,
+boot/SELinux/install/update and signed integration remain unqualified.
+
+Power-loss/ENOSPC windows, the complete adverse matrices, native x86_64,
+further frontends/caches and new OS composition/boot qualification remain
 not-run. No image publication or deployment was performed. Research
 archive provenance and its dated proposal review remain preserved.
 

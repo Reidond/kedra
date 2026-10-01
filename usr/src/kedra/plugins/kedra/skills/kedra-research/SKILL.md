@@ -14,6 +14,16 @@ Choose the layer by what the behavior needs:
 - **Containers.** usr/src/kedra/tests/container, run through `cargo test -p kedra-container-tests --test container`, for installed-system behavior without a kernel boot: files, units, the real session, portals, keyring, home review, apps and screenshots. Add YAML scenarios for linear checks, native tests (native.rs) for control flow, and guest probes (lab/probes) for in-guest logic.
 - **VMs.** For Secure Boot, SELinux enforcement, VT/greetd password login and PAM, bootc switch/update/rollback, the installer, and Xwayland/Qt keyboard-driven dialogs.
 
+Exported system contexts use `kedra-lab replay --image composition:<dir>
+--composition-identity <independent-id>`. Static replay loads/builds/runs with no
+pulls/network before any separate networked lab-tools adaptation. The composition
+System-profile native unit case runs the static image directly. Keep the same
+private artifact/cache root for cache reuse: a tag without its independent binding
+is refused. Actual producer-removal ELF/library replay, large config, unit and
+pre-build journal interruption/retry pass (2026-10-01); later publication windows,
+cold independent daemon and boot/signature deployment remain separate gates.
+Evidence: `.specs/nix-context-replay/verification.md`. No new runner/root authority.
+
 Container adaptations and limits are listed in the harness README. Examples: no SELinux labels, a shared kernel (per-UID limits apply across containers), and bootc images hard-linked to their ostree objects. A passing container scenario never qualifies boot, firmware or hardware.
 
 Harness additions measured 2026-09-28 (M2 Pro, Docker 29.4.0): `--test-threads 2`

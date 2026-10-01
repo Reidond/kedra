@@ -35,7 +35,7 @@ pub const STATUS_JSON: &str = r#"{
       "os_activation_authorized": false
     },
     "system_composition": {
-      "implemented": true, "platform": "unix_controller", "operations": ["plan", "compose"],
+      "implemented": true, "platform": "unix_controller", "operations": ["plan", "compose", "verify"],
       "execution_platform": "aarch64-linux", "target": "qemu-arm64",
       "requires": ["committed Kedra source", "private owner store", "retained Fedora 44 foundation", "matching package material"],
       "scope": "static context export", "os_activation_authorized": false

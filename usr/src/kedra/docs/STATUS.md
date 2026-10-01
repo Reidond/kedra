@@ -37,10 +37,20 @@ authoring, actual package/RPM observations, deterministic contexts, typed
 references, foundation passthrough and refusal/preservation cases. Workspace
 format/Clippy/E2E/release build and legacy release CLI checks pass; exact coverage
 is in [composition evidence](../../../../.specs/nix-system-composition/verification.md).
-Full current-Kedra composition is blocked by a retained candidate whose Docker
-export omits its configuration and 78 layers; exact-digest re-pull reports up to
-date but admission still refuses. No validation bypass or successful context is
-claimed. Context load/build/runtime replay and derived artifacts remain not-run.
+The historical candidate cache still exports incomplete data and is refused.
+Continuation restores reviewed signed production9d6eb030 under the installed
+signature policy, verifies all78 layers/config/root, and loads a complete native
+archive. [Replay evidence](../../../../.specs/nix-context-replay/verification.md)
+records public context verification, compiled ELF/runtime-library execution after
+producer removal,1MiB config round trip and semantic/cache refusals (2/2 pass).
+Generated-unit systemd container case passes1/1; actual pre-build journal
+interruption/retry passes. Current source3350732 now composes20 files/1435 RPM rows
+and builds a complete static image. The adapter asserts assembly's existing0755
+session-wrapper mode while preserving raw source provenance. New branch
+`codex/nix-context-replay` is draft [PR31](https://github.com/Reidond/kedra/pull/31),
+implementation09473e1, above PR29 in gh-stack30. New-source CI is pending.
+Cold independent daemon, later cache-publication interruption windows, derived
+OS artifacts, boot/SELinux/install/update and signed integration remain not-run.
 
 Power-loss/ENOSPC windows, the complete adverse matrices, cold independent daemon,
 x86_64, further frontends/caches and new OS composition/boot qualification remain

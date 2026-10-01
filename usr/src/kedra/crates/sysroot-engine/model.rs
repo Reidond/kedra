@@ -76,8 +76,10 @@ pub struct ResolvedBuildSpec {
     pub policy: String,
     pub builder_image: String,
     pub runtime_image: String,
+    #[serde(deserialize_with = "unique_map")]
     pub inputs: BTreeMap<String, String>,
     pub argv: Vec<Argument>,
+    #[serde(deserialize_with = "unique_map")]
     pub env: BTreeMap<String, Argument>,
     pub runtime_inputs: Vec<String>,
     pub timeout_seconds: u64,

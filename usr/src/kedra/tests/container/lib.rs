@@ -10,6 +10,7 @@ pub mod actions;
 pub mod builder;
 pub mod cancel;
 pub mod capture;
+pub mod composition;
 pub mod docker;
 pub mod environment;
 pub mod image;

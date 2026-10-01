@@ -4,6 +4,16 @@
 
 ## 2026-10-01
 
+### SKILL-MODIFIED: Actual context replay and foundation retention
+- **What:** recorded strict signed foundation retention, opaque snapshot verification,
+  shared manifest bounds, native mode assertion and sanctioned static replay/unit/
+  interrupted cache workflows in Rust/research skills; manifests are0.3.11.
+- **Why:** distinguish complete OCI data and executable replay from metadata,
+  archive inspection, lab adaptation and installed signing authority.
+- **Evidence:** `.specs/nix-context-replay/verification.md`, actual container report
+ 1790860636-24677 and existing image assembly rule.
+- **Affected workflows:** repository-local context consumer development/qualification.
+
 ### SKILL-MODIFIED: Typed system composition and qualification boundaries
 - **What:** recorded frozen source materialization, observed RPM/foundation policy,
   explicit foundation passthrough, safe context publication and derived-artifact

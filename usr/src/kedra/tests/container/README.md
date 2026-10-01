@@ -67,6 +67,22 @@ Every stage resolves to an immutable base and is recorded in the report.
 | `builds:<tag>` | an Actions candidate in `ghcr.io/reidond/kedra-<target>-builds` |
 | `ref:<reference>` | any local or pullable image, for example a CI candidate |
 | `build` / `build:<revision>` | a full local build of the working tree or one commit (below) |
+| `composition:/absolute/context` | verified static context, with a separately retained expected identity |
+
+For composition, provide `--composition-identity <identity>` or
+`KEDRA_LAB_COMPOSITION_IDENTITY`. Overlay defaults to `none`; worktree overlays,
+binary overrides and VM replay refuse. `kedra-lab replay --image composition:…`
+builds the static image without pulls/network; add `--output <typed-alias>
+--program <relative-path> -- <args>` to execute the copied closure with networking
+disabled. Verification consumes a private snapshot and checks foundation/load/tag,
+payload semantics and cache image provenance. Interrupted owned cache publication
+resumes on retry; unknown/foreign state refuses.
+
+The composition-only `native::composition_unit` System-profile case consumes the
+static image and validates/starts a generated unit. Ordinary scenario discovery
+omits it. Lab desktop adaptation still runs its normal networked tools layer, and
+is separate from the offline static replay. See [system composition](../../docs/SYSTEM.md)
+and [actual replay evidence](../../../../../.specs/nix-context-replay/verification.md).
 
 For an already cached `ref:` image, BuildKit receives a harness-owned
 `kedra-lab-base:<image-id>` tag because a bare local `sha256:...` in FROM is parsed

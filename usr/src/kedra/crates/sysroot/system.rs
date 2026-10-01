@@ -5,7 +5,8 @@ use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
 use sysroot_engine::{
-    Error, PLATFORM, Result, Store, SystemContent, SystemDefinition, SystemFile, read_system,
+    Error, PLATFORM, Result, Store, SystemContent, SystemDefinition, SystemFile,
+    VerifiedComposition, read_system,
 };
 
 use crate::source;
@@ -21,6 +22,16 @@ pub struct Options {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Verify exported context bytes against an independently retained identity.
+    Verify {
+        #[arg(long)]
+        context: PathBuf,
+        #[arg(long)]
+        expected_identity: String,
+        /// Owned private directory for bounded temporary verification snapshots.
+        #[arg(long)]
+        workdir: PathBuf,
+    },
     /// Resolve committed configuration and observe exact retained Fedora packages.
     Plan(Inputs),
     /// Export a new deterministic context without installing or running RPM transactions.
@@ -128,6 +139,17 @@ fn definition(inputs: &Inputs) -> Result<SystemDefinition> {
         .collect();
     source::materialize(&inputs.repo, &source, |path, bytes, mode| {
         let owner = ownership.get(path).copied().unwrap_or("generated-manifest");
+        // Assembly's fixed wrapper mode is an assertion on the retained foundation.
+        // Its raw Git mode remains unchanged in source.json.
+        let mode = if path == "usr/libexec/kedra-session" {
+            definition.provenance.insert(
+                "kedra.session_mode".into(),
+                "0755 (image/assemble.sh)".into(),
+            );
+            0o755
+        } else {
+            mode
+        };
         definition.files.push(SystemFile {
             path: format!("/{path}"),
             mode,
@@ -151,6 +173,20 @@ fn json(value: &impl serde::Serialize) -> Result<()> {
 
 pub fn run(options: Options) -> Result<()> {
     match options.command {
+        Command::Verify {
+            context,
+            expected_identity,
+            workdir,
+        } => {
+            let verified = VerifiedComposition::open(&context, &expected_identity, &workdir)?;
+            json(&serde_json::json!({
+                "schema": 1,
+                "identity": verified.composition().identity,
+                "foundation": verified.composition().plan.foundation.receipt.image,
+                "objects": verified.composition().plan.objects.len(),
+                "scope": "static context bytes"
+            }))
+        }
         Command::Plan(inputs) => {
             let definition = definition(&inputs)?;
             json(&Store::open(&inputs.store)?.plan_system(&definition)?)

@@ -7,7 +7,10 @@
 - [x] Compiled program/runtime dependency and generated-unit consumer workflows.
 - [x] Actual tamper/identity/link/cache refusal and producer-removal evidence.
 - [x] Standard workspace and legacy release gates; installed unit container case.
-- [ ] Update actual docs/status/worklog; submit/attach/read back next draft stack PR.
+- [x] Update actual docs/status/worklog; submit/attach/read back next draft stack PR.
+
+Published draft [PR31](https://github.com/Reidond/kedra/pull/31) above PR29 through
+gh-stack30. Implementation source09473e1; new-source CI pending.
 
 Cold independent daemon and boot/SELinux/install qualification are separate
 gates unless actually executed; archive loading into a cached daemon is not cold.

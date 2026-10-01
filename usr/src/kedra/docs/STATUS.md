@@ -47,7 +47,8 @@ Generated-unit systemd container case passes1/1; actual pre-build journal
 interruption/retry passes. Current source3350732 now composes20 files/1435 RPM rows
 and builds a complete static image. The adapter asserts assembly's existing0755
 session-wrapper mode while preserving raw source provenance. New branch
-`codex/nix-context-replay` is active above PR29; publication/CI is pending.
+`codex/nix-context-replay` is draft [PR31](https://github.com/Reidond/kedra/pull/31),
+implementation09473e1, above PR29 in gh-stack30. New-source CI is pending.
 Cold independent daemon, later cache-publication interruption windows, derived
 OS artifacts, boot/SELinux/install/update and signed integration remain not-run.
 

@@ -13,7 +13,7 @@ Initial dirty-tree probes both pass; no rebase is planned. Parent owns Git/index
 | D4 | codex/nix-second-consumer | Generated independently compiled consumer, custom definitions/policy and isolated lifecycle | BACKEND R | codex/nix-package-catalog | Consumes D3's public generic catalog policy/recipe API, not Kedra release constants. |
 | D5 | codex/nix-cache-recovery | Authenticated substitution, leased temporary cleanup and real native/ENOSPC recovery | BACKEND R | codex/nix-second-consumer | Applies cache authorization to D3/D4 consumers and repairs temporary artifacts used by D1/D2. |
 
-Each row has its own draft PR. Code documentation, specs, status/worklog and
+Each row will be published as its own draft PR. Code documentation, specs, status/worklog and
 necessary local skill updates ride the owning code layer under the repository's
 required continuation contract. No sixth journal-only base layer. No history
 rewrites/lower-layer changes merely to aggregate fixes on top.

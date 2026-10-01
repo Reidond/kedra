@@ -91,10 +91,15 @@ The first layer is local `codex/nix-derived-boot`; no new draft is published yet
 Its exact image source6c38ab05 composes successfully and generates twelve native
 artifacts/kernel7.2.7. The disposable signed disk recipee19113d preserves target
 production trust and uses a separate generated-key buildroot. Bounded signature
-probes pass; full signed BIB/cold-warm VM qualification is running after retained
-context/tool-dependency failures. Earlier systemd Alias-only enable/disable
-regressions pass. Compiler/ordinary CLI/legacy release gates pass. D3/D4/D5
-preparations remain inactive and uncompiled; D2 shadow integration is active.
+probes and actual signed BIB/install/disk pass806.088s after retained context/
+tool-dependency failures. Cold30.119s and warm22.113s pass exact host-bound
+deployment/kernel/initrd/native/trust checks, Secure Boot/lockdown, enforcing
+SELinux and real Metal desktop/settings/input. AVC notices/denials are retained.
+Corrected public native diagnostics passes2.032s on script1f32337; no guest root
+authority is added. Earlier systemd Alias-only enable/disable regressions pass.
+Compiler/ordinary CLI/legacy release gates pass. D2–D5 preparations remain
+inactive and uncompiled; source review passed with D2 cleanup fixes pending its
+actual runtime gates. The new named VM is retained; default resources are exact.
 Exact attempts, failures and provenance distinctions are retained in
 [derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
 

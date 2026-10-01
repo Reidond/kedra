@@ -39,6 +39,14 @@ Static schema1 writes are unchanged: inherited dracut config is consumed, while
 changed dracut input needs a separate versioned boundary. Do not broaden `/usr/lib`
 overlays. Refuse unsupported managed skeleton deletions; never apply to live home.
 
+Systemd Alias-only enable/disable is qualified (2026-10-02): greetd's sole
+display-manager.service link is legitimate evidence only when a valid top-level
+same-type alias targets the exact selected concrete unit. Nested dependency
+links retain matching-name restrictions; removals require selected disable
+targets, and default.target is not enable evidence. Collector and core admission
+must agree. Actual enable/disable and graphical boot pass; source:
+`.specs/nix-derived-boot/verification.md`, native.rs/native_derivation.rs.
+
 Docker inspect/native execution is not complete OCI retention evidence. Observed
 Docker29.4 cached Kedra candidate91e27148 exports exit0 with only a25,088-byte
 manifest archive: config/all78 layers are missing. Exact-digest re-pull reports

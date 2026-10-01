@@ -159,3 +159,19 @@ the fixture sudo boundary. Optional vm logs fails on unprivileged bootc status;
 the follow-up uses the fixed root-owned current-boot report without root access,
 with its own script revision and public workflow verification pending.
 Production signing/update/install and other hardware remain separate gates.
+
+Corrected public vm logs passes2.032s on diagnostic script1f32337, preserving
+the separately pinned image/disk/controller revisions. Captured bootc JSON
+exactly matches the current warm observer; user journal, serial and2560×1600
+display inventory are readable. No root privilege is added. Earlier permission
+failure stays preserved; `attempt3/logs-host-verification.json` records the
+public workflow, full before/after hashes and unchanged default resources.
+
+DB-T2 passes actual declared-artifact corruption: a privately labelled offline
+child flips one initramfs byte while retaining size/mode/receipt/provenance.
+Controller-owned observer refuses the immutable child for native byte mismatch;
+the original fixture passes before/after against its independent receipt.
+Exact owned child/tag/alias/containers are removed; controller/default/VM state
+hashes stay exact. Evidence:
+`attempt3/artifact-tamper-059885477dda5668e44a9e88/summary.json`.
+All six local case groups pass; new-source draft/CI readback is next.

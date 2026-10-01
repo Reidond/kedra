@@ -1,11 +1,17 @@
-# Build only in Actions using a generated, reviewed context; no whole-repo COPY.
+# Published images build in Actions; authorized local fixtures stay unsigned.
+# Use a generated, reviewed context; no whole-repo COPY.
 # Target payload (desktop or qemu-arm64); public trust and signed update identity are added by release builds.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
+ARG KEDRA_ASSEMBLY_MODE=complete
 COPY sysroot /usr/bin/sysroot
 COPY sysroot-helper /usr/libexec/sysroot/helper
 ADD payload.tar /
 ADD agents.tar /
 ADD bitwarden.tar /
 COPY assemble.sh /tmp/kedra-assemble.sh
-RUN /bin/bash /tmp/kedra-assemble.sh && rm /tmp/kedra-assemble.sh
+RUN case "$KEDRA_ASSEMBLY_MODE" in \
+      complete) /bin/bash /tmp/kedra-assemble.sh ;; \
+      foundation) /bin/bash /tmp/kedra-assemble.sh --foundation ;; \
+      *) echo "Unsupported Kedra assembly mode" >&2; exit 1 ;; \
+    esac && rm /tmp/kedra-assemble.sh

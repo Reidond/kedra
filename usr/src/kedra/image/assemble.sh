@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
 # Image-build entrypoint, not a host package installer.
 set -euo pipefail
+case "$#:${1:-}" in
+    0:) mode=complete ;;
+    1:--resolve-packages) mode=resolve-packages ;;
+    1:--foundation) mode=foundation ;;
+    *) echo 'Unsupported Kedra assembly arguments' >&2; exit 1 ;;
+esac
 # Podman marks its build containers; a BuildKit build (the local lab build in
 # usr/src/kedra/tests/container) runs the Containerfile RUN line as PID 1.
 test -f /run/.containerenv || grep -qF /tmp/kedra-assemble.sh /proc/1/cmdline
 manifest=/usr/share/sysroot/source.json
 target=$(jq -r '.target.id' "$manifest")
+if test "$mode" = foundation && test "$target" != qemu-arm64; then
+    echo 'Native composition foundations support only qemu-arm64' >&2
+    exit 1
+fi
 # Build natively: the target's architecture must be this build's machine, and
 # only the closed (target, architecture) pairs are accepted.
 architecture=$(uname -m)
@@ -25,12 +35,12 @@ dnf -y --best --refresh "${repos[@]}" install "${packages[@]}"
 if test "${#remove[@]}" -gt 0; then dnf -y "${repos[@]}" remove "${remove[@]}"; fi
 dnf clean all
 dnf check
-if test "${1:-}" = --resolve-packages; then
+if test "$mode" = resolve-packages; then
     rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
         | LC_ALL=C sort > /resolution/package-material.txt
     exit 0
 fi
-if test "$target" = qemu-arm64; then
+if test "$target" = qemu-arm64 && test "$mode" = complete; then
     shopt -s nullglob
     module_dirs=(/usr/lib/modules/*)
     test "${#module_dirs[@]}" -gt 0
@@ -91,7 +101,9 @@ awk '
 cat "$bridge_updated" > "$bridge_autostart"
 rm "$bridge_updated"
 # Compile image-owned defaults after RPM installation; never write user dconf.
-glib-compile-schemas --strict /usr/share/glib-2.0/schemas
+if test "$mode" = complete; then
+    glib-compile-schemas --strict /usr/share/glib-2.0/schemas
+fi
 # Recomputable build-time caches/logs are not installed machine state.
 rm -rf /var/lib/dnf /var/cache/swcatalog /var/cache/ldconfig
 rm -f /var/log/dnf5.log /var/log/dnf5.log.1
@@ -105,12 +117,14 @@ if printf '%s\n' "$runtime_dependencies" | grep 'not found'; then
     exit 1
 fi
 getent passwd greetd
-systemctl enable greetd.service NetworkManager.service bluetooth.service
-systemctl set-default graphical.target
-systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service
-# Normal initial-account seeding only; no existing live home is updated here.
-mkdir -p /etc/skel
-cp -a /usr/share/sysroot/home/default/. /etc/skel/
+if test "$mode" = complete; then
+    systemctl enable greetd.service NetworkManager.service bluetooth.service
+    systemctl set-default graphical.target
+    systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service
+    # Initial-account seeding only; no existing live home is updated here.
+    mkdir -p /etc/skel
+    cp -a /usr/share/sysroot/home/default/. /etc/skel/
+fi
 niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl
 NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \
     NOCTALIA_STATE_HOME=/tmp/kedra-noctalia-validation noctalia config validate
@@ -121,4 +135,6 @@ rpm -qa | sort > /usr/share/sysroot/packages.txt
 rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
     | LC_ALL=C sort > /usr/share/sysroot/package-material.txt
 sysroot status --json
-bootc container lint
+if test "$mode" = complete; then
+    bootc container lint
+fi

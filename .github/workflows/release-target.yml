@@ -80,7 +80,8 @@ jobs:
             echo "The $KEDRA_TARGET public signing authority is not provisioned"; exit 1
           fi
           context="output/$KEDRA_TARGET-context"
-          mkdir -p output/image-evidence "$context" output/release-context
+          mkdir -p output/image-evidence "$context" output/release-context output/release-binaries
+          cp target/release/sysroot target/release/sysroot-helper target/release/kedra-lab output/release-binaries/
           target/release/sysroot source plan --host "$KEDRA_TARGET" --json > output/image-evidence/source-plan.json
           target/release/sysroot source archive --host "$KEDRA_TARGET" --output "$context/payload.tar"
           cp target/release/sysroot target/release/sysroot-helper usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh "$context/"
@@ -105,11 +106,38 @@ jobs:
           BASE_IMAGE: ${{ steps.preflight.outputs.base }}
         run: |
           set -euo pipefail
-          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$BASE_IMAGE" \
-            --tag "localhost/kedra-$KEDRA_TARGET:release-base" "output/$KEDRA_TARGET-context" \
-            2>&1 | tee "output/image-evidence/$KEDRA_TARGET-build.log"
+          candidate="localhost/kedra-$KEDRA_TARGET:release-base"
+          if test "$KEDRA_TARGET" = qemu-arm64; then
+            input_hash=$(sha256sum output/image-evidence/resolved-inputs.json | cut -d ' ' -f 1)
+            uv run usr/src/kedra/image/release/compose.py foundation \
+              --target qemu-arm64 --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \
+              --inputs output/image-evidence/resolved-inputs.json --expected-inputs-sha256 "$input_hash" \
+              --context "output/$KEDRA_TARGET-context" --store "$RUNNER_TEMP/kedra-release-store" \
+              --binaries output/release-binaries --output-dir "$RUNNER_TEMP/kedra-release-foundation" \
+              > output/image-evidence/foundation.json
+            foundation_hash=$(sha256sum "$RUNNER_TEMP/kedra-release-foundation/foundation.json" | cut -d ' ' -f 1)
+            uv run usr/src/kedra/image/release/compose.py compose \
+              --target qemu-arm64 --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \
+              --inputs output/image-evidence/resolved-inputs.json --expected-inputs-sha256 "$input_hash" \
+              --foundation-receipt "$RUNNER_TEMP/kedra-release-foundation/foundation.json" \
+              --expected-foundation-receipt-sha256 "$foundation_hash" --store "$RUNNER_TEMP/kedra-release-store" \
+              --binaries output/release-binaries --output-dir "$RUNNER_TEMP/kedra-release-native" \
+              > output/image-evidence/native-candidate.json
+            candidate=$(jq -er .transfer.reference output/image-evidence/native-candidate.json)
+            expected=$(jq -er .transfer.destination_manifest_digest output/image-evidence/native-candidate.json)
+            actual="sha256:$(sudo skopeo inspect --raw "containers-storage:$candidate" | sha256sum | cut -d ' ' -f 1)"
+            test "$actual" = "$expected"
+            expected_id=$(jq -er .transfer.image output/image-evidence/native-candidate.json)
+            test "$(sudo podman image inspect "$candidate" --format '{{.Id}}')" = "${expected_id#sha256:}"
+            cp "$RUNNER_TEMP/kedra-release-native/native-plan.json" output/image-evidence/
+            cp "$RUNNER_TEMP/kedra-release-native/native-material/native-receipt.json" output/image-evidence/
+          else
+            sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$BASE_IMAGE" \
+              --tag "$candidate" "output/$KEDRA_TARGET-context" \
+              2>&1 | tee "output/image-evidence/$KEDRA_TARGET-build.log"
+          fi
           identity=$(cat output/release-context/image-identity.json)
-          sudo podman build --pull=never --build-arg "CANDIDATE_IMAGE=localhost/kedra-$KEDRA_TARGET:release-base" \
+          sudo podman build --pull=never --network=none --build-arg "CANDIDATE_IMAGE=$candidate" \
             --build-arg "KEDRA_IDENTITY=$identity" --file usr/src/kedra/image/release/Containerfile \
             --tag "localhost/kedra-$KEDRA_TARGET:release-candidate" output/release-context \
             2>&1 | tee output/image-evidence/trust-build.log

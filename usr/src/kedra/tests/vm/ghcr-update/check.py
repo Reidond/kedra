@@ -1,7 +1,11 @@
 # Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Actual installed public-CLI flows across three disposable signed VM boots."""
+import hashlib
+import importlib.util
 import json
 import os
+import pwd
+import stat
 import subprocess
 import time
 import urllib.request
@@ -29,7 +33,45 @@ def check_secure_boot():
     kernel = subprocess.run(['journalctl', '-k', '-b', '--no-pager', '-o', 'cat'],
                             capture_output=True, text=True, timeout=120, check=True).stdout
     assert 'secureboot: Secure boot enabled' in kernel.splitlines()
+    assert subprocess.check_output(['/usr/sbin/getenforce'], text=True).strip() == 'Enforcing'
     print('KEDRA_SECUREBOOT_PASS', flush=True)
+
+
+def native_material(cases):
+    expected = cases.get('native_receipt_sha256')
+    if expected is None:
+        return
+    receipt_path = Path('/usr/share/sysroot/native-receipt.json')
+    assert hashlib.sha256(receipt_path.read_bytes()).hexdigest() == expected
+    receipt = json.loads(receipt_path.read_bytes())
+    assert receipt['schema'] == 1 and receipt['artifacts'] and receipt['kernels']
+    observer_path = Path('/usr/libexec/kedra-ghcr-native.py')
+    assert hashlib.sha256(observer_path.read_bytes()).hexdigest() == cases['native_observer_sha256']
+    specification = importlib.util.spec_from_file_location('kedra_native_observer', observer_path)
+    observer = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(observer)
+    value = {'material': receipt}
+    observer.verify_material(value, installed=True)
+    selected = observer.boot_artifacts(value)
+    (state / 'native-material.json').write_text(json.dumps({
+        'schema_version': 1, 'receipt_sha256': expected, 'running_kernel': os.uname().release,
+        'artifacts_verified': len(receipt['artifacts']), 'boot_artifacts': selected,
+    }) + '\n')
+
+
+def home_data(expected=None, replacement=None):
+    owner = pwd.getpwnam('kedra-test')
+    home = Path(owner.pw_dir)
+    path = home / '.config/kedra-fixture/preference'
+    if expected is not None:
+        info = path.stat()
+        assert path.read_text() == expected and info.st_uid == owner.pw_uid
+        assert stat.S_IMODE(info.st_mode) == 0o600
+    if replacement is not None:
+        subprocess.run(['/usr/sbin/runuser', '-u', 'kedra-test', '--', '/usr/bin/python3', '-c',
+            ('from pathlib import Path; import os,sys; p=Path.home()/".config/kedra-fixture/preference"; '
+             'p.parent.mkdir(parents=True,exist_ok=True); p.write_text(sys.argv[1]); os.chmod(p,0o600)'),
+            replacement], check=True, timeout=30)
 
 
 def control(name):
@@ -104,6 +146,11 @@ def main():
     subprocess.run(['mount', '-o', 'ro', '/dev/disk/by-label/KEDRA_GHCR_CASES', str(mount)], check=True)
     cases = json.loads((mount / 'cases.json').read_bytes())
     subprocess.run(['umount', str(mount)], check=True)
+    native_material(cases)
+    if cases.get('require_fresh_installation'):
+        installed = json.loads((state / 'fresh-install.json').read_bytes())
+        assert installed == {'schema_version': 1, 'installer': 'anaconda',
+                             'target_serial': 'KEDRA_INSTALL_ONLY', 'sentinel_serial': 'KEDRA_KEEP_DATA'}
     for attempt in range(30):
         try:
             control('online')
@@ -117,6 +164,7 @@ def main():
     phase = phase_file.read_text() if phase_file.exists() else 'enroll-a'
     print('NATIVE PHASE', variant, phase, flush=True)
     if (variant, phase) == ('A', 'enroll-a'):
+        home_data(replacement='A preference before B\n')
         control('A')
         initial = cli('initial', 'status', '--json')
         assert not initial['enrolled'] and initial['host']['booted']['digest'] == cases['digests']['A']
@@ -191,6 +239,7 @@ def main():
         phase_file.write_text('boot-b')
         print('KEDRA_GHCR_A_PASS', flush=True)
     elif (variant, phase) == ('B', 'boot-b'):
+        home_data(expected='A preference before B\n', replacement='B preference survives rollback\n')
         booted = cli('booted-b', 'status', '--json')
         assert booted['host']['booted']['digest'] == cases['digests']['B']
         assert booted['journal']['operation']['phase'] == 'booted'
@@ -210,6 +259,7 @@ def main():
         phase_file.write_text('rollback-a')
         print('KEDRA_GHCR_B_PASS', flush=True)
     elif (variant, phase) == ('A', 'rollback-a'):
+        home_data(expected='B preference survives rollback\n')
         rolled = cli('rolled-a', 'status', '--json')
         assert rolled['host']['booted']['digest'] == cases['digests']['A']
         assert rolled['journal']['high_water']['digest'] == cases['digests']['B']

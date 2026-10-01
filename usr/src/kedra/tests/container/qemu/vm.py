@@ -641,8 +641,31 @@ def main():
                 if (directory / name).exists():
                     shutil.copy2(directory / name, output / name)
             for name, argv in [('user-journal.log', ['journalctl', '--user', '-b', '--no-pager']),
-                               ('outputs.json', ['niri', 'msg', '--json', 'outputs']), ('bootc.json', ['bootc', 'status', '--json'])]:
+                               ('outputs.json', ['niri', 'msg', '--json', 'outputs'])]:
                 (output / name).write_bytes(ssh(directory, state, argv))
+            # The fixed image-owned observer supplies native deployment facts;
+            # collecting diagnostics does not grant guest root authority.
+            observer = '''import json, os, stat
+from pathlib import Path
+try:
+    descriptor = os.open('/run/kedra-lab/native-boot.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+except FileNotFoundError:
+    os.execv('/usr/bin/bootc', ['bootc', 'status', '--json'])
+with os.fdopen(descriptor, 'rb') as stream:
+    info = os.fstat(stream.fileno())
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o022:
+        raise ValueError('native boot diagnostic report is unsafe')
+    data = stream.read(8 * 1024 * 1024 + 1)
+if len(data) > 8 * 1024 * 1024:
+    raise ValueError('native boot diagnostic report exceeds limit')
+value = json.loads(data)
+if value.get('passed') is not True or value.get('boot_id') != Path('/proc/sys/kernel/random/boot_id').read_text().strip():
+    raise ValueError('native boot diagnostic report is stale or failed')
+if not isinstance(value.get('bootc'), dict):
+    raise ValueError('native boot diagnostic status absent')
+print(json.dumps(value['bootc'], indent=2))
+'''
+            (output / 'bootc.json').write_bytes(ssh(directory, state, ['/usr/bin/python3', '-I', '-c', observer]))
             print(output)
 
 

@@ -130,3 +130,32 @@ installed. The temporary inspection container is removed automatically.
 All private keys were confined to builder tmpfs; failure cleanup removes the
 owned builder. No disk/VM result is claimed. Retry evidence remains
 `attempt3/vm-image-retry1.*` and the captured public builder logs.
+
+## Qualified signed disk and cold/warm boot
+
+Retry2 passes the full strict default-policy signature matrix in both actual
+source layouts, then BIB/install/converted-disk/host-receipt validation in806.088s.
+Image source remains6c38ab05, disk recipee19113d and pinned controllerf235c2c6;
+this is not a newer image-source claim. Producer normalization changes the
+manifest while preserving config/native material; both digests are recorded.
+Private keys are independently absent before BIB. Target production trust bytes
+stay exact; final signed manifestf56c2d27… and disk SHA26a24900… are retained in
+`attempt3/qualification-summary.json`. Minimum free34.219GiB exceeds the30GiB
+floor; the32GiB guard never fires. Owned builder/output volume cleanup passes.
+
+Cold30.119s/guest19.322s and warm22.113s/guest18.745s pass with distinct boot IDs.
+Host comparisons bind booted reference/digest, native tuple/receipt and production
+trust to image.json. Running kernel7.2.7, selected vmlinuz/generated initramfs,
+three loaded drivers, Secure Boot/lockdown and enforcing targeted SELinux pass.
+Actual niri VirGL/ANGLE Metal, all session doctor checks, settings screenshots
+and Meta+Return opening foot pass. Graceful cold stop passes4.039s. Final backing
+disk hash and default state/container/engine remain exact; default native PIDs
+retain their observed absent baseline. The new named VM remains running.
+
+AVC capture is complete but includes bootupd_t permissive-domain label notices
+and chcon MAC_ADMIN denials; no AVC-free claim. Public trust presence is not
+enrollment/production identity qualification. `sysroot update status` stops at
+the fixture sudo boundary. Optional vm logs fails on unprivileged bootc status;
+the follow-up uses the fixed root-owned current-boot report without root access,
+with its own script revision and public workflow verification pending.
+Production signing/update/install and other hardware remain separate gates.

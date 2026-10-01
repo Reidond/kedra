@@ -80,10 +80,23 @@ removed; outer daemon/default are preserved. Final native cached readback64.14s
 passes with that same pinned executable, exact image/identity and actual material.
 Implementation3a966f0 is [draft PR32](https://github.com/Reidond/kedra/pull/32),
 fourth in native gh-stack30 above exact PR31 head; remote/local ancestry match.
-New-source Actions are running, including
-[workspace36900391733](https://github.com/Reidond/kedra/actions/runs/36900391733).
+Both architecture workspace checks pass on exact PR32 head3ba7d1b in
+[workspace36900727082](https://github.com/Reidond/kedra/actions/runs/36900727082).
 Native-cache publication faults,
 boot/SELinux/install/update and signed integration remain unqualified.
+
+The owner has authorized five further dependent drafts with Astra subagents:
+[derived boot, release integration, catalog, reuse and cache/recovery](NIX-DELIVERY.md).
+The first layer is local `codex/nix-derived-boot`; no new draft is published yet.
+Its exact image source6c38ab05 composes successfully and generates twelve native
+artifacts/kernel7.2.7. The disposable signed disk recipee19113d preserves target
+production trust and uses a separate generated-key buildroot. Bounded signature
+probes pass; full signed BIB/cold-warm VM qualification is running after retained
+context/tool-dependency failures. Earlier systemd Alias-only enable/disable
+regressions pass. Compiler/ordinary CLI/legacy release gates pass. D3/D4/D5
+preparations remain inactive and uncompiled; D2 shadow integration is active.
+Exact attempts, failures and provenance distinctions are retained in
+[derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
 
 Power-loss/ENOSPC windows, the complete adverse matrices, native x86_64,
 further frontends/caches and new OS composition/boot qualification remain

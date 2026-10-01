@@ -18,6 +18,10 @@ Home files stay writable. Review selected [Noctalia settings](usr/src/kedra/docs
 
 Read [AGENTS.md](AGENTS.md), [architecture](usr/src/kedra/docs/ARCHITECTURE.md) and [worklog](worklog.md). Rust uses a pinned workspace, one lockfile and explicit flat entry paths.
 
+The [independent Rust engine](usr/src/kedra/docs/ENGINE.md) supplies ordinary-user
+build/store/runtime/profile workflows. Its first Docker backend targets native
+aarch64 Linux; OS composition and installed release trust remain separate.
+
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings

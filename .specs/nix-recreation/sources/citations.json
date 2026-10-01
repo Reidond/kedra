@@ -1,0 +1,807 @@
+{
+  "schema_version": 1,
+  "created_date": "2026-10-01",
+  "source_registry": "../source-manifest.md",
+  "sources": [
+    {
+      "source_id": "S-001",
+      "title": "Secure Nix Expression Updates",
+      "authors": [
+        "Finn Landweber"
+      ],
+      "year": 2024,
+      "venue": "Bachelor's thesis, Leipzig University of Applied Sciences (HTWK Leipzig)",
+      "date": "2024-07-23",
+      "canonical_url": "https://landweber.xyz/ba.pdf",
+      "owner": "O3",
+      "findings_path": "findings/O3-security.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified-local-original",
+        "canonical_url": "https://landweber.xyz/ba.pdf",
+        "pdf": "sources/papers/ba.pdf",
+        "text": "sources/text/ba.txt",
+        "identity_evidence": "PDF1: Finn Landweber, HTWK Leipzig, 23 July 2024",
+        "focused_body_coverage": "PDF16-32, chapters3-6; formal invariant, examples, diagrams and limits",
+        "limitation": "PDF authoritative; supplied text read. No claim of remote-byte equivalence or current exploit reproduction."
+      },
+      "archive": {
+        "id": "S-001",
+        "filename": "ba.pdf",
+        "pdf_path": "sources/papers/ba.pdf",
+        "text_path": "sources/text/ba.txt",
+        "sha256": "cc796116be70762ab73d620cc69730b8657830acdab4d297c729ac1ca9ebe3a7",
+        "bytes": 236899,
+        "pages": 37,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 103318,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-002",
+      "title": "Multi-Platform Software Package Management",
+      "authors": [
+        "Joachim Schiele"
+      ],
+      "year": 2011,
+      "venue": "Diploma thesis, Universität Tübingen",
+      "date": "2011-03-26",
+      "canonical_url": "https://github.com/qknight/Multi-PlatformSoftwarePackageManagement/raw/master/Multi-PlatformSoftwarePackageManagement.pdf",
+      "owner": "O4",
+      "findings_path": "findings/O4-evaluation.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://github.com/qknight/Multi-PlatformSoftwarePackageManagement/raw/master/Multi-PlatformSoftwarePackageManagement.pdf",
+        "method": "Preserved primary PDF and extracted text",
+        "coverage": "Focused, not exhaustive: sections 4.3-4.4, 5.17-5.18, chapter 6, chapter 7 introduction, chapter 8",
+        "local_pdf": "sources/papers/Multi-PlatformSoftwarePackageManagement.pdf"
+      },
+      "archive": {
+        "id": "S-002",
+        "filename": "Multi-PlatformSoftwarePackageManagement.pdf",
+        "pdf_path": "sources/papers/Multi-PlatformSoftwarePackageManagement.pdf",
+        "text_path": "sources/text/Multi-PlatformSoftwarePackageManagement.txt",
+        "sha256": "4d1aeb902d6f5bbcbd17b24643f50493e59fea898d0b6df15f6aa782b1f6ee79",
+        "bytes": 1486580,
+        "pages": 69,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 224956,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-003",
+      "title": "Automating System Tests Using Declarative Virtual Machines",
+      "authors": [
+        "Sander van der Burg",
+        "Eelco Dolstra"
+      ],
+      "year": 2010,
+      "venue": "ISSRE 2010",
+      "canonical_url": "https://nixos.org/~eelco/pubs/decvms-issre2010-final.pdf",
+      "owner": "O4",
+      "findings_path": "findings/O4-evaluation.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/decvms-issre2010-final.pdf",
+        "method": "Preserved primary PDF text, all 10 pages",
+        "coverage": "Full paper, including evaluation and limitations",
+        "local_pdf": "sources/papers/decvms-issre2010-final.pdf"
+      },
+      "archive": {
+        "id": "S-003",
+        "filename": "decvms-issre2010-final.pdf",
+        "pdf_path": "sources/papers/decvms-issre2010-final.pdf",
+        "text_path": "sources/text/decvms-issre2010-final.txt",
+        "sha256": "c7d4c6b349ac1097a367097d115d421093187c8db8f75d4367cf41b727b94cba",
+        "bytes": 212498,
+        "pages": 10,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 69777,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-004",
+      "title": "NixOS: A Purely Functional Linux Distribution",
+      "authors": [
+        "Eelco Dolstra",
+        "Andres Löh",
+        "Nicolas Pierron"
+      ],
+      "year": 2010,
+      "venue": "Journal of Functional Programming 20(5–6)",
+      "doi": "10.1017/S0956796810000195",
+      "doi_verification": "Exact DOI link associated with this title in retained official research index",
+      "canonical_url": "https://nixos.org/~eelco/pubs/nixos-jfp-final.pdf",
+      "owner": "O2",
+      "findings_path": "findings/O2-os.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/nixos-jfp-final.pdf",
+        "local_pdf": "sources/papers/nixos-jfp-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "33cca5dd38c08520691e658981c1226c3b55b8bb024a6c672edc93be266be57d",
+        "version": "Supplied 38-page manuscript, header 2 September 2010",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "archive": {
+        "id": "S-004",
+        "filename": "nixos-jfp-final.pdf",
+        "pdf_path": "sources/papers/nixos-jfp-final.pdf",
+        "text_path": "sources/text/nixos-jfp-final.txt",
+        "sha256": "33cca5dd38c08520691e658981c1226c3b55b8bb024a6c672edc93be266be57d",
+        "bytes": 422472,
+        "pages": 38,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 142272,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-005",
+      "title": "Software Deployment in a Dynamic Cloud: From Device to Service Orientation in a Hospital Environment",
+      "authors": [
+        "Sander van der Burg",
+        "Eelco Dolstra",
+        "Merijn de Jonge",
+        "Eelco Visser"
+      ],
+      "year": 2009,
+      "venue": "2009 ICSE Workshop on Software Engineering Challenges of Cloud Computing",
+      "doi": "10.1109/CLOUD.2009.5071534",
+      "doi_verification": "Exact DOI link associated with this title in retained official research index",
+      "canonical_url": "https://nixos.org/~eelco/pubs/icse-cloud09-final.pdf",
+      "owner": "O2",
+      "findings_path": "findings/O2-os.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/icse-cloud09-final.pdf",
+        "local_pdf": "sources/papers/icse-cloud09-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "8d678174ee3a0813eb48255283bf3aff79c18a1e3a7351a86f9c8f08b8eb3636",
+        "version": "Supplied 6-page paper",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "archive": {
+        "id": "S-005",
+        "filename": "icse-cloud09-final.pdf",
+        "pdf_path": "sources/papers/icse-cloud09-final.pdf",
+        "text_path": "sources/text/icse-cloud09-final.txt",
+        "sha256": "8d678174ee3a0813eb48255283bf3aff79c18a1e3a7351a86f9c8f08b8eb3636",
+        "bytes": 124997,
+        "pages": 6,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 38735,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-006",
+      "title": "Atomic Upgrading of Distributed Systems",
+      "authors": [
+        "Sander van der Burg",
+        "Eelco Dolstra",
+        "Merijn de Jonge"
+      ],
+      "year": 2008,
+      "venue": "1st International Workshop on Hot Topics in Software Upgrade (HotSWUp08), Nashville, Tennessee, USA",
+      "doi": "10.1145/1490283.1490294",
+      "doi_verification": "Archived official Nix research index links this DOI from the matching title entry.",
+      "canonical_url": "https://nixos.org/~eelco/pubs/atomic-hotswup2008-final.pdf",
+      "owner": "O3",
+      "findings_path": "findings/O3-security.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified-local-original",
+        "canonical_url": "https://nixos.org/~eelco/pubs/atomic-hotswup2008-final.pdf",
+        "pdf": "sources/papers/atomic-hotswup2008-final.pdf",
+        "text": "sources/text/atomic-hotswup2008-final.txt",
+        "identity_evidence": "PDF1 authors/title/HotSWUp08 imprint; DOI from archived official research index",
+        "focused_body_coverage": "PDF2-5, sections2-7",
+        "limitation": "No distributed experiment run; no fleet scope inferred."
+      },
+      "archive": {
+        "id": "S-006",
+        "filename": "atomic-hotswup2008-final.pdf",
+        "pdf_path": "sources/papers/atomic-hotswup2008-final.pdf",
+        "text_path": "sources/text/atomic-hotswup2008-final.txt",
+        "sha256": "ca2ce93d77cc3dab05242399dd7b3c1166cabffc144188fec7513eb5b84625f7",
+        "bytes": 155311,
+        "pages": 5,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 35404,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-007",
+      "title": "NixOS: A Purely Functional Linux Distribution",
+      "authors": [
+        "Eelco Dolstra",
+        "Andres Löh"
+      ],
+      "year": 2008,
+      "venue": "ICFP 2008: 13th ACM SIGPLAN International Conference on Functional Programming",
+      "doi": "10.1145/1411204.1411255",
+      "doi_verification": "Exact DOI link associated with this title in retained official research index",
+      "canonical_url": "https://nixos.org/~eelco/pubs/nixos-icfp2008-final.pdf",
+      "owner": "O2",
+      "findings_path": "findings/O2-os.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/nixos-icfp2008-final.pdf",
+        "local_pdf": "sources/papers/nixos-icfp2008-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "5714366dcb5f7812d77c598ac1da52cc4dd548d2818bf4267cf62f5a970279de",
+        "version": "Distinct supplied 12-page conference paper",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "archive": {
+        "id": "S-007",
+        "filename": "nixos-icfp2008-final.pdf",
+        "pdf_path": "sources/papers/nixos-icfp2008-final.pdf",
+        "text_path": "sources/text/nixos-icfp2008-final.txt",
+        "sha256": "5714366dcb5f7812d77c598ac1da52cc4dd548d2818bf4267cf62f5a970279de",
+        "bytes": 368638,
+        "pages": 12,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 99793,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-008",
+      "title": "The Nix Build Farm: A Declarative Approach to Continuous Integration",
+      "authors": [
+        "Eelco Dolstra",
+        "Eelco Visser"
+      ],
+      "year": 2008,
+      "venue": "WASDeTT 2008",
+      "canonical_url": "https://nixos.org/~eelco/pubs/buildfarm-wasdett2008-final.pdf",
+      "owner": "O4",
+      "findings_path": "findings/O4-evaluation.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/buildfarm-wasdett2008-final.pdf",
+        "method": "Preserved primary PDF text, all 9 pages",
+        "coverage": "Full paper",
+        "local_pdf": "sources/papers/buildfarm-wasdett2008-final.pdf"
+      },
+      "archive": {
+        "id": "S-008",
+        "filename": "buildfarm-wasdett2008-final.pdf",
+        "pdf_path": "sources/papers/buildfarm-wasdett2008-final.pdf",
+        "text_path": "sources/text/buildfarm-wasdett2008-final.txt",
+        "sha256": "a28e5b9797e60242fb4c2d3b4c7e209d0d6a8d773e6bea28a36df768fee55f60",
+        "bytes": 209738,
+        "pages": 9,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 25155,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-009",
+      "title": "Maximal Laziness — An Efficient Interpretation Technique for Purely Functional DSLs",
+      "authors": [
+        "Eelco Dolstra"
+      ],
+      "year": 2008,
+      "venue": "LDTA 2008; Electronic Notes in Theoretical Computer Science publication 2009",
+      "date_note": "Archived preprint dated 16 February 2008",
+      "canonical_url": "https://nixos.org/~eelco/pubs/laziness-ldta2008-final.pdf",
+      "owner": "O4",
+      "findings_path": "findings/O4-evaluation.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/laziness-ldta2008-final.pdf",
+        "method": "Preserved primary PDF text, all 15 pages",
+        "coverage": "Full paper",
+        "local_pdf": "sources/papers/laziness-ldta2008-final.pdf",
+        "date_note": "Preprint dated 16 February 2008; LDTA 2008 event, ENTCS publication 2009; DOI not independently checked here"
+      },
+      "archive": {
+        "id": "S-009",
+        "filename": "laziness-ldta2008-final.pdf",
+        "pdf_path": "sources/papers/laziness-ldta2008-final.pdf",
+        "text_path": "sources/text/laziness-ldta2008-final.txt",
+        "sha256": "259eecfcb773cb6a3774f25ee74e85c7c25dfc3725d3fa4be19bf38e7aeeaf06",
+        "bytes": 271013,
+        "pages": 15,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 51018,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-010",
+      "title": "Purely Functional System Configuration Management",
+      "authors": [
+        "Eelco Dolstra",
+        "Armijn Hemel"
+      ],
+      "year": 2007,
+      "venue": "11th Workshop on Hot Topics in Operating Systems (HotOS XI)",
+      "canonical_url": "https://nixos.org/~eelco/pubs/hotos-final.pdf",
+      "owner": "O2",
+      "findings_path": "findings/O2-os.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/hotos-final.pdf",
+        "local_pdf": "sources/papers/hotos-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "eedd2457f8888d31e47ce2c1aac925d859f33400235b83483e9566acb2c26d7e",
+        "version": "Supplied 6-page paper; ACM record identifier 10.5555/1361397.1361410 is not asserted as independently registered DOI",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "archive": {
+        "id": "S-010",
+        "filename": "hotos-final.pdf",
+        "pdf_path": "sources/papers/hotos-final.pdf",
+        "text_path": "sources/text/hotos-final.txt",
+        "sha256": "eedd2457f8888d31e47ce2c1aac925d859f33400235b83483e9566acb2c26d7e",
+        "bytes": 128754,
+        "pages": 6,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 33460,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-011",
+      "title": "Automated Software Testing and Release with Nix Build Farms",
+      "authors": [
+        "Eelco Dolstra",
+        "Eelco Visser"
+      ],
+      "year": 2007,
+      "venue": "Verification and Validation of Software Systems Symposium (VVSS 2007)",
+      "pages": "65-77",
+      "canonical_url": "https://pure.tue.nl/ws/files/2239914/628612.pdf",
+      "owner": "O4",
+      "findings_path": "findings/O4-evaluation.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://pure.tue.nl/ws/files/2239914/628612.pdf",
+        "method": "All assigned image-only pages rendered with pdftoppm at 180dpi and visually read; native macOS Vision accurate en-US OCR also produced",
+        "coverage": "Entire assigned article printed 65-77 / PDF 76-88, no unrelated proceedings papers",
+        "local_pdf": "sources/papers/628612.pdf",
+        "ocr_temp_path": "/tmp/kedra-o4-research/vvss-ocr.txt",
+        "ocr_archive_handoff": "Parent reports sources/text/628612-nix-article-ocr.txt plus metadata",
+        "ocr_uncertainty": "Original PDF authoritative; OCR punctuation/code can be wrong. Claims independently checked visually."
+      },
+      "archive": {
+        "id": "S-011",
+        "filename": "628612.pdf",
+        "pdf_path": "sources/papers/628612.pdf",
+        "text_path": "sources/text/628612.txt",
+        "sha256": "25c5bbf14f09ec3fc8a05cd1053e00d3d820d2171d09915714518c692d8d3f72",
+        "bytes": 25706595,
+        "pages": 315,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 838456,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-012",
+      "title": "The Purely Functional Software Deployment Model",
+      "authors": [
+        "Eelco Dolstra"
+      ],
+      "year": 2006,
+      "venue": "PhD thesis, Faculty of Science, Utrecht University",
+      "canonical_url": "https://nixos.org/~eelco/pubs/phd-thesis.pdf",
+      "owner": "O1",
+      "findings_path": "findings/O1-store.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified supplied local PDF",
+        "canonical_url": "https://nixos.org/~eelco/pubs/phd-thesis.pdf",
+        "local_pdf": "sources/papers/phd-thesis.pdf",
+        "local_text": "sources/text/phd-thesis.txt",
+        "verification": "Read relevant full sections in extracted text with PDF-page boundaries; PDF121 directly re-extracted to verify location. Archive checksums remain in sources/archive.json. No remote-byte equivalence claimed."
+      },
+      "archive": {
+        "id": "S-012",
+        "filename": "phd-thesis.pdf",
+        "pdf_path": "sources/papers/phd-thesis.pdf",
+        "text_path": "sources/text/phd-thesis.txt",
+        "sha256": "f2bd78a82fb615ce2f3145d5418733bc65e09121147ecb814eba54eaf59875e4",
+        "bytes": 1694654,
+        "pages": 281,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 803941,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-013",
+      "title": "Secure Sharing Between Untrusted Users in a Transparent Source/Binary Deployment Model",
+      "authors": [
+        "Eelco Dolstra"
+      ],
+      "year": 2005,
+      "venue": "20th IEEE/ACM International Conference on Automated Software Engineering (ASE2005), Long Beach, California, USA",
+      "canonical_url": "https://nixos.org/~eelco/pubs/secsharing-ase2005-final.pdf",
+      "owner": "O3",
+      "findings_path": "findings/O3-security.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified-local-original",
+        "canonical_url": "https://nixos.org/~eelco/pubs/secsharing-ase2005-final.pdf",
+        "pdf": "sources/papers/secsharing-ase2005-final.pdf",
+        "text": "sources/text/secsharing-ase2005-final.txt",
+        "identity_evidence": "PDF1 author/title/ASE05 imprint",
+        "focused_body_coverage": "PDF4-10, sections2.3-8",
+        "limitation": "Original 2005 mechanisms and experiment, not current Nix behavior or modern compatibility evidence."
+      },
+      "archive": {
+        "id": "S-013",
+        "filename": "secsharing-ase2005-final.pdf",
+        "pdf_path": "sources/papers/secsharing-ase2005-final.pdf",
+        "text_path": "sources/text/secsharing-ase2005-final.txt",
+        "sha256": "224d13f5ecfe736dc6f4ca418d72b4c0326c7e2ac82378d607771cad1b8398fc",
+        "bytes": 238998,
+        "pages": 10,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 80991,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-014",
+      "title": "Service Configuration Management",
+      "authors": [
+        "Eelco Dolstra",
+        "Martin Bravenboer",
+        "Eelco Visser"
+      ],
+      "year": 2005,
+      "venue": "12th International Workshop on Software Configuration Management (SCM-12)",
+      "canonical_url": "https://nixos.org/~eelco/pubs/servicecm-scm12-final.pdf",
+      "owner": "O2",
+      "findings_path": "findings/O2-os.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/servicecm-scm12-final.pdf",
+        "local_pdf": "sources/papers/servicecm-scm12-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "3d202afbd315f1419995ed927a48619d114720fa1a4613052c7368a464bad8fc",
+        "version": "Supplied 16-page paper; venue city omitted due index/bibliography disagreement",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "archive": {
+        "id": "S-014",
+        "filename": "servicecm-scm12-final.pdf",
+        "pdf_path": "sources/papers/servicecm-scm12-final.pdf",
+        "text_path": "sources/text/servicecm-scm12-final.txt",
+        "sha256": "3d202afbd315f1419995ed927a48619d114720fa1a4613052c7368a464bad8fc",
+        "bytes": 192891,
+        "pages": 16,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 46143,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-015",
+      "title": "Efficient Upgrading in a Purely Functional Component Deployment Model",
+      "authors": [
+        "Eelco Dolstra"
+      ],
+      "year": 2005,
+      "venue": "Eighth International SIGSOFT Symposium on Component-based Software Engineering (CBSE 2005)",
+      "canonical_url": "https://nixos.org/~eelco/pubs/eupfcdm-cbse2005-final.pdf",
+      "owner": "O1",
+      "findings_path": "findings/O1-store.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified supplied local PDF",
+        "canonical_url": "https://nixos.org/~eelco/pubs/eupfcdm-cbse2005-final.pdf",
+        "local_pdf": "sources/papers/eupfcdm-cbse2005-final.pdf",
+        "local_text": "sources/text/eupfcdm-cbse2005-final.txt"
+      },
+      "archive": {
+        "id": "S-015",
+        "filename": "eupfcdm-cbse2005-final.pdf",
+        "pdf_path": "sources/papers/eupfcdm-cbse2005-final.pdf",
+        "text_path": "sources/text/eupfcdm-cbse2005-final.txt",
+        "sha256": "bba5aef36a7a5d719d6f92137b315fcba1fee29634d15bf05fd0de6b3448a4d6",
+        "bytes": 250881,
+        "pages": 16,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 47027,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-016",
+      "title": "Nix: A Safe and Policy-Free System for Software Deployment",
+      "authors": [
+        "Eelco Dolstra",
+        "Merijn de Jonge",
+        "Eelco Visser"
+      ],
+      "year": 2004,
+      "venue": "18th Large Installation System Administration Conference (LISA 2004)",
+      "canonical_url": "https://nixos.org/~eelco/pubs/nspfssd-lisa2004-final.pdf",
+      "owner": "O1",
+      "findings_path": "findings/O1-store.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified supplied local PDF",
+        "canonical_url": "https://nixos.org/~eelco/pubs/nspfssd-lisa2004-final.pdf",
+        "local_pdf": "sources/papers/nspfssd-lisa2004-final.pdf",
+        "local_text": "sources/text/nspfssd-lisa2004-final.txt"
+      },
+      "archive": {
+        "id": "S-016",
+        "filename": "nspfssd-lisa2004-final.pdf",
+        "pdf_path": "sources/papers/nspfssd-lisa2004-final.pdf",
+        "text_path": "sources/text/nspfssd-lisa2004-final.txt",
+        "sha256": "20d1d1b1bc2f5f3372701697c086179c1678003bbe669aaa7022677689b9d939",
+        "bytes": 231500,
+        "pages": 14,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 90700,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-017",
+      "title": "Imposing a Memory Management Discipline on Software Deployment",
+      "authors": [
+        "Eelco Dolstra",
+        "Eelco Visser",
+        "Merijn de Jonge"
+      ],
+      "year": 2004,
+      "venue": "26th International Conference on Software Engineering (ICSE 2004)",
+      "canonical_url": "https://nixos.org/~eelco/pubs/immdsd-icse2004-final.pdf",
+      "owner": "O1",
+      "findings_path": "findings/O1-store.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified supplied local PDF",
+        "canonical_url": "https://nixos.org/~eelco/pubs/immdsd-icse2004-final.pdf",
+        "local_pdf": "sources/papers/immdsd-icse2004-final.pdf",
+        "local_text": "sources/text/immdsd-icse2004-final.txt",
+        "verification": "PDF5 directly re-extracted to confirm pointer-hiding evidence location"
+      },
+      "archive": {
+        "id": "S-017",
+        "filename": "immdsd-icse2004-final.pdf",
+        "pdf_path": "sources/papers/immdsd-icse2004-final.pdf",
+        "text_path": "sources/text/immdsd-icse2004-final.txt",
+        "sha256": "769f914306f0cc7e285a055f7d7cccc814b0f7c23ec310837811b9b51976144c",
+        "bytes": 226225,
+        "pages": 10,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 66544,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-018",
+      "title": "Integrating Software Construction and Software Deployment",
+      "authors": [
+        "Eelco Dolstra"
+      ],
+      "year": 2003,
+      "venue": "11th International Workshop on Software Configuration Management (SCM-11)",
+      "canonical_url": "https://nixos.org/~eelco/pubs/iscsd-scm11-final.pdf",
+      "owner": "O1",
+      "findings_path": "findings/O1-store.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified supplied local PDF",
+        "canonical_url": "https://nixos.org/~eelco/pubs/iscsd-scm11-final.pdf",
+        "local_pdf": "sources/papers/iscsd-scm11-final.pdf",
+        "local_text": "sources/text/iscsd-scm11-final.txt"
+      },
+      "archive": {
+        "id": "S-018",
+        "filename": "iscsd-scm11-final.pdf",
+        "pdf_path": "sources/papers/iscsd-scm11-final.pdf",
+        "text_path": "sources/text/iscsd-scm11-final.txt",
+        "sha256": "37963aebc6adb1418011896feefa75cb98abeff0ef819cbf9f0c7d6141753b1f",
+        "bytes": 196953,
+        "pages": 16,
+        "pdf_metadata_title": "",
+        "pdf_metadata_author": "",
+        "text_characters": 41917,
+        "archived_date": "2026-10-01",
+        "input_kind": "user-supplied research document; raw capture retained locally"
+      }
+    },
+    {
+      "source_id": "S-019",
+      "title": "Nix 2.34.9 Reference Manual",
+      "authors": [
+        "Nix contributors"
+      ],
+      "year": null,
+      "venue": "Official online Nix reference manual at nix.dev",
+      "accessed": "2026-10-01",
+      "version": "2.34.9",
+      "canonical_url": "https://nix.dev/manual/nix/2.34",
+      "owner": "O3",
+      "findings_path": "findings/O3-security.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified-primary-web",
+        "canonical_url": "https://nix.dev/manual/nix/2.34",
+        "observed_version": "2.34.9",
+        "accessed": "2026-10-01",
+        "navigation": "Assigned entry and its observed links; individual sections, not abstracts or search snippets.",
+        "limitations": [
+          "Selected manual version is not claimed newest.",
+          "Not a current implementation audit or executed Nix behavior test.",
+          "Exact cache-signature payload encoding, root-acquisition/deletion interlocks and crash ordering remain outside what these manual pages establish.",
+          "Experimental output-address and JSON details require later pinned compatibility qualification."
+        ]
+      },
+      "supplemental_archive_registry": "modern-archive.json"
+    },
+    {
+      "source_id": "S-020",
+      "title": "NixOS Manual",
+      "authors": [
+        "NixOS contributors"
+      ],
+      "year": null,
+      "venue": "Official online manual, observed version 26.05 on 2026-10-01",
+      "canonical_url": "https://nixos.org/manual/nixos/stable",
+      "owner": "O2",
+      "findings_path": "findings/O2-os.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "url": "https://nixos.org/manual/nixos/stable",
+        "resolved_url": "https://nixos.org/manual/nixos/stable/",
+        "observed_date": "2026-10-01",
+        "version": "26.05",
+        "generator": "nixos-render-docs 26.05.3869.95ca1e203c07",
+        "local_html": "sources/web/nixos-stable-manual.html",
+        "sha256": "aacdf5ec7d2f7b425ec736aa74bbdfa53c81b8fee62d4fd5e3bf560212788aea",
+        "limits": "Mutable stable URL, not newest-version claim; document inspection only"
+      },
+      "supplemental_archive_registry": "modern-archive.json"
+    },
+    {
+      "source_id": "S-021",
+      "title": "Integration testing with NixOS virtual machines",
+      "authors": [
+        "@olafklingt",
+        "Domen Kožar"
+      ],
+      "editor": "Valentin Gagarin",
+      "year": null,
+      "venue": "nix.dev official documentation",
+      "accessed": "2026-10-01",
+      "canonical_url": "https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines",
+      "owner": "O4",
+      "findings_path": "findings/O4-evaluation.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines",
+        "method": "Live official page read in full",
+        "coverage": "Entire tutorial; linked manuals not analyzed",
+        "observed_version": "Undated mutable documentation, examples use nixos-23.11",
+        "accessed": "2026-10-01"
+      },
+      "supplemental_archive_registry": "modern-archive.json"
+    },
+    {
+      "source_id": "S-022",
+      "title": "Tvix Rust implementation and architecture packet",
+      "authors": [
+        "TVL contributors"
+      ],
+      "year": 2026,
+      "venue": "TVL depot, manifest-authorized GitHub mirror at 9bed4ce6fc4c308f28df485b286a9aee467af686",
+      "historical_document": {
+        "title": "Tvix: We are rewriting Nix",
+        "authors": [
+          "tazjin"
+        ],
+        "year": 2021,
+        "venue": "TVL blog"
+      },
+      "canonical_url": "https://code.tvl.fyi/about/tvix",
+      "owner": "O1",
+      "findings_path": "findings/O1-store.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified manifest-authorized mirror and primary announcement; original access remains blocked as reported by planner",
+        "canonical_url": "https://code.tvl.fyi/about/tvix",
+        "mirror": "https://github.com/tvlfyi/tvix",
+        "revision": "9bed4ce6fc4c308f28df485b286a9aee467af686",
+        "revision_committer_date": "2026-09-27T10:41:56Z",
+        "revision_verification": "git ls-remote refs/heads/canon plus https://api.github.com/repos/tvlfyi/tvix/commits/9bed4ce6fc4c308f28df485b286a9aee467af686",
+        "resolution": "needs-more source access resolved for bounded code analysis; production usability not established"
+      },
+      "supplemental_archive_registry": "modern-archive.json"
+    },
+    {
+      "source_id": "S-023",
+      "title": "Verified Interpreters for Dynamic Languages with Applications to the Nix Expression Language",
+      "authors": [
+        "Rutger Broekhoff",
+        "Robbert Krebbers"
+      ],
+      "year": 2025,
+      "venue": "Proceedings of the ACM on Programming Languages 9 (ICFP), Article 268",
+      "doi": "10.1145/3747537",
+      "date": "2025-08",
+      "pages": "1-30",
+      "canonical_url": "https://robbertkrebbers.nl/research/articles/nix.pdf",
+      "owner": "O4",
+      "findings_path": "findings/O4-evaluation.json",
+      "analysis_outcome": "complete",
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://robbertkrebbers.nl/research/articles/nix.pdf",
+        "method": "Author-hosted PDF fetched and pdftotext extraction read",
+        "coverage": "Focused technical reading sections 1-5, 7-8, not independent proof checking",
+        "temporary_pdf": "/tmp/kedra-o4-research/nix.pdf",
+        "observed_version": "August 2025 publication; evaluation reference Nix 2.25.0",
+        "accessed": "2026-10-01"
+      },
+      "supplemental_archive_registry": "modern-archive.json"
+    }
+  ],
+  "path_conventions": {
+    "sources_in_archive_json": "relative to research workspace (.specs/nix-recreation)",
+    "documents_in_modern_archive_json": "relative to sources directory"
+  }
+}

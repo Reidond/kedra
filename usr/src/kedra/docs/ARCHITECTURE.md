@@ -10,6 +10,15 @@ The repository root is the image's Linux filesystem. Shared payload is root `etc
 
 ## Release authority
 
+The independent `sysroot-engine` crate supplies private ordinary-user package
+build/store/closure/profile operations through the CLI. Its canonical namespace
+is `/usr/lib/sysroot/store` inside a declared native ARM Docker environment;
+physical storage is a separate explicit owner-private directory. Model/planning
+is separate from Unix filesystem/execution code. Engine bundles carry expected
+content identity, not installed OS or producer-signing authority. Its profile
+rollback and GC do not manage bootc deployments, mutable home or GHCR. See
+[ENGINE](ENGINE.md) for supported scope and [STATUS](STATUS.md) for actual checks.
+
 The final OCI registry digest is signed using a dedicated per-target OS-image key (`desktop` x86_64 and `qemu-arm64` aarch64 each have their own key, signing environment and GHCR repository). The stable GHCR tag discovers an image; the signature, exact repository/digest and image-owned identity establish eligibility. Source/run, target, architecture, home provenance and resolved inputs are bound by signed image content. Signing is distinct from Secure Boot. There is no GitHub Release or ISO-asset publication.
 
 Build jobs have public trust only. After validation, the automatic signer executes no checkout, candidate binaries or repository scripts with production keys. Its environment remains main-only without a human-review gate. Per-target serialization and exact-source/rank checks prevent stale stable-tag publication. Independent strict signature verification precedes stable publication. No-change does nothing; there is no checkpoint renewal. Uncertain registry publication requires exact readback before reporting success.

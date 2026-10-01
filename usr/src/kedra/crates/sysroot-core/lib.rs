@@ -27,6 +27,13 @@ pub const STATUS_JSON: &str = r#"{
   "kind": "implementation_capabilities",
   "installed_state_checked": false,
   "capabilities": {
+    "engine": {
+      "implemented": true, "platform": "unix_controller",
+      "operations": ["build", "store", "run", "profile", "develop"],
+      "execution_platform": "aarch64-linux",
+      "requires": ["private owner store", "local Unix Docker endpoint for execution", "retained Docker29 OCI image evidence"],
+      "os_activation_authorized": false
+    },
     "source": {
       "implemented": true, "platform": "portable", "operations": ["plan", "archive"],
       "requires": ["Git", "Kedra checkout"]

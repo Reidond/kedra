@@ -2367,6 +2367,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sysroot-core",
+ "sysroot-engine",
  "sysroot-linux",
  "tar",
  "toml",
@@ -2383,6 +2384,17 @@ dependencies = [
  "serde_json",
  "sha2",
  "toml",
+]
+
+[[package]]
+name = "sysroot-engine"
+version = "0.1.0"
+dependencies = [
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
 ]
 
 [[package]]

@@ -1,0 +1,267 @@
+{
+  "owner": "O3",
+  "date": "2026-10-01",
+  "scope": "Research/proposal only for a sharable Rust core and Kedra OS composition; no implementation, migration, exploit reproduction or qualification.",
+  "base": "b224d5711e857f7dbcaabf7ed42870916525800c",
+  "observed_manual_version": "Nix 2.34.9",
+  "findings": [
+    {
+      "source_id": "S-001",
+      "claims": [
+        {
+          "claim": "The 2024 thesis assumes an attacker controlling the central repository, but not developer machines/private keys; availability and confidentiality are outside its update-integrity goal.",
+          "evidence": "ba.pdf PDF16-17, printed14-15, sections3.2-3.3.",
+          "confidence": "high: author-defined scope",
+          "importance": "central"
+        },
+        {
+          "claim": "Commit signatures, verified ancestry with permissions, and reference-operation authentication provide distinct guarantees; the Git-Verify introduction is an external trust anchor, and unsigned automatic merges have a stated mix-and-match limitation.",
+          "evidence": "ba.pdf PDF19-25, sections4.1-4.3; PDF27, table5.1.",
+          "confidence": "high: historical design, not current tool validation",
+          "importance": "central"
+        },
+        {
+          "claim": "Verification hidden inside a fixed-output fetch can be skipped by reuse of existing payload bytes. The author separates payload-plus-evidence download from ordinary verification for Git-Verify, but explicitly warns that the thesis's Gittuf fetcher retained this weakness.",
+          "evidence": "ba.pdf PDF29-30, printed27-28, section5.1.5 and figures5.1-5.3.",
+          "confidence": "high: dated author finding; not a reproduced present vulnerability",
+          "importance": "central"
+        },
+        {
+          "claim": "The proposed Niv anti-rollback check uses previous accepted ancestry and can reject branch/fork changes; signatures do not alone prevent replay or indefinite freeze.",
+          "evidence": "ba.pdf PDF25-26, section4.4; PDF31-32, sections5.2-6.",
+          "confidence": "high: dated implementation and stated limits",
+          "importance": "central"
+        }
+      ],
+      "provenance": {
+        "status": "verified-local-original",
+        "canonical_url": "https://landweber.xyz/ba.pdf",
+        "pdf": "sources/papers/ba.pdf",
+        "text": "sources/text/ba.txt",
+        "identity_evidence": "PDF1: Finn Landweber, HTWK Leipzig, 23 July 2024",
+        "focused_body_coverage": "PDF16-32, chapters3-6; formal invariant, examples, diagrams and limits",
+        "limitation": "PDF authoritative; supplied text read. No claim of remote-byte equivalence or current exploit reproduction."
+      },
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-006",
+      "claims": [
+        {
+          "claim": "Immutable parallel versions and a single profile-link replacement support local selection atomicity; distributed deployment adds build/closure transfer followed by activation.",
+          "evidence": "atomic-hotswup2008-final.pdf PDF2-4, sections2-5.",
+          "confidence": "high: historical author model",
+          "importance": "central"
+        },
+        {
+          "claim": "The distributed atomicity argument requires exclusive cohort profile locks and proxies that drain old connections and block new ones throughout transition; installing packages alone is insufficient.",
+          "evidence": "atomic-hotswup2008-final.pdf PDF4, section5.",
+          "confidence": "high: explicit assumptions",
+          "importance": "central"
+        },
+        {
+          "claim": "The paper states rollback on commit failure but does not specify partition/coordinator-crash recovery sufficient to establish atomicity under arbitrary partial network failure; some services require explicit lifecycle operations beyond profile changes.",
+          "evidence": "atomic-hotswup2008-final.pdf PDF4, section5; PDF5, section7. First clause about missing failure protocol is review inference from this bounded paper.",
+          "confidence": "high for explicit lifecycle limitation; medium-high for completeness assessment",
+          "importance": "central"
+        }
+      ],
+      "provenance": {
+        "status": "verified-local-original",
+        "canonical_url": "https://nixos.org/~eelco/pubs/atomic-hotswup2008-final.pdf",
+        "pdf": "sources/papers/atomic-hotswup2008-final.pdf",
+        "text": "sources/text/atomic-hotswup2008-final.txt",
+        "identity_evidence": "PDF1 authors/title/HotSWUp08 imprint; DOI from archived official research index",
+        "focused_body_coverage": "PDF2-5, sections2-7",
+        "limitation": "No distributed experiment run; no fleet scope inferred."
+      },
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-013",
+      "claims": [
+        {
+          "claim": "Input-based output sharing requires common trust in substituted binaries. The intensional model separates content identity from per-user accepted recipe-to-output mappings; the mixed model permits selective trust. These historical user relations differ from today's root-equivalent trusted-users setting.",
+          "evidence": "secsharing-ase2005-final.pdf PDF4-9, sections2.3-5; modern setting is S-019.",
+          "confidence": "high: author model, not current implementation claim",
+          "importance": "central"
+        },
+        {
+          "claim": "Distinct concurrent builder UIDs, no direct user store writes and killing residual writers before changing ownership/modes prevent cross-build interference; chmod/chown alone cannot revoke an already-open writable descriptor.",
+          "evidence": "secsharing-ase2005-final.pdf PDF5-6, section3.",
+          "confidence": "high: explicit security analysis",
+          "importance": "central"
+        },
+        {
+          "claim": "Validity excludes unfinished paths, requires valid dependencies and uses database transactions; simplified pseudocode deliberately omits implemented locking.",
+          "evidence": "secsharing-ase2005-final.pdf PDF4, section2.5, closure invariant.",
+          "confidence": "high: historical implementation account",
+          "importance": "central"
+        },
+        {
+          "claim": "Self-references require normalized hashes and rewriting. The author's 86-component experiment succeeded but cannot establish universal compatibility: compressed/hidden references defeat scanning and rewriting, and collision resistance remains assumed.",
+          "evidence": "secsharing-ase2005-final.pdf PDF6-9, sections4.2-4.3,6.1; PDF9-10, section6.2.",
+          "confidence": "high: dated experiment and explicit limits",
+          "importance": "supporting"
+        }
+      ],
+      "provenance": {
+        "status": "verified-local-original",
+        "canonical_url": "https://nixos.org/~eelco/pubs/secsharing-ase2005-final.pdf",
+        "pdf": "sources/papers/secsharing-ase2005-final.pdf",
+        "text": "sources/text/secsharing-ase2005-final.txt",
+        "identity_evidence": "PDF1 author/title/ASE05 imprint",
+        "focused_body_coverage": "PDF4-10, sections2.3-8",
+        "limitation": "Original 2005 mechanisms and experiment, not current Nix behavior or modern compatibility evidence."
+      },
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-019",
+      "claims": [
+        {
+          "claim": "Derivations serialize to content-addressed objects; output addressing is independent. Creators supply explicit dependency inputs. Higher-order deriving paths are experimental.",
+          "evidence": "https://nix.dev/manual/nix/2.34/store/derivation/ : Inputs, Encoding, Extending the model to be higher-order.",
+          "confidence": "high: observed 2.34.9 documentation",
+          "importance": "central"
+        },
+        {
+          "claim": "Input addresses quotient over CA dependency identities and may await floating inputs. Fixed CA outputs check expected content; floating CA is experimental. Overview terminology is inconsistent, and the detailed IA page notes a possible experimental implementation/spec discrepancy.",
+          "evidence": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/input-address : Modulo content addressed derivation outputs, Content-addressed outputs case; https://nix.dev/manual/nix/2.34/store/derivation/outputs/ ; https://nix.dev/manual/nix/2.34/store/derivation/outputs/content-address : Fixed-output, Floating, Floating versus Fixed.",
+          "confidence": "high for documented distinctions; exact experimental compatibility unverified",
+          "importance": "central"
+        },
+        {
+          "claim": "CA store identities incorporate data, references, name and store directory, with special self-reference normalization. The separate NAR hash covers filesystem serialization; integrity checking and accepted trust are different checks.",
+          "evidence": "https://nix.dev/manual/nix/2.34/store/store-object/content-address ; https://nix.dev/manual/nix/2.34/protocols/json/store-object-info : narHash, references, ca; https://nix.dev/manual/nix/2.34/command-ref/new-cli/nix3-store-verify : Description.",
+          "confidence": "high: documentation; source-correspondence/freshness distinction is synthesis",
+          "importance": "central"
+        },
+        {
+          "claim": "Reference closure and valid storage are required; cross-object cycles are forbidden. Builders lock outputs, normalize permissions and scan hashes. These do not establish complete semantic dependency discovery.",
+          "evidence": "https://nix.dev/manual/nix/2.34/store/store-object : References, Closure property; https://nix.dev/manual/nix/2.34/store/building : Builder Execution, Processing outputs. Dependency caveat also S-013 PDF9.",
+          "confidence": "high: docs plus stated historical caveat",
+          "importance": "central"
+        },
+        {
+          "claim": "Strings retain dependency contexts; discarding context discards tracking. Filesystem-dependent IFD can cause realisation during evaluation; it can be disabled. Experimental verified-fetches authenticates selected Git commits against keys, not a documented full freshness policy.",
+          "evidence": "https://nix.dev/manual/nix/2.34/language/string-context ; https://nix.dev/manual/nix/2.34/language/import-from-derivation ; https://nix.dev/manual/nix/2.34/language/builtins#builtins-fetchGit .",
+          "confidence": "high: 2.34.9 docs; policy limit is inference",
+          "importance": "central"
+        },
+        {
+          "claim": "Roots and generations retain dependency closures; indirect roots must retain their location. One profile link switches atomically. Public GC pages do not establish full concurrent acquisition/deletion ordering.",
+          "evidence": "https://nix.dev/manual/nix/2.34/package-management/garbage-collector-roots ; https://nix.dev/manual/nix/2.34/package-management/garbage-collection ; https://nix.dev/manual/nix/2.34/command-ref/nix-store/gc : add-root; https://nix.dev/manual/nix/2.34/package-management/profiles .",
+          "confidence": "high: described behavior; concurrency remains unverified",
+          "importance": "central"
+        },
+        {
+          "claim": "Direct local stores need no daemon; copying requires identical logical store paths. Unprivileged runtime-root discovery needs special consideration; an external roots daemon is experimental. Build directories must prevent other users' interference.",
+          "evidence": "https://nix.dev/manual/nix/2.34/store/types/local-store : introduction, build-dir, store, use-roots-daemon.",
+          "confidence": "high: documentation; no daemonless multi-user design qualified",
+          "importance": "supporting"
+        },
+        {
+          "claim": "Trusted daemon users have root-equivalent powers, unlike isolated builder identities. CA paths are exempt from ordinary signature requirements. Sandbox/fallback/platform settings matter; metadata fsync and payload fsync differ. Evaluator restriction is separate from builder sandboxing.",
+          "evidence": "https://nix.dev/manual/nix/2.34/command-ref/conf-file : trusted-users, trusted-public-keys, require-sigs, sandbox, sandbox-fallback, fsync-metadata, fsync-store-paths, pure-eval, restrict-eval; https://nix.dev/manual/nix/2.34/installation/multi-user .",
+          "confidence": "high: documented settings, not an audited host configuration",
+          "importance": "central"
+        },
+        {
+          "claim": "NAR encodes file data/executable flag, directories and symlinks, not owners, arbitrary modes, xattrs, labels or capabilities. A NAR digest therefore cannot attest complete Fedora security metadata. Store secrets are readable/shared and should be provisioned outside it at runtime.",
+          "evidence": "https://nix.dev/manual/nix/2.34/store/file-system-object ; https://nix.dev/manual/nix/2.34/protocols/nix-archive/ : grammar; https://nix.dev/manual/nix/2.34/store/secrets .",
+          "confidence": "high: format evidence; Fedora consequence is explicit inference",
+          "importance": "central"
+        }
+      ],
+      "provenance": {
+        "status": "verified-primary-web",
+        "canonical_url": "https://nix.dev/manual/nix/2.34",
+        "observed_version": "2.34.9",
+        "accessed": "2026-10-01",
+        "navigation": "Assigned entry and its observed links; individual sections, not abstracts or search snippets.",
+        "limitations": [
+          "Selected manual version is not claimed newest.",
+          "Not a current implementation audit or executed Nix behavior test.",
+          "Exact cache-signature payload encoding, root-acquisition/deletion interlocks and crash ordering remain outside what these manual pages establish.",
+          "Experimental output-address and JSON details require later pinned compatibility qualification."
+        ]
+      },
+      "analysis_outcome": "complete"
+    }
+  ],
+  "handoffs": [
+    {
+      "url": "https://github.com/NixOS/nix",
+      "why_relevant": "Future separately assigned, pinned 2.34.9 implementation audit for GC/import interlocks, filesystem/DB durability and cache-signature fingerprints. Not analyzed here."
+    },
+    {
+      "url": "https://codeberg.org/flandweber/fetchgittuf",
+      "why_relevant": "Current status needed before turning S-001's dated fetcher weakness into any present-day vulnerability claim. Not analyzed here."
+    },
+    {
+      "url": "https://codeberg.org/flandweber/git-verify",
+      "why_relevant": "Current verification-policy implementation and compatibility would need a new assigned review before adoption. Only the thesis was analyzed."
+    }
+  ],
+  "used_web_urls": [
+    "https://nix.dev/manual/nix/2.34/",
+    "https://nix.dev/manual/nix/2.34/store/derivation/",
+    "https://nix.dev/manual/nix/2.34/store/derivation/outputs/",
+    "https://nix.dev/manual/nix/2.34/store/derivation/outputs/input-address",
+    "https://nix.dev/manual/nix/2.34/store/derivation/outputs/content-address",
+    "https://nix.dev/manual/nix/2.34/store/store-object/content-address",
+    "https://nix.dev/manual/nix/2.34/protocols/json/store-object-info",
+    "https://nix.dev/manual/nix/2.34/command-ref/new-cli/nix3-store-verify",
+    "https://nix.dev/manual/nix/2.34/store/store-object",
+    "https://nix.dev/manual/nix/2.34/store/building",
+    "https://nix.dev/manual/nix/2.34/language/string-context",
+    "https://nix.dev/manual/nix/2.34/language/import-from-derivation",
+    "https://nix.dev/manual/nix/2.34/language/builtins",
+    "https://nix.dev/manual/nix/2.34/package-management/garbage-collector-roots",
+    "https://nix.dev/manual/nix/2.34/package-management/garbage-collection",
+    "https://nix.dev/manual/nix/2.34/command-ref/nix-store/gc",
+    "https://nix.dev/manual/nix/2.34/package-management/profiles",
+    "https://nix.dev/manual/nix/2.34/store/types/local-store",
+    "https://nix.dev/manual/nix/2.34/command-ref/conf-file",
+    "https://nix.dev/manual/nix/2.34/installation/multi-user",
+    "https://nix.dev/manual/nix/2.34/store/file-system-object",
+    "https://nix.dev/manual/nix/2.34/protocols/nix-archive/",
+    "https://nix.dev/manual/nix/2.34/store/secrets"
+  ],
+  "bibliography": [
+    {
+      "source_id": "S-001",
+      "title": "Secure Nix Expression Updates",
+      "authors": ["Finn Landweber"],
+      "year": 2024,
+      "venue": "Bachelor's thesis, Leipzig University of Applied Sciences (HTWK Leipzig)",
+      "date": "2024-07-23"
+    },
+    {
+      "source_id": "S-006",
+      "title": "Atomic Upgrading of Distributed Systems",
+      "authors": ["Sander van der Burg", "Eelco Dolstra", "Merijn de Jonge"],
+      "year": 2008,
+      "venue": "1st International Workshop on Hot Topics in Software Upgrade (HotSWUp08), Nashville, Tennessee, USA",
+      "doi": "10.1145/1490283.1490294",
+      "doi_verification": "Archived official Nix research index links this DOI from the matching title entry."
+    },
+    {
+      "source_id": "S-013",
+      "title": "Secure Sharing Between Untrusted Users in a Transparent Source/Binary Deployment Model",
+      "authors": ["Eelco Dolstra"],
+      "year": 2005,
+      "venue": "20th IEEE/ACM International Conference on Automated Software Engineering (ASE2005), Long Beach, California, USA"
+    },
+    {
+      "source_id": "S-019",
+      "title": "Nix 2.34.9 Reference Manual",
+      "authors": ["Nix contributors"],
+      "year": null,
+      "venue": "Official online Nix reference manual at nix.dev",
+      "accessed": "2026-10-01",
+      "version": "2.34.9"
+    }
+  ]
+}

@@ -24,6 +24,10 @@ path = "tests/e2e_source_targets.rs"
 name = "e2e_setup_tpm_unlock"
 path = "tests/e2e_setup_tpm_unlock.rs"
 
+[[test]]
+name = "e2e_engine"
+path = "tests/e2e_engine.rs"
+
 [dependencies]
 sysroot-core.workspace = true
 clap.workspace = true
@@ -37,6 +41,9 @@ toml_edit.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 rustix.workspace = true
 sysroot-linux.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+sysroot-engine.workspace = true
 
 [lints]
 workspace = true

@@ -7,6 +7,8 @@ use clap::{CommandFactory, Parser, Subcommand};
 mod agents;
 mod deployment;
 mod doctor;
+#[cfg(unix)]
+mod engine;
 mod home;
 mod installer_artifact;
 mod release_channel;
@@ -26,6 +28,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Build an independent declared package graph in a private Linux namespace.
+    #[cfg(unix)]
+    Build(engine::BuildOptions),
+    /// Manage private immutable development objects, runtime closures and recovery.
+    #[cfg(unix)]
+    Store(engine::StoreOptions),
+    /// Execute a package in its declared runtime foundation and closure.
+    #[cfg(unix)]
+    Run(engine::RunOptions),
+    /// Select and retain development environment generations.
+    #[cfg(unix)]
+    Profile(engine::ProfileOptions),
+    /// Execute a command in a profile's declared environment with private scratch.
+    #[cfg(unix)]
+    Develop(engine::DevelopOptions),
     /// Inspect installed desktop/session health without changing the machine.
     Doctor {
         #[arg(long)]
@@ -379,8 +396,29 @@ fn source_plan(repo: PathBuf, host: String, json: bool) -> Result<(), Box<dyn st
     Ok(())
 }
 
+#[cfg(unix)]
+fn run_engine(command: engine::Command) -> ExitCode {
+    match engine::run(command) {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("sysroot: {error}");
+            engine::failure_code(&error)
+        }
+    }
+}
+
 fn main() -> ExitCode {
     match Cli::parse().command {
+        #[cfg(unix)]
+        Some(Commands::Build(options)) => return run_engine(engine::Command::Build(options)),
+        #[cfg(unix)]
+        Some(Commands::Store(options)) => return run_engine(engine::Command::Store(options)),
+        #[cfg(unix)]
+        Some(Commands::Run(options)) => return run_engine(engine::Command::Run(options)),
+        #[cfg(unix)]
+        Some(Commands::Profile(options)) => return run_engine(engine::Command::Profile(options)),
+        #[cfg(unix)]
+        Some(Commands::Develop(options)) => return run_engine(engine::Command::Develop(options)),
         Some(Commands::Doctor { json }) => match doctor::run(json) {
             Ok(true) => (),
             Ok(false) => return ExitCode::FAILURE,
@@ -437,7 +475,7 @@ fn main() -> ExitCode {
                 println!("{}", sysroot_core::STATUS_JSON);
             } else {
                 println!(
-                    "Kedra capabilities: source and release tools, including historical verification, and Linux deployment, Noctalia/niri home workflows and TPM disk unlock setup are implemented. Installed state is not checked here. Use sysroot update status, sysroot update status --home, sysroot doctor and sysroot setup tpm-unlock --dry-run for installed checks."
+                    "Kedra capabilities: the private Unix build/store/profile engine, source and release tools, Linux deployment, Noctalia/niri home workflows and TPM disk unlock setup are implemented. Engine execution requires native aarch64 Linux Docker and retained image evidence. Installed state is not checked here. Use sysroot update status, sysroot update status --home, sysroot doctor and sysroot setup tpm-unlock --dry-run for installed checks."
                 );
             }
         }

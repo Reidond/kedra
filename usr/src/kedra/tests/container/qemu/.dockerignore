@@ -1,3 +1,4 @@
 **
 !disk-builder.Containerfile
 !build-disk.sh
+!sign-fixture.sh

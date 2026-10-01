@@ -106,3 +106,17 @@ hashes. Probe evidence: `signature-probe/f53d011c3032bdf1b7c4d05a/summary.json`.
 Source is frozen for full signed BIB and cold/warm boot qualification, which
 remain not-run. Targeted workspace/compiler, Ruff and Bash checks pass; these
 do not establish installation or boot.
+
+Third attempt on6c38ab05 passes current composition78.25s and native274.76s,
+with twelve artifacts and kernel7.2.7. Disk preparation fails120.36s before
+signing/BIB: the closed QEMU Docker context omitted `sign-fixture.sh`.
+The correction adds exactly that allowed input and hashes the context ignore
+file into the builder cache/receipt. No policy, native bytes or verifier changed.
+The retry retains the exact6c38ab05 image source and pinned controller, with the
+corrected disk-recipe revision separately recorded; no newer image-source claim.
+
+Two earlier failed-attempt foundation archive copies are retired after fresh
+full SHA-256, UID/single-link/type/size and retained-manifest checks. The active
+context, canonical store, manifests/payloads and owner media remain. APFS/active
+build allocation means observed free space did not increase; no reclaimed-byte
+claim. Exact evidence: `prior-context-retirement.json`.

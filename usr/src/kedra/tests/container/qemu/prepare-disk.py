@@ -187,7 +187,8 @@ def main():
     inputs = {'image_id': identity['Id'], 'builder': builder, 'recipe': digest(Path(__file__)),
               'metadata_sha256': metadata_sha,
               'containerfile': digest(HERE / 'disk-builder.Containerfile'),
-              'script': digest(HERE / 'build-disk.sh'), 'signing_script': digest(HERE / 'sign-fixture.sh')}
+              'script': digest(HERE / 'build-disk.sh'), 'signing_script': digest(HERE / 'sign-fixture.sh'),
+              'build_ignore': digest(HERE / '.dockerignore')}
     if native is not None:
         inputs['native'] = native
         inputs['native_receipt_sha256'] = native_observation['native_receipt_sha256']
@@ -212,7 +213,7 @@ def main():
                 return
             raise ValueError(f'cached image changed; inspect {output} before removing it')
         tag = 'kedra-qemu-builder:' + hashlib.sha256(''.join(
-            inputs[name] for name in ('containerfile', 'script', 'signing_script')).encode()).hexdigest()[:32]
+            inputs[name] for name in ('containerfile', 'script', 'signing_script', 'build_ignore')).encode()).hexdigest()[:32]
         run(['docker', 'build', '--platform', 'linux/arm64', '-f', str(HERE / 'disk-builder.Containerfile'),
              '-t', tag, str(HERE)], timeout=1800)
         token = secrets.token_hex(8)

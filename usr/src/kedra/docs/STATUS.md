@@ -27,9 +27,11 @@ also pass offline. Workspace format/Clippy/E2E/release build and legacy release
 interop/material gates pass. The engine is published as draft
 [PR28](https://github.com/Reidond/kedra/pull/28) at `7329ef1`; both architecture
 workspace checks pass in [run36857909727](https://github.com/Reidond/kedra/actions/runs/36857909727).
-Engine container, ARM boot, desktop, native and signed-VM checks pass; native-home
-is pending at this observation. The dependent `codex/nix-system-composition`
-branch is active through gh-stack, with [concrete requirements](../../../../.specs/nix-system-composition/requirements.md).
+All observed engine checks pass, including both architecture workspace/container,
+ARM boot, desktop, native, native-home and signed-VM workflows. The dependent
+`codex/nix-system-composition` is draft [PR29](https://github.com/Reidond/kedra/pull/29),
+implementation `bace56e`, with [concrete requirements](../../../../.specs/nix-system-composition/requirements.md).
+Both PRs are in native GitHub stack30 submitted through gh-stack; upper CI is pending.
 Its final native Fedora composition workflow passes 2/2, including compiled Rust
 authoring, actual package/RPM observations, deterministic contexts, typed
 references, foundation passthrough and refusal/preservation cases. Workspace

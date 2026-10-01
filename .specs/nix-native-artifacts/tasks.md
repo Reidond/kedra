@@ -7,4 +7,4 @@
 - [x] Enable existing TLS provider; cold independent daemon/replay qualification.
 - [x] Observe later actual interruption windows and safe recovery/owned cleanup.
 - [x] Standard workspace/legacy gates and exact installed workflow evidence.
-- [ ] Package/deployment guide, status/worklog/skills and next draft PR.
+- [x] Package/deployment guide, status/worklog/skills and draft PR32 via gh-stack30.

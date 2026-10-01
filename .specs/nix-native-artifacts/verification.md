@@ -6,6 +6,12 @@ Controller: Apple Silicon macOS, pinned Rust1.98.1; native ARM Docker29.4.0.
 Only public CLI/manual processes and the existing sanctioned container harness
 were used. Scoped implementation/review/qualification workers used Astra.
 
+Implementation `3a966f0b01dcfcdc5828e8797f082a8bf4b66506` is published as
+[draft PR32](https://github.com/Reidond/kedra/pull/32) above exact PR31 head in
+native GitHub stack30. `gh stack submit --auto --remote origin` created/attached
+the fourth draft; local/remote heads and immediate-parent ancestry match with no
+rebase. New-source Actions are running; no success is inferred from earlier CI.
+
 ## Native CLI and installed workflows
 
 | Case | Outcome | Actual evidence |

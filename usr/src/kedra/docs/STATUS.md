@@ -78,7 +78,11 @@ replay140.43s / cache40.08s pass on another new empty daemon with identical
 before/after hashes. All four attempts' exact owned resources/credentials are
 removed; outer daemon/default are preserved. Final native cached readback64.14s
 passes with that same pinned executable, exact image/identity and actual material.
-Draft publication and new-source CI are pending. Native-cache publication faults,
+Implementation3a966f0 is [draft PR32](https://github.com/Reidond/kedra/pull/32),
+fourth in native gh-stack30 above exact PR31 head; remote/local ancestry match.
+New-source Actions are running, including
+[workspace36900391733](https://github.com/Reidond/kedra/actions/runs/36900391733).
+Native-cache publication faults,
 boot/SELinux/install/update and signed integration remain unqualified.
 
 Power-loss/ENOSPC windows, the complete adverse matrices, native x86_64,

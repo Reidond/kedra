@@ -414,8 +414,9 @@ pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -
             } => {
                 for name in enable {
                     if !receipt.artifacts.iter().any(|a| {
-                        a.path.rsplit('/').next() == Some(name)
-                            && matches!(a.entry, NativeArtifactKind::Symlink { .. })
+                        a.path != format!("{SYSTEMD}default.target")
+                            && matches!(&a.entry, NativeArtifactKind::Symlink { target }
+                                if link_unit(&a.path, target).is_ok_and(|unit| unit == *name))
                     }) {
                         return Err(invalid("enabled unit has no recorded link"));
                     }
@@ -522,17 +523,20 @@ fn allowed_artifact(
                             .ok_or_else(|| invalid("unapproved systemd link directory"))?;
                         unit(target)?;
                     }
+                    let selected_link = |target: &str, selected: &[String]| -> Result<bool> {
+                        let linked = link_unit(&artifact.path, target)?;
+                        Ok(selected.contains(&linked)
+                            && (linked == name
+                                || (relative == name
+                                    && name.rsplit('.').next() == linked.rsplit('.').next())))
+                    };
                     return Ok(match &artifact.entry {
                         NativeArtifactKind::Symlink { target } if target == "/dev/null" => {
                             relative == name && mask.iter().any(|unit| unit == name)
                         }
-                        NativeArtifactKind::Symlink { target } => {
-                            enable.iter().any(|unit| unit == name)
-                                && link_unit(&artifact.path, target)? == name
-                        }
+                        NativeArtifactKind::Symlink { target } => selected_link(target, enable)?,
                         NativeArtifactKind::RemovedSymlink { target } => {
-                            disable.iter().any(|unit| unit == name)
-                                && link_unit(&artifact.path, target)? == name
+                            selected_link(target, disable)?
                         }
                         NativeArtifactKind::Regular { .. } => false,
                     });

@@ -135,22 +135,28 @@ def unit_link(path, entry):
     if not os.path.isfile(resolved):
         fail('systemd link target does not exist: ' + path)
 
-def selected_unit_link(path, entry, selected):
+def selected_unit_link(path, entry, selected, removed=False):
     if entry['kind'] != 'symlink' or not path.startswith(UNITROOT + '/'):
         return False
     relative = path[len(UNITROOT) + 1:]
     if relative == 'default.target':
-        return selected['default_target'] is not None
+        return not removed and selected['default_target'] is not None
     parts = relative.split('/')
     name = parts[-1]
-    if len(parts) == 1 and name in selected['mask']:
+    if not removed and len(parts) == 1 and name in selected['mask']:
         return entry['target'] == '/dev/null'
-    if name not in selected['enable'] or len(parts) > 2:
+    if len(parts) > 2 or len(name) > 128 or '..' in name or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.(service|socket|timer|target|path)', name):
         return False
     if len(parts) == 2 and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.(service|socket|timer|target|path)\.(wants|requires)', parts[0]):
         return False
+    resolved = os.path.normpath(os.path.join(os.path.dirname(path), entry['target']))
+    linked = next((resolved[len(prefix):] for prefix in ('/usr/lib/systemd/system/', UNITROOT + '/') if resolved.startswith(prefix)), None)
+    if linked not in selected['disable' if removed else 'enable']:
+        return False
+    if linked != name and (len(parts) != 1 or linked.rsplit('.', 1)[-1] != name.rsplit('.', 1)[-1]):
+        return False
     unit_link(path, entry)
-    return os.path.basename(os.path.normpath(entry['target'])) == name
+    return True
 
 def generate_initramfs(argv):
     # Fedora bootc leaves this image-local home target absent until first boot.
@@ -292,8 +298,12 @@ def build(plan):
                 fail('native transform changed an unrelated path: ' + path)
             if current:
                 unit_link(path, current)
+                if not selected or not selected_unit_link(path, current, selected):
+                    fail('systemd changed an undeclared unit link: ' + path)
             elif previous and previous['kind'] == 'symlink':
                 unit_link(path, previous)
+                if not selected or not selected_unit_link(path, previous, selected, removed=True):
+                    fail('systemd removed an undeclared unit link: ' + path)
                 current = {'kind': 'removed_symlink', 'target': previous['target']}
             else:
                 fail('systemd removed a non-symlink: ' + path)

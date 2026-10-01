@@ -20,7 +20,9 @@ rewrites/lower-layer changes merely to aggregate fixes on top.
 
 Declared source ownership:
 
-- D1 worker: container vm/image bridge and qemu tools/disk/observer files.
+- D1 worker: container vm/image bridge and qemu tools/disk/observer files; actual
+  graphical qualification also requires native.rs/native_derivation.rs's precise
+  selected-unit alias collection/validation correction discovered at runtime.
 - D2 worker, after D1 freeze: image assembly/foundation mode, release compose
   orchestration, refresh preflight and release/test workflows.
 - D3 preparer: new sysroot-catalog crate, new CLI adapter and new catalog E2E;

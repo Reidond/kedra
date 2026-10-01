@@ -238,6 +238,16 @@ def boot_observation(value):
     require(status['status']['staged'] is None and status['status']['rollback'] is None, 'unexpected additional deployment')
     failed = run(['/usr/bin/systemctl', 'list-units', '--state=failed', '--no-legend', '--plain', '--no-pager']).strip()
     require(not failed, 'failed system units: ' + failed)
+    avcs = subprocess.run([
+        '/usr/bin/journalctl', '-b', '--no-pager', '-o', 'cat', '--grep', 'avc: +denied',
+    ], capture_output=True, check=False, timeout=90,
+        env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', 'HOME': '/root'})
+    require(len(avcs.stdout) + len(avcs.stderr) <= 8 * 1024 * 1024, 'oversized AVC observation')
+    # No matches is a normal journalctl result; denials remain evidence to review.
+    result['avc_observation'] = {
+        'exit': avcs.returncode, 'stdout': avcs.stdout.decode(), 'stderr': avcs.stderr.decode(),
+        'complete': avcs.returncode == 0 or avcs.returncode == 1 and not avcs.stdout and not avcs.stderr,
+    }
     result.update(secure_boot=True, lockdown=lockdown, firmware=firmware, selinux=selinux, bootc=status,
                   release_trust='unsigned disposable fixture; no production signature admission')
     return result

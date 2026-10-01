@@ -15,6 +15,8 @@ mod release_channel;
 mod release_history;
 mod setup;
 mod source;
+#[cfg(unix)]
+mod system;
 
 #[derive(Parser)]
 #[command(
@@ -28,6 +30,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Plan or export declarative configuration over a retained Fedora foundation.
+    #[cfg(unix)]
+    System(system::Options),
     /// Build an independent declared package graph in a private Linux namespace.
     #[cfg(unix)]
     Build(engine::BuildOptions),
@@ -409,6 +414,14 @@ fn run_engine(command: engine::Command) -> ExitCode {
 
 fn main() -> ExitCode {
     match Cli::parse().command {
+        #[cfg(unix)]
+        Some(Commands::System(options)) => match system::run(options) {
+            Ok(()) => (),
+            Err(error) => {
+                eprintln!("sysroot: {error}");
+                return engine::failure_code(&error);
+            }
+        },
         #[cfg(unix)]
         Some(Commands::Build(options)) => return run_engine(engine::Command::Build(options)),
         #[cfg(unix)]

@@ -4,6 +4,15 @@
 
 ## 2026-10-01
 
+### SKILL-MODIFIED: Typed system composition and qualification boundaries
+- **What:** recorded frozen source materialization, observed RPM/foundation policy,
+  explicit foundation passthrough, safe context publication and derived-artifact
+  qualification limits in the repository Rust skill; manifests are version0.3.10.
+- **Why:** keep context export separate from installed behavior and signing.
+- **Files:** first-party Rust workspace skill and both plugin manifests.
+- **Evidence:** `system.rs`, `source.rs` and the composition verification record.
+- **Affected workflows:** local typed system composition and continuation only.
+
 ### SKILL-MODIFIED: Independent Rust engine scope and observed safety boundaries
 - **What:** extended the repository Rust workspace skill with the new engine/API,
   first native ARM backend, OCI archive identity validation, Darwin publication

@@ -6,10 +6,12 @@ The owner requested research into a sharable Rust Nix-style build system and
 declarative OS configuration, targeting Kedra. Kedranix is reference only and a
 future consumer after rewriting. Sources, citations and the completed research
 proposal are retained in [the research workspace](../../../../.specs/nix-recreation/README.md).
-Status: research complete and first independent Rust engine locally implemented.
+Status: research complete, first independent Rust engine published as a draft,
+and typed static system composition locally implemented and tested.
 The [engine guide](ENGINE.md) describes package planning/builds, immutable store,
-runtime closure transfer, profiles/develop and collection/recovery. General OS
-configuration compilation, Nix frontend/nixpkgs and OS backend replacement are
+runtime closure transfer, profiles/develop and collection/recovery. The
+[system adapter](SYSTEM.md) exports typed config/runtime contexts over a retained
+Fedora44 ARM foundation. Derived OS transformations, Nix frontend/nixpkgs and OS backend replacement are
 subsequent phases. Existing Fedora bootc release and home contracts remain in force.
 
 The [proposal](../../../../.specs/nix-recreation/proposal.md) recommends an
@@ -22,11 +24,25 @@ offline receiver store, rollback, artifact/image refusal, interruption and priva
 Docker context-switch behavior pass with a macOS controller/native ARM Docker29.4.
 Native Linux ARM controller compile and seven filesystem/planning/recovery cases
 also pass offline. Workspace format/Clippy/E2E/release build and legacy release
-interop/material gates pass. These are local source checks, not publication.
+interop/material gates pass. The engine is published as draft
+[PR28](https://github.com/Reidond/kedra/pull/28) at `7329ef1`; both architecture
+workspace checks pass in [run36857909727](https://github.com/Reidond/kedra/actions/runs/36857909727).
+Engine container, ARM boot, desktop, native and signed-VM checks pass; native-home
+is pending at this observation. The dependent `codex/nix-system-composition`
+branch is active through gh-stack, with [concrete requirements](../../../../.specs/nix-system-composition/requirements.md).
+Its final native Fedora composition workflow passes 2/2, including compiled Rust
+authoring, actual package/RPM observations, deterministic contexts, typed
+references, foundation passthrough and refusal/preservation cases. Workspace
+format/Clippy/E2E/release build and legacy release CLI checks pass; exact coverage
+is in [composition evidence](../../../../.specs/nix-system-composition/verification.md).
+Full current-Kedra composition is blocked by a retained candidate whose Docker
+export omits its configuration and 78 layers; exact-digest re-pull reports up to
+date but admission still refuses. No validation bypass or successful context is
+claimed. Context load/build/runtime replay and derived artifacts remain not-run.
 
 Power-loss/ENOSPC windows, the complete adverse matrices, cold independent daemon,
 x86_64, further frontends/caches and new OS composition/boot qualification remain
-not-run. No commit, push, image publication or deployment was performed. Research
+not-run. No image publication or deployment was performed. Research
 archive provenance and its dated proposal review remain preserved.
 
 The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.

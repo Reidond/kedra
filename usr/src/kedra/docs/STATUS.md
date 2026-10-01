@@ -1,5 +1,34 @@
 # Verified status
 
+## Nix recreation investigation (2026-10-01)
+
+The owner requested research into a sharable Rust Nix-style build system and
+declarative OS configuration, targeting Kedra. Kedranix is reference only and a
+future consumer after rewriting. Sources, citations and the completed research
+proposal are retained in [the research workspace](../../../../.specs/nix-recreation/README.md).
+Status: research complete and first independent Rust engine locally implemented.
+The [engine guide](ENGINE.md) describes package planning/builds, immutable store,
+runtime closure transfer, profiles/develop and collection/recovery. General OS
+configuration compilation, Nix frontend/nixpkgs and OS backend replacement are
+subsequent phases. Existing Fedora bootc release and home contracts remain in force.
+
+The [proposal](../../../../.specs/nix-recreation/proposal.md) recommends an
+independent core, first aarch64/one-output build-and-transfer workflow, then
+typed Rust/native-config OS composition into the existing image pipeline.
+[Implementation evidence](../../../../.specs/nix-engine/verification.md) records ten
+engine cases observed across a nine-pass/fixture-failure full run and repaired
+context-only pass. The real C executable/shared library, independent rebuild,
+offline receiver store, rollback, artifact/image refusal, interruption and private
+Docker context-switch behavior pass with a macOS controller/native ARM Docker29.4.
+Native Linux ARM controller compile and seven filesystem/planning/recovery cases
+also pass offline. Workspace format/Clippy/E2E/release build and legacy release
+interop/material gates pass. These are local source checks, not publication.
+
+Power-loss/ENOSPC windows, the complete adverse matrices, cold independent daemon,
+x86_64, further frontends/caches and new OS composition/boot qualification remain
+not-run. No commit, push, image publication or deployment was performed. Research
+archive provenance and its dated proposal review remain preserved.
+
 The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
 
 ## Active completion and identity replacement (2026-09-30)

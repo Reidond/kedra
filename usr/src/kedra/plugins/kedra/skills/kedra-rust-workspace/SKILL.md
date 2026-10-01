@@ -11,6 +11,31 @@ Use edition 2024, resolver 3, one Cargo.lock and explicit binary/library paths. 
 
 Use typed errors, explicit process arguments and separate stdout data/stderr diagnostics. Preserve subprocess failure. Avoid input panics and unsafe shortcuts; safe Rust alone does not prove privilege, race, signature or recovery correctness.
 
+`sysroot-engine` is the independent flat-source package graph/store/profile crate
+(2026-10-01). Its model/planning API is separate from Unix storage/execution;
+the first backend is private-owner native aarch64 Linux through a frozen local
+Unix Docker endpoint. CLI adapters live in `sysroot/engine.rs`. This is separate
+from installed helper authority, OS composition, home state and signed releases.
+Read `usr/src/kedra/docs/ENGINE.md` and the crate README for operations/limits.
+
+Docker29.4.0 image IDs in the observed retained fixtures name OCI root indexes,
+not config hashes. The engine validates the complete selected ARM manifest/config/
+layer descriptor graph and Docker compatibility manifest before trusting retained
+archive evidence. Hashing an archive only against its own receipt is insufficient
+when an unrelated claimed image is already cached. Classic-only archives refuse;
+Docker owns decompression/DiffID verification. Source: first-engine E2E forged
+archive refusal and `.specs/nix-engine/verification.md`.
+
+On this macOS/ARM filesystem, renaming a sealed0555 directory across parents
+returns EACCES. Engine publication seals contents, temporarily leaves only the
+staging container0700 for rename under its exclusive lock, then seals the final
+container and fsyncs. GC retires live objects into journaled tombstones before
+recursive removal; first profiles publish complete staged directories. Real
+interruption, foreign-sentinel and source-admission workflows are required evidence,
+not inferred from the presence of journals. Run explicit Docker cases with
+`cargo test -p sysroot --test e2e_engine --locked -- --include-ignored --test-threads 1`;
+default ignored cases confer no runtime coverage.
+
 The container crate also uses the workspace base64 dependency for bounded desktop
 payloads and signal-hook 0.4.4 for cooperative interruption. `prepare-sync` caches
 the host-native source archiver; config-only sync must not call the Linux binary

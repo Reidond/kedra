@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-01
+
+### SKILL-MODIFIED: Independent Rust engine scope and observed safety boundaries
+- **What:** extended the repository Rust workspace skill with the new engine/API,
+  first native ARM backend, OCI archive identity validation, Darwin publication
+  behavior and actual interruption/explicit-Docker qualification requirements.
+- **Why:** preserve observed behavior and prevent future work from equating a
+  receipt hash, journal file or ignored test listing with runtime qualification.
+- **Files:** `usr/src/kedra/plugins/kedra/skills/kedra-rust-workspace/SKILL.md`,
+  both first-party plugin manifests (version0.3.9).
+- **Affected workflows:** engine development and evidence handoff in this repository.
+  This records already observed facts, not an unmeasured improvement experiment.
+
 ## 2026-09-28
 
 ### SKILL-MODIFIED: Describe current desktop lab capabilities

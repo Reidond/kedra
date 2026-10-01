@@ -1,0 +1,421 @@
+{
+  "owner": "O2",
+  "findings": [
+    {
+      "source_id": "S-004",
+      "claims": [
+        {
+          "claim": "Pure construction covers static code, configuration and startup artifacts, with dependencies shared in one graph.",
+          "evidence": "S-004 §4.1–4.2 PDF12–16; §5.2 PDF20–25; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Modules declare options and contribute definitions; merge functions are option-specific, and merged config is fed back to modules.",
+          "evidence": "S-004 §5.1 PDF17–20; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Lazy configuration fixed points permit cross-module references, but cyclic option dependencies still fail; mkIf delays conditions at definitions.",
+          "evidence": "S-004 §6.3 PDF31–32; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "A profile switch is atomic while activation can temporarily mix old and new services.",
+          "evidence": "S-004 §4.2 PDF14–15; §5.2 PDF22–25; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Mutable state is excluded; reverse database migration remains unresolved work.",
+          "evidence": "S-004 §6.2 PDF28–29; §8 PDF35; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Kernel modules, hardware-specific initrd, boot stages and service startup require explicit composition.",
+          "evidence": "S-004 §5.2 PDF23–24; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        },
+        {
+          "claim": "Hard-coded paths, ELF loaders and RPATHs require package integration; host paths can introduce undeclared dependencies.",
+          "evidence": "S-004 §6.2 PDF28–30; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        },
+        {
+          "claim": "The paper separates privileged wrappers from immutable build outputs and assigns them to activation.",
+          "evidence": "S-004 §6.5 PDF33–34; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        },
+        {
+          "claim": "The language is dynamically typed, and the module implementation uses reflection.",
+          "evidence": "S-004 §6.4 PDF32–33; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        }
+      ],
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/nixos-jfp-final.pdf",
+        "local_pdf": "sources/papers/nixos-jfp-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "33cca5dd38c08520691e658981c1226c3b55b8bb024a6c672edc93be266be57d",
+        "version": "Supplied 38-page manuscript, header 2 September 2010",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-005",
+      "claims": [
+        {
+          "claim": "Separate service, infrastructure and distribution models describe what is built and where it runs.",
+          "evidence": "S-005 §3.2 PDF4–5; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        },
+        {
+          "claim": "The reported live upgrade protocol blocks service access during its commit phase; immutable paths alone do not account for that behavior.",
+          "evidence": "S-005 §3.2 PDF5; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        },
+        {
+          "claim": "QoS placement, dynamic discovery, persistent storage and realistic application evaluation remain future work beyond the prototype.",
+          "evidence": "S-005 Introduction PDF2; §4 PDF5; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "tangential"
+        }
+      ],
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/icse-cloud09-final.pdf",
+        "local_pdf": "sources/papers/icse-cloud09-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "8d678174ee3a0813eb48255283bf3aff79c18a1e3a7351a86f9c8f08b8eb3636",
+        "version": "Supplied 6-page paper",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-007",
+      "claims": [
+        {
+          "claim": "This version explains language semantics and top-level explicit system composition, not the later JFP option-module framework.",
+          "evidence": "S-007 §4–5 PDF5–10, compared with S-004 §5.1 PDF17–20; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Activation manages accounts, links and services separately from constructing the kernel, initrd and configuration.",
+          "evidence": "S-007 §5 PDF8–10; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Mutable state and hardware-specific runtime dependencies constrain the purity claim.",
+          "evidence": "S-007 §6.2 PDF11; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        },
+        {
+          "claim": "Repeated historical builds had byte differences; the paper is not evidence of current bit reproducibility or Rust performance.",
+          "evidence": "S-007 §6.2 PDF11–12; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        }
+      ],
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/nixos-icfp2008-final.pdf",
+        "local_pdf": "sources/papers/nixos-icfp2008-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "5714366dcb5f7812d77c598ac1da52cc4dd548d2818bf4267cf62f5a970279de",
+        "version": "Distinct supplied 12-page conference paper",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-010",
+      "claims": [
+        {
+          "claim": "The functional construction model includes code, configuration and control scripts in the same dependency closure.",
+          "evidence": "S-010 §2–3 PDF2–5; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Mutable /var and mixed-purpose account state remain outside pure immutable construction.",
+          "evidence": "S-010 §4 PDF5; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Generation retention provides rollback while changes deep in dependencies can require substantial additional storage.",
+          "evidence": "S-010 §3 PDF4; §4 PDF5–6; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        }
+      ],
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/hotos-final.pdf",
+        "local_pdf": "sources/papers/hotos-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "eedd2457f8888d31e47ce2c1aac925d859f33400235b83483e9566acb2c26d7e",
+        "version": "Supplied 6-page paper; ACM record identifier 10.5555/1361397.1361410 is not asserted as independently registered DOI",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-014",
+      "claims": [
+        {
+          "claim": "Service construction binds code, configuration and control artifacts while persistent data and runtime control remain separate.",
+          "evidence": "S-014 §2.1–2.4 PDF3–8; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Explicit subservice interfaces and shared parameters compose configuration without repeating cross-cutting values.",
+          "evidence": "S-014 §3–4 PDF9–11; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "supporting"
+        },
+        {
+          "claim": "The discussion proposes reload only for known reloadable changes; code/dependency changes require conservative restart.",
+          "evidence": "S-014 §6.2 PDF14–15; 1-based retained PDF pagination",
+          "confidence": "high",
+          "importance": "central"
+        }
+      ],
+      "provenance": {
+        "status": "verified",
+        "canonical_url": "https://nixos.org/~eelco/pubs/servicecm-scm12-final.pdf",
+        "local_pdf": "sources/papers/servicecm-scm12-final.pdf",
+        "method": "Supplied full document and extracted text inspection; SHA-256 independently matched archive registry; title/index bibliography checked",
+        "sha256": "3d202afbd315f1419995ed927a48619d114720fa1a4613052c7368a464bad8fc",
+        "version": "Supplied 16-page paper; venue city omitted due index/bibliography disagreement",
+        "limits": "Historical source, not current runtime verification or remote-byte equivalence"
+      },
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-020",
+      "claims": [
+        {
+          "claim": "Typed merging.",
+          "evidence": "https://nixos.org/manual/nixos/stable/#sec-option-types",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Override and ordering differ.",
+          "evidence": "https://nixos.org/manual/nixos/stable/#sec-option-definitions-setting-priorities ; #sec-option-definitions-ordering",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Delayed conditionals.",
+          "evidence": "https://nixos.org/manual/nixos/stable/#sec-option-definitions-delaying-conditionals",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Stateful activation.",
+          "evidence": "https://nixos.org/manual/nixos/stable/#sec-switching-systems ; #sec-activation-script",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Persistence requirements.",
+          "evidence": "https://nixos.org/manual/nixos/stable/#ch-system-state",
+          "confidence": "high",
+          "importance": "central"
+        },
+        {
+          "claim": "Boot interface constraints.",
+          "evidence": "https://nixos.org/manual/nixos/stable/#sec-bootspec",
+          "confidence": "high",
+          "importance": "supporting"
+        }
+      ],
+      "provenance": {
+        "status": "verified",
+        "url": "https://nixos.org/manual/nixos/stable",
+        "resolved_url": "https://nixos.org/manual/nixos/stable/",
+        "observed_date": "2026-10-01",
+        "version": "26.05",
+        "generator": "nixos-render-docs 26.05.3869.95ca1e203c07",
+        "local_html": "sources/web/nixos-stable-manual.html",
+        "sha256": "aacdf5ec7d2f7b425ec736aa74bbdfa53c81b8fee62d4fd5e3bf560212788aea",
+        "limits": "Mutable stable URL, not newest-version claim; document inspection only"
+      },
+      "analysis_outcome": "complete"
+    }
+  ],
+  "handoffs": [
+    {
+      "url": "https://bootc.dev/bootc/filesystem.html",
+      "why_relevant": "Qualify image versus writable store layout and logical prefix; linked by Kedra contracts, not analyzed by O2."
+    },
+    {
+      "url": "https://bootc.dev/bootc/building/guidance.html",
+      "why_relevant": "Qualify closure integration into Fedora bootc build output; not analyzed by O2."
+    },
+    {
+      "url": "https://bootc.dev/bootc/bootc-install.html#finding-and-configuring-the-physical-root-filesystem",
+      "why_relevant": "Qualify physical-root/early-mount behavior for independent store placement; not analyzed by O2."
+    }
+  ],
+  "used_web_urls": [
+    {
+      "source_id": "S-004",
+      "url": "https://nixos.org/~eelco/pubs/nixos-jfp-final.pdf",
+      "observed_version": "Supplied 38-page manuscript, header 2 September 2010",
+      "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+    },
+    {
+      "source_id": "S-005",
+      "url": "https://nixos.org/~eelco/pubs/icse-cloud09-final.pdf",
+      "observed_version": "Supplied 6-page paper",
+      "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+    },
+    {
+      "source_id": "S-007",
+      "url": "https://nixos.org/~eelco/pubs/nixos-icfp2008-final.pdf",
+      "observed_version": "Distinct supplied 12-page conference paper",
+      "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+    },
+    {
+      "source_id": "S-010",
+      "url": "https://nixos.org/~eelco/pubs/hotos-final.pdf",
+      "observed_version": "Supplied 6-page paper; ACM record identifier 10.5555/1361397.1361410 is not asserted as independently registered DOI",
+      "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+    },
+    {
+      "source_id": "S-014",
+      "url": "https://nixos.org/~eelco/pubs/servicecm-scm12-final.pdf",
+      "observed_version": "Supplied 16-page paper; venue city omitted due index/bibliography disagreement",
+      "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+    },
+    {
+      "source_id": "S-020",
+      "url": "https://nixos.org/manual/nixos/stable/",
+      "observed_version": "26.05; nixos-render-docs 26.05.3869.95ca1e203c07",
+      "observed_date": "2026-10-01",
+      "anchors": [
+        "sec-writing-modules",
+        "sec-option-types",
+        "sec-option-definitions",
+        "sec-option-definitions-delaying-conditionals",
+        "sec-option-definitions-setting-priorities",
+        "sec-option-definitions-ordering",
+        "sec-switching-systems",
+        "sec-unit-handling",
+        "sec-activation-script",
+        "ch-system-state",
+        "sec-bootspec",
+        "sec-changing-config",
+        "sec-kernel-config",
+        "sec-nixos-tests",
+        "sec-nixos-test-testing-hardware-features"
+      ]
+    },
+    {
+      "source_id": "bibliography-index",
+      "url": "https://nixos.org/research/",
+      "observed_version": "Retained official index snapshot 2026-10-01",
+      "sha256": "c651f0a76bd8928fd8aa381bc9c682e6f8ad260011514c4fc8c21e8c8332caf1"
+    }
+  ],
+  "bibliography": [
+    {
+      "source_id": "S-004",
+      "title": "NixOS: A Purely Functional Linux Distribution",
+      "authors": [
+        "Eelco Dolstra",
+        "Andres Löh",
+        "Nicolas Pierron"
+      ],
+      "year": 2010,
+      "venue": "Journal of Functional Programming 20(5–6)",
+      "doi": "10.1017/S0956796810000195",
+      "doi_verification": "Exact DOI link associated with this title in retained official research index"
+    },
+    {
+      "source_id": "S-005",
+      "title": "Software Deployment in a Dynamic Cloud: From Device to Service Orientation in a Hospital Environment",
+      "authors": [
+        "Sander van der Burg",
+        "Eelco Dolstra",
+        "Merijn de Jonge",
+        "Eelco Visser"
+      ],
+      "year": 2009,
+      "venue": "2009 ICSE Workshop on Software Engineering Challenges of Cloud Computing",
+      "doi": "10.1109/CLOUD.2009.5071534",
+      "doi_verification": "Exact DOI link associated with this title in retained official research index"
+    },
+    {
+      "source_id": "S-007",
+      "title": "NixOS: A Purely Functional Linux Distribution",
+      "authors": [
+        "Eelco Dolstra",
+        "Andres Löh"
+      ],
+      "year": 2008,
+      "venue": "ICFP 2008: 13th ACM SIGPLAN International Conference on Functional Programming",
+      "doi": "10.1145/1411204.1411255",
+      "doi_verification": "Exact DOI link associated with this title in retained official research index"
+    },
+    {
+      "source_id": "S-010",
+      "title": "Purely Functional System Configuration Management",
+      "authors": [
+        "Eelco Dolstra",
+        "Armijn Hemel"
+      ],
+      "year": 2007,
+      "venue": "11th Workshop on Hot Topics in Operating Systems (HotOS XI)"
+    },
+    {
+      "source_id": "S-014",
+      "title": "Service Configuration Management",
+      "authors": [
+        "Eelco Dolstra",
+        "Martin Bravenboer",
+        "Eelco Visser"
+      ],
+      "year": 2005,
+      "venue": "12th International Workshop on Software Configuration Management (SCM-12)"
+    },
+    {
+      "source_id": "S-020",
+      "title": "NixOS Manual",
+      "authors": [
+        "NixOS contributors"
+      ],
+      "year": null,
+      "venue": "Official online manual, observed version 26.05 on 2026-10-01"
+    }
+  ],
+  "recommendation_status": "Research inference only. Proposed typed SystemPlan boundary and bootc-first staging in O2-os.md are not approved architecture or implementation.",
+  "checks": {
+    "archive_hashes": "pass",
+    "document_analysis": "pass",
+    "new_core_build": "not-run",
+    "benchmark": "not-run",
+    "os_conversion": "not-run",
+    "boot": "not-run",
+    "deployment": "not-run"
+  }
+}

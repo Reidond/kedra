@@ -34,3 +34,5 @@ RUN chmod 0755 /usr/libexec/kedra-lab/seed /usr/libexec/kedra-lab/session-* /usr
     printf '[Service]\nEnvironment=RUST_LOG=niri=debug,smithay=debug\n' > /usr/lib/systemd/user/niri.service.d/90-kedra-lab-diagnostics.conf && \
     systemctl enable sshd.service kedra-lab-seed.service kedra-lab-boot-check.service && \
     /usr/bin/python3 -I /usr/libexec/kedra-lab/boot-check image && bootc container lint
+ARG FIXTURE_REFERENCE=""
+LABEL dev.kedra.lab.fixture-reference=${FIXTURE_REFERENCE}

@@ -53,3 +53,56 @@ and default.target cannot stand in for enable evidence. Read-only Astra review
 found no further concrete defect. Full workspace formatting/Clippy/release build
 and extracted-driver Ruff pass; runtime requalification is pending. The fixed
 observer additionally retains bounded root AVC observations for actual review.
+
+Actual alias-only regression after correction on ada24e6: enable174.52s and
+disable148.47s both pass. Independent readonly systemctl reports enabled/exit0
+with display-manager→greetd versus disabled/exit1 and alias absent. Disable
+receipt retains the exact selected removed_symlink target. Pinned invocation
+hashes match before/after; `attempt2/alias-results.json` retains evidence.
+These systemd-only checks have no requested kernels and confer no VM boot gate.
+Full current-source graphical composition/generation is now running serially.
+
+## Second actual graphical attempt
+
+Current ada24e6 composition62.25s, full native plan14.09s and corrected-source8/8
+refusals pass. Full graphical derivation212.72s passes with native image
+9085959da3cd38e0739e3f1de391beba71d6ef9c108b17b55840f7c6f897f126,
+identity672001cf6c000970cdfce80a78f6d2c8047c884a91a845979eebba77f06db330,
+12 artifacts and actual kernel7.2.7-200.fc44.aarch64/required drivers.
+
+VM fixture adaptation, immutable layer/material readback and imported Podman
+metadata/material pass. Disk installation then fails487.30s because unsigned
+fixture admission requires a signature. Inherited `enforce-container-sigpolicy`
+and production reject/sigstoreSigned policy bytes remain identical across9d6,
+native output and fixtureb764140e…; no bypass/weakening was attempted.
+No disk, boot or screenshot was produced. Exact owned builder/output volume
+cleanup passes; default state/observed absent-PID baseline is unchanged. Evidence:
+`attempt2/{summary.json,inherited-trust.json,disk-build-failure.log}`.
+
+This refutes the scout's assumption that inherited unsigned fixture disk install
+could proceed. D1 now needs a scoped disposable signed-fixture producer and strict
+normal consumer admission. Existing BIB uses an ID-only image in its private
+`[overlay@/run/osbuild/containers/storage2]` graphroot, so a named repository scope
+alone cannot match. The fixture-only addition to that exact scratch-store scope
+requires its generated key and signedIdentity exactReference to a preselected
+unique name:tag. Existing production docker entries/storage fallback/key/identity
+and install enforcement remain unchanged. A separate named ordinary builder-store
+scope supports strict pre-BIB verification. No circular final digest in policy,
+insecure consumer rule or consumer override. Producer signing creates signatures
+but is not verification evidence; actual installed-version admission/BIB is pending.
+
+## Disposable signed-fixture correction
+
+The implemented route keeps all target production trust bytes unchanged and
+places the fixture public key/policy only in a separate disposable buildroot.
+Its exact ordinary/BIB image-ID rules require the unique signed reference.
+Strict default-policy copy probes with Podman5.8.7/Skopeo1.22.3 refuse unsigned
+and wrong-key-only images and admit allowed-key-only images, including BIB's
+ID-only additional-image-store transport. Keys exist only in builder tmpfs and
+are deleted before BIB. The final target manifest and buildroot manifest have
+separate digest-pinned references; receipts retain both plus policy/key/recipe
+hashes. Probe evidence: `signature-probe/f53d011c3032bdf1b7c4d05a/summary.json`.
+
+Source is frozen for full signed BIB and cold/warm boot qualification, which
+remain not-run. Targeted workspace/compiler, Ruff and Bash checks pass; these
+do not establish installation or boot.

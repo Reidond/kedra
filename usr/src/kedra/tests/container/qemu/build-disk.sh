@@ -42,9 +42,19 @@ if [[ "$material" == native ]]; then
 fi
 mkdir -p /output
 podman pull "$builder"
+build_options=()
+boot_reference=$image
+if [[ "$material" == native ]]; then
+    kedra-sign-fixture "$image" "$loaded_id" "$metadata_sha"
+    buildroot=$(< /output/signing-buildroot)
+    boot_reference=$(< /output/boot-reference)
+    [[ "$buildroot" =~ ^localhost/kedra-qemu-buildroot@sha256:[a-f0-9]{64}$ ]]
+    [[ "$boot_reference" =~ ^localhost/kedra-qemu-fixture/[a-f0-9]{32}@sha256:[a-f0-9]{64}$ ]]
+    build_options=(--build-container "$buildroot")
+fi
 podman run --rm --privileged --security-opt label=type:unconfined_t \
     -v /output:/output -v /var/lib/containers/storage:/var/lib/containers/storage \
-    "$builder" --type raw --rootfs ext4 --use-librepo=True "$image"
+    "$builder" --type raw --rootfs ext4 --use-librepo=True "${build_options[@]}" "$boot_reference"
 mapfile -t disks < <(find /output -name '*.raw' -type f)
 test "${#disks[@]}" -eq 1
 # bootc-image-builder's qcow2 output enables expensive compression. Local lab

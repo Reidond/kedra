@@ -19,6 +19,12 @@ RPM_BASE = Path('/usr/share/kedra-lab/native-base-rpms.txt')
 ADJUSTMENTS = Path('/usr/share/kedra-lab/native-fixture-adjustments.json')
 RESULT = Path('/run/kedra-lab/native-boot.json')
 RPM_FORMAT = '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n'
+PRODUCTION_TRUST = (
+    '/etc/containers/policy.json', '/etc/containers/registries.d/kedra.yaml',
+    '/usr/lib/bootc/install/10-kedra.toml', '/usr/lib/sysroot/trust/release.pub',
+    '/usr/lib/sysroot/trust/release-policy.json', '/usr/share/sysroot/image-identity.json',
+    '/usr/share/sysroot/resolved-inputs.json', '/usr/share/sysroot/source.json',
+)
 
 
 def require(condition, message):
@@ -52,6 +58,14 @@ def regular(path, single=False):
 def read_json(path):
     require(regular(path).st_size <= 8 * 1024 * 1024, 'oversized material JSON')
     return json.loads(Path(path).read_text())
+
+
+def production_trust():
+    result = {}
+    for path in PRODUCTION_TRUST:
+        info = regular(path)
+        result[path] = {'sha256': digest(path), 'bytes': info.st_size, 'mode': stat.S_IMODE(info.st_mode)}
+    return result
 
 
 def provenance():
@@ -160,7 +174,7 @@ def image_observation(value, installed=False):
     require(hashlib.sha256(baseline.encode()).hexdigest() == value['material']['rpm_sha256'], 'native base RPM binding changed')
     require(set(baseline.splitlines()).issubset(inventory().splitlines()), 'fixture replaced a native RPM')
     return {'passed': True, 'provenance': value, 'native_receipt_sha256': digest(RECEIPT),
-            'fixture_adjustments': read_json(ADJUSTMENTS)}
+            'fixture_adjustments': read_json(ADJUSTMENTS), 'production_trust': production_trust()}
 
 
 def boot_artifacts(value):
@@ -234,7 +248,9 @@ def boot_observation(value):
     status = json.loads(run(['/usr/bin/bootc', 'status', '--json']))
     booted = status['status']['booted']['image']
     require(booted['architecture'] == 'arm64', 'wrong booted architecture')
-    require(re.fullmatch(r'localhost/kedra-qemu-fixture:[a-f0-9]{64}', booted['image']['image']), 'wrong booted fixture reference')
+    require(re.fullmatch(r'localhost/kedra-qemu-fixture/[a-f0-9]{32}@sha256:[a-f0-9]{64}', booted['image']['image']),
+            'wrong booted signed-fixture reference')
+    require(status['spec']['image']['signature'] == 'containerPolicy', 'bootc signature-policy enforcement absent')
     require(status['status']['staged'] is None and status['status']['rollback'] is None, 'unexpected additional deployment')
     failed = run(['/usr/bin/systemctl', 'list-units', '--state=failed', '--no-legend', '--plain', '--no-pager']).strip()
     require(not failed, 'failed system units: ' + failed)
@@ -249,12 +265,15 @@ def boot_observation(value):
         'complete': avcs.returncode == 0 or avcs.returncode == 1 and not avcs.stdout and not avcs.stderr,
     }
     result.update(secure_boot=True, lockdown=lockdown, firmware=firmware, selinux=selinux, bootc=status,
-                  release_trust='unsigned disposable fixture; no production signature admission')
+                  release_trust='disposable fixture signature admission; no production release authority')
     return result
 
 
 def main():
-    require(len(sys.argv) == 2 and sys.argv[1] in ('snapshot', 'restore', 'image', 'boot'), 'unknown fixed observation')
+    require(len(sys.argv) == 2 and sys.argv[1] in ('snapshot', 'restore', 'image', 'boot', 'trust'), 'unknown fixed observation')
+    if sys.argv[1] == 'trust':
+        print(json.dumps(production_trust(), sort_keys=True))
+        return
     value = provenance()
     if value is None:
         return

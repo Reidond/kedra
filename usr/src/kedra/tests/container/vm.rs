@@ -328,9 +328,9 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             };
             let (image, provenance) = match (native_plan, derivation_identity) {
                 (Some(plan), Some(identity)) => {
-                    let (image, derived) =
+                    let (image, derived, reference) =
                         crate::image::prepare_derived_vm(&docker, &request, &plan, &identity)?;
-                    (image, Some(derived))
+                    (image, Some((derived, reference)))
                 }
                 (None, None) if request.composition_identity.is_none() => {
                     (crate::image::prepare_vm(&docker, &request)?, None)
@@ -356,8 +356,12 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 .arg(docker.identity()?)
                 .arg("--cache")
                 .arg(qemu_cache_home()?);
-            if let Some(provenance) = provenance {
-                command.arg("--native-provenance").stdin(Stdio::piped());
+            if let Some((provenance, fixture_reference)) = provenance {
+                command
+                    .arg("--native-provenance")
+                    .arg("--fixture-reference")
+                    .arg(fixture_reference)
+                    .stdin(Stdio::piped());
                 #[cfg(unix)]
                 command.process_group(0);
                 let mut child = command.spawn()?;

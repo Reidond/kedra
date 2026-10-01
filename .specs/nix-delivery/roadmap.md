@@ -35,6 +35,11 @@ Risk/gate precision:
   detect it rather than borrow native generation proof from an earlier image.
 - Signed OCI output, generated initramfs, firmware signatures and cache producer
   authorization are different identities/authorities.
+- Actual D1 disk installation rejects an unsigned fixture under inherited
+  signature enforcement. Add a scoped generated-key fixture signing producer
+  and strict normal consumer admission before BIB; preserve production policy/
+  key/identity and enforcement. BIB's ID-only source needs its exact scratch-store
+  scope plus exact signed reference, rather than a repository-only policy match.
 - Native system identity binds inputs; nondeterministic realized initramfs bytes
   must not defeat no-change preflight. Preserve actual output hashes separately.
 - Protect storage: one heavyweight VM/import/build at a time, explicit private

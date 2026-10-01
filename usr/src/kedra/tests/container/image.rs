@@ -381,20 +381,24 @@ pub fn prepare_derived_vm(
     request: &Request,
     specification: &std::path::Path,
     identity: &str,
-) -> Result<(LabImage, crate::native_derivation::Derived)> {
+) -> Result<(LabImage, crate::native_derivation::Derived, String)> {
     let derived = crate::native_derivation::prepare(docker, request, specification, identity)?;
     if derived.material.kernels.is_empty() {
         return Err(invalid(
             "derived VM requires generated native kernel/initramfs material",
         ));
     }
+    let fixture_reference = format!(
+        "localhost/kedra-qemu-fixture/{}:boot",
+        crate::composition::nonce()?
+    );
     let image = prepare_fixture(
         docker,
         request,
         true,
         derived.image.clone(),
         format!("native:{}", derived.material.identity),
-        Some(&derived),
+        Some((&derived, &fixture_reference)),
     )?;
     let fixture = docker
         .image(&image.reference())?
@@ -402,6 +406,15 @@ pub fn prepare_derived_vm(
         .0;
     let parent = crate::composition::native_image(docker, &derived.image)?;
     let final_image = crate::composition::native_image(docker, &fixture)?;
+    if final_image
+        .config
+        .as_ref()
+        .and_then(|config| config.labels.as_ref())
+        .and_then(|labels| labels.get("dev.kedra.lab.fixture-reference"))
+        != Some(&fixture_reference)
+    {
+        return Err(invalid("VM fixture signing reference changed"));
+    }
     let parent_layers = parent
         .root_fs
         .and_then(|root| root.layers)
@@ -418,13 +431,32 @@ pub fn prepare_derived_vm(
             "VM fixture no longer extends the verified native image/daemon",
         ));
     }
+    let observer = fs::read_to_string(crate::harness_dir().join("qemu/boot-check.py"))?;
+    let trust = docker.isolated_native(
+        &derived.image,
+        vec![
+            "/usr/bin/python3".into(),
+            "-I".into(),
+            "-c".into(),
+            observer.clone(),
+            "trust".into(),
+        ],
+    )?;
+    let expected_trust: serde_json::Value = serde_json::from_slice(&trust.stdout)
+        .map_err(|error| invalid(format!("native production trust readback: {error}")))?;
+    if trust.exit != 0 {
+        return Err(invalid(format!(
+            "native production trust readback failed: {}",
+            trust.stderr_text()
+        )));
+    }
     let output = docker.isolated_native(
         &fixture,
         vec![
             "/usr/bin/python3".into(),
             "-I".into(),
             "-c".into(),
-            fs::read_to_string(crate::harness_dir().join("qemu/boot-check.py"))?,
+            observer,
             "image".into(),
         ],
     )?;
@@ -435,7 +467,11 @@ pub fn prepare_derived_vm(
         ))
     })?;
     let expected = serde_json::to_value(&derived).map_err(|error| invalid(error.to_string()))?;
-    if output.exit != 0 || observed["provenance"] != expected || observed["passed"] != true {
+    if output.exit != 0
+        || observed["provenance"] != expected
+        || observed["passed"] != true
+        || observed["production_trust"] != expected_trust
+    {
         return Err(invalid(format!(
             "VM fixture changed native material: {}",
             output.stderr_text()
@@ -448,6 +484,7 @@ pub fn prepare_derived_vm(
             ..image
         },
         derived,
+        fixture_reference,
     ))
 }
 
@@ -473,7 +510,7 @@ fn prepare_fixture(
     native: bool,
     base: String,
     described: String,
-    derived: Option<&crate::native_derivation::Derived>,
+    derived: Option<(&crate::native_derivation::Derived, &str)>,
 ) -> Result<LabImage> {
     let build_base = if base.starts_with("sha256:") {
         docker.pin_local(&base)?
@@ -515,7 +552,11 @@ fn prepare_fixture(
         .collect();
     probes.sort();
     let mut key_parts: Vec<Vec<u8>> = vec![base.as_bytes().to_vec()];
-    let material = serde_json::to_vec(&derived).map_err(|error| invalid(error.to_string()))?;
+    let material = serde_json::to_vec(&derived.map(|(material, _)| material))
+        .map_err(|error| invalid(error.to_string()))?;
+    if let Some((_, reference)) = derived {
+        key_parts.push(reference.as_bytes().to_vec());
+    }
     let material_file = if native {
         let path = std::env::temp_dir().join(format!(
             "kedra-vm-material-{}.json",
@@ -566,12 +607,16 @@ fn prepare_fixture(
             .into_owned();
         files.push((format!("probes/{name}"), probe.clone()));
     }
+    let mut build_args = vec![("BASE", build_base)];
+    if let Some((_, reference)) = derived {
+        build_args.push(("FIXTURE_REFERENCE", reference.to_owned()));
+    }
     let build = Build {
         tag: &format!("kedra-lab-tools:{tools_tag}"),
         what: "lab tools layer; the first build per base image takes a few minutes",
         containerfile: &lab_file("tools.Containerfile"),
         files: &files,
-        args: &[("BASE", build_base)],
+        args: &build_args,
         platform: &request.target.platform(),
     };
     if derived.is_some() {

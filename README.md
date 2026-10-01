@@ -20,7 +20,9 @@ Read [AGENTS.md](AGENTS.md), [architecture](usr/src/kedra/docs/ARCHITECTURE.md) 
 
 The [independent Rust engine](usr/src/kedra/docs/ENGINE.md) supplies ordinary-user
 build/store/runtime/profile workflows. Its first Docker backend targets native
-aarch64 Linux; OS composition and installed release trust remain separate.
+aarch64 Linux. [Typed system composition](usr/src/kedra/docs/SYSTEM.md) exports
+config and runtime closures over an exact retained Fedora foundation; installed
+release trust remains separate.
 
 ```sh
 cargo fmt --all -- --check

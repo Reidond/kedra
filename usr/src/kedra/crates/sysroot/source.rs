@@ -488,6 +488,34 @@ fn append<W: Write>(
     Ok(())
 }
 
+/// Read the exact validated blobs of a frozen plan, without resolving HEAD again.
+/// The generated manifest retains the existing source archive schema and bytes.
+pub(crate) fn materialize(
+    repo: &Path,
+    plan: &Plan,
+    mut emit: impl FnMut(&str, &[u8], u32) -> Result<(), Error>,
+) -> Result<(), Error> {
+    for entry in &plan.files {
+        let bytes = git(repo, &["cat-file", "blob", &entry.git_blob])?;
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        if hash != entry.sha256 {
+            return Err(invalid("Git object content changed during materialization"));
+        }
+        let mode = match entry.mode.as_str() {
+            "100755" => 0o755,
+            "100644" => 0o644,
+            _ => return Err(invalid("unsupported frozen source mode")),
+        };
+        emit(&entry.destination, &bytes, mode)?;
+    }
+    let manifest = serde_json::to_vec_pretty(plan)
+        .map_err(|e| invalid(format!("manifest serialization: {e}")))?;
+    emit("usr/share/sysroot/source.json", &manifest, 0o644)
+}
+
 /// Materialize only validated raw blobs plus a provenance manifest into a new tar.
 /// Existing output paths are never overwritten. A failed write leaves an incomplete
 /// artifact which must not be consumed; successful callers also check their exit code.
@@ -499,28 +527,9 @@ pub fn archive(repo: &Path, host: &str, output: &Path) -> Result<Plan, Error> {
         .open(output)?;
     let mut builder = tar::Builder::new(file);
     builder.follow_symlinks(false);
-    for entry in &plan.files {
-        let bytes = git(repo, &["cat-file", "blob", &entry.git_blob])?;
-        let hash: String = Sha256::digest(&bytes)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
-        if hash != entry.sha256 {
-            return Err(invalid(
-                "Git object content changed during archive creation",
-            ));
-        }
-        let mode = if entry.mode == "100755" { 0o755 } else { 0o644 };
-        append(&mut builder, &entry.destination, &bytes, mode)?;
-    }
-    let manifest = serde_json::to_vec_pretty(&plan)
-        .map_err(|e| invalid(format!("manifest serialization: {e}")))?;
-    append(
-        &mut builder,
-        "usr/share/sysroot/source.json",
-        &manifest,
-        0o644,
-    )?;
+    materialize(repo, &plan, |path, bytes, mode| {
+        append(&mut builder, path, bytes, mode)
+    })?;
     builder.finish()?;
     builder.into_inner()?.sync_all()?;
     Ok(plan)

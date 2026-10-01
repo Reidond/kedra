@@ -8,7 +8,10 @@ target table, production key or repository address.
 The first backend uses a local Unix Docker socket and native aarch64 Linux.
 Planning/data types remain separate from Unix filesystem/execution code. Native
 Darwin builds, Windows execution, x86_64 qualification, Nix-language/nixpkgs
-compatibility, signed remote substitution and whole-OS composition are later work.
+compatibility, signed remote substitution and whole-OS construction are later work.
+The typed `SystemDefinition` / `SystemFile` API now exports static native config
+and verified runtime closures over a retained Fedora foundation; see
+[system composition](../../docs/SYSTEM.md) for scope and actual qualification.
 
 ## Authoring
 

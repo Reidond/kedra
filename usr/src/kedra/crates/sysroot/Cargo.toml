@@ -28,6 +28,10 @@ path = "tests/e2e_setup_tpm_unlock.rs"
 name = "e2e_engine"
 path = "tests/e2e_engine.rs"
 
+[[test]]
+name = "e2e_system"
+path = "tests/e2e_system.rs"
+
 [dependencies]
 sysroot-core.workspace = true
 clap.workspace = true

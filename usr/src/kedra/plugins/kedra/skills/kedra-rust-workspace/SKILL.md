@@ -18,6 +18,24 @@ Unix Docker endpoint. CLI adapters live in `sysroot/engine.rs`. This is separate
 from installed helper authority, OS composition, home state and signed releases.
 Read `usr/src/kedra/docs/ENGINE.md` and the crate README for operations/limits.
 
+The typed `SystemDefinition`/`SystemFile` API and `sysroot system plan/compose`
+export static config/runtime contexts over an exact retained Fedora44 ARM
+foundation (2026-10-01). Keep source materialization tied to one resolved plan;
+never re-resolve HEAD while archiving. Match actual seven-column RPM material and
+one runtime foundation. Files outside config overlays require exact foundation
+bytes/mode and are explicit passthrough, never replacements. Export uses
+no-replace publication and refuses unsafe foundation aliases. Read
+`usr/src/kedra/docs/SYSTEM.md` and `.specs/nix-system-composition/verification.md`.
+Archive inspection/package execution does not qualify building/booting the context,
+GLib/initramfs generation, service enablement, home seeding or installed activation.
+
+Docker inspect/native execution is not complete OCI retention evidence. Observed
+Docker29.4 cached Kedra candidate91e27148 exports exit0 with only a25,088-byte
+manifest archive: config/all78 layers are missing. Exact-digest re-pull reports
+up to date but does not repair export; the engine correctly refuses admission.
+Source: composition verification/local archive diagnostic, 2026-10-01. Preserve
+that refusal and obtain complete archive evidence before claiming full composition.
+
 Docker29.4.0 image IDs in the observed retained fixtures name OCI root indexes,
 not config hashes. The engine validates the complete selected ARM manifest/config/
 layer descriptor graph and Docker compatibility manifest before trusting retained

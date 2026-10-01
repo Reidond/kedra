@@ -12,11 +12,15 @@ mod profile;
 #[cfg(unix)]
 mod store;
 #[cfg(unix)]
+mod system;
+#[cfg(unix)]
 mod tree;
 pub use model::*;
 pub use plan::{plan, read_graph};
 #[cfg(unix)]
 pub use store::Store;
+#[cfg(unix)]
+pub use system::*;
 
 #[derive(Debug)]
 pub enum Error {

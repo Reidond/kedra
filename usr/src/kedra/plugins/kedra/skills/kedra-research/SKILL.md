@@ -67,7 +67,30 @@ Use a named local tag for BuildKit FROM when the stage resolves to a bare image 
 retains the ID. A bare `sha256:...` was treated as a Docker Hub image name and
 failed before provisioning (WL-20260928-04; `usr/src/kedra/tests/container/image.rs`).
 
-Image stages for local runs are `stable`, `run-*`, `sha256:*`, `builds:*`, `ref:*`, or `build[:rev]`, with an optional working-tree overlay. Local builds are unsigned and never pushed or installed. Published OS images are built and signed only in Actions; local on-demand ISO builds consume reviewed signed images. Local CLI E2E uses generated fixtures; never install over the workstation, enroll real home, use vault content or production signing keys as fixtures.
+Image stages for local runs are `stable`, `run-*`, `sha256:*`, `builds:*`, `ref:*`, or `build[:rev]`, with an optional working-tree overlay. Local candidates are unsigned and never published or installed over the workstation. Disposable test derivatives may use generated fixture keys solely for normal signature-admission tests. Published OS images are built and signed only in Actions; local on-demand owner ISO builds consume reviewed signed images. Local CLI E2E uses generated fixtures; never enroll real home, use vault content or production signing keys as fixtures.
+
+Derived QEMU qualification (2026-10-02) uses `vm image` with the complete
+composition/native identity tuple. Preserve declared artifact bytes after DNF
+fixture triggers and independently bind booted reference/manifest/native tuple/
+trust to host image.json. Actual signed BIB plus cold/warm Secure Boot/lockdown,
+enforcing SELinux and Metal desktop pass; AVC notices remain recorded.
+Source: `.specs/nix-derived-boot/verification.md`. Image source, disk recipe and
+diagnostic script can have separate revisions; never relabel a retained image
+as newer committed source. Hash the pinned controller before/after each call.
+
+Inherited sigpolicy rejects an unsigned fixture. Keep target production trust
+bytes unchanged; use a separate generated-key buildroot and two exact-image-ID
+rules for ordinary/BIB stores, requiring the unique signed reference. BIB's
+ID-only source cannot match a repository-only rule. The actual pinned builder
+supports `--build-container NAME@MANIFEST_DIGEST`; a bare config ID can parse as
+a registry name. Strict default-policy unsigned/wrong-key refusals and allowed
+admission precede install. Keys stay in tmpfs and are removed before BIB; do not
+save/load signatures afterward. Podman5.8.7/Skopeo1.22.3 producer normalization
+changes manifest digest while preserving config/native bytes; record both.
+The disk builder lacks cmp/Python/OpenSSL CLI; use its verified existing tools,
+and include new scripts in the closed Docker context. Preserve observed absent
+default-VM PIDs rather than claiming a running default. Disposable admission is
+not production enrollment/update authority. No generic guest root transport.
 
 Record source/run/attempt, exact artifacts, versions and expected/actual result. Separate pass/fail/not-run/blocked, build/boot/install/healthy and physical hardware. Link Actions evidence from usr/src/kedra/docs/STATUS.md and worklog.md; do not commit raw logs, screenshots or research reports. Historical evidence is retained in Git history.
 

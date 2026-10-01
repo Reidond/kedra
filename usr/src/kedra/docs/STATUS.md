@@ -80,10 +80,30 @@ removed; outer daemon/default are preserved. Final native cached readback64.14s
 passes with that same pinned executable, exact image/identity and actual material.
 Implementation3a966f0 is [draft PR32](https://github.com/Reidond/kedra/pull/32),
 fourth in native gh-stack30 above exact PR31 head; remote/local ancestry match.
-New-source Actions are running, including
-[workspace36900391733](https://github.com/Reidond/kedra/actions/runs/36900391733).
+Both architecture workspace checks pass on exact PR32 head3ba7d1b in
+[workspace36900727082](https://github.com/Reidond/kedra/actions/runs/36900727082).
 Native-cache publication faults,
 boot/SELinux/install/update and signed integration remain unqualified.
+
+The owner has authorized five further dependent drafts with Astra subagents:
+[derived boot, release integration, catalog, reuse and cache/recovery](NIX-DELIVERY.md).
+The first layer is draft [PR33](https://github.com/Reidond/kedra/pull/33),
+`codex/nix-derived-boot`, published through gh-stack above PR32; exact initial
+published head8a8796c matches local/remote ancestry. New-source CI is running.
+Its exact image source6c38ab05 composes successfully and generates twelve native
+artifacts/kernel7.2.7. The disposable signed disk recipee19113d preserves target
+production trust and uses a separate generated-key buildroot. Bounded signature
+probes and actual signed BIB/install/disk pass806.088s after retained context/
+tool-dependency failures. Cold30.119s and warm22.113s pass exact host-bound
+deployment/kernel/initrd/native/trust checks, Secure Boot/lockdown, enforcing
+SELinux and real Metal desktop/settings/input. AVC notices/denials are retained.
+Corrected public native diagnostics passes2.032s on script1f32337; no guest root
+authority is added. Earlier systemd Alias-only enable/disable regressions pass.
+Compiler/ordinary CLI/legacy release gates pass. D2–D5 preparations remain
+inactive and uncompiled; source review passed with D2 cleanup fixes pending its
+actual runtime gates. The new named VM is retained; default resources are exact.
+Exact attempts, failures and provenance distinctions are retained in
+[derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
 
 Power-loss/ENOSPC windows, the complete adverse matrices, native x86_64,
 further frontends/caches and new OS composition/boot qualification remain

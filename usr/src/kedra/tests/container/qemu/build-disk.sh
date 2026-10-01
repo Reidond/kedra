@@ -20,6 +20,8 @@ loaded_id=${loaded#Loaded image: }
 image=${1:?image reference}
 builder=${2:?pinned builder}
 metadata_sha=${3:?expected image content metadata hash}
+material=${4:?native or ordinary fixture}
+[[ "$material" == native || "$material" == ordinary ]]
 # Docker's containerd store and Podman can assign different IDs to the same
 # archive. Bind the imported rootfs/config/platform before assigning its tag.
 podman image inspect "$loaded_id" > /output/imported-image.json
@@ -28,6 +30,16 @@ actual=$(jq -cjS '.[0] | {Architecture, Os, RootFS: .RootFS.Layers, Config: (.Co
 test "$actual" = "$metadata_sha"
 podman tag "$loaded_id" "$image"
 test "$(podman image inspect "$image" --format '{{.Os}}/{{.Architecture}}')" = linux/arm64
+podman image inspect "$image" --format '{{.Digest}}' > /output/imported-manifest-digest
+[[ "$(< /output/imported-manifest-digest)" =~ ^sha256:[a-f0-9]{64}$ ]]
+if [[ "$material" == native ]]; then
+    observer_sha=${5:?expected controller observer hash}
+    test "$(sha256sum /tmp/kedra-native-boot-check.py | cut -d ' ' -f 1)" = "$observer_sha"
+    observer=$(< /tmp/kedra-native-boot-check.py)
+    podman run --rm --network none --read-only --cap-drop=ALL --security-opt no-new-privileges \
+        --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --entrypoint /usr/bin/python3 \
+        "$image" -I -c "$observer" image > /output/imported-native.json
+fi
 mkdir -p /output
 podman pull "$builder"
 podman run --rm --privileged --security-opt label=type:unconfined_t \

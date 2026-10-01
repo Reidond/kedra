@@ -410,19 +410,25 @@ impl Docker {
     /// unless it already exists. Step names and `RUN` output stream to stderr;
     /// a failure carries the tail of the step output.
     pub fn build(&self, build: &Build<'_>) -> Result<()> {
-        self.build_internal(build, None)
+        self.build_internal(build, None, true)
+    }
+
+    /// Re-run the controller-owned networked fixture recipe instead of adopting a tag.
+    pub(crate) fn build_fixture(&self, build: &Build<'_>) -> Result<()> {
+        self.build_internal(build, None, false)
     }
 
     pub fn build_static(&self, build: &Build<'_>, labels: HashMap<String, String>) -> Result<()> {
-        self.build_internal(build, Some(labels))
+        self.build_internal(build, Some(labels), false)
     }
 
     fn build_internal(
         &self,
         build: &Build<'_>,
         labels: Option<HashMap<String, String>>,
+        reuse_tag: bool,
     ) -> Result<()> {
-        if labels.is_none() && self.image(build.tag)?.is_some() {
+        if reuse_tag && self.image(build.tag)?.is_some() {
             eprintln!("kedra-lab: {} is cached", build.tag);
             return Ok(());
         }

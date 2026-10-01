@@ -1,0 +1,13 @@
+[Unit]
+Description=Observe generated native boot material in the disposable Kedra VM
+After=multi-user.target
+ConditionPathExists=/usr/share/kedra-lab/native-base-rpms.txt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/libexec/kedra-lab/boot-check boot
+RemainAfterExit=yes
+TimeoutStartSec=3min
+
+[Install]
+WantedBy=graphical.target

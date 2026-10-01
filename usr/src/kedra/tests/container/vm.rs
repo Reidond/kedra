@@ -33,6 +33,13 @@ pub enum VmCommand {
         image: String,
         #[arg(long, default_value = "worktree")]
         overlay: String,
+        /// Independently retained identity of the composition context.
+        #[arg(long, requires_all = ["native_plan", "derivation_identity"])]
+        composition_identity: Option<String>,
+        #[arg(long, requires_all = ["composition_identity", "derivation_identity"])]
+        native_plan: Option<PathBuf>,
+        #[arg(long, requires_all = ["composition_identity", "native_plan"])]
+        derivation_identity: Option<String>,
     },
     /// Build signed ARM64 installer media through the existing verification policy.
     Iso {
@@ -281,7 +288,31 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                     .arg(jobs.to_string()),
             )
         }
-        VmCommand::Image { image, overlay } => {
+        VmCommand::Image {
+            image,
+            overlay,
+            composition_identity,
+            native_plan,
+            derivation_identity,
+        } => {
+            let source = image.parse()?;
+            let overlay = overlay.parse()?;
+            let composed = matches!(source, crate::image::Source::Composition(_));
+            if composed != native_plan.is_some() {
+                return Err(crate::invalid(
+                    "VM composition requires the complete native identity tuple",
+                ));
+            }
+            if composed
+                && (overlay != crate::image::Overlay::None
+                    || std::env::var_os("KEDRA_LAB_BINARIES").is_some_and(|v| !v.is_empty())
+                    || std::env::var("KEDRA_LAB_TARGET")
+                        .is_ok_and(|v| !v.is_empty() && v != "qemu-arm64"))
+            {
+                return Err(crate::invalid(
+                    "derived VM requires qemu-arm64 without overlay or binary overrides",
+                ));
+            }
             if std::env::var("DOCKER_HOST").is_ok_and(|host| !host.starts_with("unix://")) {
                 return Err(crate::invalid(
                     "native image preparation requires a local Unix Docker socket",
@@ -290,28 +321,62 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             let docker = crate::docker::Docker::connect()?;
             let request = crate::image::Request {
                 target: crate::image::target(&docker, Some("qemu-arm64"))?,
-                source: image.parse()?,
-                overlay: overlay.parse()?,
+                source,
+                overlay,
                 binaries: None,
-                composition_identity: None,
+                composition_identity,
             };
-            let image = crate::image::prepare_vm(&docker, &request)?;
+            let (image, provenance) = match (native_plan, derivation_identity) {
+                (Some(plan), Some(identity)) => {
+                    let (image, derived) =
+                        crate::image::prepare_derived_vm(&docker, &request, &plan, &identity)?;
+                    (image, Some(derived))
+                }
+                (None, None) if request.composition_identity.is_none() => {
+                    (crate::image::prepare_vm(&docker, &request)?, None)
+                }
+                _ => {
+                    return Err(crate::invalid(
+                        "native VM needs the complete identity tuple",
+                    ));
+                }
+            };
             let reference = image.reference();
             let image_id = docker
                 .image(&reference)?
                 .ok_or_else(|| crate::invalid("native fixture disappeared"))?
                 .0;
-            execute(
-                script("prepare-disk.py")
-                    .arg("--image")
-                    .arg(reference)
-                    .arg("--image-id")
-                    .arg(image_id)
-                    .arg("--engine-id")
-                    .arg(docker.identity()?)
-                    .arg("--cache")
-                    .arg(qemu_cache_home()?),
-            )
+            let mut command = script("prepare-disk.py");
+            command
+                .arg("--image")
+                .arg(reference)
+                .arg("--image-id")
+                .arg(image_id)
+                .arg("--engine-id")
+                .arg(docker.identity()?)
+                .arg("--cache")
+                .arg(qemu_cache_home()?);
+            if let Some(provenance) = provenance {
+                command.arg("--native-provenance").stdin(Stdio::piped());
+                #[cfg(unix)]
+                command.process_group(0);
+                let mut child = command.spawn()?;
+                let data = serde_json::to_vec(&provenance)
+                    .map_err(|error| crate::invalid(error.to_string()))?;
+                let result = child
+                    .stdin
+                    .take()
+                    .ok_or_else(|| crate::invalid("disk builder stdin is unavailable"))?
+                    .write_all(&data);
+                if let Err(error) = result {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(error.into());
+                }
+                wait_child(&mut child)
+            } else {
+                execute(&mut command)
+            }
         }
         VmCommand::Iso {
             image,

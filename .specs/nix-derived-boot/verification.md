@@ -120,3 +120,13 @@ full SHA-256, UID/single-link/type/size and retained-manifest checks. The active
 context, canonical store, manifests/payloads and owner media remain. APFS/active
 build allocation means observed free space did not increase; no reclaimed-byte
 claim. Exact evidence: `prior-context-retirement.json`.
+
+Retry1 reaches the signed helper after corrected builder/import/material checks,
+then fails322.81s before signing matrix/BIB because the builder lacks `cmp`.
+The correction uses its existing SHA-256 tool for the four exact-byte
+comparisons; no package or trust-policy addition. Manual read-only inspection
+of actual builderf07f2791 confirms every remaining external helper command is
+installed. The temporary inspection container is removed automatically.
+All private keys were confined to builder tmpfs; failure cleanup removes the
+owned builder. No disk/VM result is claimed. Retry evidence remains
+`attempt3/vm-image-retry1.*` and the captured public builder logs.

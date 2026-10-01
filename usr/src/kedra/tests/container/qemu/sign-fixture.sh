@@ -2,6 +2,12 @@
 # Runs only inside the disposable disk builder. Secret keys live in its tmpfs,
 # outside the target image, public build context and retained Podman storage.
 set -Eeuo pipefail
+same_bytes() {
+    local left right
+    left=$(sha256sum -- "$1")
+    right=$(sha256sum -- "$2")
+    test "${left%% *}" = "${right%% *}"
+}
 image=${1:?unique named fixture}
 loaded_id=${2:?verified imported image ID}
 metadata_sha=${3:?verified image metadata hash}
@@ -60,7 +66,7 @@ jq -S --arg ordinary "$ordinary_scope" --arg bib "$bib_scope" \
     'del(.transports["containers-storage"][$ordinary],.transports["containers-storage"][$bib])' \
     "$context/policy.json" > "$scratch/policy-without-fixture.json"
 jq -S . "$context/production-policy.json" > "$scratch/production-canonical.json"
-cmp "$scratch/policy-without-fixture.json" "$scratch/production-canonical.json"
+same_bytes "$scratch/policy-without-fixture.json" "$scratch/production-canonical.json"
 cp "$context/policy.json" /output/fixture-policy.json
 cat > "$context/Containerfile" <<'CONTAINERFILE'
 ARG TARGET
@@ -84,7 +90,7 @@ podman image inspect "$buildroot_id" > /output/buildroot-image.json
 cp "$context/Containerfile" /output/buildroot.Containerfile
 podman run --rm --pull=never --network none --read-only --cap-drop=ALL --security-opt no-new-privileges \
     --entrypoint /usr/bin/cat "$buildroot_id" /etc/containers/policy.json > "$scratch/buildroot-policy.json"
-cmp "$context/policy.json" "$scratch/buildroot-policy.json"
+same_bytes "$context/policy.json" "$scratch/buildroot-policy.json"
 podman --version > /output/signing-versions.txt
 skopeo --version >> /output/signing-versions.txt
 podman run --rm --pull=never --network none --entrypoint /usr/bin/skopeo "$buildroot_id" --version \
@@ -138,7 +144,7 @@ material() {
     podman run --rm --pull=never --network none --read-only --cap-drop=ALL --security-opt no-new-privileges \
         --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --entrypoint /usr/bin/python3 \
         "$image" -I -c "$observer" image > "/output/$phase-native.json"
-    cmp /output/imported-native.json "/output/$phase-native.json"
+    same_bytes /output/imported-native.json "/output/$phase-native.json"
 }
 for phase in unsigned wrong allowed; do
     if [[ "$phase" != unsigned ]]; then
@@ -155,7 +161,7 @@ for phase in unsigned wrong allowed; do
 done
 podman run --rm --pull=never --network none --read-only --cap-drop=ALL --security-opt no-new-privileges \
     --entrypoint /usr/bin/python3 "$image" -I -c "$observer" trust > /output/target-trust-after.json
-cmp /output/target-trust-before.json /output/target-trust-after.json
+same_bytes /output/target-trust-before.json /output/target-trust-after.json
 signed_digest=$(< /output/allowed.digest)
 boot_reference=${image%:boot}@$signed_digest
 test "$(podman image inspect "$boot_reference" --format '{{.Id}}')" = "$id"

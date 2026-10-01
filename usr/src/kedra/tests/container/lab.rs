@@ -30,7 +30,7 @@ struct ImageArgs {
     /// Image target (desktop, qemu-arm64); defaults to the engine's native architecture.
     #[arg(long)]
     target: Option<String>,
-    /// stable, run-<id>-<attempt>, sha256:<hex>, builds:<tag>, ref:<reference>, build or build:<revision>.
+    /// stable, run-<id>-<attempt>, sha256:<hex>, builds:<tag>, ref:<reference>, build, build:<revision>, composition:<directory>.
     #[arg(long, default_value = "stable")]
     image: String,
     /// Layer the working tree (payload and sysroot binaries) over the image: worktree or none.
@@ -39,6 +39,9 @@ struct ImageArgs {
     /// Directory with prebuilt Linux sysroot and sysroot-helper binaries.
     #[arg(long)]
     binaries: Option<PathBuf>,
+    /// Independently selected identity for composition:<directory>.
+    #[arg(long)]
+    composition_identity: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -52,6 +55,21 @@ enum Command {
     PrepareSync,
     /// Resolve and build the lab image, then print it.
     Image(ImageArgs),
+    /// Build only the verified static composition; optionally run one typed output.
+    Replay {
+        #[command(flatten)]
+        image: ImageArgs,
+        #[arg(long, requires = "program")]
+        output: Option<String>,
+        #[arg(long, requires = "output")]
+        program: Option<String>,
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            requires = "output"
+        )]
+        argv: Vec<String>,
+    },
     /// Start a retained desktop environment and print how to use it.
     Up {
         #[command(flatten)]
@@ -123,7 +141,7 @@ fn request(docker: &Docker, args: &ImageArgs) -> Result<Request> {
     let source: Source = args.image.parse()?;
     let overlay = match &args.overlay {
         Some(value) => value.parse()?,
-        None if matches!(source, Source::Build(_)) => Overlay::None,
+        None if matches!(source, Source::Build(_) | Source::Composition(_)) => Overlay::None,
         None => Overlay::Worktree,
     };
     Ok(Request {
@@ -131,13 +149,20 @@ fn request(docker: &Docker, args: &ImageArgs) -> Result<Request> {
         source,
         overlay,
         binaries: args.binaries.clone(),
+        composition_identity: args
+            .composition_identity
+            .clone()
+            .or_else(|| std::env::var("KEDRA_LAB_COMPOSITION_IDENTITY").ok()),
     })
 }
 
 fn up(docker: &Docker, args: &ImageArgs, name: &str, display: &str) -> Result<()> {
     let display: Display = display.parse()?;
-    builder::prepare_archiver(&artifact_root().join("cache"))?;
-    let lab = image::prepare(docker, &request(docker, args)?)?;
+    let request = request(docker, args)?;
+    if !matches!(request.source, Source::Composition(_)) {
+        builder::prepare_archiver(&artifact_root().join("cache"))?;
+    }
+    let lab = image::prepare(docker, &request)?;
     let environment = Environment::start(docker, &lab, &Kind::Lab { name: name.into() })?;
     let started = (|| {
         let user = session::create_user(docker, &environment)?;
@@ -366,6 +391,33 @@ fn main() -> ExitCode {
     let outcome = Docker::connect().and_then(|docker| match cli.command {
         Command::Vm { .. } => unreachable!("dispatched without Docker"),
         Command::PrepareSync => unreachable!("dispatched without Docker"),
+        Command::Replay {
+            image,
+            output,
+            program,
+            argv,
+        } => {
+            let replay =
+                kedra_container_tests::composition::prepare(&docker, &request(&docker, &image)?)?;
+            if let (Some(output), Some(program)) = (output, program) {
+                let result = replay.run(&docker, &output, &program, &argv)?;
+                use std::io::Write;
+                std::io::stdout().write_all(&result.stdout)?;
+                std::io::stderr().write_all(&result.stderr)?;
+                Ok(if result.exit == 0 {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::FAILURE
+                })
+            } else {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&replay)
+                        .map_err(|error| Error::Invalid(error.to_string()))?
+                );
+                Ok(ExitCode::SUCCESS)
+            }
+        }
         Command::Image(args) => {
             let lab = image::prepare(&docker, &request(&docker, &args)?)?;
             println!("{}", serde_json::to_string_pretty(&lab).unwrap_or_default());

@@ -36,6 +36,17 @@ up to date but does not repair export; the engine correctly refuses admission.
 Source: composition verification/local archive diagnostic, 2026-10-01. Preserve
 that refusal and obtain complete archive evidence before claiming full composition.
 
+Replay continuation (2026-10-01) retains signed9d6eb030 under the installed strict
+source policy and verifies all78 layers/config/root; omitting unsupported archive
+signature sidecars does not waive source verification. `VerifiedComposition` owns
+a private verified snapshot and validates payload semantics, not just outer hashes.
+Use release product binaries for multi-GiB qualification; dev hashing caused a
+deliberately interrupted attempt. Producer/consumer composition manifests share
+a bounded64MiB limit; realistic1MiB config and GNU-name payload round trips pass.
+Known Kedra assembly makes `usr/libexec/kedra-session`0755 despite Git100644;
+the adapter asserts that exact foundation mode without rewriting it or source.json.
+Source: `.specs/nix-context-replay/verification.md`, `image/assemble.sh`.
+
 Docker29.4.0 image IDs in the observed retained fixtures name OCI root indexes,
 not config hashes. The engine validates the complete selected ARM manifest/config/
 layer descriptor graph and Docker compatibility manifest before trusting retained

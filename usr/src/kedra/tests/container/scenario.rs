@@ -845,6 +845,8 @@ pub struct Context<'a> {
     pub session: Option<Session>,
     pub artifacts: PathBuf,
     pub target: String,
+    /// Independently selected composition identity for source-specific native cases.
+    pub composition_identity: Option<String>,
 }
 
 impl Context<'_> {

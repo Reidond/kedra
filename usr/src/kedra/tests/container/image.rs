@@ -80,6 +80,8 @@ pub fn target(docker: &Docker, id: Option<&str>) -> Result<Target> {
 pub enum Source {
     /// `stable`: the signed production image.
     Stable,
+    /// Verified, retained static composition context.
+    Composition(PathBuf),
     /// `run-<id>-<attempt>`: an immutable signed publication.
     Run(String),
     /// `sha256:<hex>`: a digest in the production repository.
@@ -102,6 +104,9 @@ impl std::str::FromStr for Source {
         Ok(match text {
             "" | "stable" => Source::Stable,
             "build" => Source::Build(None),
+            _ if text.starts_with("composition:") && text.len() > 12 => {
+                Source::Composition(PathBuf::from(&text[12..]))
+            }
             _ if text.starts_with("run-") => Source::Run(text.to_owned()),
             _ if text.starts_with("sha256:") && hex(&text[7..]) => Source::Digest(text.to_owned()),
             _ if text.starts_with("builds:") && text.len() > 7 => {
@@ -116,7 +121,7 @@ impl std::str::FromStr for Source {
             _ => {
                 return Err(invalid(format!(
                     "unknown image source {text:?}; use stable, run-<id>-<attempt>, sha256:<hex>, \
-                     builds:<tag>, ref:<reference>, build or build:<revision>"
+                     builds:<tag>, ref:<reference>, build, build:<revision> or composition:<directory>"
                 )));
             }
         })
@@ -151,6 +156,8 @@ pub struct Request {
     pub overlay: Overlay,
     /// Directory with prebuilt Linux `sysroot` and `sysroot-helper`.
     pub binaries: Option<PathBuf>,
+    /// Independently selected composition input identity (lowercase hex).
+    pub composition_identity: Option<String>,
 }
 
 impl Request {
@@ -162,7 +169,7 @@ impl Request {
         let source: Source = variable("KEDRA_LAB_IMAGE").unwrap_or_default().parse()?;
         let overlay = match variable("KEDRA_LAB_OVERLAY") {
             Some(value) => value.parse()?,
-            None if matches!(source, Source::Build(_)) => Overlay::None,
+            None if matches!(source, Source::Build(_) | Source::Composition(_)) => Overlay::None,
             None => Overlay::Worktree,
         };
         Ok(Request {
@@ -170,6 +177,7 @@ impl Request {
             source,
             overlay,
             binaries: variable("KEDRA_LAB_BINARIES").map(PathBuf::from),
+            composition_identity: variable("KEDRA_LAB_COMPOSITION_IDENTITY"),
         })
     }
 }
@@ -219,6 +227,10 @@ fn base(docker: &Docker, request: &Request) -> Result<(String, String)> {
     let target = &request.target;
     let platform = target.platform();
     Ok(match &request.source {
+        Source::Composition(_) => {
+            let replay = crate::composition::prepare(docker, request)?;
+            (replay.image, format!("composition:{}", replay.identity))
+        }
         Source::Stable => {
             let reference = format!("{}:stable", target.repository);
             (
@@ -321,12 +333,32 @@ pub fn prepare(docker: &Docker, request: &Request) -> Result<LabImage> {
     prepare_kind(docker, request, false)
 }
 
+/// Composition-only system cases run the static image before any lab adaptation.
+pub fn prepare_system(docker: &Docker, request: &Request) -> Result<LabImage> {
+    if matches!(request.source, Source::Composition(_)) {
+        let replay = crate::composition::prepare(docker, request)?;
+        Ok(LabImage {
+            name: "sha256".into(),
+            tag: replay.image.trim_start_matches("sha256:").into(),
+            target: request.target.id.clone(),
+            source: format!("composition:{}", replay.identity),
+            base: replay.image,
+            overlay: None,
+        })
+    } else {
+        prepare(docker, request)
+    }
+}
+
 /// Native VM fixture, preserving kernel/DRM/SELinux and boot-only services.
 pub fn prepare_vm(docker: &Docker, request: &Request) -> Result<LabImage> {
     prepare_kind(docker, request, true)
 }
 
 fn prepare_kind(docker: &Docker, request: &Request, native: bool) -> Result<LabImage> {
+    if native && matches!(request.source, Source::Composition(_)) {
+        return Err(invalid("composition replay is not supported for VM images"));
+    }
     let (base, described) = base(docker, request)?;
     let build_base = if base.starts_with("sha256:") {
         docker.pin_local(&base)?

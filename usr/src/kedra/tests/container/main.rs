@@ -42,6 +42,7 @@ struct Shared {
     results: Mutex<Vec<TestResult>>,
     setups: std::collections::BTreeMap<String, Setup>,
     selected_count: usize,
+    composition_identity: Option<String>,
 }
 
 enum Body {
@@ -142,6 +143,7 @@ fn execute(shared: &Shared, name: &str, body: &Body) -> Result<(), Failed> {
                 session: None,
                 artifacts: artifacts.clone(),
                 target: shared.image.target.clone(),
+                composition_identity: shared.composition_identity.clone(),
             };
             let prepared: kedra_container_tests::Result<()> = (|| {
                 if fixtures.contains(&Fixture::TestUser) {
@@ -315,11 +317,17 @@ fn main() -> ExitCode {
             )
         })
         .collect();
+    let composition_source = std::env::var("KEDRA_LAB_IMAGE")
+        .is_ok_and(|value| value.trim().starts_with("composition:"));
     bodies.extend(
         native::TESTS
             .iter()
+            .filter(|test| test.source.applies(composition_source))
             .map(|test| (format!("native::{}", test.name), Body::Native(test))),
     );
+    if composition_source {
+        bodies.retain(|(_, body)| matches!(body, Body::Native(test) if test.source == native::SourceApplicability::Composition));
+    }
     match std::env::var("KEDRA_LAB_ORDER").as_deref() {
         Ok("reverse") => bodies.reverse(),
         Err(_) | Ok("") | Ok("forward") => {}
@@ -386,7 +394,7 @@ fn main() -> ExitCode {
     let execution = execution_id();
     let run_dir = artifact_root().join("runs").join(&execution);
     let preparation = Instant::now();
-    let image = match image::prepare(&docker, &request) {
+    let image = match image::prepare_system(&docker, &request) {
         Ok(image) => image,
         Err(error) => {
             eprintln!("container tests: could not prepare the image under test: {error}");
@@ -420,6 +428,7 @@ fn main() -> ExitCode {
         results: Mutex::new(Vec::new()),
         setups: suite.setups,
         selected_count: applicable.len(),
+        composition_identity: request.composition_identity.clone(),
     });
     let trials: Vec<Trial> = bodies
         .into_iter()

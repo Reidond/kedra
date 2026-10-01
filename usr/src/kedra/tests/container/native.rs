@@ -9,7 +9,22 @@ use kedra_container_tests::session::{self, Session};
 use kedra_container_tests::{Error, Result};
 use serde_json::Value;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum SourceApplicability {
+    Ordinary,
+    Composition,
+}
+impl SourceApplicability {
+    pub fn applies(self, composition: bool) -> bool {
+        matches!(
+            (self, composition),
+            (Self::Ordinary, false) | (Self::Composition, true)
+        )
+    }
+}
+
 pub struct NativeTest {
+    pub source: SourceApplicability,
     pub name: &'static str,
     pub profile: Profile,
     pub fixtures: &'static [Fixture],
@@ -20,6 +35,15 @@ pub struct NativeTest {
 
 pub const TESTS: &[NativeTest] = &[
     NativeTest {
+        source: SourceApplicability::Composition,
+        name: "composition_unit",
+        profile: Profile::System,
+        fixtures: &[],
+        targets: &["qemu-arm64"],
+        run: composition_unit,
+    },
+    NativeTest {
+        source: SourceApplicability::Ordinary,
         name: "home_review_cycle",
         profile: Profile::Desktop,
         fixtures: &[],
@@ -27,6 +51,7 @@ pub const TESTS: &[NativeTest] = &[
         run: home_review_cycle,
     },
     NativeTest {
+        source: SourceApplicability::Ordinary,
         name: "toolkit_file_choosers",
         profile: Profile::Desktop,
         fixtures: &[],
@@ -518,5 +543,85 @@ fn toolkit_file_choosers(context: &Context<'_>) -> Result<()> {
         }
         desk.run(&["systemctl", "--user", "stop", &format!("{unit}.service")])?;
     }
+    Ok(())
+}
+
+/// Actual generated unit behavior on the static composed image, without lab tools.
+fn composition_unit(context: &Context<'_>) -> Result<()> {
+    let docker = context.docker;
+    let id = &context.environment.id;
+    let expected = context
+        .composition_identity
+        .as_deref()
+        .ok_or_else(|| fail("composition identity is missing"))?;
+    let receipt: Value =
+        serde_json::from_slice(&docker.read_file(id, "/usr/share/sysroot/composition.json")?)
+            .map_err(|error| fail(error.to_string()))?;
+    ensure(receipt["identity"].as_str() == Some(expected), || {
+        "installed composition identity differs".into()
+    })?;
+    ensure(
+        docker.read_file(id, "/etc/sysroot-context-fixture.conf")? == b"context-config-v1\n",
+        || "installed fixture configuration differs".into(),
+    )?;
+    let unit = "sysroot-context-fixture.service";
+    docker.run(
+        id,
+        &Exec::new([
+            "systemd-analyze",
+            "verify",
+            "/usr/lib/systemd/system/sysroot-context-fixture.service",
+        ]),
+    )?;
+    docker.run(id, &Exec::new(["systemctl", "start", unit]))?;
+    docker.run(id, &Exec::new(["systemctl", "is-active", unit]))?;
+    let properties = docker.run(
+        id,
+        &Exec::new([
+            "systemctl",
+            "show",
+            unit,
+            "--property=Result,ExecMainStatus,ActiveState,SubState",
+        ]),
+    )?;
+    for required in [
+        "Result=success",
+        "ExecMainStatus=0",
+        "ActiveState=active",
+        "SubState=exited",
+    ] {
+        ensure(
+            properties
+                .stdout_text()
+                .lines()
+                .any(|line| line == required),
+            || format!("unit property {required} missing"),
+        )?;
+    }
+    let expected_output = b"context-fixture:unit:runtime-v1:context-config-v1\n";
+    ensure(
+        docker.read_file(id, "/run/sysroot-context-fixture.marker")? == expected_output,
+        || "unit output marker differs".into(),
+    )?;
+    let journal = docker.run(
+        id,
+        &Exec::new(["journalctl", "--no-pager", "-u", unit, "-o", "cat"]),
+    )?;
+    ensure(
+        journal
+            .stdout_text()
+            .lines()
+            .any(|line| line == "context-fixture:unit:runtime-v1:context-config-v1"),
+        || "unit journal lacks actual program output".into(),
+    )?;
+    std::fs::create_dir_all(&context.artifacts)?;
+    std::fs::write(
+        context.artifacts.join("composition-unit-properties.txt"),
+        properties.stdout,
+    )?;
+    std::fs::write(
+        context.artifacts.join("composition-unit-journal.txt"),
+        journal.stdout,
+    )?;
     Ok(())
 }

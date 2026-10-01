@@ -9,13 +9,15 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, File, OpenOptions, Permissions},
-    io::{Read, Write},
+    io::{BufWriter, Read, Write},
     os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
 };
 
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024 * 1024;
 const MAX_IMAGE: u64 = 8 * 1024 * 1024 * 1024;
+// Pretty JSON contains both authored and resolved file bytes, plus closure receipts.
+pub(crate) const MAX_COMPOSITION_JSON: u64 = 64 * 1024 * 1024;
 const RPM_FORMAT: &str = "%{NAME}\\t%{EPOCHNUM}\\t%{VERSION}\\t%{RELEASE}\\t%{ARCH}\\t%{SHA256HEADER}\\t%{PAYLOADSHA256}\\n";
 const RECEIPT_PATH: &str = "/usr/share/sysroot/composition.json";
 
@@ -56,14 +58,16 @@ pub enum SystemContent {
     Bytes(Vec<u8>),
     Template(Argument),
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FoundationObservation {
     pub receipt: ImageReceipt,
     pub os_release: String,
     pub rpm_inventory: String,
     pub rpm_sha256: String,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ResolvedSystemFile {
     pub path: String,
     pub mode: u32,
@@ -72,32 +76,37 @@ pub struct ResolvedSystemFile {
     pub bytes: Vec<u8>,
     pub disposition: SystemFileDisposition,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SystemFileDisposition {
     Payload,
     Foundation,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SystemPlan {
     pub schema: u32,
     pub identity: String,
     pub definition: SystemDefinition,
     pub foundation: FoundationObservation,
+    #[serde(deserialize_with = "crate::model::unique_map")]
     pub objects: BTreeMap<String, ObjectReceipt>,
     pub files: Vec<ResolvedSystemFile>,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SystemArtifact {
     pub sha256: String,
     pub bytes: u64,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SystemComposition {
     pub schema: u32,
     pub identity: String,
     pub foundation_tag: String,
     pub plan: SystemPlan,
+    #[serde(deserialize_with = "crate::model::unique_map")]
     pub artifacts: BTreeMap<String, SystemArtifact>,
 }
 
@@ -302,10 +311,7 @@ impl Store {
                 plan,
                 artifacts,
             };
-            write_file(
-                &stage.join("composition.json"),
-                &serde_json::to_vec_pretty(&composition)?,
-            )?;
+            write_composition(&stage.join("composition.json"), &composition)?;
             File::open(&stage)?.sync_all()?;
             publish_context(&stage, &destination)?;
             File::open(&parent)?.sync_all()?;
@@ -582,7 +588,7 @@ impl Store {
     }
 }
 
-fn validate_definition(definition: &SystemDefinition) -> Result<()> {
+pub(crate) fn validate_definition(definition: &SystemDefinition) -> Result<()> {
     if definition.schema != 1
         || definition.platform != PLATFORM
         || serde_json::to_vec(definition)?.len() as u64 > MAX_JSON
@@ -696,7 +702,7 @@ pub fn validate_system_path(path: &str) -> Result<()> {
     }
     Ok(())
 }
-fn overlay_path(path: &str) -> bool {
+pub(crate) fn overlay_path(path: &str) -> bool {
     [
         "/etc/",
         "/usr/share/",
@@ -711,7 +717,7 @@ fn overlay_path(path: &str) -> bool {
     .iter()
     .any(|prefix| path.starts_with(prefix))
 }
-fn header(mode: u32, bytes: u64, kind: tar::EntryType) -> tar::Header {
+pub(crate) fn header(mode: u32, bytes: u64, kind: tar::EntryType) -> tar::Header {
     let mut header = tar::Header::new_gnu();
     header.set_mode(mode);
     header.set_uid(0);
@@ -746,6 +752,38 @@ fn write_file(path: &Path, bytes: &[u8]) -> Result<()> {
         .open(path)?;
     file.write_all(bytes)?;
     file.sync_all()?;
+    Ok(())
+}
+fn write_composition(path: &Path, composition: &SystemComposition) -> Result<()> {
+    struct ManifestWriter {
+        file: BufWriter<File>,
+        bytes: u64,
+    }
+    impl Write for ManifestWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if bytes.len() as u64 > MAX_COMPOSITION_JSON - self.bytes {
+                return Err(std::io::Error::other("composition manifest exceeds 64 MiB"));
+            }
+            let written = self.file.write(bytes)?;
+            self.bytes += written as u64;
+            Ok(written)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.file.flush()
+        }
+    }
+    let file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    let mut writer = ManifestWriter {
+        file: BufWriter::new(file),
+        bytes: 0,
+    };
+    serde_json::to_writer_pretty(&mut writer, composition)?;
+    writer.flush()?;
+    writer.file.get_ref().sync_all()?;
     Ok(())
 }
 fn context_destination(destination: &Path, store: &Path) -> Result<(PathBuf, PathBuf)> {

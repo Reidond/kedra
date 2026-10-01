@@ -26,6 +26,32 @@ Commands emit JSON; failures go to stderr. A new output directory is required.
 Planning verifies image/object bytes and uses the existing journaled executor for
 read-only foundation observations. It does not activate configuration.
 
+The reusable `VerifiedComposition::open` consumer requires an independently
+retained identity and owns a private snapshot. It verifies the complete foundation,
+canonical plan, exact static Containerfile, config/object trees, references and
+actual artifact bytes. It never extracts an untrusted root filesystem on the host.
+The manifest is limited to64MiB; payload/foundation limits remain explicit. Use:
+
+```sh
+sysroot system verify --context /private/context --expected-identity <identity> \
+  --workdir /private/verification-scratch
+kedra-lab replay --image composition:/private/context \
+  --composition-identity <identity> --target qemu-arm64 \
+  --output <typed-alias> --program bin/program -- argument
+```
+
+`kedra-lab replay` is part of the existing sanctioned harness. It loads the retained
+archive, checks native ID/observations/paths and inherited ONBUILD/volumes, then
+builds only the verified static context with pulls/network disabled. It runs the
+selected typed output directly in that image. Cache bindings tie image ID,
+identity, payload, foundation and daemon together; owned interrupted work resumes
+under a per-context lock. Foreign tags/unknown state refuse.
+
+Composition requests default to no source overlay and require the separate identity.
+Working-tree/binary overrides and VM composition are refused. Ordinary lab-tools
+adaptation is separate and networked; the system-profile composition unit case
+uses the static image directly. This does not confer installed signing authority.
+
 The context contains a deterministic config/runtime `payload.tar`, verified
 `foundation.tar`, static `Containerfile` and `composition.json`. The manifest
 binds source/target, exact foundation/archive, observed RPM content material,

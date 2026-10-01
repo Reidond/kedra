@@ -2,6 +2,8 @@
 #[cfg(unix)]
 mod bundle;
 #[cfg(unix)]
+mod context;
+#[cfg(unix)]
 mod executor;
 #[cfg(unix)]
 mod image_archive;
@@ -15,6 +17,8 @@ mod store;
 mod system;
 #[cfg(unix)]
 mod tree;
+#[cfg(unix)]
+pub use context::VerifiedComposition;
 pub use model::*;
 pub use plan::{plan, read_graph};
 #[cfg(unix)]

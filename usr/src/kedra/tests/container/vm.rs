@@ -293,6 +293,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 source: image.parse()?,
                 overlay: overlay.parse()?,
                 binaries: None,
+                composition_identity: None,
             };
             let image = crate::image::prepare_vm(&docker, &request)?;
             let reference = image.reference();

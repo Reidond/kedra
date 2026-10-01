@@ -847,6 +847,7 @@ pub struct Context<'a> {
     pub target: String,
     /// Independently selected composition identity for source-specific native cases.
     pub composition_identity: Option<String>,
+    pub derivation_identity: Option<String>,
 }
 
 impl Context<'_> {

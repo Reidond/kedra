@@ -16,6 +16,7 @@ pub mod environment;
 pub mod image;
 pub mod lab_sync;
 pub mod localbuild;
+pub mod native_derivation;
 pub mod report;
 pub mod scenario;
 pub mod session;

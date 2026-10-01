@@ -4,6 +4,20 @@
 
 ## 2026-10-01
 
+### SKILL-MODIFIED: Closed native artifacts and installed workflow evidence
+- **What:** recorded fixed native derivations, parent layer/receipt/cache checks,
+  dracut symlink/module handling, initial skeleton limits and real user-bus
+  qualification in Rust/research/security skills; both plugin manifests are0.3.12.
+- **Why:** preserve executed boundaries without equating generated initramfs
+  contents with boot or signed deployment.
+- **Files:** `usr/src/kedra/plugins/kedra/skills/kedra-rust-workspace/SKILL.md`,
+  `usr/src/kedra/plugins/kedra/skills/kedra-research/SKILL.md`,
+  `usr/src/kedra/plugins/kedra/skills/kedra-security/SKILL.md`, both first-party
+  plugin manifests and `.ai/learnings.md`.
+- **Evidence:** `.specs/nix-native-artifacts/verification.md` and installed
+  container report1790873248-91553.
+- **Affected workflows:** repository-local native generation and qualification.
+
 ### SKILL-MODIFIED: Actual context replay and foundation retention
 - **What:** recorded strict signed foundation retention, opaque snapshot verification,
   shared manifest bounds, native mode assertion and sanctioned static replay/unit/

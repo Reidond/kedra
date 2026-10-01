@@ -26,8 +26,18 @@ one runtime foundation. Files outside config overlays require exact foundation
 bytes/mode and are explicit passthrough, never replacements. Export uses
 no-replace publication and refuses unsafe foundation aliases. Read
 `usr/src/kedra/docs/SYSTEM.md` and `.specs/nix-system-composition/verification.md`.
-Archive inspection/package execution does not qualify building/booting the context,
-GLib/initramfs generation, service enablement, home seeding or installed activation.
+Archive inspection/package execution does not qualify native generation, boot or
+installed activation. The separate closed `NativeDefinition`/`NativeStep` stage
+is implemented through the sanctioned harness (2026-10-01); see NATIVE.md and
+`.specs/nix-native-artifacts/verification.md`. It binds the fixed driver/recipe,
+parent identity and RPM material, verifies actual output bytes and exact parent
+RootFS layer prefix, and uses independent cache bindings. Never trust a mutable
+FROM tag or labels alone. Tools run as root only inside that isolated offline
+image build; the ordinary package executor stays nonroot. Generated outputs and
+receipts must be single-link; inherited immutable foundation hardlinks are valid.
+Static schema1 writes are unchanged: inherited dracut config is consumed, while
+changed dracut input needs a separate versioned boundary. Do not broaden `/usr/lib`
+overlays. Refuse unsupported managed skeleton deletions; never apply to live home.
 
 Docker inspect/native execution is not complete OCI retention evidence. Observed
 Docker29.4 cached Kedra candidate91e27148 exports exit0 with only a25,088-byte

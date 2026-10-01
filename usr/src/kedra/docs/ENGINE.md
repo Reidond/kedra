@@ -23,8 +23,10 @@ The current Fedora bootc system, OS source assembly, signed OCI publication,
 installer, staging/reboot and writable-home workflows continue to use their
 existing contracts. This engine's package/profile rollback does not roll back
 services, databases, home, credentials or an installed OS. General declarative
-system composition now has a [static context export](SYSTEM.md); derived native
-configuration transforms and an alternate OS backend remain later phases.
+system composition has a [static context export](SYSTEM.md) and a separate
+[native derivation stage](NATIVE.md). [PACKAGES](PACKAGES.md) explains where RPM
+and engine package declarations live. Production signing integration and an
+alternate OS backend remain later phases.
 
 First support limits: local Unix Docker endpoints, native ARM, single output per
 derivation, one runtime image per closure and Docker29 OCI save archives. Native

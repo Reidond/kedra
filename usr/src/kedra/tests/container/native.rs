@@ -13,12 +13,15 @@ use serde_json::Value;
 pub enum SourceApplicability {
     Ordinary,
     Composition,
+    Derivation,
 }
 impl SourceApplicability {
-    pub fn applies(self, composition: bool) -> bool {
+    pub fn applies(self, composition: bool, derivation: bool) -> bool {
         matches!(
-            (self, composition),
-            (Self::Ordinary, false) | (Self::Composition, true)
+            (self, composition, derivation),
+            (Self::Ordinary, false, false)
+                | (Self::Composition, true, false)
+                | (Self::Derivation, true, true)
         )
     }
 }
@@ -34,6 +37,14 @@ pub struct NativeTest {
 }
 
 pub const TESTS: &[NativeTest] = &[
+    NativeTest {
+        source: SourceApplicability::Derivation,
+        name: "native_artifacts",
+        profile: Profile::System,
+        fixtures: &[Fixture::TestUser],
+        targets: &["qemu-arm64"],
+        run: crate::native_artifacts_tests::native_artifacts,
+    },
     NativeTest {
         source: SourceApplicability::Composition,
         name: "composition_unit",

@@ -20,9 +20,35 @@ pulls/network before any separate networked lab-tools adaptation. The compositio
 System-profile native unit case runs the static image directly. Keep the same
 private artifact/cache root for cache reuse: a tag without its independent binding
 is refused. Actual producer-removal ELF/library replay, large config, unit and
-pre-build journal interruption/retry pass (2026-10-01); later publication windows,
-cold independent daemon and boot/signature deployment remain separate gates.
+pre-build journal interruption/retry pass (2026-10-01); later publication windows
+and independent-daemon results are recorded separately in native qualification.
+Boot/signature deployment remains a separate gate.
 Evidence: `.specs/nix-context-replay/verification.md`. No new runner/root authority.
+
+Fresh empty mutual-TLS Docker29.8.1 replay and same-binding cache repeat pass
+(2026-10-01). Four actual static publication SIGKILL windows also pass: temporary
+image/pre-ID rebuild, then exact-ID resume after journal ID, binding and final
+tag publication. Capture actual state before killing; do not reconstruct it or
+count a missed window. SIGKILL leaves the private verification snapshot because
+Drop cannot run; qualification removes only its exact recorded process-owned
+temporary copy after exit, preserving journal/tag/binding for public retry.
+Evidence: `.specs/nix-native-artifacts/verification.md`. Native-cache interruption,
+kernel boot/signing and power-loss/ENOSPC remain separate gates.
+
+Native generation uses `kedra-lab derive-plan`/`derive` with separate composition
+and derivation identities. Installed checks use the existing container test's
+`KEDRA_LAB_NATIVE_PLAN`/`KEDRA_LAB_DERIVATION_IDENTITY`, composition source and
+`native_artifacts` filter. Actual fresh-user GLib default/explicit dconf override,
+unit start/mask/default, initial skeleton/preserved existing home and generated
+initramfs content pass (2026-10-01). Start the fixture's existing systemd user bus;
+Fedora's reviewed foundation lacks dbus-run-session, so do not add an RPM merely
+to satisfy that fixture assumption. Evidence: `.specs/nix-native-artifacts/verification.md`.
+Dracut's `/root` symlink handling required a temporary empty `/var/roothome` only
+for the exact dangling foundation link; remove only the directory created for
+that operation. Its diagnostic about unavailable build-container syslog remains
+visible; require actual success and independent content readback. Module names
+can use kernel-equivalent hyphens/underscores, while exact kernel path and module
+file suffix remain mandatory. These are content/workflow checks, not kernel boot.
 
 Container adaptations and limits are listed in the harness README. Examples: no SELinux labels, a shared kernel (per-UID limits apply across containers), and bootc images hard-linked to their ostree objects. A passing container scenario never qualifies boot, firmware or hardware.
 

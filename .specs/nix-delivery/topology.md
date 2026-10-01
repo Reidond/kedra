@@ -34,7 +34,10 @@ Declared source ownership:
 - Parent: branch operations, index/commits/PRs, shared docs/worklog/STATUS,
   module/manifest wiring, aggregate review and serialized qualification.
 
-All rows planned; D1 branch is active. Later branches are created only when the
+D1 is published as draft [PR33](https://github.com/Reidond/kedra/pull/33) through
+gh-stack at observed initial head8a8796c; local signed disk/cold-warm/security/
+desktop/refusal gates pass. D2–D5 source is prepared but unadopted/unqualified.
+Later branches are created only when the
 preceding source/verification boundary is committed. Replan if file ownership
 overlaps, ARM-only integration becomes a desktop migration, a signer needs
 candidate code/checkout, or the package scope requires a new privilege boundary.

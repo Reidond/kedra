@@ -175,3 +175,9 @@ Exact owned child/tag/alias/containers are removed; controller/default/VM state
 hashes stay exact. Evidence:
 `attempt3/artifact-tamper-059885477dda5668e44a9e88/summary.json`.
 All six local case groups pass; new-source draft/CI readback is next.
+
+Publication: gh-stack submits draft [PR33](https://github.com/Reidond/kedra/pull/33)
+at8a8796c954c8e8dbce09e393ae69a198ea06aa9e above exact PR32 branch. Local/remote
+head and immediate-parent ancestry match; all lower layers remain unchanged.
+New-source Actions are running, not claimed passed. This documentation follow-up
+records observed publication without changing the qualified implementation.

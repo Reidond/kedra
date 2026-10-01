@@ -87,7 +87,9 @@ boot/SELinux/install/update and signed integration remain unqualified.
 
 The owner has authorized five further dependent drafts with Astra subagents:
 [derived boot, release integration, catalog, reuse and cache/recovery](NIX-DELIVERY.md).
-The first layer is local `codex/nix-derived-boot`; no new draft is published yet.
+The first layer is draft [PR33](https://github.com/Reidond/kedra/pull/33),
+`codex/nix-derived-boot`, published through gh-stack above PR32; exact initial
+published head8a8796c matches local/remote ancestry. New-source CI is running.
 Its exact image source6c38ab05 composes successfully and generates twelve native
 artifacts/kernel7.2.7. The disposable signed disk recipee19113d preserves target
 production trust and uses a separate generated-key buildroot. Bounded signature

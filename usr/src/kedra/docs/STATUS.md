@@ -169,6 +169,16 @@ inferred. The next smallest supported route under review is the existing explici
 `--base-image` parameter with a pinned retrievable official Fedora 44 ARM base,
 separately recorded from signed payload/native producer 1dc. No mirror substitution,
 pull-policy relaxation or native-payload relabeling is performed.
+
+The official ARM base `ad037f87…` is subsequently acquired and verified in a
+separately guarded phase: two normal exact pulls and an actual FROM-only
+pull-always/no-cache probe all exit 0. A final read-only lookup syntax failure is
+preserved and corrected without repeating those operations. Linked completion
+and all 65 local layer identities/backing entries pass review. Only the already
+budgeted 2,056,122,368 base bytes may now be credited, yielding warm admission
+81,695,739,904 bytes on both filesystems with fresh cache revalidation at every
+call. Other reserves and the 35/30 GiB guard boundaries remain unchanged. No new
+constructor/ISO/VM pass is claimed while actual space remains below this gate.
 Exact attempts, failures and provenance distinctions are retained in
 [derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
 

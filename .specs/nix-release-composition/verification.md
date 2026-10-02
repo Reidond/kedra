@@ -699,3 +699,56 @@ currently retrievable official Fedora 44 ARM base and complete combined allocati
 budget are being reviewed for this existing option. No input substitution, mirror,
 pull-policy change or relabeling of the old native tuple occurs. Safe diagnosis:
 `target/nix-delivery/d2-runtime/signed-replay-1710f8ceb4110185/base-manifest-readonly-diagnosis.json`.
+
+## Exact-base acquisition and conditional warm admission
+
+Official :44 index `5ab8ee5189bb0f3870279723f5343474df002d8d6f46564702b3ad3ba7382d98`
+selects linux/arm64 manifest `ad037f87320981be7e3c13b293a809b3613a5b59205d5a80a35fe79620606c12`,
+config `4611a0c6c85b15375669b3f80e48469eda6efe73d1ac32bcefd14e2ca117a75f`.
+Raw hashes/sizes and Fedora 44.20261002.0/bootc/kernel7.2.8 labels pass. Twenty-one
+changed blobs pass both compressed digest and decompressed diff-ID checks through
+bounded streaming; forty-four descriptors match retained material. Full base TAR
+is 2,056,122,368 bytes, changed TAR 781,060,608 and full compressed input 977,780,668.
+No image is imported during that read-only qualification.
+
+The cold 78 GiB constructor gate then prevents v5 `cb887b3d35bc4afe` before any
+owner/context/registry. Two exact completed isolated compiler-output directories
+are retired after ownership/reference checks, preserving sources, evidence and
+all runtime binaries. Actual private allocation is 384,933,888 bytes, not the
+larger nominal du total. Its immediate failed and later marginal capacity samples
+remain recorded. Bounded controller/D1/attempt8 checks find no useful exclusive
+image allocation and cause no further deletion. Actual two-run preparation costs
+are approximately 23 MB; the earlier approximately 109 MB global-free delta is
+not attributable setup proof and is explicitly withdrawn as a fixed requirement.
+
+A separate 52 GiB acquisition phase uses the original guard with a conservative
+8,311,250,876-byte envelope. In run `5368460882343cfb`, the first exact pull passes
+37.076 seconds, repeated normal pull 2.206 seconds, and actual FROM-only build
+with literal `--pull=always --no-cache` passes 2.432 seconds; all actual wrapper
+waits are 0. No ONBUILD or RUN/COPY code executes. The stage helper subsequently
+exits 1 on an invalid read-only Skopeo ID-reference spelling. Corrected
+`containers-storage:@4611…` yields the exact config; a final read-only helper exits
+0 and proves the full local cache. Successful pulls/build are not repeated and
+the original failure is not rewritten.
+
+Linked completion SHA `437a88ab479aad54ad55fac5be1366bf8109e115dbaf56aed328f23e02d8d0bd`
+binds original command receipts, probe IID/RootFS, corrected config and final
+verification in `target/nix-delivery/d2-runtime/base-stage-5368460882343cfb/`.
+An earlier linkage field mistakenly named Path.exists values as PID absence;
+that file is preserved and fresh absence confirms the corrected interpretation.
+The final proof matches raw manifest/config, all 65 layer IDs/ancestry and 130
+backing entries, with stable metadata. It explicitly does not rehash every
+resident payload file. Repeated-pull controller net free decrease is zero and
+the probe returns the same base image/RootFS. Observed allocated layer bytes
+2,172,284,928 are nonexclusive and are not extra credit.
+
+Independent review accepts only the originally budgeted 2,056,122,368 base bytes
+as already present. Conditional warm admission is therefore 81,695,739,904 bytes
+on both filesystems; all other Anaconda/new-stage/output/transient/headroom
+allowances remain, as do the original 35 GiB trigger/30 GiB floor. Source-reviewed
+packet `7e3836b17569a886cf74ad973b05fb091857b8a63950d267c568539c1a13c4ff`
+requires fresh complete cache proof at prelaunch and each U/W/A call, with shared
+host/controller validation. Missing/drifted proof refuses; the no-proof API keeps
+cold admission. No constructor is admitted merely by source review: live capacity,
+input, TLS and guard gates still apply. No new ISO, fresh installation or full
+update flow passes at this checkpoint.

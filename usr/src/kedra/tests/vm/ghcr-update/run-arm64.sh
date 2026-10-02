@@ -71,7 +71,7 @@ except (OSError, ValueError) as error:
 PY
 }
 cleanup() {
-    local original_exit=$? cleanup_failed=false private_removed=false registry_state=not_created
+    local original_exit=$? cleanup_failed=false private_removed=false registry_state=not_created resolver_state=not_created
     trap - EXIT
     # Cleanup must finish reporting every owned resource even if the installer
     # left root-owned files. Preserve the task failure if cleanup also fails.
@@ -89,6 +89,15 @@ cleanup() {
             else
                 cleanup_failed=true
             fi
+        else
+            cleanup_failed=true
+        fi
+    fi
+    if test -e "$root/candidate/resolver.json"; then
+        resolver_state=cleanup_failed
+        if jq --exit-status '.schema_version == 1 and .removed == true and .cleanup_failed == false' \
+            "$root/candidate/resolver-cleanup.json" >/dev/null 2>&1; then
+            resolver_state=removed
         else
             cleanup_failed=true
         fi
@@ -115,8 +124,8 @@ cleanup() {
     else
         cleanup_failed=true
     fi
-    if ! printf '{"schema_version":1,"original_exit_code":%s,"cleanup_failed":%s,"private_inputs_removed":%s,"registry":"%s"}\n' \
-        "$original_exit" "$cleanup_failed" "$private_removed" "$registry_state" > "$evidence/cleanup.json"; then
+    if ! printf '{"schema_version":1,"original_exit_code":%s,"cleanup_failed":%s,"private_inputs_removed":%s,"registry":"%s","resolver":"%s"}\n' \
+        "$original_exit" "$cleanup_failed" "$private_removed" "$registry_state" "$resolver_state" > "$evidence/cleanup.json"; then
         cleanup_failed=true
         echo 'Fixture cleanup receipt could not be written' >&2
     fi

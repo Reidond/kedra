@@ -54,6 +54,18 @@ no mounted descendants; deliberate mounted-sentinel refusal remains not-run.
 Pinned executable hashes are unchanged. Safe attempt evidence is in
 `target/nix-delivery/d2-runtime/attempt1-evidence`.
 
+The nftables correction in86afd605 allows actual Fedora resolver startup.
+Attempt2 was deliberately stopped before composition or fixture secrets after
+review identified an unowned-client timeout path: killing a Podman client alone
+can leave its container alive. The exact observed resolver was explicitly removed,
+then the candidate received its pending termination. Original exit143, private
+scratch removal, empty Podman container inventory, unchanged binaries and the
+retained default are recorded in `attempt2-evidence` under the same runtime root.
+The correction records a uniquely labelled resolver and its inspected ID, removes
+it with bounded commands, checks exact absence, and propagates cleanup failure.
+Managed child process groups receive a graceful cancellation period before forced
+termination. Actual cancellation/retry qualification of that correction is pending.
+
 Before the attempt, four exact old qualification archives were retired after
 full hash, receipt, owner, single-link and inactive-consumer checks. Their
 manifests and evidence were retained, together with the complete canonical

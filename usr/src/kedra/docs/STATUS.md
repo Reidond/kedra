@@ -158,6 +158,17 @@ cause remains unknown. A controlled diagnostic invocation requires bounded priva
 log custody outside the unchanged cleanup root before another run. The earlier
 pre-registry permission failure remains separate evidence. No final ISO or new VM
 success is claimed; producer, fixture and owning-source identities remain distinct.
+
+That controlled diagnostic subsequently runs as `1710f8ceb4110185`: U/W refuse,
+A and its actual parent exit 1, cleanup/independent absence pass, and the complete
+9,000-byte constructor log remains in restricted local-only custody. Safe parsing
+and a separate anonymous raw inspection establish that the selected old Fedora
+base `9ac02a78…e443b` currently returns `manifest unknown` upstream. Its retained
+local raw manifest still hashes to the same digest; no registry-retention cause is
+inferred. The next smallest supported route under review is the existing explicit
+`--base-image` parameter with a pinned retrievable official Fedora 44 ARM base,
+separately recorded from signed payload/native producer 1dc. No mirror substitution,
+pull-policy relaxation or native-payload relabeling is performed.
 Exact attempts, failures and provenance distinctions are retained in
 [derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
 

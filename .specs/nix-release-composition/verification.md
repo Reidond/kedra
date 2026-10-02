@@ -668,3 +668,34 @@ size/hash/role metadata; no raw logs or production/signing keys. Original cleanu
 constructor, policy and deadlines remain unchanged. A fresh controlled diagnostic
 invocation still requires source/custody/guard and both-filesystem 78 GiB checks;
 the removed historical log is not reconstructed and the failure is not relabeled.
+
+The reviewed diagnostic capture is executed in fresh run `1710f8ceb4110185` with
+wrapper manifest `a1ae12ac7b1ae9bc2e349ca18e2ba521a94be6dd7d6b1600e3d49969ec69d9f2`
+and supervisor `543c801ab77012336bfce5009da91045e90ad7dd30b1d70cf207a6c7b2318315`.
+U/W refuse; A and actual parent 33748 exit 1. Original cleanup and two independent
+remote-absence proofs pass with no remaining Podman containers. Capture succeeds:
+complete 9,000 bytes, SHA `e678553a944550a36d0dfc0fdd31c312bddee0f21fede9ce016ee348fbceff7c`,
+0600 file in a separate 0700 local-only custody directory. Raw bytes are not public
+evidence or committed output.
+
+Safe parsing identifies this new run's error at Containerfile STEP1/FROM: the
+unchanged `--pull=always` path requests the signed payload's selected base
+`quay.io/fedora/fedora-bootc@sha256:9ac02a78e406f2a31659ce2d58d46e2c6548c073ddfcc6efede1a9f0a01e443b`,
+and Podman reports `manifest unknown` while reading it. A separate anonymous
+upstream `skopeo inspect --raw` exits 2 with that fixed error. The retained local
+raw manifest is 19,946 bytes and hashes exactly to 9ac; its 10,780-byte config
+hashes to `6953ae88dbf79fa6c7440bb438a6a7e2280a5b6c07c770df9d1050ddd576baf7`
+with linux/arm64 and 65 rootfs diff IDs. Its 65 gzip layer descriptors total
+977,770,374 bytes. Original base-resolution evidence records the official :44
+index digest `62e0fe047be7b9c00abab3911fc84f8a22b2b2e097a6ca76119ebe395a6da3bf`;
+the unchanged resolver validates the remote selected raw digest/platform before
+returning it. No historical HTTP body is reconstructed and no particular registry
+GC/retention cause is inferred. The earlier ad57 failure remains unknown.
+
+The public constructor already accepts explicit `--base-image`, selecting only
+the Anaconda environment while keeping signed PAYLOAD_IMAGE/admission/native
+checks intact and recording the actual installer base in installer.json. A
+currently retrievable official Fedora 44 ARM base and complete combined allocation
+budget are being reviewed for this existing option. No input substitution, mirror,
+pull-policy change or relabeling of the old native tuple occurs. Safe diagnosis:
+`target/nix-delivery/d2-runtime/signed-replay-1710f8ceb4110185/base-manifest-readonly-diagnosis.json`.

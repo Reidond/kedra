@@ -615,3 +615,39 @@ is inferred. `capacity-filesystem-relationship.json` and
 retirement or staged-clock alternative is needed on this evidence. Fresh lifecycle
 review and immediate 78 GiB/healthy-original-guard revalidation remain necessary
 before productive public-media replay; no execution is inferred from admission.
+
+## Fresh retained-signed-A replay — running
+
+The new target-only lifecycle uses a real clean detached cad6 checkout and fresh
+runner/evidence/private roots. It preserves the original signed variants, cases,
+TLS and generated recipe/unlock bytes; no signing key is copied or created.
+Unchanged fixture.py creates the context and resume-arm64.py readmits the original
+1dc native producer. The public installer and fresh-HVF helpers remain unchanged.
+Independent review covers original cleanup, single-use U/W/A admissions, actual
+host/remote ownership, independent child/mount absence before settlement, and
+identity-verified pause if guard health fails. No stage-clock checkpoint is used.
+
+First actual fresh owner exits 2 before registry/media: ordinary cmp cannot read
+the retained root-owned 0600 controller CA. Candidate observation and cleanup
+pass, with actual Docker-client parent wait 2, private root removed, registry not
+created, retained observer removed and remote absence independently checked twice.
+The two fixed CA/config comparisons are changed only to privileged read-only cmp;
+no permissions, policy or public code changes. Earlier failure remains recorded.
+
+Reviewed wrapper manifest
+`3da297dbe29f8a4bee72b092b64706a67a7581132f56e7c6bcaefd03455e7511`
+and host supervisor
+`538208106df7a47387310b7b5fd0d9f0da355259e9eb0176598cbcc10733770b`
+then launch fresh run `ad57f07f5459d594`. Actual original host client PID is 11242;
+remote Bash PID/start are 123432/24575103 and boot identity is
+`efc8aa1d-8345-48e4-b03f-13a4dae388eb`. Context SHA is
+`0fa74cd4aa332ab2181230a3d3b6cc2b35a7f4ce9535892998269d1b8d26cbaa`.
+Unsigned U and wrong-key W each exit 1 with the exact expected signature refusal.
+A receives its one-use admission at Unix 1790946570.763 after host-monotonic
+capacity requests, independently advancing guard sequences and immediate local
+recheck: Linux 84,166,709,248 bytes, host 89,557,524,480 bytes. Registry ID is
+`6dcf5ac271d6863e090d01df5206216c7399f3185a30437e8ea806a338777b92`.
+This is actual public-media execution, not yet completion. No ISO, install, cold,
+A/B/A or full-suite pass is implied. Host events are preserved in
+`target/nix-delivery/d2-runtime/signed-replay-ad57f07f5459d594/supervisor.jsonl`;
+original deadlines, 35 GiB guard/30 GiB floor and source/input pins remain intact.

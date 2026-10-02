@@ -148,8 +148,13 @@ while immediate controller samples remain about 66.4 GiB and fail admission.
 Three later independent settled samples, without further deletion/settings change,
 report 84,208,209,920 controller bytes and at least 89,623,035,904 host bytes,
 passing the unchanged 78 GiB both-filesystem gate. The earlier failed samples
-remain recorded. Fresh lifecycle review and immediate guard/capacity revalidation
-still precede any new media run; no new media success is claimed.
+remain recorded. A reviewed fresh exact-cad6 replay then passes actual unsigned
+and wrong-key public-installer refusals. Run `ad57f07f5459d594` enters A's normal
+public media construction with immediate Linux/host capacity above 78 GiB and
+the healthy original guard. A first pre-registry permission failure and its
+successful cleanup remain separate evidence. No final ISO or new VM success is
+claimed while this invocation is running; producer, fixture and owning-source
+identities remain distinct.
 Exact attempts, failures and provenance distinctions are retained in
 [derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
 

@@ -478,3 +478,14 @@ TCG execution remain separate. `macos-transfer.py` is pinned through the committ
 fixture revision and transfer helper hash, while run-arm64/boot-arm64 and the
 marker emitter are material recipe inputs. Independent combined source review,
 Ruff and syntax/diff checks pass; these are not runtime preparation/route passes.
+
+Pre-run admission inspection of `668d3f8` identifies a closed-list compatibility
+gap before any observer/key operation: the original resume gate predates the
+three host helpers, changed public-media Containerfile and four development-only
+skill/plugin metadata files. The correction names only those exact paths. Each
+new runtime/media file still must equal its selected committed bytes; all original
+production recipe, executable, source/image/RootFS/native/RPM comparisons remain
+unchanged. Live retained material lists twenty-four production recipe paths and
+does not include the installer media Containerfile. Source inspection/Ruff/syntax
+passes are not retained-admission runtime success; the next frozen invocation
+must establish that independently.

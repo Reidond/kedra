@@ -25,9 +25,17 @@ import material as m
 FIXTURE_PREFIX = 'usr/src/kedra/tests/vm/ghcr-update/'
 FIXTURE_FILES = frozenset(FIXTURE_PREFIX + name for name in (
     'fixture.py', 'candidate.py', 'resume-arm64.py', 'prepare-arm64.py', 'prepare-install-arm64.py',
-    'boot-arm64.py', 'run-arm64.sh', 'arm64.Containerfile', 'arm64-variant.Containerfile',
+    'boot-arm64.py', 'boot-macos.py', 'macos-transfer.py', 'marker_input.py',
+    'run-arm64.sh', 'arm64.Containerfile', 'arm64-variant.Containerfile',
     'controller.Containerfile', 'controller-entrypoint.sh', 'check.py', 'control.py',
-    'arm64-check.service', 'identity-recovery.py'))
+    'arm64-check.service', 'identity-recovery.py')) | frozenset((
+        'usr/src/kedra/installer/media/Containerfile',))
+DEVELOPMENT_DOCUMENTATION = frozenset((
+    'usr/src/kedra/plugins/kedra/.claude-plugin/plugin.json',
+    'usr/src/kedra/plugins/kedra/.codex-plugin/plugin.json',
+    'usr/src/kedra/plugins/kedra/skills/kedra-github-actions/SKILL.md',
+    'usr/src/kedra/plugins/kedra/skills/kedra-research/SKILL.md',
+))
 MATERIAL_FILES = {
     'source.json': '/usr/share/sysroot/source.json',
     'package-material.txt': '/usr/share/sysroot/package-material.txt',
@@ -36,7 +44,8 @@ MATERIAL_FILES = {
 
 
 def documentation(path):
-    return path in ('README.md', 'worklog.md') or path.startswith(('.specs/', 'usr/src/kedra/docs/'))
+    return (path in ('README.md', 'worklog.md') or path in DEVELOPMENT_DOCUMENTATION
+            or path.startswith(('.specs/', 'usr/src/kedra/docs/')))
 
 
 def main():

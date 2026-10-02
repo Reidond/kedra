@@ -92,6 +92,13 @@ The first layer is draft [PR33](https://github.com/Reidond/kedra/pull/33),
 published head8a8796c matches local/remote ancestry. Final head712927e has passing
 workspace checks on both architectures in
 [run36941595156](https://github.com/Reidond/kedra/actions/runs/36941595156).
+All six image/runtime workflows also pass on implementation head `8a8796c`:
+[container](https://github.com/Reidond/kedra/actions/runs/36941403723),
+[desktop](https://github.com/Reidond/kedra/actions/runs/36941403745),
+[QEMU](https://github.com/Reidond/kedra/actions/runs/36941403765),
+[home](https://github.com/Reidond/kedra/actions/runs/36941403758),
+[direct GHCR](https://github.com/Reidond/kedra/actions/runs/36941403715) and
+[signed updates](https://github.com/Reidond/kedra/actions/runs/36941403740).
 Its exact image source6c38ab05 composes successfully and generates twelve native
 artifacts/kernel7.2.7. The disposable signed disk recipee19113d preserves target
 production trust and uses a separate generated-key buildroot. Bounded signature
@@ -102,9 +109,13 @@ SELinux and real Metal desktop/settings/input. AVC notices/denials are retained.
 Corrected public native diagnostics passes2.032s on script1f32337; no guest root
 authority is added. Earlier systemd Alias-only enable/disable regressions pass.
 Compiler/ordinary CLI/legacy release gates pass. D2 source is adopted on
-`codex/nix-release-composition`; foundation/native composition and the explicit
-local generated-authority installer/update fixture await actual runtime gates.
-D3–D5 preparations remain inactive. The D1 named VM is retained stopped after
+`codex/nix-release-composition`; producer `1dc8d2e` passes fresh foundation,
+composition/native generation, complete retention and verified Podman transfer.
+Fixture revision `f1db145` passes independently pinned retained admission and
+refusals, with actual ordinary-user public-file reads. Generated-authority
+signing/installer/update qualification remains active, with no install/update
+result claimed. D3–D5 preparations have isolated compiler evidence but remain
+inactive in the owning checkout. The D1 named VM is retained stopped after
 a successful public graceful stop; default resources are preserved.
 Exact attempts, failures and provenance distinctions are retained in
 [derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
@@ -115,6 +126,16 @@ not-run. No image publication or deployment was performed. Research
 archive provenance and its dated proposal review remain preserved.
 
 The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
+
+Read-only observation on2026-10-02: existing main
+[release36946414360](https://github.com/Reidond/kedra/actions/runs/36946414360)
+passes all eight jobs on `b224d5711e857f7dbcaabf7ed42870916525800c`.
+Its verified ARM publication receipt advances the prior9d6eb030 image to
+`sha256:7a8f6324305c1d17e9a76df7a21fed5fc11b1d59bbb7ad883e905fff2a230c9f`.
+This is the existing main implementation, not the unmerged Nix delivery pipeline.
+The session neither triggered that publication nor installed the new image;
+earlier installer/native hardware observations remain tied to their exact retained
+images and recovery media.
 
 ## Active completion and identity replacement (2026-09-30)
 

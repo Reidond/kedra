@@ -228,11 +228,20 @@ for variant in A B C E U W R N T X H M; do
     if test "$variant" = W; then signing=(--sign-by-sigstore-private-key "$private/wrong.private" --sign-passphrase-file "$private/passphrase"); fi
     repository=ghcr.io/reidond/kedra-qemu-arm64
     if test "$variant" = R; then repository=ghcr.io/reidond/kedra-other; fi
+    sudo skopeo inspect --raw "containers-storage:localhost/kedra-ghcr-arm:$variant" \
+        > "$evidence/source-$variant-manifest.json"
+    source_digest=$(skopeo manifest-digest "$evidence/source-$variant-manifest.json")
     # Producer-only signing. Strict consumer verification is the unmodified
-    # public installer/helper policy, never this producer command.
-    sudo podman push --retry=0 --remove-signatures --authfile "$private/empty-auth.json" "${signing[@]}" \
-        --digestfile "$root/$variant.digest" "localhost/kedra-ghcr-arm:$variant" "docker://$repository:$variant" \
-        > "$evidence/sign-$variant.log" 2>&1
+    # public installer/helper policy. Preserve the source representation just as
+    # the normal release does: BIB's ID-only local copy cannot recompress a
+    # signed image into an independently pinned destination digest.
+    (
+        # This command creates public digest metadata, not private key files.
+        umask 022
+        sudo skopeo copy --preserve-digests --remove-signatures --authfile "$private/empty-auth.json" "${signing[@]}" \
+            --digestfile "$root/$variant.digest" "containers-storage:localhost/kedra-ghcr-arm:$variant" "docker://$repository:$variant"
+    ) > "$evidence/sign-$variant.log" 2>&1
+    test "$(cat "$root/$variant.digest")" = "$source_digest"
     if test "$variant" = R; then
         sudo skopeo copy --preserve-digests "docker://$repository:$variant" docker://ghcr.io/reidond/kedra-qemu-arm64:R \
             > "$evidence/wrong-repository-copy.log" 2>&1
@@ -245,15 +254,18 @@ attachment=$(skopeo manifest-digest "$evidence/removed-signature-manifest.json")
 curl --silent --show-error --fail --cacert "$root/context/tls.crt" -X DELETE \
     "https://127.0.0.1/v2/reidond/kedra-qemu-arm64/manifests/$attachment" > /dev/null
 uv run python - "$fixture_context" <<'PY'
-import json, sys
+import json
+import sys
 from pathlib import Path
+
 fixture=json.loads(Path(sys.argv[1]).read_bytes())
 root=Path(fixture['runner_temp'])/'kedra-ghcr'
 authority=json.loads((root/'fixture-authority.json').read_text())
 cases={'schema_version':1,'target':'qemu-arm64','require_fresh_installation':True,
        'native_receipt_sha256':authority['native_receipt_sha256'],
        'native_observer_sha256':authority['native_observer_sha256'],
-       'digests':{v:(root/(v+'.digest')).read_text().strip() for v in 'A B C E U W R N T X H M'.split()}}
+       'digests':{v:(root/(v+'.digest')).read_text().strip()
+                  for v in ['A','B','C','E','U','W','R','N','T','X','H','M']}}
 (root/'cases/cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 (Path(fixture['evidence'])/'cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 PY
@@ -266,9 +278,16 @@ sleep 1
 curl --silent --show-error --fail -X POST http://127.0.0.1:18080/A >/dev/null
 checkout=$(uv run usr/src/kedra/tests/vm/ghcr-update/prepare-install-arm64.py --root "$root" "${fixture_args[@]}")
 rm -f -- "$private/allowed.private" "$private/wrong.private" "$private/passphrase"
+run_installer() (
+    # The public builder reads public root-created digest files. Keep its normal
+    # umask inside the already-private 0700 fixture tree; credential files were
+    # created separately with explicit 0600 permissions.
+    umask 022
+    uv run "$checkout/usr/src/kedra/installer/build-local.py" "$@"
+)
 for variant in U W; do
     rejected=0
-    uv run "$checkout/usr/src/kedra/installer/build-local.py" \
+    run_installer \
         --image "ghcr.io/reidond/kedra-qemu-arm64@$(cat "$root/$variant.digest")" \
         --output-dir "$private/rejected-$variant" > "$private/rejected-$variant.log" 2>&1 || rejected=$?
     test "$rejected" -ne 0
@@ -283,8 +302,48 @@ done
 initial="ghcr.io/reidond/kedra-qemu-arm64@$(cat "$root/A.digest")"
 # This normal public entrypoint verifies the fixture's fixed public authority,
 # exact repository/signature, installed strict policy and offline payload.
-uv run "$checkout/usr/src/kedra/installer/build-local.py" --image "$initial" \
-    --output-dir "$private/media" > "$private/installer-build.log" 2>&1
+installer_exit=0
+run_installer --image "$initial" --output-dir "$private/media" \
+    > "$private/installer-build.log" 2>&1 || installer_exit=$?
+if test "$installer_exit" -ne 0; then
+    # Export fixed classifications only. Raw installer output can contain
+    # generated Kickstart credentials and must remain in private cleanup.
+    if ! uv run python - "$fixture_context" "$installer_exit" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+fixture=json.loads(Path(sys.argv[1]).read_bytes())
+log=Path(fixture['runner_temp'])/'kedra-ghcr-private/installer-build.log'
+with log.open('rb') as stream:
+    stream.seek(0,2)
+    size=stream.tell()
+    stream.seek(max(0,size-65536))
+    tail=stream.read(65536)
+kind='public_installer_failed'
+if b'Permission denied' in tail and b'payload.digest' in tail:
+    kind='public_digest_file_permissions'
+elif b'Source image rejected' in tail and b'containers-storage' in tail:
+    kind='local_storage_signature_policy_refused'
+elif b'Source image rejected' in tail:
+    kind='signature_policy_refused'
+elif b'Install the documented local build prerequisites' in tail:
+    kind='missing_local_build_prerequisite'
+elif b'Pinned builder interface differs' in tail:
+    kind='pinned_builder_interface_differs'
+elif b'changing layer representation' in tail and b'Destination specifies a digest' in tail:
+    kind='installer_layer_representation_mismatch'
+(Path(fixture['evidence'])/'installer-failure.json').write_text(json.dumps({
+    'schema_version':1,'exit_code':int(sys.argv[2]),'classification':kind,
+    'raw_log_bytes':size,'examined_tail_bytes':len(tail),'raw_private_output_exported':False,
+    'source_revision':fixture['source_revision'],'fixture_revision':fixture['fixture_revision'],
+},indent=2)+'\n')
+PY
+    then
+        echo 'Installer failed; fixed failure classification could not be recorded' >&2
+    fi
+    exit "$installer_exit"
+fi
 mapfile -t media < <(find "$private/media" -maxdepth 1 -type f -name '*.iso')
 test "${#media[@]}" -eq 1
 uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase refuse-insecure --iso "${media[0]}" \
@@ -298,8 +357,10 @@ for phase in A B ROLLBACK; do
 done
 cp "$root/installation-plan.json" "$root/disks.json" "$root/firmware-provenance.json" "$evidence/"
 uv run python - "$fixture_context" <<'PY'
-import json, sys
+import json
+import sys
 from pathlib import Path
+
 fixture=json.loads(Path(sys.argv[1]).read_bytes())
 (Path(fixture['evidence'])/'scope.json').write_text(json.dumps({
     'schema_version':1,'target':'qemu-arm64','fresh_anaconda_installation':'pass',

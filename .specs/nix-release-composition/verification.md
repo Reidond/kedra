@@ -127,6 +127,53 @@ ownership adjustment. Review corrected raw-versus-canonical RPM hashing to match
 the producer's exact contract. Static checks and final source review pass;
 actual full retained admission/refusals/install/update remain pending.
 
+Fixture `f1db145` subsequently passes actual wrong-receipt-SHA and wrong-source
+refusals before observer/key generation, with private cleanup intact. Correct
+retained admission passes complete image/material/recipe/binary checks and observer
+removal. Built A allows UID502 to read all nine public files at0644 and parse its
+generated public key. All twelve fixture variants are prepared, including the
+deliberately unsigned U and wrong-key W. Both normal public installer refusal
+cases pass. The valid A installer invocation then fails before a media image is
+completed; its private raw log is removed by terminal cleanup, so no cause was
+inferred from that first failure. Attempt6 cleanup removes private inputs, registry
+and observer, with no Podman containers left.
+
+A bounded diagnostic restores only the exact retained signed registry data with a
+new disposable TLS certificate and the retained public signing authority. It does
+not recover a signing key and cannot qualify updates for A's older embedded CA.
+Redaction-before-capture reproduction proves valid A signature copying completes,
+then the ordinary installer cannot read root-created `payload.digest`: inherited
+fixture umask077 creates it0600. A fixture-only subshell umask022 around the public
+installer restores its normal environment; enclosing private directories remain
+0700 and credential files0600. Diagnostic media construction is pending.
+
+The controller also required an operational lookup correction for its existing
+`mkfs.ext4`/`mke2fs` (e2fsprogs1.47.2-3+b12): a root-owned alias to the existing
+verified executable made it reachable under the clean PATH. No tool was installed;
+the controller entrypoint PATH must be corrected in source after the frozen run.
+An independently verified APFS clone preserves the D1 foundation path/bytes/mode
+while sharing canonical archive blocks and reclaiming6.33GB. Exact generated
+incremental/compiler caches were retired after ownership/open-file/process checks;
+pinned executables and reusable dependency/release caches remain intact.
+
+With the installer's normal umask restored, the diagnostic passes strict A
+signature copying, digest readback, installed source/trust/policy validation and
+builder interface/platform checks. It builds the installer environment through
+dracut, then BIB correctly refuses a layer-representation change at a fixed
+destination digest. The original local A manifest is
+`5e1de6effe5e1016cb2cd4316ef9b934a21a61bdb677d5cb8fd639fa6071d456` with uncompressed
+OCI tar layers; the fixture's Podman push converted it to registry manifest
+`6ac6f5a6…` with gzip layers while retaining config
+`7a3555a457a0f6024d007a0e7353f32bedefdadbf7d36fa55a7a4454985fcfb1`.
+This is a producer representation failure, not a consumer-verification waiver.
+The ARM fixture now uses the existing production/desktop Skopeo
+`--preserve-digests` approach and requires source/published manifest equality.
+Only public-metadata producer and installer invocations use a scoped umask022;
+private creation and log redirection retain the enclosing077. Fixed error
+classifications preserve failure status without exporting raw private output.
+Both shell files, all four inline Python blocks and final source review pass.
+The corrected complete fixture still requires actual execution.
+
 Before the attempt, four exact old qualification archives were retired after
 full hash, receipt, owner, single-link and inactive-consumer checks. Their
 manifests and evidence were retained, together with the complete canonical

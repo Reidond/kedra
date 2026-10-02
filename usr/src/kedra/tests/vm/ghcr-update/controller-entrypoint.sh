@@ -29,5 +29,5 @@ mkdir -p /work/runner /work/evidence
 chown kedra-fixture /work /work/runner /work/evidence
 chmod 0700 /work /work/runner /work/evidence
 exec sudo --user=kedra-fixture -- /usr/bin/env -i HOME=/home/kedra-fixture \
-    PATH=/usr/local/bin:/usr/bin:/bin UV_PYTHON_INSTALL_DIR=/opt/kedra-python \
+    PATH=/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin UV_PYTHON_INSTALL_DIR=/opt/kedra-python \
     UV_PYTHON_DOWNLOADS=never DOCKER_HOST=unix:///var/run/docker.sock "$@"

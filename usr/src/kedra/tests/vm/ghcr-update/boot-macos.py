@@ -39,10 +39,14 @@ if GUEST_FORWARD:
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 arm = None
+marker_input = None
 if not GUEST_FORWARD:
     spec = importlib.util.spec_from_file_location('arm_fixture', HERE / 'boot-arm64.py')
     arm = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(arm)
+    marker_spec = importlib.util.spec_from_file_location('fixture_marker', HERE / 'marker_input.py')
+    marker_input = importlib.util.module_from_spec(marker_spec)
+    marker_spec.loader.exec_module(marker_input)
 
 
 def require(value, message):
@@ -269,6 +273,8 @@ def phase(args, manifest, state, execute):
     initial = manifest['start']
     insecure = args.phase == 'refuse-insecure'
     media = args.phase in ('refuse-insecure', 'install')
+    instrumentation = args.instrumentation
+    cases = args.marker_input.parent / 'cases-marker.raw' if instrumentation and media else args.transfer / 'cases.raw'
     require(initial == 'install' or not media, 'Installed transfer cannot restart installation')
     previous = {'install': 'refuse-insecure', 'A': 'install', 'B': 'A', 'ROLLBACK': 'B'}.get(args.phase)
     if previous and not (initial == 'A' and args.phase == 'A'):
@@ -300,7 +306,7 @@ def phase(args, manifest, state, execute):
                '-device', 'virtio-blk-pci,drive=target,serial=KEDRA_INSTALL_ONLY',
                '-drive', f'if=none,id=sentinel,format=raw,file={sentinel}',
                '-device', 'virtio-blk-pci,drive=sentinel,serial=KEDRA_KEEP_DATA',
-               '-drive', f'if=none,id=cases,format=raw,readonly=on,file={args.transfer}/cases.raw',
+               '-drive', f'if=none,id=cases,format=raw,readonly=on,file={cases}',
                '-device', 'virtio-blk-pci,drive=cases,serial=KEDRA_CASES',
                '-device', 'virtio-rng-pci', '-device', 'virtio-gpu-pci', '-device', 'virtio-keyboard-pci',
                '-netdev', guest_network(state, args.nc_sha256), '-device', 'virtio-net-pci,netdev=net0,romfile=',
@@ -310,11 +316,14 @@ def phase(args, manifest, state, execute):
         command += ['-device', 'virtio-scsi-pci,id=scsi0', '-drive',
                     f'if=none,id=cdrom,format=raw,media=cdrom,readonly=on,file={args.transfer}/installer.iso',
                     '-device', 'scsi-cd,drive=cdrom,bus=scsi0.0', '-boot', 'order=d']
+        if instrumentation:
+            command += ['-device', 'qemu-xhci,id=fixture-usb', '-device', 'usb-kbd,bus=fixture-usb.0']
     password = (args.transfer / 'disk-passphrase').read_text().strip()
     require(re.fullmatch('[0-9a-f]{48}', password), 'Invalid private fixture passphrase')
     entered = refused = False
     started = time.monotonic()
     deadline = started + (1800 if insecure else 7200 if media else 5400)
+    selection = marker_input.GrubSelection(qmp, 'kedra-d2-hvf-' + args.phase) if instrumentation and media else None
     environment = dict(os.environ, DYLD_FALLBACK_LIBRARY_PATH=str(args.runtime / 'lib'))
     active = state / 'active-phase.json'
     write_new(active, {'phase': args.phase, 'manifest_sha256': args.manifest_sha256})
@@ -327,6 +336,8 @@ def phase(args, manifest, state, execute):
                 if log.exists():
                     require(log.stat().st_size <= arm.LIMIT, 'Serial output exceeded unchanged bound')
                     output = log.read_text(errors='replace')
+                    if selection:
+                        selection.observe(output)
                     require('systemd[1]: Freezing execution.' not in output, 'Guest PID 1 froze')
                     if insecure and not refused and 'installation requires UEFI Secure Boot and must not start' in output:
                         require('KEDRA_FIXTURE_INSTALL_COMPLETE' not in output, 'Insecure installation completed')
@@ -342,12 +353,18 @@ def phase(args, manifest, state, execute):
             require(process.poll() is not None, 'Owned QEMU did not retire')
             active.unlink()
     output = log.read_text(errors='replace')
+    output_lines = marker_input.ANSI.sub('', output).splitlines() if instrumentation else output.splitlines()
     marker = 'KEDRA_FIXTURE_INSTALL_COMPLETE' if media else 'KEDRA_GHCR_' + args.phase + '_PASS'
     if insecure:
-        require(refused and marker not in output and sha(disk) == manifest['files']['disk.qcow2']['sha256'],
+        require(refused and marker not in output_lines and sha(disk) == manifest['files']['disk.qcow2']['sha256'],
                 'Secure Boot refusal or unchanged target evidence absent')
     else:
-        require(marker in output and 'KEDRA_GHCR_FAIL' not in output, 'Guest phase result absent or failed')
+        require(marker in output_lines and 'KEDRA_GHCR_FAIL' not in output, 'Guest phase result absent or failed')
+    if instrumentation and media:
+        require(selection.commands_sent, 'External GRUB configuration was not selected')
+        if not insecure:
+            require('KEDRA_EXTERNAL_KICKSTART_SELECTED_' + instrumentation['token'] in output_lines,
+                    'New external Kickstart was not observed; old/default automation cannot pass')
     if not media:
         require(entered and 'KEDRA_SECUREBOOT_PASS' in output, 'Installed unlock/security evidence absent')
     require(sha(sentinel) == manifest['files']['sentinel.raw']['sha256'], 'Sentinel changed')
@@ -360,6 +377,12 @@ def phase(args, manifest, state, execute):
               'stop': 'qmp-quit-after-verifier-refusal' if insecure else 'guest-poweroff',
               'accelerator': 'hvf', 'transfer_sha256': args.manifest_sha256}
     report.update(transport='guestfwd-unix-v1', connector_sha256=args.nc_sha256)
+    if instrumentation:
+        report['external_instrumentation'] = {
+            'manifest_sha256': args.marker_input_sha256, 'host_revision': instrumentation['host_revision'],
+            'media_cases_used': media, 'cases_sha256': sha(cases),
+            'kickstart_selected': bool(media and not insecure), 'selection': 'fixed-grub-configfile',
+        }
     write_new(state / (args.phase + '.result.json'), report)
     print(json.dumps(report, sort_keys=True))
 
@@ -381,6 +404,11 @@ def finish_handoff(args, manifest, state, execute):
                 filename = state / (name + '.result.json')
                 private(filename)
                 reports[name] = json.loads(filename.read_bytes())
+                if args.instrumentation:
+                    extra = reports[name].get('external_instrumentation', {})
+                    require(extra.get('manifest_sha256') == args.marker_input_sha256
+                            and extra.get('host_revision') == args.instrumentation['host_revision'],
+                            'Cannot finish mixed original/instrumented phases')
             for name in ('disk.qcow2', 'vars.fd', 'sentinel.raw'):
                 private(state / name)
                 files[name] = sha(state / name)
@@ -423,6 +451,8 @@ def main():
     parser.add_argument('--runtime', type=Path, required=True)
     parser.add_argument('--runtime-receipt-sha256', required=True)
     parser.add_argument('--nc-sha256', required=True, help='Independently reviewed /usr/bin/nc SHA-256')
+    parser.add_argument('--marker-input', type=Path, help='Separately bound private external Kickstart/cases manifest')
+    parser.add_argument('--marker-input-sha256')
     parser.add_argument('--phase', choices=('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK', 'finish', 'abort'), required=True)
     args = parser.parse_args()
     for path in (args.transfer, args.state, args.runtime):
@@ -435,6 +465,13 @@ def main():
     require(manifest['schema'] == 2 and manifest['kind'] == 'kedra-private-hvf-transfer'
             and manifest['start'] in ('install', 'A') and type(manifest['uid']) is int and manifest['uid'] > 0,
             'Unknown transfer protocol')
+    require((args.marker_input is None) == (args.marker_input_sha256 is None), 'Marker input and hash must be selected together')
+    args.instrumentation = None
+    if args.marker_input is not None:
+        require(manifest['start'] == 'install', 'Marker recovery requires a fresh blank target')
+        args.instrumentation = marker_input.load_input(args.marker_input, args.marker_input_sha256,
+                                                      args.manifest_sha256, manifest,
+                                                      Path(__file__).resolve().parents[6])
     expected_files = {'installer.iso', 'cases.raw', 'sentinel.raw', 'code.fd', 'template.fd', 'firmware.json',
                       'disk-passphrase', 'disk.qcow2', 'vars.fd', 'insecure-vars.fd'}
     require(set(manifest['files']) == expected_files, 'Unknown transferred artifact')
@@ -450,15 +487,19 @@ def main():
     execute = controller(manifest)
     require(args.state.name.startswith('d2-hvf-') and args.state != args.transfer,
             'State must be a distinct explicit d2-hvf-* directory')
+    owner = {'manifest_sha256': args.manifest_sha256}
+    if args.instrumentation:
+        owner.update(marker_input_sha256=args.marker_input_sha256,
+                     host_revision=args.instrumentation['host_revision'])
     if not args.state.exists():
         require(args.phase == ('refuse-insecure' if manifest['start'] == 'install' else 'A'), 'Wrong initial phase')
         args.state.mkdir(mode=0o700)
         for name in ('disk.qcow2', 'vars.fd', 'sentinel.raw'):
             shutil.copyfile(args.transfer / name, args.state / name)
-        write_new(args.state / 'owner.json', {'manifest_sha256': args.manifest_sha256})
+        write_new(args.state / 'owner.json', owner)
     private(args.state, directory=True)
     private(args.state / 'owner.json')
-    require(json.loads((args.state / 'owner.json').read_text()) == {'manifest_sha256': args.manifest_sha256},
+    require(json.loads((args.state / 'owner.json').read_text()) == owner,
             'State belongs to a different transfer')
     descriptor = os.open(args.state / 'launch.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, 'r+b') as lock:

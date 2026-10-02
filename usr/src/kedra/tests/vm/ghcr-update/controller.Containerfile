@@ -15,7 +15,7 @@ LABEL dev.kedra.lab.owner=kedra-release-fixture dev.kedra.lab.kind=release-contr
 RUN test "$(uname -m)" = aarch64 && \
     apt-get update && apt-get install -y --no-install-recommends sudo git ca-certificates curl jq \
       podman skopeo qemu-system-arm qemu-utils python3-virt-firmware openssl e2fsprogs rpm cpio \
-      procps util-linux findutils && rm -rf /var/lib/apt/lists/* && \
+      procps util-linux findutils nftables && rm -rf /var/lib/apt/lists/* && \
     groupadd --force --gid "$FIXTURE_GID" kedra-fixture && \
     useradd --non-unique --uid "$FIXTURE_UID" --gid "$FIXTURE_GID" --create-home --shell /bin/bash kedra-fixture && \
     printf 'kedra-fixture ALL=(root) NOPASSWD: ALL\n' > /etc/sudoers.d/kedra-fixture && \

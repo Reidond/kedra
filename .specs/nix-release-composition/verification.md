@@ -42,6 +42,25 @@ not-run; library version comparisons confer no pass.
 
 ## Remaining gates
 
+First local invocation on deee813 fails during the real Podman package resolver:
+its Netavark nftables backend cannot find `nft` in the dedicated controller.
+The reviewed base was pulled and pinned agent/Bitwarden inputs were prepared;
+foundation composition and installation had not started. Add the required
+`nftables` package to the disposable controller and rerun from a fresh owned
+fixture context. This is a retained failure, not a native-composition pass.
+Terminal cleanup passes: original exit1 is retained, private scratch is removed,
+no registry was created and no Podman container remains. The mount guard reports
+no mounted descendants; deliberate mounted-sentinel refusal remains not-run.
+Pinned executable hashes are unchanged. Safe attempt evidence is in
+`target/nix-delivery/d2-runtime/attempt1-evidence`.
+
+Before the attempt, four exact old qualification archives were retired after
+full hash, receipt, owner, single-link and inactive-consumer checks. Their
+manifests and evidence were retained, together with the complete canonical
+foundation and D1 context/VM/media. Actual available space rose from45GiB to69GiB;
+the temporary owner-write change on sealed parent directories was restored.
+Receipts are in `target/nix-delivery/d2-runtime/retired-archives*.json`.
+
 Not-run: fresh normal ARM foundation/composition/native transfer; normal
 generated-authority encrypted Anaconda install; ISO-free boot; public forward
 update/rollback with persistent home/data and refusals; disabled Secure Boot

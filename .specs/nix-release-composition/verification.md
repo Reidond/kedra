@@ -564,3 +564,54 @@ between logical stage allocation and measured filesystem gains is preserved.
 Receipts: `orphan-builder-cache-readonly.json`, `orphan-builder-cache-retirement.json`
 and `orphan-cache-retirement-host-after.json` in the same attempt evidence folder.
 This is capacity recovery, not fresh media admission or execution.
+
+The next whole-media plan requires 78 GiB free on both filesystems: the unchanged
+35 GiB pause threshold plus a conservative 43 GiB gross build envelope, without
+credit for anticipated reflinks or deletion timing. Exact read-only investigation
+finds only 1,785,671,680 uniquely allocated bytes in the thirteen-record obsolete
+Anaconda image lineage; no image is removed. Four separately authorized completed
+test artifacts are retired instead: the dedicated D1 base/overlay disks and both
+APFS-clone aliases of the old `9d6eb030` PR31/D1 foundation archive. Current D2
+uses the independently verified `1dc8d2e5`/`12261f43`/`e0fd3f5a`/`185d14f2`
+candidate tuple in separate custody. No current image, default/recovery input,
+815 pristine cold disk or replay custody is retired.
+
+Full hashes/identities and zero selected references precede removal. After the
+first alias is unlinked, the survivor has the same clone ID, clone count one and
+6,411,501,568 private bytes. Initial readiness misses its sealed 0555 parent,
+so the next unlink fails EACCES without another mutation. A bounded amendment
+allows only that held UID502 directory (device 16777230/inode 126358839) to change
+0555→0755 for the exact unlink, restoring 0555 in finally. A further pre-mutation
+comparison incorrectly compares Python tuples to JSON lists; a reviewed standard
+JSON round-trip fixes representation while preserving every field/value check.
+Both failed executions remain evidence. Corrected continuation exits 0; all four
+paths are absent, the same parent is 0555, all 58 adjacent entries and current
+custody/default/recovery snapshots remain unchanged. Metadata/reports/signatures
+are retained, but the old archives and D1 runnable disks are explicitly retired.
+
+Three actual settled readings report 89,620,234,240 host bytes and 71,323,308,032
+controller bytes. Thus retirement succeeds while whole-media admission fails:
+Mac free-space recovery does not establish controller logical free capacity.
+No productive retry starts. Next inspection concerns the actual deficient Linux
+filesystem, not more Mac output deletion. Evidence: `d1-four-path-retirement-proposal.json`
+(SHA `94ca9c1a608fcc55ae776a4a78df0e5e203dcbb696b803756de277f517aa9537`),
+`d1-retirement-permission-stop-readback.json`, and
+`d1-four-path-retirement-continuation2.jsonl` / `-final.json` in attempt9 evidence.
+The fresh standalone fixture checkout is actual clean detached `cad6e7a`; its new
+lifecycle orchestration remains preparation pending independent review and actual
+resource admission. Producer, fixture and final owning-source identities remain
+separate; no historical failure is relabeled.
+
+Later bounded filesystem readback changes the capacity result without another
+deletion or settings change. `/work` and `/var/lib/containers/storage` are separate
+named volumes on the same Btrfs `/dev/vdb1`, device 41; `/repo` is read-only
+virtiofs/mac. Three settled samples report 84,208,209,920 bytes on both Linux
+paths and host minimum 89,623,035,904 bytes, exceeding 83,751,862,272 bytes (78 GiB)
+on both filesystems. Independent requests are bracketed solely by host monotonic
+timestamps, lasting 0.153–0.164 seconds and spaced three seconds apart. The
+earlier immediate failed admission is preserved, and no precise accounting cause
+is inferred. `capacity-filesystem-relationship.json` and
+`d1-retirement-settled-capacity-readback.json` record this later pass. No additional
+retirement or staged-clock alternative is needed on this evidence. Fresh lifecycle
+review and immediate 78 GiB/healthy-original-guard revalidation remain necessary
+before productive public-media replay; no execution is inferred from admission.

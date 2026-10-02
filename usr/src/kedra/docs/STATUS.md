@@ -138,8 +138,18 @@ ISO, new installation or complete update/rollback passes. See
 D3's latest native `.sh`/`.conf`/`.service` template revision passes isolated
 pinned 1.98.1 formatting, workspace/all-target check and Clippy with all twenty
 frozen source hashes unchanged. D3–D5 remain inactive in the owning checkout;
-their actual package/reuse/recovery runtime gates remain not-run. The D1 named VM is retained stopped after
-a successful public graceful stop; default resources are preserved.
+their actual package/reuse/recovery runtime gates remain not-run. D1's dedicated
+base/overlay disks and two obsolete PR31/D1 foundation-archive clone aliases are
+subsequently retired after exact ownership/reference/hash checks. Historical
+qualification, metadata and reports remain; that D1 instance is no longer runnable
+from retained disks. Current D2 native/foundation/replay and default/recovery
+resources remain preserved. Retirement raises host free space to about 83.5 GiB,
+while immediate controller samples remain about 66.4 GiB and fail admission.
+Three later independent settled samples, without further deletion/settings change,
+report 84,208,209,920 controller bytes and at least 89,623,035,904 host bytes,
+passing the unchanged 78 GiB both-filesystem gate. The earlier failed samples
+remain recorded. Fresh lifecycle review and immediate guard/capacity revalidation
+still precede any new media run; no new media success is claimed.
 Exact attempts, failures and provenance distinctions are retained in
 [derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
 

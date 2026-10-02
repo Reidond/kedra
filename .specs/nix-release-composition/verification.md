@@ -549,3 +549,18 @@ Safe receipts are in `target/nix-delivery/d2-runtime/attempt9-evidence/`:
 These qualify failed-attempt containment and cleanup, not media/install success.
 Fresh default-media replay/admission, HVF preparation/install, cold twelve-artifact/
 three-seed checks, complete A/B/A, exact-A full harness and TC-03 remain pending.
+
+Post-cleanup readback finds one separately identifiable anonymous osbuild cache
+volume from the failed builder: `cde4d20248ff351ed9fb7c8ee8e850f2234e4c631f793262189b0ff38f2479e9`,
+device 41/inode 401639655, created 2026-10-02T09:45:39.074267699Z. It has zero
+container/config/descriptor/mount references, no unreadable processes, empty
+completed objects and no source-cache files; only incomplete stage/tmp remains.
+Following explicit bounded authorization and immediate revalidation, exact Podman
+volume removal returns 0 and independent existence/path checks confirm absence.
+Three settled samples show 70,902,149,120 controller bytes free, an observed gain
+of 14,024,830,976 bytes. Host free space is 75,752,673,280 bytes, an observed gain
+of 14,966,546,432 bytes. No prune or other volume removal occurs. The difference
+between logical stage allocation and measured filesystem gains is preserved.
+Receipts: `orphan-builder-cache-readonly.json`, `orphan-builder-cache-retirement.json`
+and `orphan-cache-retirement-host-after.json` in the same attempt evidence folder.
+This is capacity recovery, not fresh media admission or execution.

@@ -140,6 +140,19 @@ are different scopes; no signing private key enters retained evidence. Use inact
 hashed clones and read-only mappings for narrowly selected diagnostics, preserving
 failed originals and complete reverse-cleanup/full-hash evidence.
 
+Podman 5.4.2 interrupted public-media cleanup (2026-10-02) removed the builder
+container but left its anonymous osbuild volume with about 14.7 GB of incomplete
+stage data. Empty container/mount/process lists do not establish reclaimed disk
+capacity. Inspect the exact volume's recorded identity, anonymous status, all
+references and completed/input-cache contents before separately authorized
+retirement; never prune by category. Preserve failure/replay custody and measure
+settled host and controller gains. The observed bounded retirement reclaimed
+14,024,830,976 controller bytes; logical size alone was not the result.
+Source: `.specs/nix-release-composition/verification.md`, attempt 9 cleanup and
+`orphan-builder-cache-retirement.json`. Public media's `--pull=always --no-cache`
+still requires a new installer-environment build; retained signed payload reuse
+does not qualify the new ISO or eliminate that build's resource budget.
+
 For the explicit fresh HVF fixture path, prepare firmware/blank disk/sentinel
 without starting TCG and bind a separate fresh-preparation receipt before export.
 Do not fabricate a timeout to enter recovery admission. Keep legacy interrupted

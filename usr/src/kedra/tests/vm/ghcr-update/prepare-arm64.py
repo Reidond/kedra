@@ -58,11 +58,14 @@ def main():
         'docker': {scope['repository']: [requirement]}, 'containers-storage': {'': [requirement]}}}, pretty=True)
     (context / 'registries.yaml').write_text('docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n')
     (context / 'install.toml').write_text('[install]\nenforce-container-sigpolicy = true\n')
+    journal_console = b'[Journal]\nTTYPath=/dev/ttyAMA0\n'
+    (context / 'journal-console.conf').write_bytes(journal_console)
     source_bytes = write('source.json', source, pretty=True)
     material['artifacts']['disposable-public-authority'] = m.sha(key.read_bytes())
+    material['artifacts']['disposable-arm-journal-console'] = m.sha(journal_console)
     for name in ('prepare-arm64.py', 'arm64.Containerfile', 'arm64-variant.Containerfile',
                  'check.py', 'identity-recovery.py', 'arm64-check.service', 'fixture.py',
-                 'resume-arm64.py', 'run-arm64.sh', 'prepare-install-arm64.py', 'boot-arm64.py'):
+                 'resume-arm64.py', 'run-arm64.sh', 'prepare-install-arm64.py', 'boot-arm64.py', 'marker_input.py'):
         material['recipes']['fixture/' + name] = m.sha(Path(__file__).with_name(name).read_bytes())
     observer_hash = m.sha((ROOT / 'usr/src/kedra/tests/container/qemu/boot-check.py').read_bytes())
     material['recipes']['fixture/native-observer.py'] = observer_hash

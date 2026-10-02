@@ -349,9 +349,11 @@ foundation and D1 context/VM/media. Actual available space rose from45GiB to69Gi
 the temporary owner-write change on sealed parent directories was restored.
 Receipts are in `target/nix-delivery/d2-runtime/retired-archives*.json`.
 
-Not-run: generated-authority encrypted Anaconda install; ISO-free boot; public
-forward update/rollback with persistent home/data and refusals; exact final-fixture
-container suite and new source CI. Disabled-Secure-Boot installer refusal passes
+Current remaining: owning-source default-media rebuild/fresh installation and
+complete public forward update/rollback with persistent home/data and refusals;
+exact final-fixture container suite, contribution supplementation and new source
+CI. Original-ISO/external-Kickstart installation and partial A observations are
+qualified only to the bounds recorded in the continuation below. Disabled-Secure-Boot installer refusal passes
 as recorded above; the complete trust decision table remains to be reconciled.
 Fresh ARM foundation/composition/native transfer, earlier failed-attempt cleanup,
 retained-candidate admission and the observed storage incident are recorded above.
@@ -365,3 +367,114 @@ All six image/runtime workflows on D1 implementation head `8a8796c` also pass:
 container36941403723, desktop36941403745, QEMU36941403765, home36941403758,
 direct-GHCR36941403715 and signed-updates36941403740. They are D1 results and do
 not qualify D2.
+
+## Native host continuation and failed A observation
+
+The isolated host history through `81528db582feee393991c141a84b6a193bf67947`
+is now integrated by exact fast-forward after original keeper cleanup. Original
+product source `1dc8d2e5`, fixture producer `d4d4c77`, held controller `fc77f0e`
+and individual host revisions remain separate; none is relabeled as another.
+
+Transport gates pass eight concurrent manifest requests, all 25 expected
+manifests, unsigned/missing refusal, cancellation and 32+1 admission with zero
+layer downloads. A naturally observed Darwin EPERM during child cleanup is
+accepted only after actual bounded child exit; the corrected transport retires
+all owned children/sockets/markers. Original failures remain retained.
+
+Original-ISO host recovery exposes two separate installer defects. A chrooted
+serial-marker write creates a regular target file, so that installation remains
+failed despite observed account/receipt creation. A reviewed external Kickstart
+uses the existing signed firmware/GRUB/kernel and unchanged ISO/initrd, adds a
+selection token and emits completion outside chroot only through a verified
+character device. Its first corrected installation passes in 400.653 seconds,
+but a cold readback and subsequent A failure show default.target changed from
+graphical to multi-user during installation. All other eleven native artifacts
+match; exact A provides greetd's graphical-login capability, so missing-provider
+causation is not established.
+
+Host 815 additionally requests `xconfig --startxonboot`. Its new blank installation
+passes in 291.553 seconds after a 34.479-second disabled-Secure-Boot refusal.
+External input manifest is `bc70c0394449e8483a5b3cc0193db997602237a9fde8f7bf4c843ec50b163c50`;
+original transfer `2f3ef18faebb39880b72fdd641cb72ae3c9841e2ededc48392e874145cbdd0e5`
+and original ISO/trust remain unchanged. Cold read-only observation matches all
+twelve native artifacts and all three initial seed hashes, modes and UID/GID;
+the regular target serial path is absent. Full before/after disk hashes and
+reverse mount/mapper/observer/NBD cleanup pass. Its retained pre-boot disk hash is
+`940e98eb72ab59d2b456454876527aeccdbf6a45324492e980b4fbee91875d34`.
+
+First A on that disk passes LUKS unlock, Secure Boot/lockdown, enforcing SELinux,
+native artifacts and fresh-install-record checks. All 90 registry HTTP200 blob
+responses match their manifest sizes, totaling 6,425,949,184 bytes. The fixture
+unit nevertheless exits normally with status 120/result exit-code about 38 seconds
+after start. No complete A result or failure marker reaches serial; its failed
+unit is independently visible at the login screen. Controlled graceful poweroff
+produces actual parent exit 1 and healthy guard exit, preserving the failed state.
+
+Restricted read-only diagnosis finds generated enrollment stdout (3073 bytes,
+SHA-256 `68175e11b8a454263cd20a8d5ee71189808cd903a8e09d364b30487e00bc25dd`)
+reporting enrolled:true and exact A for booted/high-water digest. Its stderr has
+the signature-verification and manifest-completion messages; fixed EIO/broken-pipe
+classifiers are empty. CLI exit code and parsed enroll-a.json were not persisted.
+The harness saves subprocess output, then prints before publishing that JSON;
+its failure/finally paths also print before poweroff. Python documents exit 120
+for cleanup/standard-stream flushing errors ([Python documentation](https://docs.python.org/3/library/sys.html#sys.exit)).
+This supports a fixture-output failure, without proving an errno or a product
+failure. The enrolled failed disk cannot be reused as fresh A. All selected
+readonly cleanup and final original/clone/pre-boot hashes pass; no raw home,
+stdout/stderr or journal content is exported.
+
+Resource evidence distinguishes the earlier guard-floor breach, old ps-based
+guard timeouts and later qualified native guards. Source 815 installation uses
+an exact process/owner/inode guard sampled every 250 ms: minimum host free
+71,424,757,760 bytes, maximum allocation 10,136,387,584 bytes under a
+12,204,314,624-byte cap, maximum sample gap 0.282 seconds, healthy through exit.
+A uses the original 67 GiB admission on both filesystems and a +24 GiB target
+allocation cap. A delayed free-space recovery occurred without another cleanup
+or settings change; no cause is inferred. Only the three enumerated superseded
+b4 disks were removed after new cold success and full hash/ownership/no-consumer
+checks, with measured settled host gain about 10.09 GB and all other files kept.
+
+Original keeper finish now passes exact pidfd TERM/CONT ownership, actual original
+parent wait 143, adopted keeper wait 1 and public abort-launcher wait 0 with ABORT
+acknowledgment. Original EXIT cleanup reports cleanup_failed=false, original
+private-root removal and registry/observer/process absence; its prior status 0
+is not a qualification outcome. Bounded replay custody separately retains public
+registry/media/native/store material plus private generated TLS/disk-unlock
+copies; no image-signing private key is copied. Controller-local fixture CA,
+registry configuration and hosts entry were separately inventoried. The subsequent
+bounded reset removes exactly two inode/hash-bound public files and the unique
+hosts suffix, retaining the same hosts inode and exact 175-byte prefix hash.
+Native/foundation images and the running default remain unchanged; no workstation
+configuration, cache, image or volume is modified.
+
+Safe continuation evidence is under
+`target/nix-delivery/d2-runtime/attempt8-evidence/`, especially
+`hvf-graphical-install-source-guard.json`, `hvf-graphical-cold-observation.json`,
+`hvf-graphical-A-diagnosis-enrollment-classification.json`,
+`hvf-graphical-A-diagnosis-host-final-integrity.json`,
+`hvf-actual-parent-waits.json` and `hvf-original-cleanup-readback.json`.
+
+Next owning-source qualification must execute the corrected default-media
+constructor, selected embedded Kickstart, cold native/home checks, complete A/B/A
+and final exact-image container suite. External-input recovery is not evidence
+that newly rebuilt default media passed. Reviewed source corrections keep the
+product helper, signature policy, relay and deadlines unchanged; actual new-source
+runtime results will be recorded separately.
+
+The integrated correction uses a fixture-only journald `TTYPath=/dev/ttyAMA0`
+drop-in, without changing the product's serial-then-graphical console arguments
+or enabling global forwarding. The discarded proposal appended those arguments
+in reverse order, but bootc 1.16.13 deduplicates without reordering; review caught
+that before any runtime. A fixed journal identifier and strictly anchored
+installed-phase parser account for the documented console prefix. Media
+completion remains an exact raw line.
+
+The new explicit HVF branch prepares normal firmware/blank target/sentinel state
+without launching QEMU, writes a private hash-bound preparation receipt and
+requires its independent hash for fresh install handoff. It does not manufacture
+a TCG timeout or accept a warmed target. Full input/source/context hashes are
+rechecked around reflink export; legacy timeout/boundary adoption and ordinary
+TCG execution remain separate. `macos-transfer.py` is pinned through the committed
+fixture revision and transfer helper hash, while run-arm64/boot-arm64 and the
+marker emitter are material recipe inputs. Independent combined source review,
+Ruff and syntax/diff checks pass; these are not runtime preparation/route passes.

@@ -116,3 +116,34 @@ and payload SHA equality plus real refusal/concurrency/interruption workflows pa
 Five visibly changed native sync/capture samples pass median 4.453 s/max 5.136 s;
 phase metrics distinguish source, transport and capture. Measure after unrelated
 host load finishes and preserve contended samples as diagnostics.
+
+Fixture-output boundary observed 2026-10-02: the ARM checker exited 120 after
+saving enrollment stdout/stderr but before printing/publishing its result. Safe
+read-only diagnosis found enrolled:true; the CLI exit code was not saved, so this
+is not a complete phase or CLI-exit pass. Persist exit metadata before printing,
+emit phase success only after required evidence, and put poweroff in a final
+cleanup path that output errors cannot bypass. The updated VM-only unit follows
+the desktop journal+console approach with a fixture-only journald serial destination
+and a fixed identifier; product graphical console ordering is preserved. The Mac installed-phase parser accepts only that anchored
+journal prefix plus the exact marker; installer completion remains exact. New
+routing/full-flow runtime is pending; do not infer it from source checks.
+Sources: `.specs/nix-release-composition/verification.md`, Python sys.exit cleanup
+semantics, and systemd v259 `journald-console.c` (per-line console reopen after
+hangups). A service exit 120 supports an output failure but does not prove EIO.
+
+Treat monitor health as part of resource-guard evidence. A timed-out whole-system
+process query can silently remove protection; record that failure, bind guards to
+exact native PID/start/executable/arguments and require advancing heartbeats.
+Record actual parent wait separately from an EXIT trap's prior status. On abort,
+original private-root removal and explicitly retained generated replay custody
+are different scopes; no signing private key enters retained evidence. Use inactive
+hashed clones and read-only mappings for narrowly selected diagnostics, preserving
+failed originals and complete reverse-cleanup/full-hash evidence.
+
+For the explicit fresh HVF fixture path, prepare firmware/blank disk/sentinel
+without starting TCG and bind a separate fresh-preparation receipt before export.
+Do not fabricate a timeout to enter recovery admission. Keep legacy interrupted
+boundary adoption separate from normal fresh media qualification. The ARM target
+already orders serial before tty0; bootc 1.16.13 deduplicates repeated arguments
+without reordering them. Use the fixture journald destination rather than an
+appended reversed karg pair. These new routes require their own actual fresh run.

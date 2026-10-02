@@ -117,10 +117,20 @@ fixture umask and layer-representation failures. Corrected fixture `d4d4c77`
 passes retained admission on controller `696341b8`, generated-authority signed
 media construction and disabled-Secure-Boot installer refusal. Fresh Anaconda
 installation under Linux TCG fails at its unchanged 7,200-second deadline; the
-disk remains incomplete. A narrow native-HVF handoff is implemented with reviewed
-source and syntax checks to retry from the same verified ISO/trust on a new blank disk. Actual handoff,
-installation/update and exact final-fixture suite remain unqualified. D3–D5
-preparations have isolated compiler evidence but remain
+disk remains incomplete. Native-HVF transport/cancellation/cleanup is subsequently
+qualified. Host source `81528db` installs a new encrypted disk in 291.553 seconds
+from the original ISO with separately bound external Kickstart, and cold checks
+match all twelve native artifacts and three initial home seeds. A boot passes
+security/native-material checks, but its fixture process exits 120 after saving
+an enrolled response; no complete A pass or CLI return code is recorded. Narrow
+read-only diagnosis and full-hash cleanup pass. Original keeper cleanup now records
+real parent exit 143, adopted keeper exit 1 and acknowledged ABORT; retained replay
+custody remains explicit. Identical host commits are integrated, and fixture-output,
+public graphical-default and embedded-marker corrections are being consolidated
+for a clean owning-source media/install/A/B/A/full-suite run. That new default-media
+path and complete update/rollback remain unqualified. See
+[release verification](../../../../.specs/nix-release-composition/verification.md).
+D3–D5 preparations have isolated compiler evidence but remain
 inactive in the owning checkout. The D1 named VM is retained stopped after
 a successful public graceful stop; default resources are preserved.
 Exact attempts, failures and provenance distinctions are retained in

@@ -102,7 +102,7 @@ def stop(process):
 def phase_main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
-    parser.add_argument('--phase', choices=('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
+    parser.add_argument('--phase', choices=('prepare-hvf', 'refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
     parser.add_argument('--iso', type=Path)
     add_context_argument(parser)
     args = parser.parse_args()
@@ -112,8 +112,20 @@ def phase_main():
             'Unexpected fixture directory')
     private = root.parent / 'kedra-ghcr-private'
     require(root.is_dir() and private.is_dir(), 'Fixture preparation is absent')
+    preparing = args.phase == 'prepare-hvf'
+    if preparing:
+        require(fixture['mode'] == 'local' and args.fixture_context is not None,
+                'Fresh HVF preparation requires an explicit local fixture')
+        os.umask(0o077)
+        require(not any(path.exists() or path.is_symlink() for path in (
+            root / 'insecure-installer',
+            *(root / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
+              for suffix in ('-result.json', '-timeout.json', '.serial.log', '.qmp.sock')),
+            *(private / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
+              for suffix in ('.serial.log', '.qemu.log')),
+        )), 'Fresh HVF preparation refuses previous boot evidence')
     insecure = args.phase == 'refuse-insecure'
-    media_boot = args.phase in ('refuse-insecure', 'install')
+    media_boot = preparing or args.phase in ('refuse-insecure', 'install')
     original_trust = firmware.trust(TEMPLATE)
     require({'PK', 'KEK', 'db', 'SecureBootEnable'} <= original_trust.keys()
             and original_trust['SecureBootEnable'][1] == b'\x01'
@@ -145,7 +157,8 @@ def phase_main():
     manifest = state_root / 'disks.json'
     if media_boot:
         require(args.iso is not None and args.iso.is_file() and not args.iso.is_symlink(), 'Expected private fixture ISO')
-        require(not any(path.exists() for path in (variables, disk, sentinel, manifest)), 'Install disks must be new')
+        require(not any(path.exists() or path.is_symlink() for path in (variables, disk, sentinel, manifest)),
+                'Install disks must be new')
         shutil.copyfile(TEMPLATE, variables)
         if insecure:
             command('virt-fw-vars', '--inplace', variables, '--set-false', 'SecureBootEnable',
@@ -164,6 +177,30 @@ def phase_main():
     if insecure:
         expected_trust['SecureBootEnable'] = (original_trust['SecureBootEnable'][0], b'\x00')
     require(firmware.trust(variables) == expected_trust, 'ARM firmware trust changed')
+    if preparing:
+        command('qemu-img', 'check', disk, stdout=subprocess.DEVNULL)
+        files = {
+            'disks.json': manifest, 'installed.qcow2': disk, 'sentinel.raw': sentinel,
+            'AAVMF_VARS.fd': variables, 'cases.raw': root / 'cases.raw',
+            'installation-plan.json': root / 'installation-plan.json',
+            'firmware-provenance.json': root / 'firmware-provenance.json',
+            'installer.iso': args.iso, 'code.fd': CODE, 'template.fd': TEMPLATE,
+            'firmware.json': DESCRIPTOR,
+        }
+        receipt = {'schema_version': 1, 'kind': 'kedra-fresh-hvf-preparation',
+                   'source_revision': fixture['source_revision'],
+                   'fixture_revision': fixture['fixture_revision'],
+                   'context_sha256': sha(args.fixture_context), 'qemu_started': False,
+                   'files': {name: {'sha256': sha(path), 'bytes': path.stat().st_size}
+                             for name, path in files.items()}}
+        output = root / 'hvf-preparation.json'
+        with output.open('x') as stream:
+            json.dump(receipt, stream, sort_keys=True)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        print(sha(output))
+        return
     log = private / (args.phase + '.serial.log') if media_boot else root / (args.phase + '.serial.log')
     qmp = root / (args.phase + '.qmp.sock')
     require(not qmp.exists() and not log.exists(), 'Phase output already exists')
@@ -239,7 +276,7 @@ def main():
         return phase_main()
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--root', type=Path, required=True)
-    parser.add_argument('--phase', choices=('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
+    parser.add_argument('--phase', choices=('prepare-hvf', 'refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
     add_context_argument(parser)
     args, _ = parser.parse_known_args()
     fixture = load_context(args.fixture_context)
@@ -250,6 +287,8 @@ def main():
     with os.fdopen(descriptor, 'r+b') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         require(not (root / 'hvf-owner.json').exists(), 'Fixture was transferred; Linux boot is retired')
+        require(not ((root / 'hvf-preparation.json').exists() or (root / 'hvf-preparation.json').is_symlink()),
+                'Fixture was prepared for HVF; Linux boot is retired')
         try:
             phase_main()
         except RuntimeError as error:

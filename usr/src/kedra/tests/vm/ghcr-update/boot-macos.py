@@ -58,6 +58,12 @@ def sha(path):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
+
+def installed_phase_marker(lines, marker):
+    prefix = r'(?:\[[ ]*[0-9]+\.[0-9]{6}\] )?kedra-ghcr-fixture\[[0-9]+\]: '
+    tagged = re.compile(prefix + re.escape(marker))
+    return any(line == marker or tagged.fullmatch(line) is not None for line in lines)
+
 # Runs inside the selected disposable controller using its installed interpreter.
 # It can only forward one of two fixed loopback ports. No TLS termination or files.
 ADAPTER = '''import os,socket,sys,threading
@@ -353,13 +359,14 @@ def phase(args, manifest, state, execute):
             require(process.poll() is not None, 'Owned QEMU did not retire')
             active.unlink()
     output = log.read_text(errors='replace')
-    output_lines = marker_input.ANSI.sub('', output).splitlines() if instrumentation else output.splitlines()
+    output_lines = marker_input.ANSI.sub('', output).splitlines() if instrumentation or not media else output.splitlines()
     marker = 'KEDRA_FIXTURE_INSTALL_COMPLETE' if media else 'KEDRA_GHCR_' + args.phase + '_PASS'
     if insecure:
         require(refused and marker not in output_lines and sha(disk) == manifest['files']['disk.qcow2']['sha256'],
                 'Secure Boot refusal or unchanged target evidence absent')
     else:
-        require(marker in output_lines and 'KEDRA_GHCR_FAIL' not in output, 'Guest phase result absent or failed')
+        observed = marker in output_lines if media else installed_phase_marker(output_lines, marker)
+        require(observed and 'KEDRA_GHCR_FAIL' not in output, 'Guest phase result absent or failed')
     if instrumentation and media:
         require(selection.commands_sent, 'External GRUB configuration was not selected')
         if not insecure:

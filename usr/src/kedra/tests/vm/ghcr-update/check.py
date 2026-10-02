@@ -117,6 +117,16 @@ def cached_refs():
 def cli(label, *arguments, success=True):
     result = subprocess.run(['/usr/sbin/runuser', '-u', 'kedra-test', '--', '/usr/bin/sysroot', 'update', *arguments],
                             capture_output=True, timeout=2100, check=False)
+    with (state / (label + '.exit.json')).open('w') as record:
+        json.dump({'schema_version': 1, 'label': label, 'returncode': result.returncode}, record, sort_keys=True)
+        record.write('\n')
+        record.flush()
+        os.fsync(record.fileno())
+    directory = os.open(state, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
     (state / (label + '.stdout')).write_bytes(result.stdout)
     (state / (label + '.stderr')).write_bytes(result.stderr)
     print('CLI', label, 'exit', result.returncode, flush=True)
@@ -237,7 +247,7 @@ def main():
         transfers('idempotent-stage', 'B', b_layers, reused=b_layers)
         (state / 'personal-data').write_text('A data before B\n')
         phase_file.write_text('boot-b')
-        print('KEDRA_GHCR_A_PASS', flush=True)
+        return 'KEDRA_GHCR_A_PASS'
     elif (variant, phase) == ('B', 'boot-b'):
         home_data(expected='A preference before B\n', replacement='B preference survives rollback\n')
         booted = cli('booted-b', 'status', '--json')
@@ -257,7 +267,7 @@ def main():
         assert held['journal']['rollback_hold'] and held['host']['rollback_queued']
         assert held['journal']['high_water'] == booted['journal']['high_water']
         phase_file.write_text('rollback-a')
-        print('KEDRA_GHCR_B_PASS', flush=True)
+        return 'KEDRA_GHCR_B_PASS'
     elif (variant, phase) == ('A', 'rollback-a'):
         home_data(expected='B preference survives rollback\n')
         rolled = cli('rolled-a', 'status', '--json')
@@ -273,19 +283,24 @@ def main():
         resumed = cli('resume', 'stage', '--resume')
         assert not resumed['journal']['rollback_hold'] and resumed['host']['staged']['digest'] == cases['digests']['B']
         phase_file.write_text('complete')
-        print('KEDRA_GHCR_ROLLBACK_PASS', flush=True)
+        return 'KEDRA_GHCR_ROLLBACK_PASS'
     else:
         raise RuntimeError('Unexpected image/phase')
 
 
+phase_marker = None
 try:
-    main()
+    phase_marker = main()
 except Exception as error:  # noqa: BLE001 - any failure must reach the host as a marker
     print('KEDRA_GHCR_FAIL', type(error).__name__, str(error), flush=True)
 finally:
-    # Selected generated results only; no account, private-key or unrelated system logs.
-    for path in sorted(state.rglob('*.json')):
-        print('EVIDENCE', path.relative_to(state), path.read_text(errors='replace'), flush=True)
-    for path in sorted(state.glob('*.stderr')):
-        print('STDERR', path.name, path.read_text(errors='replace')[:4096], flush=True)
-    subprocess.run(['systemctl', 'poweroff', '--no-block'], check=True)
+    try:
+        # Selected generated results only; no account, private-key or unrelated system logs.
+        for path in sorted(state.rglob('*.json')):
+            print('EVIDENCE', path.relative_to(state), path.read_text(errors='replace'), flush=True)
+        for path in sorted(state.glob('*.stderr')):
+            print('STDERR', path.name, path.read_text(errors='replace')[:4096], flush=True)
+        if phase_marker is not None:
+            print(phase_marker, flush=True)
+    finally:
+        subprocess.run(['systemctl', 'poweroff', '--no-block'], check=True)

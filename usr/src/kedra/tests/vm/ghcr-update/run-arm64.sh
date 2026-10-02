@@ -357,25 +357,21 @@ PY
 fi
 mapfile -t media < <(find "$private/media" -maxdepth 1 -type f -name '*.iso')
 test "${#media[@]}" -eq 1
-uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase refuse-insecure --iso "${media[0]}" \
-    > "$evidence/secureboot-disabled.json"
-install_exit=0
-uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase install --iso "${media[0]}" \
-    > "$evidence/install-phase.json" || install_exit=$?
 if test -n "$hvf_controller"; then
-    handoff_start=A
-    if test "$install_exit" -ne 0; then
-        test -f "$root/install-timeout.json" || exit "$install_exit"
-        handoff_start=install
-    fi
-    # This bounded wait keeps the original EXIT trap and exact resources alive.
-    # Success, failure, interruption and timeout all reach that same cleanup.
+    fresh_preparation=$(uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" \
+        --phase prepare-hvf --iso "${media[0]}")
+    # New HVF runs prepare blank media without starting a Linux guest. The
+    # bounded handoff retains this original EXIT trap for every final outcome.
     uv run usr/src/kedra/tests/vm/ghcr-update/macos-transfer.py "${fixture_args[@]}" \
         --operation handoff --controller "$hvf_controller" --registry "$registry_id" \
-        --control-pid "$controller_pid" --start "$handoff_start" > "$evidence/hvf-handoff.jsonl"
+        --control-pid "$controller_pid" --start install --fresh-install-sha256 "$fresh_preparation" \
+        > "$evidence/hvf-handoff.jsonl"
     fixture_backend=hvf
 else
-    if test "$install_exit" -ne 0; then exit "$install_exit"; fi
+    uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase refuse-insecure --iso "${media[0]}" \
+        > "$evidence/secureboot-disabled.json"
+    uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase install --iso "${media[0]}" \
+        > "$evidence/install-phase.json"
     for phase in A B ROLLBACK; do
         uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase "$phase" \
             > "$evidence/$phase-result.json"

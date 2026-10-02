@@ -269,6 +269,43 @@ def trust():
     return expected
 
 
+def fresh_preparation(args, fixture, root, private):
+    path = source_file(root / 'hvf-preparation.json', root)
+    info = path.stat()
+    require(info.st_uid == fixture['uid'] and stat.S_IMODE(info.st_mode) == 0o600
+            and digest(path) == args.fresh_install_sha256, 'Fresh preparation identity changed')
+    value = document(path, root)
+    require(set(value) == {'schema_version', 'kind', 'source_revision', 'fixture_revision',
+                           'context_sha256', 'qemu_started', 'files'}
+            and value['schema_version'] == 1 and value['kind'] == 'kedra-fresh-hvf-preparation'
+            and value['source_revision'] == fixture['source_revision']
+            and value['fixture_revision'] == fixture['fixture_revision']
+            and value['context_sha256'] == digest(args.fixture_context)
+            and value['qemu_started'] is False, 'Fresh preparation belongs to another fixture')
+    require(not any(path.exists() or path.is_symlink() for path in (
+        root / 'insecure-installer',
+        *(root / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
+          for suffix in ('-result.json', '-timeout.json', '.serial.log', '.qmp.sock')),
+        *(private / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
+          for suffix in ('.serial.log', '.qemu.log')),
+    )), 'Fresh handoff refuses previous boot evidence')
+    selected = document(root / 'disks.json', root)
+    files = {name: source_file(root / name, root) for name in (
+        'disks.json', 'installed.qcow2', 'sentinel.raw', 'AAVMF_VARS.fd', 'cases.raw',
+        'installation-plan.json', 'firmware-provenance.json')}
+    files.update({'installer.iso': source_file(selected['iso'], private),
+                  'code.fd': source_file(CODE.resolve(strict=True), CODE.parent),
+                  'template.fd': source_file(TEMPLATE.resolve(strict=True), TEMPLATE.parent),
+                  'firmware.json': source_file(DESCRIPTOR, DESCRIPTOR.parent)})
+    require(value['files'] == {name: {'sha256': digest(path), 'bytes': path.stat().st_size}
+                               for name, path in files.items()}, 'Fresh prepared inputs changed')
+    require(selected['blank_target_sha256'] == value['files']['installed.qcow2']['sha256']
+            and digest(files['AAVMF_VARS.fd']) == digest(TEMPLATE), 'Prepared target or variables changed')
+    subprocess.run(['qemu-img', 'check', files['installed.qcow2']], check=True,
+                   timeout=300, stdout=subprocess.DEVNULL)
+    return value
+
+
 def export(args, fixture, root, private):
     require(fixture['mode'] == 'local', 'HVF handoff is local-fixture only')
     boundary = None
@@ -281,7 +318,9 @@ def export(args, fixture, root, private):
         control, _ = process_identity(args.control_pid)
         require(control['uid'] == fixture['uid'], 'Control process has another owner')
         outer, probe = None, None
-        if args.start == 'install':
+        if args.fresh_install_sha256 is not None:
+            fresh_preparation(args, fixture, root, private)
+        elif args.start == 'install':
             timeout = document(root / 'install-timeout.json', root)
             require(timeout == {'schema_version': 1, 'phase': 'install', 'reason': 'phase_deadline',
                                 'source_revision': fixture['source_revision'],
@@ -356,7 +395,8 @@ def export(args, fixture, root, private):
         'disk-passphrase': (private / 'disk-passphrase', private),
     }.items():
         copy(name, source, parent)
-    if args.start == 'A':
+    if args.start == 'A' or args.fresh_install_sha256 is not None:
+        disk = source_file(root / 'installed.qcow2', root)
         copy('disk.qcow2', disk, root)
         copy('vars.fd', variables, root)
     else:
@@ -378,16 +418,26 @@ def export(args, fixture, root, private):
     require(firmware.trust(insecure_variables) == insecure, 'Insecure fixture changed other authority')
     files['insecure-vars.fd']['sha256'] = digest(insecure_variables)
     files['insecure-vars.fd']['bytes'] = insecure_variables.stat().st_size
+    if args.fresh_install_sha256 is not None:
+        prepared = fresh_preparation(args, fixture, root, private)
+        for name, original in {
+            'installer.iso': 'installer.iso', 'cases.raw': 'cases.raw', 'sentinel.raw': 'sentinel.raw',
+            'code.fd': 'code.fd', 'template.fd': 'template.fd', 'firmware.json': 'firmware.json',
+            'disk.qcow2': 'installed.qcow2', 'vars.fd': 'AAVMF_VARS.fd',
+        }.items():
+            require({key: files[name][key] for key in ('sha256', 'bytes')} == prepared['files'][original],
+                    'Export differs from selected fresh preparation')
     manifest = {'schema': 2, 'kind': 'kedra-private-hvf-transfer', 'fixture_revision': fixture['fixture_revision'],
                 'source_revision': fixture['source_revision'], 'controller': args.controller,
                 'uid': fixture['uid'], 'context': str(args.fixture_context), 'start': args.start,
                 'helper': str(Path(__file__).resolve()), 'helper_sha256': digest(Path(__file__)),
                 'code_sha256': digest(CODE), 'template_sha256': digest(TEMPLATE), 'files': files,
                 'registry': args.registry, 'control': control, 'outer': outer, 'finish_probe': probe,
-                'boundary_sha256': args.boundary_sha256 if boundary else None,
-                'boundary_provenance': boundary['provenance'] if boundary else 'current-launcher-receipt',
+                'boundary_sha256': args.boundary_sha256 if boundary else args.fresh_install_sha256,
+                'boundary_provenance': (boundary['provenance'] if boundary else 'fresh-preparation-receipt'
+                                        if args.fresh_install_sha256 is not None else 'current-launcher-receipt'),
                 'context_admission': args.context_admission,
-                'incomplete_original_target_excluded': args.start == 'install',
+                'incomplete_original_target_excluded': args.start == 'install' and args.fresh_install_sha256 is None,
                 'expires_at': expires_at, 'export_free_bytes': shutil.disk_usage(private).free}
     write_new(output / 'transfer.json', manifest)
     resources(identity)
@@ -571,9 +621,14 @@ def main():
     parser.add_argument('--transition', type=Path)
     parser.add_argument('--transition-sha256')
     parser.add_argument('--start', choices=('install', 'A'), default='A')
+    parser.add_argument('--fresh-install-sha256', help='Explicit fresh preparation receipt SHA-256')
     parser.add_argument('--insecure', action='store_true')
     args = parser.parse_args()
     args.adopted = None
+    require(args.fresh_install_sha256 is None or (args.operation == 'handoff' and args.start == 'install'
+            and re.fullmatch('[a-f0-9]{64}', args.fresh_install_sha256)
+            and args.legacy_context is None and args.boundary is None),
+            'Fresh preparation is separate from timeout recovery and adoption')
     require(args.operation != 'adopt' or args.legacy_context is not None,
             'Adoption requires explicit original/current context transition evidence')
     require(args.fixture_context is not None, 'Explicit closed Linux fixture context required')

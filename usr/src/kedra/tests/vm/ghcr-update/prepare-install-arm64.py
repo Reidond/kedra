@@ -19,6 +19,7 @@ import tarfile
 from pathlib import Path
 
 from fixture import add_context_argument, load_context
+from marker_input import COMPLETE, emit_script
 
 ROOT = Path(__file__).resolve().parents[6]
 
@@ -85,9 +86,10 @@ import json
 root=Path('/var/lib/kedra-ghcr-test')
 root.mkdir(mode=0o700,parents=True,exist_ok=True)
 (root/'fresh-install.json').write_text(json.dumps({'schema_version':1,'installer':'anaconda','target_serial':'KEDRA_INSTALL_ONLY','sentinel_serial':'KEDRA_KEEP_DATA'})+'\\n')
-Path('/dev/ttyAMA0').write_text('KEDRA_FIXTURE_INSTALL_COMPLETE\\n')
 %end
 '''.replace('ACCOUNT_HASH', hashed).replace('DISK_PASSPHRASE', passphrase)
+    kickstart += '%post --nochroot --interpreter=/usr/bin/python3 --erroronfail\n'
+    kickstart += emit_script(COMPLETE) + '%end\n'
     media = checkout / 'usr/src/kedra/installer/media'
     # The normal builder copies a closed context. Add only generated data to
     # its fixture media input and include it in the existing initramfs build.

@@ -100,6 +100,15 @@ def write_new(path, value):
         os.fsync(stream.fileno())
 
 
+def stop_relay_child(child):
+    try:
+        arm.stop(child)
+    except (PermissionError, ProcessLookupError):
+        # A concurrent handler may be reaping this child. Darwin can return
+        # EPERM for its exited process group; require actual exit before accepting it.
+        child.wait(timeout=5)
+
+
 class Relay(socketserver.ThreadingUnixStreamServer):
     allow_reuse_address = False
     daemon_threads = True
@@ -133,7 +142,7 @@ class Relay(socketserver.ThreadingUnixStreamServer):
                 except OSError:
                     pass
             for child in self.children:
-                arm.stop(child)
+                stop_relay_child(child)
         info = self.path.lstat()
         require(stat.S_ISSOCK(info.st_mode) and (info.st_dev, info.st_ino) == self.identity,
                 'Relay socket identity changed; refusing cleanup')
@@ -156,10 +165,10 @@ class Forward(socketserver.BaseRequestHandler):
             try:
                 child.wait(timeout=2100)
             except subprocess.TimeoutExpired:
-                arm.stop(child)
+                stop_relay_child(child)
         finally:
             if child is not None:
-                arm.stop(child)
+                stop_relay_child(child)
                 with self.server.guard:
                     self.server.children.discard(child)
             with self.server.guard:

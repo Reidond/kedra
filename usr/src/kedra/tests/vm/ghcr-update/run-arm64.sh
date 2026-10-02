@@ -71,7 +71,7 @@ except (OSError, ValueError) as error:
 PY
 }
 cleanup() {
-    local original_exit=$? cleanup_failed=false private_removed=false registry_state=not_created resolver_state=not_created
+    local original_exit=$? cleanup_failed=false private_removed=false registry_state=not_created resolver_state=not_created observer_state=not_created
     trap - EXIT
     # Cleanup must finish reporting every owned resource even if the installer
     # left root-owned files. Preserve the task failure if cleanup also fails.
@@ -102,6 +102,15 @@ cleanup() {
             cleanup_failed=true
         fi
     fi
+    if test -e "$root/candidate/retained-observer.json"; then
+        observer_state=cleanup_failed
+        if jq --exit-status '.schema_version == 1 and .removed == true and .cleanup_failed == false' \
+            "$root/candidate/retained-observer-cleanup.json" >/dev/null 2>&1; then
+            observer_state=removed
+        else
+            cleanup_failed=true
+        fi
+    fi
     if test ! -e "$private_real" && test ! -L "$private_real"; then
         private_removed=true
     elif test ! -L "$private" &&
@@ -124,8 +133,8 @@ cleanup() {
     else
         cleanup_failed=true
     fi
-    if ! printf '{"schema_version":1,"original_exit_code":%s,"cleanup_failed":%s,"private_inputs_removed":%s,"registry":"%s","resolver":"%s"}\n' \
-        "$original_exit" "$cleanup_failed" "$private_removed" "$registry_state" "$resolver_state" > "$evidence/cleanup.json"; then
+    if ! printf '{"schema_version":1,"original_exit_code":%s,"cleanup_failed":%s,"private_inputs_removed":%s,"registry":"%s","resolver":"%s","retained_observer":"%s"}\n' \
+        "$original_exit" "$cleanup_failed" "$private_removed" "$registry_state" "$resolver_state" "$observer_state" > "$evidence/cleanup.json"; then
         cleanup_failed=true
         echo 'Fixture cleanup receipt could not be written' >&2
     fi
@@ -151,6 +160,10 @@ export REGISTRY_AUTH_FILE="$private/empty-auth.json"
     sha256sum "$binaries/sysroot" "$binaries/sysroot-helper" "$binaries/kedra-lab"
 } > "$evidence/environment.txt"
 cp "$fixture_context" "$evidence/fixture-context.json"
+if jq --exit-status '.retained_candidate != null' "$fixture_context" >/dev/null; then
+    uv run usr/src/kedra/tests/vm/ghcr-update/resume-arm64.py "${fixture_args[@]}" --root "$root" \
+        > "$evidence/candidate.json"
+else
 base=$(uv run usr/src/kedra/image/release/refresh.py resolve-base --target qemu-arm64 --work "$evidence")
 "$binaries/sysroot" source plan --host qemu-arm64 --json > "$root/source-plan.json"
 "$binaries/sysroot" source archive --host qemu-arm64 --output "$root/build-context/payload.tar"
@@ -163,10 +176,11 @@ uv run usr/src/kedra/tests/vm/ghcr-update/candidate.py \
     "${fixture_args[@]}" \
     --context "$root/build-context" --source-plan "$root/source-plan.json" --base-image "$base" \
     --work "$root/candidate" --tag localhost/kedra-ghcr-arm:composed > "$evidence/candidate.json"
+fi
 
 # Pull all external GHCR tooling before assigning ghcr.io to the private registry.
 media_builder=$(jq -er .platforms.arm64.builder usr/src/kedra/installer/inputs.json)
-registry=docker.io/library/registry@sha256:7518da9b12dd746278282a729dee2e65eabdeb449db4d0b28d46ef6e90308f58
+registry=docker.io/library/registry@sha256:3ffcae348822784850e836f23449ff1d0503933524cef57ddcbdbd263eca0c52
 sudo podman pull "$media_builder" > "$evidence/media-builder-pull.log" 2>&1
 sudo podman pull "$registry" > "$evidence/registry-pull.log" 2>&1
 test "$(sudo podman image inspect "$registry" --format '{{.Architecture}}')" = arm64
@@ -290,6 +304,7 @@ fixture=json.loads(Path(sys.argv[1]).read_bytes())
 (Path(fixture['evidence'])/'scope.json').write_text(json.dumps({
     'schema_version':1,'target':'qemu-arm64','fresh_anaconda_installation':'pass',
     'execution_mode':fixture['mode'],'source_revision':fixture['source_revision'],
+    'fixture_revision':fixture['fixture_revision'],
     'iso_free_luks_boots':['A','B','A'],'public_updater':'pass','home_and_var_preservation':'pass',
     'authority':'generated fixture only','production_publication':False,'production_keys_used':False,
     'secure_boot_disabled_installer':'refused',

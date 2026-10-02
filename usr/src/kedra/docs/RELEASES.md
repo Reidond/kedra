@@ -35,6 +35,14 @@ derivation, so that workflow does not qualify a changed-kernel upgrade.
 Production preparation, candidate inspection and publication retain their
 current-main guards; read-only base resolution grants no signing authority.
 
+For fixture-only corrections, local runs may select `--retained-candidate` with
+its independent `--retained-candidate-sha256` and an explicit `--fixture-revision`.
+The candidate's original `--source-revision` remains separate. Admission requires
+an ancestor source, a closed set of fixture/document changes, unchanged production
+recipes and executables, and fresh image/material readback before generating keys.
+Product changes require a fresh candidate. Actions always build their selected
+source; retained admission is local-only and creates no production authority.
+
 Create installation media locally using [INSTALL.md](INSTALL.md). Its hash records describe the local output; the installer verifies the signed embedded OS payload offline. Current code does not publish ISO parts, GitHub Releases, machine bundles or release/checksum assets.
 
 The r1, r2 and legacy-channel GitHub Releases and all 31 uploaded assets have been removed; their source Git tags remain. The owner confirmed that nobody installed those releases, so no deployed-system migration is required. The legacy protocol-1 metadata commands stay desktop/x86_64 only. [STATUS](STATUS.md) records verified signed GHCR publication per target and remaining installation qualification.

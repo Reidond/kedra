@@ -35,7 +35,7 @@ def main():
     private = Path(fixture['runner_temp']) / 'kedra-ghcr-private'
     checkout = private / 'installer-checkout'
     checkout.mkdir(mode=0o700)
-    revision = fixture['source_revision']
+    revision = fixture['fixture_revision']
     if not re.fullmatch('[a-f0-9]{40}', revision):
         parser.error('invalid dispatched revision')
     archive = subprocess.check_output(['git', '--no-replace-objects', '-C', str(ROOT),
@@ -110,7 +110,7 @@ Path('/dev/ttyAMA0').write_text('KEDRA_FIXTURE_INSTALL_COMPLETE\\n')
         raise RuntimeError('public installer boot entry differs from reviewed fixture adaptation')
     iso.write_text(value.replace(old,
         'console=tty0 console=ttyAMA0,115200 inst.text inst.ks=file:/usr/share/anaconda/fixture.ks'))
-    report = {'schema_version': 1, 'source_revision': revision,
+    report = {'schema_version': 1, 'source_revision': fixture['source_revision'], 'fixture_revision': revision,
               'fixture_authority': authority['fingerprint'], 'target_serial': 'KEDRA_INSTALL_ONLY',
               'sentinel_serial': 'KEDRA_KEEP_DATA', 'target_bytes': 96 * 1024**3,
               'sentinel_bytes': 16 * 1024**2, 'installer': 'anaconda', 'fresh_installation_performed': False,

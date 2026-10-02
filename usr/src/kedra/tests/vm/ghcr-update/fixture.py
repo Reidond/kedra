@@ -17,8 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[6]
 PROGRAMS = ('sysroot', 'sysroot-helper', 'kedra-lab')
-FIELDS = {'schema_version', 'kind', 'mode', 'source_revision', 'repository', 'runner_temp',
-          'evidence', 'binaries', 'binary_sha256', 'uid'}
+FIELDS = {'schema_version', 'kind', 'mode', 'source_revision', 'fixture_revision', 'repository', 'runner_temp',
+          'evidence', 'binaries', 'binary_sha256', 'uid', 'retained_candidate', 'retained_candidate_sha256'}
 MARKER = Path('/usr/share/kedra-release-fixture/controller')
 
 
@@ -58,8 +58,22 @@ def validate(value):
     require(type(value['uid']) is int and sys.platform == 'linux' and platform.machine() == 'aarch64'
             and os.getuid() == os.geteuid() == value['uid'] and value['uid'] > 0,
             'The ARM fixture controller must run as an ordinary native Linux ARM user')
-    require(value['mode'] in ('actions', 'local') and re.fullmatch('[a-f0-9]{40}', value['source_revision']),
+    require(value['mode'] in ('actions', 'local') and re.fullmatch('[a-f0-9]{40}', value['source_revision'])
+            and re.fullmatch('[a-f0-9]{40}', value['fixture_revision']),
             'Invalid fixture mode or source revision')
+    if value['retained_candidate'] is None:
+        require(value['retained_candidate_sha256'] is None
+                and value['fixture_revision'] == value['source_revision'], 'Fresh candidates require one exact revision')
+    else:
+        require(value['mode'] == 'local' and isinstance(value['retained_candidate_sha256'], str)
+                and re.fullmatch('[a-f0-9]{64}', value['retained_candidate_sha256']),
+                'Retained candidates require an independently selected hash in explicit local mode')
+        retained = path(value['retained_candidate'])
+        info = retained.stat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1
+                and 0 < info.st_size <= 65536, 'Retained candidate must be a bounded owned regular file')
+        require(hashlib.sha256(retained.read_bytes()).hexdigest() == value['retained_candidate_sha256'],
+                'Retained candidate differs from the selected hash')
     require(path(value['repository']) == ROOT, 'Fixture context belongs to another checkout')
     temporary = path(value['runner_temp'])
     evidence = path(value['evidence'], existing=False)
@@ -86,7 +100,7 @@ def validate(value):
     environment.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null', GIT_OPTIONAL_LOCKS='0')
     head = subprocess.check_output(['/usr/bin/git', '--no-replace-objects', '-C', str(ROOT),
         'rev-parse', '--verify', 'HEAD^{commit}'], env=environment, timeout=30).decode().strip()
-    require(head == value['source_revision'], 'Real committed HEAD differs from selected fixture source')
+    require(head == value['fixture_revision'], 'Real committed HEAD differs from selected fixture tools')
     require(binary_hashes(binaries) == value['binary_sha256'], 'Selected fixture binaries changed')
     return value
 
@@ -99,7 +113,8 @@ def actions_context():
     require(not output.is_symlink(), 'Actions output must not be a symlink')
     output.mkdir(mode=0o700, exist_ok=True)
     return {'schema_version': 1, 'kind': 'kedra-arm-release-fixture', 'mode': 'actions',
-            'source_revision': os.environ['GITHUB_SHA'], 'repository': str(ROOT),
+            'source_revision': os.environ['GITHUB_SHA'], 'fixture_revision': os.environ['GITHUB_SHA'],
+            'retained_candidate': None, 'retained_candidate_sha256': None, 'repository': str(ROOT),
             'runner_temp': str(Path(os.environ['RUNNER_TEMP']).resolve()),
             'evidence': str(ROOT / 'output/ghcr-arm-evidence'), 'binaries': str(binaries),
             'binary_sha256': binary_hashes(binaries), 'uid': os.getuid()}
@@ -124,6 +139,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--local-fixture', action='store_true')
     parser.add_argument('--source-revision')
+    parser.add_argument('--fixture-revision', help='Exact current tools commit when continuing a retained local candidate')
+    parser.add_argument('--retained-candidate', type=Path)
+    parser.add_argument('--retained-candidate-sha256')
     parser.add_argument('--runner-temp', type=Path)
     parser.add_argument('--evidence', type=Path)
     parser.add_argument('--binaries', type=Path)
@@ -132,13 +150,21 @@ def main():
     if args.local_fixture:
         if not all(item is not None for item in selected):
             parser.error('--local-fixture requires source revision, private runner temp, evidence and binaries')
+        retained = (args.retained_candidate, args.retained_candidate_sha256)
+        if any(item is not None for item in retained) and not all(item is not None for item in retained):
+            parser.error('retained candidate path and independently selected SHA-256 must be supplied together')
+        if args.retained_candidate is not None and args.fixture_revision is None:
+            parser.error('retained candidates require an explicit --fixture-revision')
         value = {'schema_version': 1, 'kind': 'kedra-arm-release-fixture', 'mode': 'local',
-                 'source_revision': args.source_revision, 'repository': str(ROOT),
+                 'source_revision': args.source_revision, 'fixture_revision': args.fixture_revision or args.source_revision,
+                 'retained_candidate': str(path(args.retained_candidate)) if args.retained_candidate is not None else None,
+                 'retained_candidate_sha256': args.retained_candidate_sha256, 'repository': str(ROOT),
                  'runner_temp': str(path(args.runner_temp)), 'evidence': str(path(args.evidence, existing=False)),
                  'binaries': str(path(args.binaries)), 'binary_sha256': binary_hashes(path(args.binaries)),
                  'uid': os.getuid()}
     else:
-        if any(item is not None for item in selected):
+        if any(item is not None for item in (*selected, args.fixture_revision, args.retained_candidate,
+                                            args.retained_candidate_sha256)):
             parser.error('Actions defaults cannot be overridden; select explicit local fixture mode')
         value = actions_context()
     validate(value)

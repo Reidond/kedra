@@ -616,7 +616,7 @@ retirement or staged-clock alternative is needed on this evidence. Fresh lifecyc
 review and immediate 78 GiB/healthy-original-guard revalidation remain necessary
 before productive public-media replay; no execution is inferred from admission.
 
-## Fresh retained-signed-A replay — running
+## Fresh retained-signed-A replay — public-installer failure
 
 The new target-only lifecycle uses a real clean detached cad6 checkout and fresh
 runner/evidence/private roots. It preserves the original signed variants, cases,
@@ -647,7 +647,24 @@ A receives its one-use admission at Unix 1790946570.763 after host-monotonic
 capacity requests, independently advancing guard sequences and immediate local
 recheck: Linux 84,166,709,248 bytes, host 89,557,524,480 bytes. Registry ID is
 `6dcf5ac271d6863e090d01df5206216c7399f3185a30437e8ea806a338777b92`.
-This is actual public-media execution, not yet completion. No ISO, install, cold,
-A/B/A or full-suite pass is implied. Host events are preserved in
+These records prove actual public-installer invocation, not successful construction.
+No ISO, install, cold, A/B/A or full-suite pass is implied. Host events are preserved in
 `target/nix-delivery/d2-runtime/signed-replay-ad57f07f5459d594/supervisor.jsonl`;
 original deadlines, 35 GiB guard/30 GiB floor and source/input pins remain intact.
+
+Actual A invocation exits 1 after 4.339 seconds. The original Docker-exec parent
+11242 waits 1; original cleanup reports cleanup_failed=false, registry and retained
+observer removed, private root absent. Two independent remote-absence proofs have
+empty live/unreadable lists and no Podman containers remain. No replay result or
+media/HVF pass exists. The fixed classifier records `public_installer_failed`
+and 9,000 private log bytes, but original cleanup removes that sole constructor
+log. Retained Podman events return no records for the exact interval, and the
+controller has no sudo journal/auth log. These facts do not identify the cause.
+
+The next narrowly reviewed change is diagnostic retention only: bounded original
+constructor log bytes in a new owner-private 0700 directory/0600 files outside
+the original cleanup root, ignored and local-only. Public evidence receives only
+size/hash/role metadata; no raw logs or production/signing keys. Original cleanup,
+constructor, policy and deadlines remain unchanged. A fresh controlled diagnostic
+invocation still requires source/custody/guard and both-filesystem 78 GiB checks;
+the removed historical log is not reconstructed and the failure is not relabeled.

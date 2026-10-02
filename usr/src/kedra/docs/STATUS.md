@@ -151,10 +151,13 @@ passing the unchanged 78 GiB both-filesystem gate. The earlier failed samples
 remain recorded. A reviewed fresh exact-cad6 replay then passes actual unsigned
 and wrong-key public-installer refusals. Run `ad57f07f5459d594` enters A's normal
 public media construction with immediate Linux/host capacity above 78 GiB and
-the healthy original guard. A first pre-registry permission failure and its
-successful cleanup remain separate evidence. No final ISO or new VM success is
-claimed while this invocation is running; producer, fixture and owning-source
-identities remain distinct.
+the healthy original guard, then exits 1 after 4.339 seconds. Actual parent wait
+is 1; original cleanup and independent remote absence pass. The 9,000-byte private
+constructor log was removed after generic failure classification, so the exact
+cause remains unknown. A controlled diagnostic invocation requires bounded private
+log custody outside the unchanged cleanup root before another run. The earlier
+pre-registry permission failure remains separate evidence. No final ISO or new VM
+success is claimed; producer, fixture and owning-source identities remain distinct.
 Exact attempts, failures and provenance distinctions are retained in
 [derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
 

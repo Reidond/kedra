@@ -24,7 +24,8 @@ KICKSTART_ARGUMENT = 'inst.ks=hd:LABEL=KEDRA_GHCR_CASES:/fixture.ks'
 ORIGINAL_ARGUMENT = 'inst.ks=file:/usr/share/anaconda/fixture.ks'
 ORIGINAL_LINUX = ('linux /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=KEDRA-44-Install '
                   'console=tty0 console=ttyAMA0,115200 inst.text ' + ORIGINAL_ARGUMENT)
-GRUB_COMMAND = 'search --no-floppy --set=root -l KEDRA_GHCR_CASES && configfile /grub-marker.cfg'
+GRUB_COMMAND = ('if search --no-floppy --set=root -l KEDRA_GHCR_CASES; '
+                'then configfile /grub-marker.cfg; fi')
 ANSI = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 BROKEN_MARKER = r"Path('/dev/ttyAMA0').write_text('KEDRA_FIXTURE_INSTALL_COMPLETE\n')" + '\n'
 COMPLETE = 'KEDRA_FIXTURE_INSTALL_COMPLETE'
@@ -281,7 +282,7 @@ class GrubSelection:
             for character in text:
                 special = {' ': ('spc', False), '-': ('minus', False), '_': ('minus', True),
                            '/': ('slash', False), '.': ('dot', False), '=': ('equal', False),
-                           '&': ('7', True), '\n': ('ret', False)}
+                           ';': ('semicolon', False), '\n': ('ret', False)}
                 if character in special:
                     key, shifted = special[character]
                 else:

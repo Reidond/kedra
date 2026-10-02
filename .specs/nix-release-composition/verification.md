@@ -20,7 +20,8 @@ source was edited during those gates. Ignored cases supply no runtime coverage.
 Source review caught root-owned failed installer scratch cleanup; correction
 captures/rechecks its owned root, refuses all kernel mountpoints beneath it,
 uses fixed narrow privileged removal and preserves failure/reporting semantics.
-Actual cleanup/mount/sentinel refusal is not-run.
+The manual same-device mounted-descendant refusal is subsequently qualified below;
+whole-fixture cleanup outcomes remain tied to their individual attempts.
 
 ## Controller inputs
 
@@ -174,6 +175,173 @@ classifications preserve failure status without exporting raw private output.
 Both shell files, all four inline Python blocks and final source review pass.
 The corrected complete fixture still requires actual execution.
 
+Fresh attempt8 on fixture `d4d4c77` passes retained admission again. Controller
+`696341b8…` resolves the existing mkfs tool through its corrected PATH without an
+alias. Actual A source/registry manifest equality passes at
+`433fa2fbad3d84d78f4b2a7f58e126d15cac05f4b67cf91d92c64867dc8d3e8a`, with uncompressed
+layers preserved and config `f14f47d682c8e82429e688a67fd325efeceb08fcfe4655d688d94f3b56129d0c`.
+All twelve variants complete and unsigned/wrong-key installer refusals pass again.
+The valid media build reaches BIB staging; no complete ISO or installation has
+been reported.
+
+The storage guard pauses the exact current controller at33,135,529,984 free bytes.
+Queued writes continue to31,950,131,200 bytes (29.756 GiB), briefly below the30GiB
+floor. This is a recorded failure of the original guard margin. Removing an exact
+stopped obsolete controller restores the floor, but the current controller stays
+paused pending further verified cache/duplicate-archive reclaim and a larger,
+faster guard. The pause is not an ENOSPC recovery test and does not satisfy D5.
+Any public subprocess deadline crossed during the pause remains a real timeout.
+Pinned executables, active shared libraries, source/evidence and owner defaults
+remain protected; unrelated filesystems or broad cache pruning are excluded.
+
+The exact obsolete `kedra-utm-podman-storage` volume is retired after a read-only
+content audit and a fresh identity/reference check. Its 18 images are named
+Fedora/Kedra installer build inputs or 14 unnamed layer prefixes of those images;
+it holds no containers, stored volumes, secret payloads or unknown named images.
+Historical installer source identifies it as payload/builder cache and keeps
+ISO/scratch outputs in separate volumes. The retirement receipt records immediate
+free space of 41,134,522,368 to 44,901,539,840 bytes; asynchronous reclaim continues
+afterward. The remaining media-stage estimate is at least 16 GiB, so admission
+requires at least 52 GiB settled free space with the revised 35 GiB / 250 ms guard
+active. The earlier 48 GiB threshold would not cover that estimate above the
+guard trigger. Exact audit, metadata and
+retirement receipts are retained under `target/nix-delivery/d2-runtime/legacy-utm-*`.
+
+The separate `kedra-macos-media-storage` cache is also retired after fresh
+identity/no-reference checks and a read-only audit: 50 known images with matching
+config hashes, all 42 unnamed entries verified as build-layer prefixes, and no
+containers, volumes, secret payloads or media/VM outputs. The QEMU Podman cache
+contains D1 fixture/buildroot references and is preserved. Separate output media,
+VM state and retained canonical/D1/native archives remain intact.
+
+Settled free-space samples reach 66.15, 66.24 and 66.24 GiB. The existing media
+command is 3,246 seconds old with 3,954 seconds remaining on its unchanged
+7,200-second deadline. A new guard is active before unpause: 52 GiB admission,
+35 GiB trigger and 250 ms sampling. The exact controller resumes and the default
+development container remains unchanged. Resumption supplies no ISO/install pass;
+the original floor violation remains a failure. Receipts are
+`macos-media-cache-{content-audit,retirement}.json`, `settled-resume-space.json`
+and `disk-guard-attempt8-resumed.ready.json` under the same evidence root.
+
+The resumed public installer completes both preliminary and labeled media passes
+and exits successfully. Independently read-back `attempt8-evidence/installer-media.json`
+binds A manifest `433fa2fb…` to `kedra-qemu-arm64-44-433fa2fbad3d84d7.iso`,
+3,260,559,360 bytes, SHA-256
+`beccfe3ab8bc8694750e8dfd817b77cf263fb159c7c55b91e790117e15ca8757`.
+It records source `1dc8d2e5`, public fixture authority `3c447d74…`, no upload and
+no installation/smoke claim. The independent authority/retained-candidate records
+keep fixture revision `d4d4c77` separate. Public installer success is also observed
+by the subsequent Secure-Boot-disabled QEMU phase passing the explicit exit guard.
+The exact generated Anaconda environment is retired after builder exit and a
+zero-consumer check; QEMU/default/media resources remain separate. Disabled-Secure-
+Boot refusal is active; fresh encrypted installation and A/B/A remain pending.
+
+The disabled-Secure-Boot installer refuses in 236.853 seconds, with ISO, firmware
+trust and unselected sentinel unchanged; QMP quits only after the actual verifier
+refusal. Receipt: `attempt8-evidence/secureboot-disabled.json`. Fresh encrypted
+installation then starts. The nine exact-A public files have independently
+matching hashes, including native receipt `aa76f708…`. Host OpenSSL independently
+verifies the exported ECDSA signature payload against the generated public key.
+Its identity is the exact producer reference `ghcr.io/reidond/kedra-qemu-arm64:A`
+and manifest `433fa2fb…`; an earlier manual untagged-reference assertion failure
+is retained in the signature-verification receipt and required no consumer change.
+
+The fresh Anaconda installation under Linux ARM TCG fails at its unchanged
+7,200-second phase deadline. The actual exception is `ARM fixture exceeded its
+phase deadline`; neither the completion marker nor an install-result receipt
+exists. The passive pidfd observer captures kernel wait statuses: QEMU 0 during
+host termination cleanup, boot controller 256 (exit 1), and uv 256 (exit 1).
+QEMU's cleanup exit does not establish installation success. QEMU/boot are absent;
+the exact outer shell remains deliberately stopped at the pre-cleanup boundary.
+The existing target is incomplete and must never be admitted as installed A.
+
+Observed progress includes substantial target writes and later active paging;
+the paging sample records 12,846 major faults and about 63 MB swap-in over 30
+seconds. Its share of the delay is unproven. Controller/QEMU cgroups have no
+restrictive memory limit or OOM events, so no resource setting was changed.
+Bounded reversible VT inspection reveals no interactive error and returns to
+the original console. No guest or helper deadline is extended.
+
+An inactive HVF fallback preparation is under review. A fresh native attempt must
+start from a new blank target using the exact already-verified ISO and original
+generated trust/negative registry states. Original and new tool/context revisions
+must remain distinct. The observed same-controller Bash pending-SIGTERM/SIGCONT
+probe reaches existing EXIT cleanup, preserves its foreign sentinel and skips
+the next command, with real parent wait status -15. The trap itself saw prior
+status 0; cleanup status is therefore never used as the fixture/HVF outcome.
+Actual handoff, native installation and updater outcomes remain not-run.
+
+The first Mac transport-readiness probe refuses the draft loopback route:
+ordinary UID 502 cannot bind `127.0.0.1:443` (`EACCES`, errno 13). The socket is
+closed; no sudo, host DNS/CA change, helper execution or VM launch follows.
+An unprivileged per-connection QEMU forwarding revision is being prepared and
+must preserve the guest's exact registry/control endpoints and raw TLS identity.
+The original stopped boundary and generated trust remain retained; there is no
+new signing or media rebuild.
+
+Independent manual cleanup qualification passes for the unmodified source-`1dc`
+and fixture-`d4` cleanup functions. A real same-device descendant bind mount causes
+exit 1 and preserves both private scratch and a foreign sentinel. After exact
+unmount, cleanup removes only owned scratch with exit 0; the foreign sentinel
+remains byte-identical. These are actual ordinary-UID/kernel/filesystem operations,
+not a full fixture rerun. Exact whole-source/function hashes and outcomes are in
+`attempt8-evidence/cleanup-descendant-{manual,current-manual}.json`.
+
+TC-04 passes the unchanged production constructor plus public material comparison
+CLI. Baseline, repeated invocation and final original readback all reproduce
+`185d14f21e05da183b8b9f837cd74566d7e6495fb12a3c9a18f79caa7f9b290b` byte-for-byte.
+Actual recipe, recorded immutable archive-pin and disposable executable-byte
+mutations each produce changed canonical material in the expected section.
+Later invocation with generated caller-side output metadata remains unchanged;
+that metadata is explicitly outside constructor arguments. No production
+skip/publication, compatible package rebuild or native build is claimed. Exact
+decisions/hashes are in `attempt8-evidence/material-constructor-manual.json`.
+The original five-artifact input remains intact; TC-03 supplementation is separate.
+
+The bounded TC-02 subset passes 13 public composer/assembly refusals: wrong
+target, committed source, input/tool/recipe/source-plan material, foundation
+receipt hash/source/target/material, malformed immutable image, preexisting
+output and unsupported assembly mode. Each intended reason is observed before
+build/import/final-result publication, with retained inputs/tools and foreign
+sentinels unchanged; the explicit preexisting-output case preserves its output.
+Evidence: `attempt8-evidence/composer-early-refusals.json`.
+
+The public material CLI accepts exact signed-A raw inputs before and after five
+refusal cases: changed source bytes, resolved material, RPM-content hash,
+config identity label and OCI architecture. Protected inputs remain intact.
+An initial manual setup reserialized signed source JSON and correctly failed
+its byte-hash binding; that failure is preserved separately, followed by the
+unchanged raw-byte success. No product source changed to pass the comparison.
+Evidence: `public-material-refusals.json` and
+`public-material-manual-setup-failure.json` under the same directory.
+
+The remaining native binding refusal passes in 2.279 seconds through public
+retained-candidate admission. A new independently hashed candidate record changes
+only the expected native-receipt hash; one stopped owned observer reads actual
+unchanged receipt `aa76f708…`, is removed and independently absent, then admission
+refuses with `Retained installed material changed: native-receipt.json`.
+Original inputs/images/registry/boundary remain intact, with no build/import/
+signing/key operation or final result. This qualifies changed expected binding,
+not mutated installed-image bytes. Receipt:
+`attempt8-evidence/native-receipt-binding-refusal.json`.
+
+The reviewed four-file native-HVF bridge is adopted after the observed TCG and
+privileged-port failures. It retains the original fixture resources with a bounded
+handoff, admits independently observed old-code boundaries, and separately binds
+original context/source revisions to a normally validated new tools context and
+closed committed transition. Required reflink exports exclude the incomplete disk
+when selecting fresh installation. Exact pidfd finish invokes original EXIT
+cleanup without treating its prior status as the outcome.
+
+Transport uses the retained QEMU fork `29d25d77…` and libslirp 4.9.5 semantics:
+the virtual host moves to `10.0.2.254`, while per-connection forwarding preserves
+guest `10.0.2.2:443/18080` through an independently hash-checked fixed system nc
+connector and owned private Unix sockets. It binds no host TCP port and changes
+no guest trust, signature check, verifier or helper deadline. Source review fixes
+path containment, a Python name-shadowing error and rename-aware transition
+enumeration before adoption. Pinned Ruff/Python/Bash syntax checks pass on the
+prepared bytes; actual transport/adoption/finish/HVF qualification remains not-run.
+
 Before the attempt, four exact old qualification archives were retired after
 full hash, receipt, owner, single-link and inactive-consumer checks. Their
 manifests and evidence were retained, together with the complete canonical
@@ -181,15 +349,19 @@ foundation and D1 context/VM/media. Actual available space rose from45GiB to69Gi
 the temporary owner-write change on sealed parent directories was restored.
 Receipts are in `target/nix-delivery/d2-runtime/retired-archives*.json`.
 
-Not-run: fresh normal ARM foundation/composition/native transfer; normal
-generated-authority encrypted Anaconda install; ISO-free boot; public forward
-update/rollback with persistent home/data and refusals; disabled Secure Boot
-installer refusal; actual cleanup/resource evidence and new source CI.
+Not-run: generated-authority encrypted Anaconda install; ISO-free boot; public
+forward update/rollback with persistent home/data and refusals; exact final-fixture
+container suite and new source CI. Disabled-Secure-Boot installer refusal passes
+as recorded above; the complete trust decision table remains to be reconciled.
+Fresh ARM foundation/composition/native transfer, earlier failed-attempt cleanup,
+retained-candidate admission and the observed storage incident are recorded above.
 Protected-main production signing/publication/no-change repetition remain
 separate from disposable fixture qualification.
 
 D1 [PR33](https://github.com/Reidond/kedra/pull/33) both architecture workspace
 checks pass on exact head712927e in
 [run36941595156](https://github.com/Reidond/kedra/actions/runs/36941595156).
-Earlier whole-payload workflows on8a8796c are still running; they are not
-borrowed as D2/new-source results.
+All six image/runtime workflows on D1 implementation head `8a8796c` also pass:
+container36941403723, desktop36941403745, QEMU36941403765, home36941403758,
+direct-GHCR36941403715 and signed-updates36941403740. They are D1 results and do
+not qualify D2.

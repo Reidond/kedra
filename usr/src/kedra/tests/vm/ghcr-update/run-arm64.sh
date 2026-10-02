@@ -2,11 +2,22 @@
 # Disposable ARM workflow: real composed image, generated authority,
 # normal offline installer, then public signed A/B/A with persistent home/data.
 set -euo pipefail
+hvf_controller=
+if test "${1:-}" = --hvf-controller; then
+    test "$#" -ge 3
+    hvf_controller=$2
+    [[ "$hvf_controller" =~ ^[a-f0-9]{64}$ ]]
+    shift 2
+fi
 if test "$#" -eq 1 && test "$1" = --help; then
     uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py --help
     exit 0
 fi
 fixture_context=$(uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "$@")
+if test -n "$hvf_controller"; then
+    test "$(jq -er .mode "$fixture_context")" = local
+fi
+fixture_backend=tcg
 runner_temp=$(jq -er .runner_temp "$fixture_context")
 evidence=$(jq -er .evidence "$fixture_context")
 binaries=$(jq -er .binaries "$fixture_context")
@@ -348,15 +359,31 @@ mapfile -t media < <(find "$private/media" -maxdepth 1 -type f -name '*.iso')
 test "${#media[@]}" -eq 1
 uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase refuse-insecure --iso "${media[0]}" \
     > "$evidence/secureboot-disabled.json"
+install_exit=0
 uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase install --iso "${media[0]}" \
-    > "$evidence/install-phase.json"
-for phase in A B ROLLBACK; do
-    uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase "$phase" \
-        > "$evidence/$phase-result.json"
-    cp "$root/$phase.serial.log" "$evidence/"
-done
+    > "$evidence/install-phase.json" || install_exit=$?
+if test -n "$hvf_controller"; then
+    handoff_start=A
+    if test "$install_exit" -ne 0; then
+        test -f "$root/install-timeout.json" || exit "$install_exit"
+        handoff_start=install
+    fi
+    # This bounded wait keeps the original EXIT trap and exact resources alive.
+    # Success, failure, interruption and timeout all reach that same cleanup.
+    uv run usr/src/kedra/tests/vm/ghcr-update/macos-transfer.py "${fixture_args[@]}" \
+        --operation handoff --controller "$hvf_controller" --registry "$registry_id" \
+        --control-pid "$controller_pid" --start "$handoff_start" > "$evidence/hvf-handoff.jsonl"
+    fixture_backend=hvf
+else
+    if test "$install_exit" -ne 0; then exit "$install_exit"; fi
+    for phase in A B ROLLBACK; do
+        uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase "$phase" \
+            > "$evidence/$phase-result.json"
+        cp "$root/$phase.serial.log" "$evidence/"
+    done
+fi
 cp "$root/installation-plan.json" "$root/disks.json" "$root/firmware-provenance.json" "$evidence/"
-uv run python - "$fixture_context" <<'PY'
+uv run python - "$fixture_context" "$fixture_backend" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -365,6 +392,7 @@ fixture=json.loads(Path(sys.argv[1]).read_bytes())
 (Path(fixture['evidence'])/'scope.json').write_text(json.dumps({
     'schema_version':1,'target':'qemu-arm64','fresh_anaconda_installation':'pass',
     'execution_mode':fixture['mode'],'source_revision':fixture['source_revision'],
+    'execution_backend':sys.argv[2],
     'fixture_revision':fixture['fixture_revision'],
     'iso_free_luks_boots':['A','B','A'],'public_updater':'pass','home_and_var_preservation':'pass',
     'authority':'generated fixture only','production_publication':False,'production_keys_used':False,

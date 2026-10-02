@@ -5,6 +5,7 @@
 # ///
 """Boot only this workflow's generated ARM installer/installed disks under TCG."""
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -98,7 +99,7 @@ def stop(process):
             process.wait(timeout=20)
 
 
-def main():
+def phase_main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--phase', choices=('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
@@ -230,6 +231,40 @@ def main():
               'stop': 'qmp-quit-after-verifier-refusal' if insecure else 'guest-poweroff'}
     (root / (args.phase + '-result.json')).write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, sort_keys=True))
+
+
+def main():
+    # The same controller-only gate protects the optional Mac transfer boundary.
+    if '--help' in sys.argv:
+        return phase_main()
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--phase', choices=('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
+    add_context_argument(parser)
+    args, _ = parser.parse_known_args()
+    fixture = load_context(args.fixture_context)
+    root = args.root.resolve()
+    require(root == Path(fixture['runner_temp']) / 'kedra-ghcr' and root.is_dir(),
+            'Unexpected fixture directory')
+    descriptor = os.open(root / 'host-launch.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'r+b') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        require(not (root / 'hvf-owner.json').exists(), 'Fixture was transferred; Linux boot is retired')
+        try:
+            phase_main()
+        except RuntimeError as error:
+            # phase_main has already reaped its owned QEMU in finally. Only the
+            # unchanged phase deadline licenses a fresh-target HVF retry.
+            if str(error) == 'ARM fixture exceeded its phase deadline':
+                receipt = {'schema_version': 1, 'phase': args.phase, 'reason': 'phase_deadline',
+                           'source_revision': fixture['source_revision'],
+                           'fixture_revision': fixture['fixture_revision'], 'qemu_reaped': True}
+                with (root / (args.phase + '-timeout.json')).open('x') as stream:
+                    json.dump(receipt, stream, sort_keys=True)
+                    stream.write('\n')
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            raise
 
 
 def interrupt(number, _frame):

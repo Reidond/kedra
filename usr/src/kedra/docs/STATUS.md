@@ -111,10 +111,16 @@ authority is added. Earlier systemd Alias-only enable/disable regressions pass.
 Compiler/ordinary CLI/legacy release gates pass. D2 source is adopted on
 `codex/nix-release-composition`; producer `1dc8d2e` passes fresh foundation,
 composition/native generation, complete retention and verified Podman transfer.
-Fixture revision `f1db145` passes independently pinned retained admission and
-refusals, with actual ordinary-user public-file reads. Generated-authority
-signing/installer/update qualification remains active, with no install/update
-result claimed. D3–D5 preparations have isolated compiler evidence but remain
+Earlier fixture `f1db145` passes independently pinned retained admission and
+refusals, with actual ordinary-user public-file reads. It then exposes recorded
+fixture umask and layer-representation failures. Corrected fixture `d4d4c77`
+passes retained admission on controller `696341b8`, generated-authority signed
+media construction and disabled-Secure-Boot installer refusal. Fresh Anaconda
+installation under Linux TCG fails at its unchanged 7,200-second deadline; the
+disk remains incomplete. A narrow native-HVF handoff is implemented with reviewed
+source and syntax checks to retry from the same verified ISO/trust on a new blank disk. Actual handoff,
+installation/update and exact final-fixture suite remain unqualified. D3–D5
+preparations have isolated compiler evidence but remain
 inactive in the owning checkout. The D1 named VM is retained stopped after
 a successful public graceful stop; default resources are preserved.
 Exact attempts, failures and provenance distinctions are retained in

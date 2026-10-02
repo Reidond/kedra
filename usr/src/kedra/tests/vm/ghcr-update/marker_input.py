@@ -90,6 +90,10 @@ finally:
 
 
 def corrected_kickstart(original, token):
+    prefix = '#version=DEVEL\ntext\n'
+    require(original.startswith(prefix), 'Original Kickstart header differs from reviewed input')
+    require(not re.search(r'^\s*(?:xconfig|skipx)(?:\s|$)', original, re.MULTILINE),
+            'Original Kickstart already declares graphical target policy')
     require(original.count(BROKEN_MARKER) == 1, 'Original marker recipe differs from reviewed input')
     require(original.endswith(BROKEN_MARKER + '%end\n'), 'Original completion marker is not the final post action')
     require(original.count('%post --interpreter=/usr/bin/python3 --erroronfail\n') == 1,
@@ -107,7 +111,9 @@ if locations != [{KICKSTART_ARGUMENT!r}]: raise RuntimeError('external Kickstart
     compile(guard_code, '<external-kickstart-pre>', 'exec')
     compile(completion, '<external-kickstart-post>', 'exec')
     guard = pre_header + guard_code + '%end\n'
-    result = original.replace(BROKEN_MARKER, '')
+    # Anaconda must preserve the graphical target declared by native generation.
+    result = original.replace(prefix, prefix + 'xconfig --startxonboot\n', 1)
+    result = result.replace(BROKEN_MARKER, '')
     # The original target-chroot receipt/account/storage settings remain exact.
     result = result.replace(pre_header, guard + pre_header, 1)
     result += '%post --nochroot --interpreter=/usr/bin/python3 --erroronfail\n'

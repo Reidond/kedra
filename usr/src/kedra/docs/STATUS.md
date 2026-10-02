@@ -126,12 +126,19 @@ an enrolled response; no complete A pass or CLI return code is recorded. Narrow
 read-only diagnosis and full-hash cleanup pass. Original keeper cleanup now records
 real parent exit 143, adopted keeper exit 1 and acknowledged ABORT; retained replay
 custody remains explicit. Identical host commits are integrated, and fixture-output,
-public graphical-default and embedded-marker corrections are being consolidated
-for a clean owning-source media/install/A/B/A/full-suite run. That new default-media
-path and complete update/rollback remain unqualified. See
+public graphical-default and embedded-marker corrections are integrated at
+`cad6e7a`. That source passes retained admission, twelve regenerated variants and
+unsigned/wrong-key public-installer refusals. Default-media construction is stopped
+by the capacity guard; a subsequent stage guard fails closed before productive
+resume, and the original media deadline expires while held. Controlled cleanup
+records real parent exit 130, cleanup_failed=false, no remaining bound consumers,
+private mounts or inner containers, and verified restricted replay custody. No final
+ISO, new installation or complete update/rollback passes. See
 [release verification](../../../../.specs/nix-release-composition/verification.md).
-D3–D5 preparations have isolated compiler evidence but remain
-inactive in the owning checkout. The D1 named VM is retained stopped after
+D3's latest native `.sh`/`.conf`/`.service` template revision passes isolated
+pinned 1.98.1 formatting, workspace/all-target check and Clippy with all twenty
+frozen source hashes unchanged. D3–D5 remain inactive in the owning checkout;
+their actual package/reuse/recovery runtime gates remain not-run. The D1 named VM is retained stopped after
 a successful public graceful stop; default resources are preserved.
 Exact attempts, failures and provenance distinctions are retained in
 [derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).

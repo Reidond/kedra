@@ -489,3 +489,63 @@ unchanged. Live retained material lists twenty-four production recipe paths and
 does not include the installer media Containerfile. Source inspection/Ruff/syntax
 passes are not retained-admission runtime success; the next frozen invocation
 must establish that independently.
+
+## Owning-source media attempt 9 and controlled cleanup
+
+Fixture `cad6e7a811433924d596cd00dd2b6e93ed225db8` actually passes the
+closed retained-candidate admission against original producer `1dc8d2e5` and
+candidate receipt `20826ea359490373b7d737dfdd3d9edf9437673242d5bcf2d3ed74b67e06e4f9`.
+The native manifest/config/77 RootFS IDs, original production recipes and three
+pinned executables remain unchanged. Twelve fresh variants are generated. A's
+local and registry manifest bytes match at
+`7c3c9210157a22e6655f733495d8ad5b7c3840c6470dccdd4ad605aae1f8dcb4`,
+config `e69de7a0b0bf1154344502bb7bfeebdced4a26c74b3f80335cf0d72c2b210a1a`;
+unsigned U and wrong-key W public-installer refusals pass. Public media completes
+its preliminary pipeline and enters the labelled Skopeo stage, but no final ISO
+or successful public media receipt is produced.
+
+The 35 GiB/250 ms guard pauses only the owned controller. Settled free space is
+35,438,272,512 bytes, so the 30 GiB hard floor is preserved on this attempt.
+Hash/identity/no-consumer checked retirement of the obsolete failed 815 disk pair
+and preliminary unpublished ISO retains the pristine cold disk/firmware and all
+failure evidence. Seventy-seven identical immutable native-base blobs are shared
+by reflink only after reviewed source/destination hash and no-writer checks. Full
+old-backup and new-registry tree hashes remain unchanged; measured settled gains
+are recorded rather than inferred from logical sizes. Variant/config/authority
+files are not changed.
+
+A proposed stage checkpoint is never productively activated: the live guard
+fails closed before the unpause preflight, leaving the controller frozen. The
+historical failure records only AssertionError, so its exact predicate is unknown.
+A separately bounded 33.78-second read-only reproduction fails the conservative
+one-second freshness predicate, with an age interval of approximately
+0.615–1.069 seconds. This proves that reproduction's freshness uncertainty, not
+a product defect or a unique clock/transport cause. Diagnostic observers exit
+and are removed. No bound, source, validation or deadline is relaxed. The original
+7,200-second public-media deadline expires while the controller is held.
+
+Before cleanup, explicit UID502/mode0700 replay custody retains 42 selected
+recipe/context/case/generated-TLS/disk-unlock files (17,141,348 bytes), plus the
+477-file registry tree (6,426,488,299 bytes) with unchanged SHA-256
+`100ea5d84c6cc0629fc6a9938656fd38a398de7fa27150944c55aff3e85ed540`.
+No image-signing private key is copied. Exact installer PID/start/argv/UID and
+caught/unblocked SIGINT are reverified through pidfd; pending SIGINT is observed
+while frozen, then cleanup-only unpause enters the unchanged subprocess/finally
+and original EXIT trap. Actual original fixture parent exit is 130; the separate
+receipt observer exits 1 at its unchanged deadline. `cleanup_failed=false`,
+private input removal and registry/observer removal are actual cleanup results.
+Final readback finds no bound source consumers, private root/descendant mounts,
+inner Podman containers, NBD or scoped mappers, and rechecks all custody hashes.
+The controller is idle/running/unpaused; source freeze is released. Observed final
+free space is 56,944,463,872 controller bytes and 60,863,606,784 host bytes.
+
+Safe receipts are in `target/nix-delivery/d2-runtime/attempt9-evidence/`:
+`admission.json`, `retained-candidate-verification.json`, `fixture-variants.json`,
+`installer-refusal-U.json`, `installer-refusal-W.json`,
+`capacity-stop-settled.json`, `registry-reflink-complete.json`,
+`checkpoint-failure-trace.jsonl`, `replay-custody-before-cleanup.json`,
+`cleanup-pending-sigint.json`, `cleanup-unpause.json`, `cleanup.json`,
+`cleanup-final-readback.json` and `actual-parent-waits-and-final-state.json`.
+These qualify failed-attempt containment and cleanup, not media/install success.
+Fresh default-media replay/admission, HVF preparation/install, cold twelve-artifact/
+three-seed checks, complete A/B/A, exact-A full harness and TC-03 remain pending.

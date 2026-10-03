@@ -3,8 +3,8 @@
 ## D4 native consumer qualification (2026-10-03)
 
 The complete existing D4 native case passes 1/1 in 184.86 seconds with actual
-parent wait0 on owning `d591d2e`; relevant Rust/Cargo bytes match rebased `116c693`.
-Fieldkit43→57→43, Observatory20, producer-absent closure transfer, two profile
+parent wait 0 on owning `d591d2e`; relevant Rust/Cargo bytes match rebased `116c693`.
+Fieldkit 43→57→43, Observatory 20, producer-absent closure transfer, two profile
 generations/rollback and isolated orphan GC are verified, with other-project
 data and selected images preserved. Owned containers/processes are absent and
 the successful fixture is removed. The initial guard-format failure and unknown

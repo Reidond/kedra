@@ -86,3 +86,17 @@ step/tool/exit, exception source basename/line, log hashes/sizes and fixed obser
 markers; never upload raw private logs or arbitrary exception messages. Preserve
 the first failed command across finally cleanup, and never mask the original
 exit if diagnostic writing fails. See release-composition verification.md.
+
+
+Retained local registry replay (2026-10-03, Podman5.4.2): select the full existing
+volume name and independently observed CreatedAt; public fixture inspection binds
+local backing device/inode and no consumers before create, then exact stopped
+container/mount identity before start. Use `:nocopy`; even retained NeedsCopyUp
+metadata must not permit payload copy-up. The actual tiny stopped-create proof
+preserves sentinel bytes/modes/inode and refuses wrong creation time/consumers
+(see release-composition verification.md). Dedicated serialized controller
+ownership remains required. Never select backup custody for replay; metadata
+creation is expected, so describe payload preservation precisely. Fixture-only
+compatible descendants still satisfy original recipe/binary admission; newer
+production recipe changes require fresh material. Installer-base overrides do
+not replace signed payload identity or waive TLS, deadline or capacity gates.

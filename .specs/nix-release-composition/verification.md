@@ -821,3 +821,35 @@ Private raw logs are retained only in the owned controller directory. This
 qualifies actual failing child metadata; cleanup-clobber preservation is source
 reviewed, not a newly injected Docker-copy cleanup fault. Both target material
 checks, Ruff, Bash/YAML syntax, help and public host refusal checks pass.
+
+
+## Retained-volume and installer-base fixture options — 2026-10-03
+
+The reviewed two-file patch adds explicit local-retained volume name/CreatedAt,
+read-only backing identity and consumer checks before create, and exact stopped
+container/mount/owner verification against the private before record prior to
+start. `:nocopy` prevents initial registry payload copy-up. Default fresh-volume
+behavior and existing EXIT cleanup are unchanged. An explicit immutable official
+Fedora installer base reaches all U/W/A calls through their common installer
+argument array; this changes only the installer environment, not signed payload.
+
+Both limited Astra reviews clear patch SHA
+`98bf72490249aee521d3f60451cd78508b7a8f10a8794586bcd822aa335ea09e`.
+Ruff/Bash syntax/diff/help and seven real host CLI refusal invocations pass.
+Actual ordinary UID502/Linux ARM64 Podman5.4.2 proof passes with compatible
+fixture-only commit `f6209a68142b5c8c8130ada4de2ff6ab4b2202b9`, original producer1dc,
+retained candidate20826ea3 and three unchanged ELF inputs. Public pre/post
+inspection preserves exact backing identity; stopped `:nocopy` creation preserves
+sentinel bytes/mode/inode. Wrong CreatedAt and unexpected stopped consumer each
+refuse exit1. Host actual wait0; exact new container/volume are removed and
+protected working/backup volume metadata unchanged. Aggregate
+`target/nix-delivery/d2-volume-proof/evidence/result.json` SHA256
+`88e20a725d1efb28ab8b096b150f36a11cdfb90d5a76ef272b2578049df5ebfd`.
+
+The registry was never started, and no TLS/media/signing/VM operation occurred.
+This proves payload preservation under serialized controller ownership; stopped
+container/volume metadata allocation still occurs. Current469 production recipe
+changes correctly prohibit old1dc replay; f6209 differs from cad6 only in the two
+already allowlisted fixture files. No recipe gate is widened. Full replay still
+requires fresh authority and unchanged capacity/deadline admission; actual
+installer-base media execution and signed A/B/A remain unpassed.

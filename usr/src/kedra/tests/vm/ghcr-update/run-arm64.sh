@@ -3,18 +3,33 @@
 # normal offline installer, then public signed A/B/A with persistent home/data.
 set -euo pipefail
 hvf_controller=
-if test "${1:-}" = --hvf-controller; then
-    test "$#" -ge 3
-    hvf_controller=$2
-    [[ "$hvf_controller" =~ ^[a-f0-9]{64}$ ]]
+registry_volume=
+registry_volume_created_at=
+installer_base=
+while test "$#" -gt 0; do
+    case "$1" in
+        --hvf-controller) test "$#" -ge 2 && test -z "$hvf_controller"; hvf_controller=$2 ;;
+        --registry-volume) test "$#" -ge 2 && test -z "$registry_volume"; registry_volume=$2 ;;
+        --registry-volume-created-at) test "$#" -ge 2 && test -z "$registry_volume_created_at"; registry_volume_created_at=$2 ;;
+        --installer-base-image) test "$#" -ge 2 && test -z "$installer_base"; installer_base=$2 ;;
+        *) break ;;
+    esac
     shift 2
-fi
+done
 if test "$#" -eq 1 && test "$1" = --help; then
+    echo 'Wrapper options: --hvf-controller ID; --registry-volume NAME --registry-volume-created-at TIME; --installer-base-image EXACT_FEDORA_REFERENCE'
     uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py --help
     exit 0
 fi
+test -z "$hvf_controller" || [[ "$hvf_controller" =~ ^[a-f0-9]{64}$ ]]
+test -z "$registry_volume" || [[ "$registry_volume" =~ ^[a-f0-9]{64}$ ]]
+test -z "$registry_volume_created_at" || [[ "$registry_volume_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$ ]]
+test -z "$registry_volume$registry_volume_created_at" || { test -n "$registry_volume" && test -n "$registry_volume_created_at"; }
+test -z "$installer_base" || [[ "$installer_base" =~ ^quay[.]io/fedora/fedora-bootc@sha256:[a-f0-9]{64}$ ]]
+installer_options=()
+if test -n "$installer_base"; then installer_options=(--base-image "$installer_base"); fi
 fixture_context=$(uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "$@")
-if test -n "$hvf_controller"; then
+if test -n "$hvf_controller$registry_volume$installer_base"; then
     test "$(jq -er .mode "$fixture_context")" = local
 fi
 fixture_backend=tcg
@@ -189,6 +204,13 @@ uv run usr/src/kedra/tests/vm/ghcr-update/candidate.py \
     --work "$root/candidate" --tag localhost/kedra-ghcr-arm:composed > "$evidence/candidate.json"
 fi
 
+registry_volume_args=()
+if test -n "$registry_volume"; then
+    registry_volume_args=(--registry-volume "$registry_volume" --registry-volume-created-at "$registry_volume_created_at")
+    uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "${fixture_args[@]}" "${registry_volume_args[@]}" \
+        > "$root/registry-volume-before.json"
+fi
+
 # Pull all external GHCR tooling before assigning ghcr.io to the private registry.
 media_builder=$(jq -er .platforms.arm64.builder usr/src/kedra/installer/inputs.json)
 registry=docker.io/library/registry@sha256:3ffcae348822784850e836f23449ff1d0503933524cef57ddcbdbd263eca0c52
@@ -217,11 +239,24 @@ if sudo podman container exists kedra-ghcr-registry; then
     echo 'Refusing an existing registry container' >&2
     exit 1
 fi
-registry_id=$(sudo podman run -d --name kedra-ghcr-registry --label dev.kedra.lab.owner=kedra-release-fixture \
+registry_command=(run -d)
+registry_mount=()
+if test -n "$registry_volume"; then
+    registry_command=(create)
+    registry_mount=(--volume "$registry_volume:/var/lib/registry:nocopy")
+fi
+registry_id=$(sudo podman "${registry_command[@]}" --name kedra-ghcr-registry --label dev.kedra.lab.owner=kedra-release-fixture \
+    "${registry_mount[@]}" \
     -p 127.0.0.1:443:5000 -v "$root/context/tls.crt:/certs/tls.crt:ro" -v "$private/tls.key:/certs/tls.key:ro" \
     -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/tls.crt -e REGISTRY_HTTP_TLS_KEY=/certs/tls.key \
     -e REGISTRY_STORAGE_DELETE_ENABLED=true -e OTEL_TRACES_EXPORTER=none "$registry")
 [[ "$registry_id" =~ ^[a-f0-9]{64}$ ]]
+if test -n "$registry_volume"; then
+    uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "${fixture_args[@]}" "${registry_volume_args[@]}" \
+        --registry-container "$registry_id" --registry-volume-before "$root/registry-volume-before.json" \
+        > "$evidence/registry-volume.json"
+    sudo podman start "$registry_id" >/dev/null
+fi
 for attempt in $(seq 1 30); do
     if curl --silent --fail --cacert "$root/context/tls.crt" https://127.0.0.1/v2/ >/dev/null; then break; fi
     sleep 1
@@ -294,7 +329,7 @@ run_installer() (
     # umask inside the already-private 0700 fixture tree; credential files were
     # created separately with explicit 0600 permissions.
     umask 022
-    uv run "$checkout/usr/src/kedra/installer/build-local.py" "$@"
+    uv run "$checkout/usr/src/kedra/installer/build-local.py" "${installer_options[@]}" "$@"
 )
 for variant in U W; do
     rejected=0

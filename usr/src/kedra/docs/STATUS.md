@@ -2,15 +2,48 @@
 
 ## Active delivery checkpoint (2026-10-03)
 
-D2 source is being published for review separately from its unpassed runtime
-gates. Current Rust 1.98.1 fmt/Clippy/release build, 11 ordinary CLI cases,
-Ruff/Bash and legacy release-material/OpenSSL workflows pass; six Docker cases
-remain ignored. Earlier native-image results retain their exact producer identities. Fresh media/install, full A/B/A,
-exact-image installed suite and contribution execution are not complete. The
-retained TLS fixture cannot satisfy the unchanged 36,000-second validity window.
-Runtime continuation is preparing a fresh fixture; it does not relax admission,
-trust, deadlines or storage guards. D3–D5 remain prepared and will be adopted and
-published in dependency order after the D2 source boundary.
+All five drafts are published: [D1 PR33](https://github.com/Reidond/kedra/pull/33),
+[D2 PR34](https://github.com/Reidond/kedra/pull/34), [D3 PR35](https://github.com/Reidond/kedra/pull/35),
+[D4 PR36](https://github.com/Reidond/kedra/pull/36) and [D5 PR37](https://github.com/Reidond/kedra/pull/37).
+D1, D3 and D4 are locally qualified in their recorded scope. D2 and D5 runtime
+qualification remains incomplete; no updated-head all-green CI or production
+publication is claimed.
+
+D4's complete native consumer case passes 1/1 in 184.86s with actual parent wait0
+on frozen d591. Fieldkit43→57→43, Observatory20, producer-absent transfer, two
+profile generations/rollback and isolated GC pass, including other-project and
+selected-image preservation. Owned cleanup passes. The first guard-format failure
+and unavailable original child exit remain separate historical outcomes.
+
+D3's full native package case now passes 1/1 in580.87s, actual parent wait0, on
+exact57 source with pinned eb4 CLI/dfce test. Real jq1.8.2 and SQLite3.53.4 builds,
+all three cache/forced reproductions, exact library loading, contribution/refusal,
+producer-absent SQL/jq regex evaluation and profiles pass. Source/binary/global
+image preservation and owned cleanup pass. The original808 noexec and bc34
+vendored-timestamp failures remain separate historical failures. Installed
+`native::catalog` now also passes1/1 in3736ms on exact57 harness50dca and
+imagea3074c6c: login/user PATH, SQL/jq, original RPM jq preservation and persistent
+service restart/history pass. All phase waits0 and owned cleanup/global-image
+preservation pass; aggregate `d3-installed/result.json` SHA `e3c14088…`. This
+combines OS1dc/foundation122 with catalog57 through generic composition91eff75d
+and nativea4940a7a. Production BuildKit equivalence and signed VM qualification
+remain separate.
+
+D2 corrected media/install/A/B/A and exact-image full suite remain unpassed;
+fresh TLS and admitted large-VM capacity are still required. Narrow retained-volume
+options pass the native stopped-nocopy identity/payload/refusal proof on compatible
+fixturef6209, preserving original1dc inputs. Explicit installer-base forwarding
+is reviewed, but actual media execution is not yet qualified. Diagnostic fix469
+preserves bounded first-failure metadata after the distinct CDN and missing-log
+ARM CI failures. D5 signed cache and independent authenticated-consumer cases
+now pass1/1 each in52.09s/67.71s on frozen2b, both actual parent waits0. FIFO/auth
+refusals, producer-absent execution and signed-case forced rebuild pass; the
+independent case preserves the unrelated project. Source/binaries and cleanup
+pass. Context lease interruption, native publication faults and Linux ENOSPC
+remain pending; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker continues guarded cases from exact snapshots.
+
+The dated sections below retain earlier evidence and source scopes; this active
+checkpoint supersedes older preparation/inactive wording.
 
 ## Nix recreation investigation (2026-10-01)
 

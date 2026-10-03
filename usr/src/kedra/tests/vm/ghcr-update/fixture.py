@@ -135,6 +135,74 @@ def add_context_argument(parser):
     parser.add_argument('--fixture-context', type=Path, help='Previously selected closed local or Actions fixture context')
 
 
+def registry_volume(args):
+    fixture = load_context(args.fixture_context)
+    require(fixture['mode'] == 'local' and fixture['retained_candidate'] is not None,
+            'Existing registry volumes require an explicit local retained candidate')
+    name = args.registry_volume
+    require(re.fullmatch('[a-f0-9]{64}', name)
+            and re.fullmatch(r'\d{4}-\d{2}-\d{2}T[\d:.]+Z', args.registry_volume_created_at)
+            and len(args.registry_volume_created_at) <= 40, 'Invalid selected volume identity')
+    require((args.registry_container is None) == (args.registry_volume_before is None),
+            'Stopped registry validation requires the prior volume observation')
+    if args.registry_container is not None:
+        require(re.fullmatch('[a-f0-9]{64}', args.registry_container), 'Invalid registry container identity')
+    podman = ['/usr/bin/sudo', '--non-interactive', '/usr/bin/podman']
+
+    def run(arguments):
+        result = subprocess.run(arguments, stdin=subprocess.DEVNULL, capture_output=True,
+                                timeout=30, check=True)
+        require(len(result.stdout) <= 1024**2, 'Oversized registry volume inspection')
+        return result.stdout
+
+    records = json.loads(run([*podman, 'volume', 'inspect', name]))
+    require(isinstance(records, list) and len(records) == 1, 'Expected one existing registry volume')
+    volume = records[0]
+    require(isinstance(volume, dict), 'Invalid registry volume observation')
+    mountpoint = '/var/lib/containers/storage/volumes/' + name + '/_data'
+    require(volume.get('Name') == name and volume.get('Driver') == 'local' and volume.get('Scope') == 'local'
+            and volume.get('Options') in (None, {}) and volume.get('Mountpoint') == mountpoint
+            and volume.get('CreatedAt') == args.registry_volume_created_at
+            and type(volume.get('MountCount')) is int and volume['MountCount'] == 0,
+            'Registry volume identity, local storage or unused state differs')
+    real = run(['/usr/bin/sudo', '--non-interactive', '/usr/bin/readlink', '-e', '--', mountpoint]).decode().strip()
+    require(real == mountpoint, 'Registry volume backing path has an alias')
+    fields = run(['/usr/bin/sudo', '--non-interactive', '/usr/bin/stat',
+                  '--format=%d:%i:%u:%g:%f', '--', mountpoint]).decode().strip().split(':')
+    require(len(fields) == 5, 'Invalid registry backing directory observation')
+    identity = [int(value) for value in fields[:4]] + [int(fields[4], 16)]
+    require(stat.S_ISDIR(identity[4]), 'Registry volume backing must be an ordinary directory')
+    result = {'schema_version': 1, 'name': name, 'created_at': volume['CreatedAt'],
+              'mountpoint': mountpoint, 'backing_identity': identity}
+    consumers = run([*podman, 'ps', '--all', '--no-trunc', '--filter', 'volume=' + name,
+                     '--format', '{{.ID}}']).decode().split()
+    require(consumers == ([args.registry_container] if args.registry_container else []),
+            'Registry volume has an unexpected consumer')
+    if args.registry_container is not None:
+        before = path(args.registry_volume_before)
+        require(before == Path(fixture['runner_temp']) / 'kedra-ghcr/registry-volume-before.json',
+                'Registry observation belongs to another fixture root')
+        with os.fdopen(os.open(before, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1
+                    and stat.S_IMODE(info.st_mode) == 0o600 and 0 < info.st_size <= 16384,
+                    'Registry observation must be bounded and owner-private')
+            prior = stream.read(16385)
+        require(json.loads(prior) == result, 'Registry volume changed during stopped container creation')
+        records = json.loads(run([*podman, 'inspect', args.registry_container]))
+        require(isinstance(records, list) and len(records) == 1, 'Expected one stopped registry')
+        container = records[0]
+        mounts = [item for item in container.get('Mounts', []) if item.get('Destination') == '/var/lib/registry']
+        require(container.get('Id') == args.registry_container
+                and container.get('Name') in ('kedra-ghcr-registry', '/kedra-ghcr-registry')
+                and container.get('State', {}).get('Running') is False
+                and (container.get('Config', {}).get('Labels') or {}).get('dev.kedra.lab.owner') == 'kedra-release-fixture'
+                and len(mounts) == 1 and mounts[0].get('Type') == 'volume'
+                and mounts[0].get('Name') == name and mounts[0].get('Source') == mountpoint
+                and mounts[0].get('RW') is True, 'Stopped registry does not bind the exact selected volume')
+    print(json.dumps(result, sort_keys=True))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--local-fixture', action='store_true')
@@ -145,8 +213,23 @@ def main():
     parser.add_argument('--runner-temp', type=Path)
     parser.add_argument('--evidence', type=Path)
     parser.add_argument('--binaries', type=Path)
+    add_context_argument(parser)
+    parser.add_argument('--registry-volume', help='Read-only validation of an explicitly selected existing working volume')
+    parser.add_argument('--registry-volume-created-at', help='Independently selected exact volume creation time')
+    parser.add_argument('--registry-container', help='Exact stopped registry container, after creation with nocopy')
+    parser.add_argument('--registry-volume-before', type=Path, help='Private pre-creation volume observation')
     args = parser.parse_args()
     selected = (args.source_revision, args.runner_temp, args.evidence, args.binaries)
+    if args.registry_volume is not None:
+        if (args.fixture_context is None or args.registry_volume_created_at is None or args.local_fixture
+                or any(item is not None for item in (*selected, args.fixture_revision,
+                                                    args.retained_candidate, args.retained_candidate_sha256))):
+            parser.error('registry inspection requires only an existing fixture context and explicit volume identity')
+        registry_volume(args)
+        return
+    if any(item is not None for item in (args.fixture_context, args.registry_volume_created_at,
+                                        args.registry_container, args.registry_volume_before)):
+        parser.error('registry inspection options require --registry-volume')
     if args.local_fixture:
         if not all(item is not None for item in selected):
             parser.error('--local-fixture requires source revision, private runner temp, evidence and binaries')

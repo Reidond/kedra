@@ -1,5 +1,17 @@
 # Verified status
 
+## D4 native consumer qualification (2026-10-03)
+
+The complete existing D4 native case passes 1/1 in 184.86 seconds with actual
+parent wait0 on owning `d591d2e`; relevant Rust/Cargo bytes match rebased `116c693`.
+Fieldkit43→57→43, Observatory20, producer-absent closure transfer, two profile
+generations/rollback and isolated orphan GC are verified, with other-project
+data and selected images preserved. Owned containers/processes are absent and
+the successful fixture is removed. The initial guard-format failure and unknown
+original child exit remain separate evidence. See [D4 verification](../../../../.specs/nix-second-consumer/verification.md).
+D2 media/VM, D3 real catalog/installed service and D5 cache/fault gates remain
+pending; this local pass does not establish all-green remote CI.
+
 ## Active delivery checkpoint (2026-10-03)
 
 All five drafts are published: [D1 PR33](https://github.com/Reidond/kedra/pull/33),

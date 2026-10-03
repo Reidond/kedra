@@ -1539,6 +1539,14 @@ Last updated: 2026-10-03 (Europe/Kyiv).
 - Remaining / blockers: real jq/SQLite build/rebuild/transfer and installed PATH/service execution remain not-run; heavy runtime resources remain D2-owned.
 - Next: run D3 standard and public catalog gates, publish its own truthful draft, then adopt D4.
 
+### WL-20261003-03 — 2026-10-03 — Adopt independent catalog consumers
+- Agent / state: Codex delivery coordinator; in-progress.
+- Scope / base: `codex/nix-second-consumer`, D3 `808405e4ed0e45ddcac6a42d937375c42f027fa5`, now published/attached as draft PR35 above D2 PR34.
+- Completed: adopted the four-path D4 delta from exact reconciled manifest `6813bf1b3448b5c7dae1ec9652e1cded797196c56604ab1117d339b0acc9414b`; all twenty native-template D3 implementation paths stay unchanged. Generated separate Fieldkit/Observatory workspaces using the public engine/catalog API and their own definitions.
+- Checks / evidence: pass — pinned fmt/all-target Clippy/release build; two independent external consumers compile offline and directly execute resolution with an unavailable daemon, all five policy-category refusals, other-project policy refusal and unknown-package distinction. Receipt: `publication/d4-consumers/manual-results.json`. Real native image/store/build/transfer/profile/GC workflow remains not-run.
+- Remaining / blockers: the full independent-consumer workflow requires serialized native Docker resources; no runtime pass follows from source preparation.
+- Next: finish compiler/manual pure policy gates and publish the D4 draft, then adopt D5.
+
 ### WL-20261003-06 — 2026-10-03 — Preserve bounded D2 failure diagnostics before retry
 - Agent / state: Codex delivery coordinator; in-progress.
 - Scope / base: owning `codex/nix-release-composition` at `582049b`; all five drafts were published before returning to this layer. Exact D2–D5 heads are preserved in verified `publication/pre-diagnostic-cascade/stack.bundle`, requiring retained D1 `712927e`; no other worktree or external branch advance was observed.
@@ -1546,6 +1554,14 @@ Last updated: 2026-10-03 (Europe/Kyiv).
 - Checks / evidence: current Ruff/Bash/diff pass. Actual public composer failure on macOS emits only allowlisted metadata/source basename+line; existing receipt and unavailable destination preserve original exit1. First limited source review finds cleanup can overwrite the failing command's progress; v2 preserves the first propagating exception/command snapshot before cleanup; final v3 limited review is clear. The repeated v2 public CLI checks pass (`publication/d2-diagnostic-cli-v2/results.json`). Final caller-routing patch `d2-diagnostics-v3.patch` SHA `c945322bbef0f35f05e07ff6caf80adf738694a9fc9fc41599c999b874248698`: direct QEMU selects its own existing public evidence, while signed fixture defaults remain. Ruff/YAML/help checks pass.
 - Remaining / blockers: both-target release-material gate passes. Actual native public composer failure passes in0.307s: source-head/git/128, overall exit1, sanitized metadata, no store/Docker command and unchanged source/inputs/threeELFs. Safe receipt `publication/d2-native-diagnostic/receipt.json` SHA `c3712c8e084a4090aa713ed3fa009a660ceb1040e5bfe4ea108f2b1d9ab2f193`; actual copied ELF bytes33,378,064. Original ARM root cause cannot be recovered from missing logs. No unchanged ARM retry or source-cause guess is made.
 - Next: finish bounded review/manual checks, commit the owning D2 fix, rebase only dependent owned layers with remote leases and retain all outcomes; source snapshots held by runtime work remain separate.
+
+### WL-20261003-07 — 2026-10-03 — Qualify independent consumers through the full native workflow
+- Agent / state: Codex delivery coordinator with Astra runtime worker; completed local D4 qualification, remaining delivery outcomes pending.
+- Scope / base: owning D4 source `d591d2e0865cbaa68662ae7f50a6c398dab183dc`; current PR36 `116c693cd87c67fc1edd4a31f1deefecafd1bbaf` has identical relevant Rust/Cargo bytes. Test SHA `c41b66f336beee867f45538c93915dba44cad2ba5dae2d27fc3950ff95805910`, pinned product CLI `541d814eefe7d6c72de66e3ae79b85130fb8a8dda4bd14976010d3b0f12635e3`.
+- Completed: actual existing native case passes1/1 with no ignored cases in184.86s (guard187.093s), real parent wait0. Independent policies/compilation, native build/reuse, Fieldkit43→57→43 and Observatory20, producer-absent runtime closure transfer, two generations/rollback, orphan GC and preservation of the other project's index/receipt/sentinel/output all execute successfully.
+- Checks / evidence: pass — successful fixture removed, three store identities have zero owned containers, host group absent, selected image RootFS/repository digests and pinned executable hashes unchanged. Peak combined owned bytes3,038,093,312; minimum Linux/host free73,171,247,104 /77,842,366,464. Final `d4-native-run2/result.json` SHA `602cc155533ee7bc4d0cca8c59d9d1d72a996c32432ab7596171c636e607b9da`, `test.stdout` and `test-guard.json` independently read by coordinator.
+- Remaining / blockers: first attempt guard32-vs64-hex validation failed; its original child wait is unavailable and not fabricated. Exact stopped owned group was settled with SIGKILL and verified process/container absence; failed fixture is retained. That failure is distinct from the fresh pass. D3 Fedora compiler/real packages/installed service, D2 full media/VM and D5 signed-cache/recovery/fault/ENOSPC remain unpassed. No remote all-green claim.
+- Next: prepare guarded D3 compiler/RPM/source inputs and actual package workflow through the exclusive runtime worker; preserve full VM capacity/TLS gates. Publish these owning D4 verification records and propagate documentation through D5.
 
 ### WL-20261003-08 — 2026-10-03 — Fix jq configure execution in its owned output scratch
 - Agent / state: Codex delivery coordinator with Astra runtime/review workers; in-progress, native rerun pending.

@@ -120,3 +120,11 @@ prefix for reproducibility and remove it before successful admission; do not
 weaken generic mounts or merely run configure through sh. Jq's recipe does this;
 its full native rerun remains required. Source/evidence:
 `.specs/nix-package-catalog/verification.md` and d3-catalog-e2e mount probe.
+
+Canonical source identity excludes timestamps (2026-10-03 jq/Oniguruma runtime
+proof). Admission/copy changed generated-file ordering and triggered unavailable
+aclocal-1.16 despite unchanged source bytes; top-level maintainer mode did not
+guard the vendor rule. Normalize only the recipe's disposable copied tree to its
+declared SOURCE_DATE_EPOCH before configure, including link inodes without target
+traversal (`find -P`, `touch -h`). Do not fake old tool names or alter readonly
+inputs. Source: catalog verification and d3-catalog-e2e-fixed timestamp receipt.

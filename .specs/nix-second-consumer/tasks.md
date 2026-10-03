@@ -1,7 +1,9 @@
 # D4 tasks
 
-Status: preparation only. Source follows the agreed D3 API; no compiler/runtime
-result has been observed. Parent owns integration, gates, shared metadata and PR.
+Status: T1–T7 completed locally and published as draft PR36; the full native
+workflow passes on exact owning source `d591d2e` (Rust/Cargo unchanged at rebased
+`116c693`). Updated remote CI is separate. T8 belongs to D5 and is not qualified
+by D4. See the final execution receipt in `verification.md`.
 
 | Task | Dependencies | Work | Test requirements | State |
 |---|---|---|---|---|
@@ -29,3 +31,9 @@ planned commands in `verification.md`; no parallel duplicate test-plan document.
 Repository restrictions take precedence over generic skill suggestions for unit
 tests, repository scanners, additional agent work, speculative tooling or spec
 deletion. Existing user authorization covers this preparation scope.
+
+Execution outcome (2026-10-03): the earlier table records preparation states.
+T1–T6 now pass their actual native/policy/lifecycle gates in the existing 1/1 case;
+T7 has the recorded compiler gates and published draft. Preserve the initial
+guard-only failure and unavailable original child exit separately from the fresh
+184.86-second pass and successful cleanup.

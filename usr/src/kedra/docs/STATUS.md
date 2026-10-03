@@ -136,6 +136,18 @@ recorded scopes. Retained signed OS/recovery baselines and historical failures r
 separate. Dated sections below retain their earlier source scopes; worklog entries
 33–38 and subsequent exact run evidence supersede older preparation wording.
 
+## D4 native consumer qualification (2026-10-03)
+
+The complete existing D4 native case passes 1/1 in 184.86 seconds with actual
+parent wait0 on owning `d591d2e`; relevant Rust/Cargo bytes match rebased `116c693`.
+Fieldkit43→57→43, Observatory20, producer-absent closure transfer, two profile
+generations/rollback and isolated orphan GC are verified, with other-project
+data and selected images preserved. Owned containers/processes are absent and
+the successful fixture is removed. The initial guard-format failure and unknown
+original child exit remain separate evidence. See [D4 verification](../../../../.specs/nix-second-consumer/verification.md).
+At this checkpoint, D2 media/VM, D3 real catalog/installed service and D5
+cache/fault gates remained pending; later outcomes are recorded above.
+
 ## Nix recreation investigation (2026-10-01)
 
 The owner requested research into a sharable Rust Nix-style build system and

@@ -1565,6 +1565,14 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Remaining / blockers: new full native jq/catalog/rebuild/query/transfer and installed service remain pending; D2 VM and D5 fault gates are separate. No old result is relabeled or missing tool faked.
 - Next: publish the owning D3 fix, propagate dependent layers with explicit leases and pass a new immutable source/CLI/test/pins handoff to the runtime worker.
 
+### WL-20261003-10 — 2026-10-03 — Qualify the full native jq and SQLite package workflow
+- Agent / state: Codex delivery coordinator with Astra runtime worker; completed package workflow, installed-image gate pending.
+- Scope / base: exact D3 source `57a47cf6664632839eeaf35528e9873a26c5cb12`, CLI `eb4bf1b4…`, E2E `dfcef691…`, immutable handoff `98ad9fc8…`. No further Rust change was required after the two-line epoch fix.
+- Completed: existing full case passes1/1, zero failed/ignored, in580.87s, real parent wait0 (guard584.524s). jq1.8.2 and SQLite3.53.4 build; all three outputs reuse and independently reproduce; exact shared-library loading, contribution/refusal, producer-absent closure SQL/regex query and receiver profile execute successfully.
+- Checks / evidence: coordinator reads aggregate `d3-catalog-e2e-epoch/result.json` SHA `ae3dbe525592a69b4d40ad449dbbaa42c93800181320b9a757f36126612906d7` and actual test stdout. Source/binary/global image preservation and successful fixture/process/container cleanup pass. Peak charged15,826,591,744 bytes; minimum Linux/host free59,967,152,128 /61,093,240,832; storage floor remains respected.
+- Remaining / blockers: original808 and bc34 failures stay failed. Installed native::catalog/PATH/persistent-service and production BuildKit compiler path remain separate; D2 media/VM and D5 cache/fault gates remain pending. No production-signing or all-green-CI claim.
+- Next: publish the owning D3 evidence, keep runtime on the installed case, and prepare narrow D2 fixture options while D5 uses its immutable2b source/binaries.
+
 ### WL-20261003-13 — 2026-10-03 — Bind retained registry custody before stopped creation
 - Agent / state: Codex delivery coordinator with Astra runtime/review workers; completed narrow fixture options, D2 full qualification remains blocked.
 - Scope / base: owning D2 `46921c1b35ce2b1f22bee9f3538cafa32dc3921d`; public helper/wrapper only. Independent compatible fixture `f6209a68142b5c8c8130ada4de2ff6ab4b2202b9` descends from cad6 with exactly these two files changed; original producer1dc recipes/binaries remain unchanged.

@@ -775,3 +775,49 @@ Runtime audit `target/nix-delivery/d2-runtime/resume-20261003/audit.json` also
 records insufficient warm capacity and stale Podman boot-runtime state after
 controller restart. A fresh fixture and actual resource admission are required;
 no source, trust, timeout or storage guard is relaxed to publish the draft.
+
+## Hosted failure diagnosis and bounded public metadata — 2026-10-03
+
+At PR34 head `582049b`, run37107489350 native job111158768746 fails on Quay
+CDN blob unexpected EOF while pulling the pinned amd64 builder. The manifest
+resolved, and no fixture keys/registry/VM started. Only that failed job is retried
+without a source change. Native ARM job111158768679 separately fails in the
+candidate's foundation subprocess. Artifact11268807271 omits the referenced
+11-foundation.log and nested logs; its cause is unknown, with cleanup passing
+before registry or installation. It is not classified as the same CDN issue.
+
+The owning D2 fix adds optional `--diagnostic-output` to compose.py. On failure,
+it emits a new bounded JSON record with operation, first failing command or last
+observed step/tool/exit, allowlisted exception type/category, numeric errno,
+source basename/line, bounded log hashes/sizes/completeness and four fixed observed
+log markers. No messages, argv, private paths or raw logs are published. Candidate
+foundation/composer calls select fixed metadata filenames in existing public
+evidence and additionally retain outer invocation exit/log fingerprints. Existing
+outputs refuse replacement; reporting failure cannot mask the original error.
+
+Initial source review catches successful finally cleanup overwriting the failed
+command's record; the revised run wrapper preserves its first propagating failure
+before cleanup. Candidate defaults to the signed fixture evidence folder; the direct QEMU
+caller explicitly selects its existing qemu-arm64-evidence folder. Reporting
+checks the destination only on failure, so unavailable diagnostics cannot become
+a new admission failure. Current Ruff/Bash/YAML/whitespace pass. Actual public host platform
+refusal, existing-output preservation and unavailable-destination failure pass
+(`publication/d2-diagnostic-cli/results.json`); native child-step coverage and
+final review remain pending. These checks do not retroactively identify the lost
+ARM failure or qualify media/install/update.
+
+Final v3 source review is clear after first-failure preservation and both caller
+evidence routes. The actual ordinary-user native ARM public composer check passes
+in 0.307 seconds: a new non-Git repository produces real `source-head`/`git`
+exit128; the public composer retains exit1 and emits only sanitized metadata.
+Only the first command's two log files exist, the store is absent, and no Docker
+command is reached. Source, resolved inputs and all three protected ELF hashes
+match before/after. Actual diagnostic-copy allocation is 33,378,064 bytes.
+Safe receipt `publication/d2-native-diagnostic/receipt.json` has SHA
+`c3712c8e084a4090aa713ed3fa009a660ceb1040e5bfe4ea108f2b1d9ab2f193`;
+public diagnostic SHA is
+`60112a1cc89ab1891a8e0f53fda30cfa3305868b096a521ed3b5b8868ff048ba`.
+Private raw logs are retained only in the owned controller directory. This
+qualifies actual failing child metadata; cleanup-clobber preservation is source
+reviewed, not a newly injected Docker-copy cleanup fault. Both target material
+checks, Ruff, Bash/YAML syntax, help and public host refusal checks pass.

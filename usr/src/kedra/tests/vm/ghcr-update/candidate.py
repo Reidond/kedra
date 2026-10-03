@@ -27,6 +27,7 @@ from fixture import add_context_argument, load_context
 ROOT = Path(__file__).resolve().parents[6]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / 'usr/src/kedra/image/release'))
+import compose
 import material as m
 
 
@@ -73,11 +74,14 @@ def main():
     parser.add_argument('--source-plan', required=True, type=Path)
     parser.add_argument('--base-image', required=True)
     parser.add_argument('--work', required=True, type=Path)
+    parser.add_argument('--diagnostic-directory', type=Path,
+                        help='Existing public evidence directory; defaults to fixture evidence')
     parser.add_argument('--tag', required=True, choices=(
         'localhost/kedra-qemu-arm64:research', 'localhost/kedra-ghcr-arm:composed'))
     add_context_argument(parser)
     args = parser.parse_args()
     fixture = load_context(args.fixture_context)
+    diagnostics = args.diagnostic_directory or Path(fixture['evidence'])
     source_revision = fixture['source_revision']
     m.require(re.fullmatch('[a-f0-9]{40}', source_revision), 'Missing dispatched source revision')
     m.require(re.fullmatch(r'quay\.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}', args.base_image),
@@ -101,7 +105,7 @@ def main():
                                        start_new_session=True)
             try:
                 output, _ = process.communicate(timeout=timeout)
-            except BaseException:
+            except BaseException as error:
                 previous = {number: signal.signal(number, signal.SIG_IGN)
                             for number in (signal.SIGTERM, signal.SIGINT)}
                 try:
@@ -109,7 +113,16 @@ def main():
                 finally:
                     for number, handler in previous.items():
                         signal.signal(number, handler)
+                if label in ('foundation', 'compose'):
+                    compose.publish_failure(diagnostics / 'candidate-failure.json', label,
+                                            error, {'step': label, 'tool': 'uv',
+                                                    'exit_code': process.returncode,
+                                                    'logs': (('combined', logfile),)})
                 raise
+        if label in ('foundation', 'compose') and process.returncode not in accepted:
+            compose.publish_failure(diagnostics / 'candidate-failure.json', label,
+                                    None, {'step': label, 'tool': 'uv', 'exit_code': process.returncode,
+                                           'logs': (('combined', logfile),)})
         m.require(process.returncode in accepted, label + ' failed; see ' + str(logfile))
         if capture:
             m.require(len(output) <= 8 * 1024**2, 'Oversized fixture response')
@@ -200,9 +213,11 @@ def main():
               '--store', work / 'store', '--binaries', binaries]
     composer = ROOT / 'usr/src/kedra/image/release/compose.py'
     run('foundation', ['uv', 'run', composer, 'foundation', *common,
+                       '--diagnostic-output', diagnostics / 'foundation-failure.json',
                        '--context', context, '--output-dir', work / 'foundation'])
     foundation = work / 'foundation/foundation.json'
     run('compose', ['uv', 'run', composer, 'compose', *common,
+                    '--diagnostic-output', diagnostics / 'compose-failure.json',
                     '--foundation-receipt', foundation, '--expected-foundation-receipt-sha256', sha(foundation),
                     '--output-dir', work / 'native'])
     selected = m.document(m.read(work / 'native/candidate.json'))

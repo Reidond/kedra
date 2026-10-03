@@ -89,6 +89,7 @@ jobs:
             skopeo --version
           } > output/qemu-arm64-evidence/environment.txt
           uv run usr/src/kedra/tests/vm/ghcr-update/candidate.py \
+            --diagnostic-directory output/qemu-arm64-evidence \
             --context output/qemu-arm64-context --source-plan output/qemu-arm64-evidence/source.json \
             --base-image "$base" --work "$RUNNER_TEMP/kedra-arm-candidate" \
             --tag localhost/kedra-qemu-arm64:research \

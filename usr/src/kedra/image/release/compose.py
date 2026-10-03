@@ -139,6 +139,67 @@ def write_json(path, value):
     return m.sha(data)
 
 
+def failure_diagnostic(operation, error, progress):
+    """Public metadata only; exception messages, argv and log text stay private."""
+    kinds = (OSError, RuntimeError, ValueError, subprocess.SubprocessError)
+    category = next((kind.__name__ for kind in kinds if isinstance(error, kind)), None)
+    exception_type = type(error).__name__ if error is not None else None
+    if exception_type not in ('OSError', 'FileNotFoundError', 'PermissionError', 'InterruptedError',
+                              'RuntimeError', 'ValueError', 'TypeError', 'KeyError', 'AttributeError',
+                              'IndexError', 'TimeoutExpired', 'CalledProcessError', 'KeyboardInterrupt'):
+        exception_type = None
+    locations = []
+    trace = error.__traceback__ if error is not None else None
+    while trace is not None:
+        filename = Path(trace.tb_frame.f_code.co_filename).name
+        if filename in ('compose.py', 'material.py', 'candidate.py'):
+            locations.append({'source': filename, 'line': trace.tb_lineno})
+        trace = trace.tb_next
+    logs = []
+    markers = {'no_space': b'No space left on device', 'manifest_unknown': b'manifest unknown',
+               'unexpected_eof': b'unexpected EOF', 'connection_reset': b'Connection reset by peer'}
+    for stream, path in progress.get('logs', ()):
+        item = {'stream': stream, 'available': False}
+        try:
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            with os.fdopen(os.open(path, flags), 'rb') as log:
+                before = os.fstat(log.fileno())
+                if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+                    raise ValueError('not an ordinary log')
+                data = log.read(16 * 1024**2)
+                after = os.fstat(log.fileno())
+            item.update(available=True, size_bytes=before.st_size, hashed_bytes=len(data),
+                        sha256=hashlib.sha256(data).hexdigest(),
+                        complete=len(data) == before.st_size == after.st_size
+                        and before.st_mtime_ns == after.st_mtime_ns,
+                        observed_markers=[name for name, marker in markers.items() if marker in data])
+        except (OSError, ValueError):
+            pass
+        logs.append(item)
+    # Step names and tool basenames come only from fixed in-process call sites.
+    step = progress.get('step')
+    tool = progress.get('tool')
+    return {'schema_version': 1, 'operation': operation,
+            'last_step': step if step is None or re.fullmatch('[a-z-]{1,64}', step) else 'unknown',
+            'tool': tool if tool in ('git', 'docker', 'sudo', 'skopeo', 'sysroot',
+                                    'sysroot-helper', 'kedra-lab', 'uv') else None,
+            'exit_code': progress.get('exit_code'), 'exception_category': category,
+            'exception_type': exception_type,
+            'os_errno': error.errno if isinstance(error, OSError) else None,
+            'locations': locations[-4:], 'logs': logs}
+
+
+def publish_failure(path, operation, error, progress):
+    if path is None:
+        return
+    try:
+        ordinary(path.parent, directory=True)
+        write_json(path, failure_diagnostic(operation, error, progress))
+    except (OSError, RuntimeError, ValueError, TypeError, MemoryError):
+        # Diagnostics must neither mask the original failure nor expose its text.
+        print('compose: public failure diagnostic unavailable', file=sys.stderr)
+
+
 def copy_pinned(source, destination, expected, mode=0o600):
     source = ordinary(source)
     m.require(hash_file(source) == digest(expected), 'Pinned input differs: ' + str(source))
@@ -198,7 +259,8 @@ def validate_inputs(value, data):
 
 
 class Runner:
-    def __init__(self, args):
+    def __init__(self, args, progress):
+        self.progress = progress
         m.require(sys.platform == 'linux' and platform.machine() == 'aarch64'
                   and os.getuid() != 0 and os.geteuid() == os.getuid(),
                   'Run as an ordinary user on native Linux ARM; this does not install an OS')
@@ -250,10 +312,22 @@ class Runner:
         self.engine = self.engine['ID']
 
     def run(self, label, arguments, timeout=INSPECT_TIMEOUT, maximum=MAX_JSON):
+        try:
+            return self.execute(label, arguments, timeout, maximum)
+        except Exception as error:
+            # A finally block may run more commands to clean an observer. Keep
+            # the first failing command's evidence before cleanup changes progress.
+            if 'failure' not in self.progress:
+                self.progress['failure'] = (error, dict(self.progress))
+            raise
+
+    def execute(self, label, arguments, timeout, maximum):
         self.sequence += 1
         prefix = self.output / 'logs' / f'{self.sequence:03d}-{label}'
         stdout, stderr = prefix.with_suffix('.stdout'), prefix.with_suffix('.stderr')
         program = str(arguments[0])
+        self.progress.update(step=label, tool=Path(program).name, exit_code=None,
+                             logs=(('stdout', stdout), ('stderr', stderr)))
         m.require(Path(program).is_absolute(), 'Executable must be an absolute pinned path')
         for name, path in self.programs.items():
             if program == str(path):
@@ -278,6 +352,7 @@ class Runner:
                     except subprocess.TimeoutExpired:
                         os.killpg(process.pid, signal.SIGKILL)
                         process.wait(timeout=5)
+                self.progress['exit_code'] = process.returncode
         m.require(process.returncode == 0, f'{label} failed ({process.returncode}); see {stderr}')
         m.require(stdout.stat().st_size <= maximum and stderr.stat().st_size <= 16 * 1024**2,
                   label + ' exceeded its output limit')
@@ -576,6 +651,8 @@ def arguments():
         command.add_argument('--store', required=True, type=Path)
         command.add_argument('--binaries', required=True, type=Path)
         command.add_argument('--output-dir', required=True, type=Path)
+        command.add_argument('--diagnostic-output', type=Path,
+                             help='New public metadata-only failure receipt; raw logs stay private')
         if operation == 'foundation':
             command.add_argument('--context', required=True, type=Path)
         else:
@@ -598,8 +675,14 @@ def main():
     args = arguments()
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
-    runner = Runner(args)
-    result = runner.foundation() if runner.args.operation == 'foundation' else runner.compose()
+    progress = {}
+    try:
+        runner = Runner(args, progress)
+        result = runner.foundation() if runner.args.operation == 'foundation' else runner.compose()
+    except Exception as error:
+        failed_error, failed_progress = progress.get('failure', (error, progress))
+        publish_failure(args.diagnostic_output, args.operation, failed_error, failed_progress)
+        raise
     print(json.dumps(result, sort_keys=True))
 
 

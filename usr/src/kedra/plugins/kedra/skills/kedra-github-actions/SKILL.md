@@ -77,3 +77,12 @@ device without create/truncate: an ordinary chrooted Path.write_text created a
 regular target serial file. The public defaults/embedded-marker source is fixed;
 its newly rebuilt owning-source media remains unqualified until the recorded
 fresh-install gate passes. External-input recovery does not qualify that route.
+
+Candidate failure evidence (2026-10-03, PR34 run37107489350): ARM foundation
+failure logs beneath private candidate work were absent from uploaded evidence,
+so its cause could not be established. Candidate foundation/compose now select
+`compose.py --diagnostic-output` in public evidence. Retain only bounded structured
+step/tool/exit, exception source basename/line, log hashes/sizes and fixed observed
+markers; never upload raw private logs or arbitrary exception messages. Preserve
+the first failed command across finally cleanup, and never mask the original
+exit if diagnostic writing fails. See release-composition verification.md.

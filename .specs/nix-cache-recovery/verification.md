@@ -194,3 +194,32 @@ unchanged81,695,739,904-byte warm gate by9,299,288,064 host /13,870,231,552 Linu
 bytes at the last observation, before fresh authority reserve. Its resource choice,
 fresh authority and exact retained/new producer eligibility remain unresolved;
 no VM or complete five-outcome qualification is implied.
+
+## Approved debugger image and full acceptance checkpoint — 2026-10-03
+
+The owner approved the exact eight-package disposable image. Acquisition passes
+all hashes/sizes (7,164,876 bytes); successful offline v5 build takes7.0302s with
+actual wait0. Image `sha256:44bbc303e5b199430e51614e1831524ed5bec76c95ec853a22e7648a00da66de`
+contains exactly8 new packages,0 upgrades/removals. Base696/alias and all16 parent
+RootFS layers remain unchanged; added logical bytes18,187,035. GDB16.3 ELF SHA
+`c1d45465045b4b97ee5fe0c2c1aacb4ef976082335ede3c59c12c7196c891fe0`.
+Readback container create/remove waits0; no host/controller installation.
+Receipt `target/nix-delivery/d5-gdb-execution/image-proof.json` SHA
+`ffb9f5be74527aff157c4990babbb641b8e4f3e526d4d4f1d1fca1b57505112e` binds actual
+recipe03b0cf58/acquisitionf748f4ae, unchanged baseline, exact same-state simulated
+operations and offline installation. The prior bare-ID/digest FROM lookup failures
+and APT3.0.3 pre-dpkg pathname failure remain failed attempts. Named local FROM
+and eight explicitly verified cache archives resolve those preparation failures.
+Exact2b Linux lab compilation/readiness and four native windows remain not-run.
+
+The earlier remaining-gate summaries were abbreviated, not acceptance waivers.
+Required outstanding coverage from requirements/test-plan includes AC-C2/TC-C2
+remaining authorization/content refusals, all validity boundaries and actual copy
+crossing expiry; AC-C3 independent external forced rebuild and byte comparison;
+AC-C5 legitimate-lease schema/member/owner/mode/inode/device/link refusals and
+cleanup interrupted after directory removal before lease retirement; AC-C6 four
+actual native publication windows; and AC-C7 snapshot, transaction.next,
+image-ID journal, binding.next, import.next and root-state metadata ENOSPC with
+public recovery/retry and preserved unrelated data. Existing64MiB source-copy
+failure qualifies none of the missing metadata boundaries. All remaining outcomes
+must be independently recorded; debugger installation is only a prerequisite.

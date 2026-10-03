@@ -8,7 +8,9 @@ target table, production key or repository address.
 The first backend uses a local Unix Docker socket and native aarch64 Linux.
 Planning/data types remain separate from Unix filesystem/execution code. Native
 Darwin builds, Windows execution, x86_64 qualification, Nix-language/nixpkgs
-compatibility, signed remote substitution and whole-OS construction are later work.
+compatibility and whole-OS construction remain separately qualified work.
+Signed local-bundle substitution is now implemented; runtime qualification is
+tracked separately below.
 The typed `SystemDefinition` / `SystemFile` API now exports static native config
 and verified runtime closures over a retained Fedora foundation; see
 [system composition](../../docs/SYSTEM.md) for scope and actual qualification.
@@ -134,3 +136,28 @@ This requires the retained pinned builder/runtime images recorded in the
 results and remaining fault variants belong in the implementation verification
 record and project status. No OS boot/installer qualification follows from this
 controller workflow.
+
+## Authenticated cache and temporary snapshots
+
+`verify_cache_receipt` returns a private `VerifiedCacheReceipt` only after exact
+P-256 signature, independently selected key/scope/policy revision, validity and
+resolved recipe checks. `Store::substitute` copies and validates the complete
+bundle privately, then rechecks authority/expiry before publishing an import
+journal or admitting objects/images. The expected recipe and policy must come
+from the consumer, never from the cache. Transport remains an explicitly selected
+local bundle; no network cache daemon or OS deployment authority is added.
+
+`sysroot store substitute` exposes that flow with `--plan`, `--root`, `--scope`,
+`--cache-policy`, `--receipt`, `--signature`, `--public-key` and `--bundle`.
+The independently compiled consumers use their resolved catalog recipe directly.
+
+Composition and native builder contexts use `ManagedSnapshot` leases in a
+versioned owner-private registry. Readers retain a file lock, including while
+stopped; callers explicitly finish after their consumers exit. `sysroot system
+recover --workdir PATH` collects only recognized abandoned snapshots and reports
+active or refused entries. It does not delete unknown paths by age or PID.
+
+These D5 source/API changes have compiler/ordinary CLI gates, but signed native
+transfer, stopped-reader crash recovery, native publication faults and Linux
+ENOSPC qualification remain pending in
+[the D5 record](../../../../../.specs/nix-cache-recovery/test-plan.md).

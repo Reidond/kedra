@@ -1,13 +1,15 @@
 //! Closed native OS transforms executed only by the offline image-build harness.
 
 use std::collections::HashMap;
-use std::fs;
-use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use sysroot_engine::{
-    NativeImplementation, NativePlan, NativeReceipt, NativeStep, VerifiedComposition,
+    ManagedSnapshot, NativeImplementation, NativePlan, NativeReceipt, NativeStep, SnapshotPurpose,
+    VerifiedComposition,
 };
 
 use crate::composition::{
@@ -386,7 +388,7 @@ else:
 
 fn implementation() -> NativeImplementation {
     NativeImplementation {
-        version: "kedra-native-v1",
+        version: "kedra-native-v2-private-context",
         driver: DRIVER,
     }
 }
@@ -456,8 +458,12 @@ pub fn plan(request: &Request, specification: &Path) -> Result<NativePlan> {
     let parent = verified(request, &cache)?;
     let definition =
         sysroot_engine::read_native(specification).map_err(|error| invalid(error.to_string()))?;
-    sysroot_engine::plan_native(&parent, &definition, &implementation())
-        .map_err(|error| invalid(error.to_string()))
+    let plan = sysroot_engine::plan_native(&parent, &definition, &implementation())
+        .map_err(|error| invalid(error.to_string()))?;
+    parent
+        .finish()
+        .map_err(|error| invalid(error.to_string()))?;
+    Ok(plan)
 }
 
 fn image_labels(docker: &Docker, image: &str, expected: &HashMap<String, String>) -> Result<()> {
@@ -588,24 +594,27 @@ fn initial_baseline(docker: &Docker, plan: &NativePlan) -> Result<()> {
     Ok(())
 }
 
-struct Context(PathBuf);
-impl Drop for Context {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
-
-fn context(cache: &Path, plan: &NativePlan, parent_image: &str) -> Result<Context> {
-    let context = Context(cache.join(format!(".context-{}", nonce()?)));
-    fs::DirBuilder::new().mode(0o700).create(&context.0)?;
+fn context(cache: &Path, plan: &NativePlan, parent_image: &str) -> Result<ManagedSnapshot> {
+    let context = ManagedSnapshot::create(cache, SnapshotPurpose::Native)
+        .map_err(|error| invalid(error.to_string()))?;
     let recipe = sysroot_engine::render_native_recipe(plan, parent_image)
         .map_err(|error| invalid(error.to_string()))?;
-    fs::write(context.0.join("Containerfile"), recipe)?;
-    fs::write(context.0.join("native-driver.py"), DRIVER)?;
-    fs::write(
-        context.0.join("native-plan.json"),
-        serde_json::to_vec(plan).map_err(|error| invalid(error.to_string()))?,
-    )?;
+    for (name, bytes) in [
+        ("Containerfile", recipe.into_bytes()),
+        ("native-driver.py", DRIVER.as_bytes().to_vec()),
+        (
+            "native-plan.json",
+            serde_json::to_vec(plan).map_err(|error| invalid(error.to_string()))?,
+        ),
+    ] {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(context.path().join(name))?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+    }
     Ok(context)
 }
 
@@ -714,6 +723,9 @@ pub fn prepare(
             fs::remove_file(&journal_path)?;
             sync_parent(&journal_path)?;
         }
+        verified
+            .finish()
+            .map_err(|error| invalid(error.to_string()))?;
         return Ok(receipt);
     }
     if docker.image(&tag)?.is_some() {
@@ -748,15 +760,15 @@ pub fn prepare(
             &Build {
                 tag: &pending.tag,
                 what: "closed native OS derivation (network disabled)",
-                containerfile: &context.0.join("Containerfile"),
+                containerfile: &context.path().join("Containerfile"),
                 files: &[
                     (
                         "native-plan.json".into(),
-                        context.0.join("native-plan.json"),
+                        context.path().join("native-plan.json"),
                     ),
                     (
                         "native-driver.py".into(),
-                        context.0.join("native-driver.py"),
+                        context.path().join("native-driver.py"),
                     ),
                 ],
                 args: &[],
@@ -764,6 +776,9 @@ pub fn prepare(
             },
             transaction_labels.clone(),
         )?;
+        context
+            .finish()
+            .map_err(|error| invalid(error.to_string()))?;
         let actual = docker
             .image(&pending.tag)?
             .ok_or_else(|| invalid("native derivation produced no image"))?
@@ -788,5 +803,8 @@ pub fn prepare(
     docker.remove_native_pending(&pending.tag, image, &pending.nonce)?;
     fs::remove_file(&journal_path)?;
     sync_parent(&journal_path)?;
+    verified
+        .finish()
+        .map_err(|error| invalid(error.to_string()))?;
     Ok(receipt)
 }

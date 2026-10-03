@@ -1,8 +1,8 @@
 //! Offline content verification. Caller-selected identity is not release authority.
 use crate::{
-    Argument, BuildGraph, BuildNode, Error, Input, LOGICAL_PREFIX, MAX_JSON, ObjectReceipt,
-    PLATFORM, Result, Segment, SystemComposition, SystemContent, SystemFile, SystemFileDisposition,
-    SystemPlan, image_archive, plan, store, system,
+    Argument, BuildGraph, BuildNode, Error, Input, LOGICAL_PREFIX, MAX_JSON, ManagedSnapshot,
+    ObjectReceipt, PLATFORM, Result, Segment, SnapshotPurpose, SystemComposition, SystemContent,
+    SystemFile, SystemFileDisposition, SystemPlan, image_archive, plan, system,
     tree::{self, Entry, Kind},
 };
 use rustix::fs::{Mode, OFlags, openat};
@@ -10,9 +10,9 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, DirBuilder, File, Metadata, OpenOptions},
+    fs::{self, File, Metadata, OpenOptions},
     io::{Read, Write},
-    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
+    os::unix::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
 };
 
@@ -32,7 +32,7 @@ const NAMES: [&str; 4] = [
 /// path observations are identity-bound assertions; runtime consumers must still
 /// check those assertions, inherited ONBUILD instructions, and volume settings.
 pub struct VerifiedComposition {
-    snapshot: Snapshot,
+    snapshot: ManagedSnapshot,
     composition: SystemComposition,
 }
 impl VerifiedComposition {
@@ -46,34 +46,34 @@ impl VerifiedComposition {
         let before = directory.metadata()?;
         owner_directory(&before)?;
         check_names(&directory)?;
-        let snapshot = Snapshot::new(snapshot_parent)?;
+        let snapshot = ManagedSnapshot::create(snapshot_parent, SnapshotPurpose::Composition)?;
         copy_member(
             &directory,
-            &snapshot.path,
+            snapshot.path(),
             "composition.json",
             system::MAX_COMPOSITION_JSON,
         )?;
         let composition: SystemComposition =
-            serde_json::from_reader(File::open(snapshot.path.join("composition.json"))?)?;
+            serde_json::from_reader(File::open(snapshot.path().join("composition.json"))?)?;
         validate_plan(&composition, expected_identity)?;
         for (name, bound) in [("Containerfile", MAX_JSON), ("payload.tar", MAX_PAYLOAD)] {
-            copy_artifact(&directory, &snapshot.path, name, bound, &composition)?;
+            copy_artifact(&directory, snapshot.path(), name, bound, &composition)?;
         }
         let expected = format!("FROM {}\nADD payload.tar /\n", composition.foundation_tag);
-        if fs::read(snapshot.path.join("Containerfile"))? != expected.as_bytes() {
+        if fs::read(snapshot.path().join("Containerfile"))? != expected.as_bytes() {
             return Err(invalid("Containerfile differs from the static composition"));
         }
-        let trees = verify_payload(&snapshot.path.join("payload.tar"), &composition)?;
+        let trees = verify_payload(&snapshot.path().join("payload.tar"), &composition)?;
         verify_files(&composition.plan, &trees)?;
         copy_artifact(
             &directory,
-            &snapshot.path,
+            snapshot.path(),
             "foundation.tar",
             MAX_IMAGE,
             &composition,
         )?;
         image_archive::verify(
-            &snapshot.path.join("foundation.tar"),
+            &snapshot.path().join("foundation.tar"),
             &composition.plan.foundation.receipt.image,
             &composition.plan.foundation.receipt.platform,
         )?;
@@ -87,52 +87,26 @@ impl VerifiedComposition {
         })
     }
     pub fn snapshot_path(&self) -> &Path {
-        &self.snapshot.path
+        self.snapshot.path()
     }
     pub fn foundation_path(&self) -> PathBuf {
-        self.snapshot.path.join("foundation.tar")
+        self.snapshot.path().join("foundation.tar")
     }
     pub fn payload_path(&self) -> PathBuf {
-        self.snapshot.path.join("payload.tar")
+        self.snapshot.path().join("payload.tar")
     }
     pub fn containerfile_path(&self) -> PathBuf {
-        self.snapshot.path.join("Containerfile")
+        self.snapshot.path().join("Containerfile")
     }
     pub fn composition(&self) -> &SystemComposition {
         &self.composition
     }
+    /// Finish all consumers before explicitly retiring verified temporary inputs.
+    pub fn finish(self) -> Result<()> {
+        self.snapshot.finish()
+    }
 }
 
-struct Snapshot {
-    path: PathBuf,
-    metadata: Metadata,
-}
-impl Snapshot {
-    fn new(parent: &Path) -> Result<Self> {
-        let parent = fs::canonicalize(parent)?;
-        owner_directory(&open_directory(&parent)?.metadata()?)?;
-        let path = parent.join(format!(".sysroot-context-{}", store::nonce()?));
-        DirBuilder::new().mode(0o700).create(&path)?;
-        let metadata = fs::symlink_metadata(&path)?;
-        Ok(Self { path, metadata })
-    }
-}
-impl Drop for Snapshot {
-    fn drop(&mut self) {
-        if let Ok(metadata) = fs::symlink_metadata(&self.path)
-            && metadata.is_dir()
-            && metadata.dev() == self.metadata.dev()
-            && metadata.ino() == self.metadata.ino()
-            && metadata.uid() == self.metadata.uid()
-        {
-            // No recursion: this guard creates exactly these four regular files.
-            for name in NAMES {
-                let _ = fs::remove_file(self.path.join(name));
-            }
-            let _ = fs::remove_dir(&self.path);
-        }
-    }
-}
 fn invalid(message: impl Into<String>) -> Error {
     Error::Invalid(format!("composition: {}", message.into()))
 }

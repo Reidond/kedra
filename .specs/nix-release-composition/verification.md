@@ -752,3 +752,26 @@ host/controller validation. Missing/drifted proof refuses; the no-proof API keep
 cold admission. No constructor is admitted merely by source review: live capacity,
 input, TLS and guard gates still apply. No new ISO, fresh installation or full
 update flow passes at this checkpoint.
+
+## Owning-source publication checkpoint — 2026-10-03
+
+Inspected D2 head `0b8bd1bd5e17127ed9c77db4ed645f8fb16ecb0b` is
+above exact D1 `712927e`, with no tracked source modifications. Refreshed pinned
+Rust 1.98.1 formatting and all-target Clippy pass; ordinary public CLI E2E passes
+11 cases with six resource-dependent cases ignored. The real interrupted
+collection workflow passes, including SIGKILL/recovery and preserved live roots.
+Repository-wide Ruff, changed shell syntax and whitespace checks pass.
+Release-material passes both enabled targets and unknown-target, signature, rank,
+no-change, content, scope and architecture refusals in
+`target/d2-publication-release-material`. Workspace release build passes (77 seconds). Independent OpenSSL interoperability
+passes all sixteen signatures, target trust, historical/fresh channel ordering,
+tamper, artifact and installer workflows in `target/d2-publication-release-interop`.
+
+Publication is a reviewable draft boundary, not acceptance of remaining runtime
+gates. Fresh corrected media/install, complete A/B/A, exact-image full harness,
+contribution execution and protected production signing/publication remain
+unpassed. Retained TLS fails the unchanged 36,000-second validity admission.
+Runtime audit `target/nix-delivery/d2-runtime/resume-20261003/audit.json` also
+records insufficient warm capacity and stale Podman boot-runtime state after
+controller restart. A fresh fixture and actual resource admission are required;
+no source, trust, timeout or storage guard is relaxed to publish the draft.

@@ -62,3 +62,11 @@ fixture marker/rank; changed-kernel/native-recipe upgrades are not claimed.
 Ruff/AST pass for nine Python files and bash syntax passes for two shell files.
 No image build/import, signing, VM, registry or Git operation ran in preparation.
 Parent owns review/adoption/commit, standard gates, operational docs and worklog.
+
+## Review publication boundary — 2026-10-03
+
+T9 draft publication proceeds with an explicit incomplete T7/T8 runtime state,
+under the owner's source-review priority. This changes review scheduling only:
+T7/T8 and all remaining acceptance gates remain required before qualification.
+The existing native producer and earlier installed cold proof retain their exact
+source scopes; no old pass is transferred to the corrected media route.

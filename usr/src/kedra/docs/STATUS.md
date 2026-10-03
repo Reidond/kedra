@@ -1,5 +1,17 @@
 # Verified status
 
+## Active delivery checkpoint (2026-10-03)
+
+D2 source is being published for review separately from its unpassed runtime
+gates. Current Rust 1.98.1 fmt/Clippy/release build, 11 ordinary CLI cases,
+Ruff/Bash and legacy release-material/OpenSSL workflows pass; six Docker cases
+remain ignored. Earlier native-image results retain their exact producer identities. Fresh media/install, full A/B/A,
+exact-image installed suite and contribution execution are not complete. The
+retained TLS fixture cannot satisfy the unchanged 36,000-second validity window.
+Runtime continuation is preparing a fresh fixture; it does not relax admission,
+trust, deadlines or storage guards. D3–D5 remain prepared and will be adopted and
+published in dependency order after the D2 source boundary.
+
 ## Nix recreation investigation (2026-10-01)
 
 The owner requested research into a sharable Rust Nix-style build system and

@@ -220,3 +220,34 @@ installed-image or signed deployment pass. Compiler acquisition used the disclos
 Podman backend with reviewed recipe/RPM material; production BuildKit equivalence
 is not asserted. The separate installed native::catalog service/PATH/persistence
 case, D2 media/VM and D5 cache/fault work remain outstanding.
+
+
+## Installed catalog qualification — 2026-10-03
+
+**Pass:** the sanctioned System-profile `native::catalog` case passes1/1 in3736ms,
+without failure, cleanup failure or retained container. Exact catalog source is
+`57a47cf6664632839eeaf35528e9873a26c5cb12`, CLI `eb4bf1b4…`, lab `f235c2c6…`,
+and immutable-source harness SHA `50dca02062729b174a8a779d0601a4155cd9c291243b4653689b6b1f978cdb79`.
+Generic composition truthfully combines OS1dc/foundation122 with catalog57;
+composition is `91eff75d35247e37b16ae519ab95824d14cd17538b6aa9f60071e451aa291cba`,
+native identity `a4940a7af7c428b034bc5467c9313f0b0bb29f9a9c47137c4d7d2ba85d800a6d`,
+and image `sha256:a3074c6cdabcb1bbd850ac7b4b1a7705dfad352187b1f701f52aa4f7cc3d0873`.
+
+Actual assertions cover login/user PATH selecting store jq/sqlite, alpha/gamma
+SQL-to-jq execution, preservation of original RPM jq, service restart retaining
+the user row and two history records, SQLite3.53.4 and catalog source57. Service
+Result=success and ExecMainStatus=0. Preparation, compose, plan, derive and
+installed phase parent waits are all0. Image verification takes65.5s; installed
+guard73.023s. Owned process groups/containers are absent and global compiler07c/
+runtime122 preserved. Installed peak charged allocation13,210,259,456 bytes;
+minimum host/Linux free62,591,918,080 /63,503,564,800 bytes. The retained store,
+composition and native cache are intentionally preserved.
+
+Aggregate `target/nix-delivery/d3-installed/result.json` SHA256
+`e3c14088e3e422245848d2ab3ff75835b2c7126f189d8377dba7b7941c9c8975`
+binds all phase receipts and installed execution `1791025854-32211`. The initial
+untrusted mise uv shim refusal precedes helper/store execution and remains a
+fixture-tooling failure; the existing real uv was then used without changing
+host trust. Earlier package failures are preserved. D3's local package and
+installed scope is qualified; production BuildKit equivalence, signed release,
+VM/kernel/SELinux behavior and D2/D5 gates are separate.

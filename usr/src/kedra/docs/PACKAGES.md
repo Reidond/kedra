@@ -38,3 +38,22 @@ that this integration is already shipped.
 
 See [engine recipes](../crates/sysroot-engine/README.md),
 [composition](SYSTEM.md), [architecture](ARCHITECTURE.md) and [actual status](STATUS.md).
+
+The `sysroot-catalog` crate now supplies pure typed `Catalog`, `Package`, `Recipe`
+and exact `Policy` declarations over `sysroot-engine`. The initial collection
+contains source-pinned jq 1.8.2 and SQLite 3.53.4; SQLite's shell retains its
+separately built shared library as a runtime dependency. `sysroot catalog list`,
+`pins`, `plan`, `resolve` and `build` expose this collection; `--catalog` selects
+an independently authored serialized Rust collection. Policy checks run before
+store access, and source, compiler image and runtime image must be allowlisted.
+
+`sysroot catalog contribute` authors selected store outputs and installed
+configuration for the ARM composer. Native text lives once under
+`image/catalog/templates/`: profile shell, environment configuration and the
+SQLite history service. Rust binds four closed tokens from typed references and
+the exact source revision; ordinary shell PATH expansion remains literal.
+Preflight binds template hashes and compiler RPM material before the no-change
+comparison. The release workflow has an exact-native-image `native::catalog`
+gate before publication. Its existence is implementation evidence: real package
+build/rebuild/transfer and installed service/PATH qualification remain not-run at
+this draft checkpoint; see the [catalog evidence](../../../../.specs/nix-package-catalog/verification.md).

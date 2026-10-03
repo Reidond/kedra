@@ -1,0 +1,14 @@
+[Unit]
+Description=Record selected catalog versions in persistent history
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=kedra-catalog
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/kedra-catalog
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ExecStart=${KEDRA_CATALOG_SQLITE} -batch /var/lib/kedra-catalog/history.sqlite "CREATE TABLE IF NOT EXISTS catalog_runs(id INTEGER PRIMARY KEY, observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, source_revision TEXT NOT NULL, sqlite_version TEXT NOT NULL); INSERT INTO catalog_runs(source_revision,sqlite_version) VALUES('${KEDRA_CATALOG_SOURCE_REVISION}',sqlite_version());"

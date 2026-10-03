@@ -10,6 +10,7 @@
 //! KEDRA_LAB_BINARIES, KEDRA_LAB_ARTIFACTS and KEDRA_LAB_KEEP (never, failed,
 //! always; local debugging only, refused when CI is set). See README.md.
 
+mod catalog_tests;
 mod native;
 mod native_artifacts_tests;
 

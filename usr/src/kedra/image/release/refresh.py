@@ -228,8 +228,21 @@ def prepare(spec, args):
               '/bin/bash /context/assemble.sh --resolve-packages', timeout=2400)
     (resolution / 'native.log').write_bytes(log.stdout + log.stderr)
     run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', resolution / 'package-material.txt')
+    catalog = None
+    if spec['id'] == 'qemu-arm64':
+        compiler = args.work / 'catalog-resolution'
+        compiler.mkdir()
+        script = ROOT / (IMAGE + 'catalog/builder.sh')
+        log = run('sudo', 'podman', 'run', '--rm', '--pull=always', '--platform=linux/arm64',
+                  '--volume', str(script.resolve()) + ':/tmp/kedra-catalog-builder.sh:ro',
+                  '--volume', str(compiler.resolve()) + ':/resolution', '--entrypoint', '/bin/bash',
+                  base, '/tmp/kedra-catalog-builder.sh', '--resolve', timeout=2400)
+        (compiler / 'resolver.log').write_bytes(log.stdout + log.stderr)
+        run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', compiler / 'catalog-builder-rpms.txt')
+        catalog = {'pins': ROOT / 'output/release-binaries/catalog-pins.json',
+                   'builder_rpms': compiler / 'catalog-builder-rpms.txt'}
     inputs = m.resolved_inputs(ROOT, plan, base, context, ROOT / 'output/release-binaries',
-                               m.read(resolution / 'package-material.txt'), spec['id'])
+                               m.read(resolution / 'package-material.txt'), spec['id'], catalog=catalog)
     material_bytes = m.canonical(inputs)
     (args.work / 'resolved-inputs.json').write_bytes(material_bytes)
     write(args.work / 'preflight-bootc-compatibility.json', m.bootc_compatibility(inputs['packages'], spec['architecture']))

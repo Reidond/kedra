@@ -2369,12 +2369,22 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sysroot-catalog",
  "sysroot-core",
  "sysroot-engine",
  "sysroot-linux",
  "tar",
  "toml",
  "toml_edit",
+]
+
+[[package]]
+name = "sysroot-catalog"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sysroot-engine",
 ]
 
 [[package]]

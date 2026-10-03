@@ -40,6 +40,10 @@ path = "tests/e2e_context.rs"
 name = "e2e_native"
 path = "tests/e2e_native.rs"
 
+[[test]]
+name = "e2e_catalog"
+path = "tests/e2e_catalog.rs"
+
 [dependencies]
 sysroot-core.workspace = true
 clap.workspace = true
@@ -56,6 +60,7 @@ sysroot-linux.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 sysroot-engine.workspace = true
+sysroot-catalog.workspace = true
 
 [lints]
 workspace = true

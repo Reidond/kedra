@@ -1533,6 +1533,14 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Next: complete current D2 ordinary gates, commit the status boundary and submit its draft through gh-stack; continue D3 adoption.
 - Runtime audit follow-up: retained controller is restarted after its overnight exit; no media, signing or VM is started. Safe `d2-runtime/resume-20261003/audit.json` records old TLS validity refusal, Linux capacity 81,125,748,736 bytes below warm admission 81,695,739,904, and Podman refusal on stale boot-ID runtime directories. Bounded runtime recovery is separately owned; source publication continues.
 
+### WL-20261003-02 — 2026-10-03 — Adopt real Rust catalog above published D2
+- Agent / state: Codex delivery coordinator; in-progress.
+- Scope / base: `codex/nix-package-catalog` above D2 `582049b31a8b9cc0960586953a9c06b8ed5e5a95`. D2 is published/attached as draft PR34 with exact immediate base PR33.
+- Completed: gh-stack publication/readback confirms D2 open/draft. Adopted twenty D3 implementation paths from manifest `f9869424508b8fc28934c29b983f270e038bb984407e07326b8bc99ee7799983`, with current preimages and prepared hashes checked before writes. Later D2 fixture corrections are preserved. Native `.sh`, `.conf` and `.service` files own configuration text; Rust supplies typed closed bindings and inventory.
+- Checks / evidence: D2 current ordinary gates pass as recorded in WL-20261003-01. D3 owning-source fmt/Clippy/release build, two public catalog cases, released list/pins, Ruff/Bash/YAML and whitespace pass; real application case is ignored. Both enabled-target release-material workflows also pass. Previous private compiler evidence remains historical.
+- Remaining / blockers: real jq/SQLite build/rebuild/transfer and installed PATH/service execution remain not-run; heavy runtime resources remain D2-owned.
+- Next: run D3 standard and public catalog gates, publish its own truthful draft, then adopt D4.
+
 ### WL-20261003-06 — 2026-10-03 — Preserve bounded D2 failure diagnostics before retry
 - Agent / state: Codex delivery coordinator; in-progress.
 - Scope / base: owning `codex/nix-release-composition` at `582049b`; all five drafts were published before returning to this layer. Exact D2–D5 heads are preserved in verified `publication/pre-diagnostic-cascade/stack.bundle`, requiring retained D1 `712927e`; no other worktree or external branch advance was observed.

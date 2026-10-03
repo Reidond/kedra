@@ -14,6 +14,8 @@ scratch="$2/.work"
 mkdir "$scratch"
 cp -R "$1"/. "$scratch/"
 chmod -R u+w "$scratch"
+# Canonical source identity does not preserve generated-file timestamp ordering.
+find -P "$scratch" -exec touch -h -d "@$SOURCE_DATE_EPOCH" -- {} +
 cd "$scratch"
 ./configure --prefix="$2" --disable-docs --disable-maintainer-mode --disable-shared --enable-static --with-oniguruma=builtin CFLAGS="-O2 -ffile-prefix-map=$scratch=."
 make -j2

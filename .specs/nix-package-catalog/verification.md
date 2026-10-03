@@ -154,3 +154,30 @@ and pins SHA is `19121ecfaac42c099dc0bfe59db54ec6781ca02e7c4e41dc1d33813ca27a4bb
 Mode0500 copies live in `publication/d3-jq-fix-binaries`; the earlier source,
 executables, context and SQLite output metadata remain preserved. No native
 rebuild/reproduction or installed-service pass is claimed before the rerun.
+
+## Vendored generated-file timestamps — 2026-10-03
+
+The bc34 case fails after211s, actual parent wait101, after successfully running
+configure in executable output scratch. Vendored Oniguruma make then invokes
+missing aclocal-1.16 even though the compiler legitimately supplies automake1.18.
+The original configure.ac is11s older than aclocal.m4; admitted canonical source
+reverses that ordering by approximately33ms while preserving bytes/source ID.
+The actual vendored Makefile.in94/419 declares an unconditional regeneration rule;
+the top-level maintainer-mode flag does not guard it. Evidence:
+`d3-catalog-e2e-fixed/result.json` SHA
+`d88433353e8240e629ea675685286f0ea6026ecc99fb934671e6f75de897dafd`,
+`test.stderr` and `source-mtime-observation.json`. The full case stays failed.
+Both SQLite output trees independently match bytes/modes across808/bc34, which
+is a narrower passed reproduction observation; runtime queries remain unpassed.
+
+The jq-only correction runs `find -P`/`touch -h` over its fresh disposable scratch
+after copying and before configure, normalizing files/directories/link inodes to
+the already declared SOURCE_DATE_EPOCH0. It follows no symlink target, changes no
+input bytes/modes or compiler tools, and leaves engine noexec intact. Existing
+findutils/coreutils provide the commands. Limited Astra review is clear on patch
+`3d820dac028a1827c855ed260ac36b5029f0e9e5fa446b27421f9d976e45681f`.
+Owning Rust1.98.1 fmt/Clippy, two public catalog cases and release build pass; new
+full native execution remains required. CLI `eb4bf1b471fac83b5674b2a9dc23d292b8251e5bc83e82a5c32477d952a375ef`,
+case binary `dfcef691bac7b98820ad653d5f93beeda40e3a000c512a3efb53f89317b0737d`
+and pins `36bcc36bf8f666eb30088f091740ac2c056e3d8aad15f76c799823e02b2a9d87`
+are retained in publication/d3-jq-mtime artifacts.

@@ -1555,6 +1555,14 @@ Last updated: 2026-10-03 (Europe/Kyiv).
 - Remaining / blockers: corrected full native catalog/rebuild/transfer and installed-service results are not-run. The old configure failure is preserved, not reclassified as a pass. D2 media/VM and D5 cache/fault qualification remain pending; D4's previously recorded independent-consumer pass is unchanged.
 - Next: commit on D3, cascade the reviewed change with exact leases, bind a new source/binary/pins handoff and rerun the existing full native case through the exclusive runtime worker.
 
+### WL-20261003-09 — 2026-10-03 — Normalize jq copied-source timestamps before configure
+- Agent / state: Codex delivery coordinator with Astra runtime/review workers; source correction ready, native rerun pending.
+- Scope / base: owning D3 `bc34a4c0a1f8d3d3bb109ec71536b7041cb1f189`; affected heads backed up and live remote identities checked before switching.
+- Completed: actual bc34 case fails after 211s, parent wait101, on vendored aclocal-1.16 regeneration after the noexec fix succeeds. Original configure.ac is 11s older than aclocal.m4; canonical admission makes it about33ms newer with unchanged bytes/source identity. The vendored rule is unconditional. Added only `find -P` plus `touch -h` to normalize all copied jq nodes to declared epoch0 before configure, without following symlinks or changing source bytes/modes, input mounts, compiler RPMs or checks.
+- Checks / evidence: limited Astra review CLEAR on patch `3d820dac028a1827c855ed260ac36b5029f0e9e5fa446b27421f9d976e45681f`; pinned fmt/Clippy, two public catalog cases, release build and list/pins pass. New mode0500 CLI `eb4bf1b4…`, existing-case binary `dfcef691…`, pins `36bcc36b…` are frozen. Failure receipt `d3-catalog-e2e-fixed/result.json` SHA `d88433353e8240e629ea675685286f0ea6026ecc99fb934671e6f75de897dafd` and timestamp observation are retained. Both SQLite output trees independently reproduce byte/mode across 808/bc34; that subset does not pass the failed full case.
+- Remaining / blockers: new full native jq/catalog/rebuild/query/transfer and installed service remain pending; D2 VM and D5 fault gates are separate. No old result is relabeled or missing tool faked.
+- Next: publish the owning D3 fix, propagate dependent layers with explicit leases and pass a new immutable source/CLI/test/pins handoff to the runtime worker.
+
 ### WL-20261003-13 — 2026-10-03 — Bind retained registry custody before stopped creation
 - Agent / state: Codex delivery coordinator with Astra runtime/review workers; completed narrow fixture options, D2 full qualification remains blocked.
 - Scope / base: owning D2 `46921c1b35ce2b1f22bee9f3538cafa32dc3921d`; public helper/wrapper only. Independent compatible fixture `f6209a68142b5c8c8130ada4de2ff6ab4b2202b9` descends from cad6 with exactly these two files changed; original producer1dc recipes/binaries remain unchanged.

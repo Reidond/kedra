@@ -10,11 +10,12 @@ pub const SQLITE_SOURCE: &str =
     "src-f4837e042b248ee63fd02e3f51fd6c9b9e2ffdf34bfb57450dd22a10c67f4d65";
 
 const JQ_BUILD: &str = r#"set -eu
-mkdir /build/jq
-cp -R "$1"/. /build/jq/
-chmod -R u+w /build/jq
-cd /build/jq
-./configure --prefix="$2" --disable-docs --disable-maintainer-mode --disable-shared --enable-static --with-oniguruma=builtin CFLAGS='-O2 -ffile-prefix-map=/build=.'
+scratch="$2/.work"
+mkdir "$scratch"
+cp -R "$1"/. "$scratch/"
+chmod -R u+w "$scratch"
+cd "$scratch"
+./configure --prefix="$2" --disable-docs --disable-maintainer-mode --disable-shared --enable-static --with-oniguruma=builtin CFLAGS="-O2 -ffile-prefix-map=$scratch=."
 make -j2
 test "$(od -An -tx1 -N4 jq | tr -d ' \n')" = 7f454c46
 mkdir -p "$2/bin" "$2/share/licenses/jq"
@@ -22,6 +23,8 @@ cp jq "$2/bin/jq"
 chmod 755 "$2/bin/jq"
 cp COPYING "$2/share/licenses/jq/COPYING"
 cp vendor/oniguruma/COPYING "$2/share/licenses/jq/ONIGURUMA"
+cd "$2"
+rm -rf "$scratch"
 "#;
 
 const SQLITE_LIBRARY_BUILD: &str = r#"set -eu

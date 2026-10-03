@@ -115,3 +115,42 @@ refresh material and compiler/source/template admission; the exact-native-image
 release gate selects the existing container catalog case. These are inspected
 static dependencies, not a proof that runtime callers are exhaustive. No extra
 store prefix, native source duplication or global FHS replacement is introduced.
+
+## Actual catalog failure and jq executable scratch — 2026-10-03
+
+The full existing catalog case on frozen `808405e`, CLI `541d814…` and test
+`54321e8…` **fails** after 162.62 seconds, actual parent wait101. Compiler/runtime
+admission and the SQLite library/shell builds complete before jq's `./configure`
+returns126, permission denied. The healthy guard records zero remaining owned
+containers and peak owned allocation5,403,889,664 bytes. Retained failure evidence
+is `target/nix-delivery/d3-catalog-e2e/test.stderr` and `test-guard.json`; that
+failed source/case is not relabeled by the following fix.
+
+A real probe with the same exact compiler image
+`sha256:07c0e38400ec538e63d1f09cc6f09577cb342c210f449fa332d9eb76e24feb0d`
+and engine sandbox flags observes `/build` mounted noexec and a real gcc-generated
+ELF also returns126 there. Create/start/container/remove waits are0; cleanup takes
+0.345 seconds. The source configure file is executable, including in the admitted
+read-only source. See `actual-build-mount-probe.json` in the same evidence folder.
+Invoking only `sh configure` would not fix its executable compiler probes.
+
+The owning D3 correction moves only jq's build tree into its existing private
+output binding at `$out/.work`, maps that exact logical scratch prefix out of
+compiler output, installs the real ELF and licenses, then removes scratch before
+successful admission. The static build flags and existing ELF-magic assertion
+remain. Generic engine/input mounts and `/build` noexec are unchanged; SQLite
+recipes are unchanged because they compile directly to output and do not execute
+build-directory probes. Limited independent Astra review is clear on frozen diff
+`280011c62c2966aa5d5f8ec45c62a334dc4034a2026f35549efed6def847a39a`.
+
+Rust1.98.1 fmt/all-target Clippy, the two public catalog policy/planning cases and
+workspace release build pass. The actual application case remains ignored in
+those host gates and requires a new full native run. Released `catalog list` and
+`pins` execute; new CLI SHA256 is
+`24a9d4ea12a6555c7a713b2cc49dfb15c37aa172b46bcbb78021b968aeec56e0`,
+new existing-case executable SHA is
+`69ca9fd21426105f0df4d1cfc194fe7a8b05dc9183ec27859190f74981bc894b`,
+and pins SHA is `19121ecfaac42c099dc0bfe59db54ec6781ca02e7c4e41dc1d33813ca27a4bb1`.
+Mode0500 copies live in `publication/d3-jq-fix-binaries`; the earlier source,
+executables, context and SQLite output metadata remain preserved. No native
+rebuild/reproduction or installed-service pass is claimed before the rerun.

@@ -3,6 +3,14 @@
 All five implementation outcomes are authorized. Five drafts are the reviewable
 delivery surface; merging/protected production execution is separate.
 
+Source-review checkpoint (2026-10-03): D1–D5 are drafts
+[33](https://github.com/Reidond/kedra/pull/33),
+[34](https://github.com/Reidond/kedra/pull/34),
+[35](https://github.com/Reidond/kedra/pull/35),
+[36](https://github.com/Reidond/kedra/pull/36),
+[37](https://github.com/Reidond/kedra/pull/37), respectively. D2–D5 runtime gates
+below remain required; publication alone does not complete an outcome.
+
 1. Derived image: compose current committed Kedra, closed graphical native plan,
    exact derived→fixture→Podman→disk→boot provenance; verify actual booted kernel/
    initramfs, Secure Boot/lockdown, enforcing SELinux, real desktop and warm restart.

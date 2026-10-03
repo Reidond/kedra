@@ -1541,6 +1541,14 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Remaining / blockers: real jq/SQLite build/rebuild/transfer and installed PATH/service execution remain not-run; heavy runtime resources remain D2-owned.
 - Next: run D3 standard and public catalog gates, publish its own truthful draft, then adopt D4.
 
+### WL-20261003-03 — 2026-10-03 — Adopt independent catalog consumers
+- Agent / state: Codex delivery coordinator; in-progress.
+- Scope / base: `codex/nix-second-consumer`, D3 `808405e4ed0e45ddcac6a42d937375c42f027fa5`, now published/attached as draft PR35 above D2 PR34.
+- Completed: adopted the four-path D4 delta from exact reconciled manifest `6813bf1b3448b5c7dae1ec9652e1cded797196c56604ab1117d339b0acc9414b`; all twenty native-template D3 implementation paths stay unchanged. Generated separate Fieldkit/Observatory workspaces using the public engine/catalog API and their own definitions.
+- Checks / evidence: pass — pinned fmt/all-target Clippy/release build; two independent external consumers compile offline and directly execute resolution with an unavailable daemon, all five policy-category refusals, other-project policy refusal and unknown-package distinction. Receipt: `publication/d4-consumers/manual-results.json`. Real native image/store/build/transfer/profile/GC workflow remains not-run.
+- Remaining / blockers: the full independent-consumer workflow requires serialized native Docker resources; no runtime pass follows from source preparation.
+- Next: finish compiler/manual pure policy gates and publish the D4 draft, then adopt D5.
+
 ### WL-20261003-06 — 2026-10-03 — Preserve bounded D2 failure diagnostics before retry
 - Agent / state: Codex delivery coordinator; in-progress.
 - Scope / base: owning `codex/nix-release-composition` at `582049b`; all five drafts were published before returning to this layer. Exact D2–D5 heads are preserved in verified `publication/pre-diagnostic-cascade/stack.bundle`, requiring retained D1 `712927e`; no other worktree or external branch advance was observed.

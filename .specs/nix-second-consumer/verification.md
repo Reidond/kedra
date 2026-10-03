@@ -1,8 +1,10 @@
 # D4 verification plan and evidence
 
-Status: **not-run** for all runtime and compile cases. Prepared 2026-10-02 during
-D1 source freeze; the three new Rust files are not registered by the active crate.
-Passing rustfmt and API source inspection do not change this status.
+Status: **locally qualified** for D4 TC-01–TC-08 on 2026-10-03. The complete
+native consumer case passes on frozen owning source `d591d2e`; its relevant
+Rust/Cargo bytes are unchanged in rebased PR36 source `116c693`. TC-09 cache
+qualification belongs to D5 and remains not-run. Earlier preparation observations
+below retain their historical scope; current execution evidence is appended.
 
 Scope and expected results derive from [requirements](requirements.md); runtime
 design and risk bands are in [design](design.md). This is an external-process E2E
@@ -14,14 +16,14 @@ assertions and a new runner are excluded by repository policy.
 
 | Case | Condition / technique | Owning level / method | Expected result and guard | Task owner | Result |
 |---|---|---|---|---|---|
-| TC-01 | External API reuse; equivalence partitions (Fieldkit, Observatory). | E2E / automated | Both distinct external Cargo workspaces compile and executables perform real lifecycle calls (AC-01). Compilation error fails; no fallback to Kedra CLI. | T1, T2, T5, T6 | not-run |
-| TC-02 | Authorization and validation; decision table below. | E2E / automated | Exact policy/lookup diagnostics and absent new store for each rejection; valid project declaration later builds (AC-02). | T1, T3, T6 | not-run |
-| TC-03 | Native calculation and reuse; state transition v1→repeat→v2 plus independent Observatory. | E2E / automated | Fieldkit totals 43 then 57, Observatory 20; two objects built/reused; changed source changes output ID (AC-03). Runtime library and data are actually consumed. | T2, T3, T6 | not-run |
-| TC-04 | Producer absence; state transition producer→export→receiver→producer unavailable. | E2E / automated | Two-object/runtime-image closure excludes source/compiler; expected bundle hash agrees; receiver executes after source deletion and producer rename (AC-04). | T4, T6 | not-run |
-| TC-05 | Generation selection; state transition v1→v2→v1. | E2E / automated | Real output 43→57→43 and two retained generations; other same-named profile unchanged (AC-05). | T4, T6 | not-run |
-| TC-06 | Collection ownership; state transition pin→unpin→collect. | E2E / automated | Exact orphan removed; both profile generations still run; Observatory receipt/index/sentinel and total 20 unchanged (AC-06). | T4, T6 | not-run |
-| TC-07 | Independent expectation; equivalence partition valid graph with unavailable daemon. | E2E / automated | Pure resolve emits authorized namespace/recipe and expected root equal to actual build root (AC-07). No producer-derived expected spec. | T1, T3, T6 | not-run |
-| TC-08 | Operating contract; manual inspection and standard tools. | Manual / manual | Existing bounds, only owned source/resource changes, standard checks and exact-source record; no unobserved completion claim (NFR-01–NFR-03). | T5, T6, T7 | not-run |
+| TC-01 | External API reuse; equivalence partitions (Fieldkit, Observatory). | E2E / automated | Both distinct external Cargo workspaces compile and executables perform real lifecycle calls (AC-01). Compilation error fails; no fallback to Kedra CLI. | T1, T2, T5, T6 | pass — native run2 / owning-source checks below |
+| TC-02 | Authorization and validation; decision table below. | E2E / automated | Exact policy/lookup diagnostics and absent new store for each rejection; valid project declaration later builds (AC-02). | T1, T3, T6 | pass — native run2 / owning-source checks below |
+| TC-03 | Native calculation and reuse; state transition v1→repeat→v2 plus independent Observatory. | E2E / automated | Fieldkit totals 43 then 57, Observatory 20; two objects built/reused; changed source changes output ID (AC-03). Runtime library and data are actually consumed. | T2, T3, T6 | pass — native run2 / owning-source checks below |
+| TC-04 | Producer absence; state transition producer→export→receiver→producer unavailable. | E2E / automated | Two-object/runtime-image closure excludes source/compiler; expected bundle hash agrees; receiver executes after source deletion and producer rename (AC-04). | T4, T6 | pass — native run2 / owning-source checks below |
+| TC-05 | Generation selection; state transition v1→v2→v1. | E2E / automated | Real output 43→57→43 and two retained generations; other same-named profile unchanged (AC-05). | T4, T6 | pass — native run2 / owning-source checks below |
+| TC-06 | Collection ownership; state transition pin→unpin→collect. | E2E / automated | Exact orphan removed; both profile generations still run; Observatory receipt/index/sentinel and total 20 unchanged (AC-06). | T4, T6 | pass — native run2 / owning-source checks below |
+| TC-07 | Independent expectation; equivalence partition valid graph with unavailable daemon. | E2E / automated | Pure resolve emits authorized namespace/recipe and expected root equal to actual build root (AC-07). No producer-derived expected spec. | T1, T3, T6 | pass — native run2 / owning-source checks below |
+| TC-08 | Operating contract; manual inspection and standard tools. | Manual / manual | Existing bounds, only owned source/resource changes, standard checks and exact-source record; no unobserved completion claim (NFR-01–NFR-03). | T5, T6, T7 | pass — native run2 / owning-source checks below |
 | TC-09 | Future cache producer authority; decision table to be finalized by D5 owner. | E2E / accepted-unverified in D4 | Local resolved root spec and independently chosen namespace/package scope; cross-project signer/scope rejection before admission (AC-07; D5 design contract). | T8 / D5 owner | not-run; outside D4 |
 
 TC-02 decision table runs for each independent consumer. Every rejection uses
@@ -122,3 +124,49 @@ Static review follows the generated consumer's direct Catalog/Store calls,
 fixture registration and recipe definitions. No new production library symbol or
 release path is changed; dynamic/runtime callers are not established by this
 source review. D5 cache authority remains separate.
+
+## Full native consumer workflow — 2026-10-03
+
+The existing opt-in case
+`reuse::independent_projects_reuse_catalog_and_store_without_kedra_authority`
+passes **1/1, zero failures, zero ignored** in 184.86 seconds; actual parent wait
+is 0 and total guarded duration is 187.093 seconds. It runs from archived owning
+D4 `d591d2e0865cbaa68662ae7f50a6c398dab183dc`, with test SHA256
+`c41b66f336beee867f45538c93915dba44cad2ba5dae2d27fc3950ff95805910`
+and pinned D3 product CLI
+`541d814eefe7d6c72de66e3ae79b85130fb8a8dda4bd14976010d3b0f12635e3`.
+Ordinary Git diff finds no Rust or Cargo-manifest change from that source to
+rebased D4 `116c693cd87c67fc1edd4a31f1deefecafd1bbaf`; the later D2 diagnostic
+change is outside this case. This is exact local execution evidence, not a claim
+that every remote check at the rewritten head has passed.
+
+The real workflow compiles both external consumers, enforces their policy, builds
+and reuses native report/library outputs, observes Fieldkit **43→57→43** and
+Observatory **20**, transfers runtime-only closures after removing sources and
+making the producer unavailable, keeps two profile generations and rolls back,
+collects the unrooted orphan, and preserves the other project's profile index,
+object receipt, sentinel and output. It satisfies D4 AC-01–AC-07. TC-09 is separate.
+
+The successful fixture is removed; three observed store identities have zero
+remaining owned containers and the owned host process group is absent. Selected
+image RootFS/repository digests and pinned product/test executables remain
+unchanged. Guard `6cd06003…` preserves 35 GiB trigger/30 GiB floor with a 15 GiB
+allocation ceiling. Peak combined owned allocation, including the retained failed
+attempt, is 3,038,093,312 bytes; minimum Linux/host free space is
+73,171,247,104 / 77,842,366,464 bytes.
+
+Safe evidence: `target/nix-delivery/d4-native-run2/result.json`, SHA256
+`602cc155533ee7bc4d0cca8c59d9d1d72a996c32432ab7596171c636e607b9da`,
+plus `test.stdout`, `test-guard.json`, observed store identities and retained
+actual consumer binary hashes. No raw private fixture data is published.
+
+The first attempt remains a **guard failure**, not a test pass: its observer
+expected 32 hexadecimal characters while the engine emits 64-character identities.
+The original child exit became unavailable after the guard exited and is not
+invented. Exact ownership was rechecked before SIGKILL to the stopped owned process
+group; subsequent process/container absence passed and the failed fixture remains
+retained. See `target/nix-delivery/d4-native-run/failed-attempt1-settlement.json`.
+The fresh successful run does not relabel that earlier outcome.
+
+D3 Fedora compiler/jq/SQLite and installed service, D2 media/VM/signing, and D5
+authenticated cache/fault/ENOSPC cases are explicitly outside this D4 pass.

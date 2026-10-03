@@ -144,3 +144,24 @@ offline executables, with no workstation installation. This case qualifies
 source-copy/admission failure only, not metadata publication, Docker-layer
 exhaustion or power-loss durability. Four native interruption windows remain
 pending; debugger readiness alone does not qualify them.
+
+
+## Native debugger readiness — 2026-10-03
+
+**Blocked before all four native publication windows.** On source2b and unchanged
+lab53b006f6, the first Mac LLDB invocation refuses an unsupported setting
+(debugger exit1, owned inferior signal9). The corrected invocation times out20s
+attaching the exact stopped inferior; debugger and inferior actual waits are
+signal9. Scoped logs bind the orphan debugserver to that inferior; exact SIGTERM
+and absence after6.7ms settle it. Its parent wait is unavailable, not inferred
+from absence. No permission denial, approval dialog or successful attach is
+established; hardware-breakpoint/detach readiness was not reached and no host
+permissions changed. Safe aggregate `target/nix-delivery/d5-native-faults/result.json`
+SHA `92c69bad5b2e4bf22c9ef1c3cde9c044fafb2c33d9912b11d75d3cee0f516969`.
+
+A target-only isolated GDB image/command proposal is prepared, not executed.
+It uses the observed immutable Debian13.7 controller image, official arm64
+GDB16.3-1 artifact identity, ordinary UID502/private PID/default seccomp with
+explicit ptrace and daemon-socket authority, unchanged budget and a new exact2b
+Linux lab build. Missing-tool installation requires the operator's explicit
+choice under AGENTS.md; it does not justify weakening native identity or tests.

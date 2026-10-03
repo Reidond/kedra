@@ -22,6 +22,11 @@ pub struct Options {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Recover abandoned registered context/native snapshots without contacting Docker.
+    Recover {
+        #[arg(long)]
+        workdir: PathBuf,
+    },
     /// Verify exported context bytes against an independently retained identity.
     Verify {
         #[arg(long)]
@@ -173,19 +178,32 @@ fn json(value: &impl serde::Serialize) -> Result<()> {
 
 pub fn run(options: Options) -> Result<()> {
     match options.command {
+        Command::Recover { workdir } => {
+            let result = sysroot_engine::recover_snapshots(&workdir)?;
+            if !result.refused.is_empty() {
+                // Refusal detail is diagnostic data, never a successful cleanup result.
+                eprintln!("{}", serde_json::to_string(&result)?);
+                return Err(Error::RecoveryRequired(
+                    "some managed snapshots were refused".into(),
+                ));
+            }
+            json(&result)
+        }
         Command::Verify {
             context,
             expected_identity,
             workdir,
         } => {
             let verified = VerifiedComposition::open(&context, &expected_identity, &workdir)?;
-            json(&serde_json::json!({
+            let result = serde_json::json!({
                 "schema": 1,
                 "identity": verified.composition().identity,
                 "foundation": verified.composition().plan.foundation.receipt.image,
                 "objects": verified.composition().plan.objects.len(),
                 "scope": "static context bytes"
-            }))
+            });
+            verified.finish()?;
+            json(&result)
         }
         Command::Plan(inputs) => {
             let definition = definition(&inputs)?;

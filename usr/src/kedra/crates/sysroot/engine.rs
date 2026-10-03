@@ -1,10 +1,13 @@
-use std::io::Write;
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Args, Subcommand};
 use serde::Serialize;
-use sysroot_engine::{Error, Result, RunResult, Store};
+use sysroot_engine::{CachePolicy, Error, Result, RunResult, Store, verify_cache_receipt};
 
 #[derive(Args)]
 pub struct BuildOptions {
@@ -67,6 +70,8 @@ enum StoreCommand {
         #[arg(long)]
         expected_sha256: String,
     },
+    /// Authenticate a producer's closure against selected policy and a resolved recipe.
+    Substitute(CacheOptions),
     /// Retain an object independently of profiles.
     Pin(ObjectOptions),
     /// Remove one explicit object root; referenced/profile objects remain retained.
@@ -93,6 +98,29 @@ enum StoreCommand {
 struct StorePath {
     #[arg(long)]
     store: PathBuf,
+}
+
+#[derive(Args)]
+struct CacheOptions {
+    #[command(flatten)]
+    path: StorePath,
+    #[arg(long)]
+    bundle: PathBuf,
+    #[arg(long)]
+    receipt: PathBuf,
+    #[arg(long)]
+    signature: PathBuf,
+    #[arg(long)]
+    public_key: PathBuf,
+    #[arg(long)]
+    cache_policy: PathBuf,
+    /// Independently selected publisher/project scope, separate from recipe identity.
+    #[arg(long)]
+    scope: String,
+    #[arg(long)]
+    plan: PathBuf,
+    #[arg(long)]
+    root: String,
 }
 
 #[derive(Args)]
@@ -225,6 +253,7 @@ fn store_command(command: StoreCommand) -> Result<ExitCode> {
             bundle,
             expected_sha256,
         } => json(&Store::open(&path.store)?.import(&bundle, &expected_sha256)?),
+        StoreCommand::Substitute(options) => substitute(options),
         StoreCommand::Pin(options) => {
             Store::open(&options.path.store)?.pin(&options.object)?;
             json(&serde_json::json!({"pinned": options.object}))
@@ -240,6 +269,77 @@ fn store_command(command: StoreCommand) -> Result<ExitCode> {
         StoreCommand::Gc { path, delete } => json(&Store::open(&path.store)?.gc(delete)?),
         StoreCommand::Recover(path) => json(&Store::recover(&path.store)?),
     }
+}
+
+fn cache_bytes(path: &Path, limit: u64) -> Result<Vec<u8>> {
+    let input: File = rustix::fs::openat(
+        rustix::fs::CWD,
+        path,
+        rustix::fs::OFlags::RDONLY
+            | rustix::fs::OFlags::NOFOLLOW
+            | rustix::fs::OFlags::NONBLOCK
+            | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::empty(),
+    )?
+    .into();
+    let before = input.metadata()?;
+    if !before.is_file() || before.nlink() != 1 || before.len() > limit {
+        return Err(Error::Invalid(
+            "cache input must be an ordinary file".into(),
+        ));
+    }
+    let mut bytes = Vec::new();
+    (&input).take(limit + 1).read_to_end(&mut bytes)?;
+    let after = input.metadata()?;
+    if bytes.len() as u64 != before.len()
+        || after.len() != before.len()
+        || after.mtime() != before.mtime()
+        || after.mtime_nsec() != before.mtime_nsec()
+        || after.ctime() != before.ctime()
+        || after.ctime_nsec() != before.ctime_nsec()
+    {
+        return Err(Error::Invalid("cache input changed while reading".into()));
+    }
+    Ok(bytes)
+}
+
+fn substitute(options: CacheOptions) -> Result<ExitCode> {
+    let graph = sysroot_engine::read_graph(&options.plan)?;
+    let resolved = sysroot_engine::plan(&graph, &options.root)?;
+    let expected = resolved
+        .specs
+        .get(&options.root)
+        .ok_or_else(|| Error::Invalid("resolved cache recipe is absent".into()))?;
+    let policy: CachePolicy = serde_json::from_slice(&cache_bytes(
+        &options.cache_policy,
+        sysroot_engine::MAX_JSON,
+    )?)?;
+    if policy.scope != options.scope {
+        return Err(Error::Invalid(
+            "cache policy differs from independently selected scope".into(),
+        ));
+    }
+    let key = String::from_utf8(cache_bytes(&options.public_key, 4096)?)
+        .map_err(|_| Error::Invalid("cache public key is not UTF-8".into()))?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| Error::Invalid("system clock precedes Unix epoch".into()))?
+        .as_secs();
+    let verified = verify_cache_receipt(
+        &cache_bytes(&options.receipt, sysroot_engine::MAX_JSON)?,
+        &cache_bytes(&options.signature, 1024)?,
+        &key,
+        &policy,
+        expected,
+        now,
+    )?;
+    let result = Store::open(&options.path.store)?.substitute(&options.bundle, &verified)?;
+    json(&serde_json::json!({
+        "roots": result.roots,
+        "scope": verified.receipt().scope,
+        "signer_fingerprint": verified.signer_fingerprint(),
+        "deployment_authorized": false,
+    }))
 }
 
 fn profile_command(command: ProfileCommand) -> Result<ExitCode> {

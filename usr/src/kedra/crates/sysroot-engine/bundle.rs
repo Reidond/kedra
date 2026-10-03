@@ -9,8 +9,9 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, File, OpenOptions, Permissions},
     io::{Read, Write},
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     path::Path,
+    time::{SystemTime, UNIX_EPOCH},
 };
 const MAX_BUNDLE: u64 = 16 * 1024 * 1024 * 1024;
 #[derive(Serialize, Deserialize)]
@@ -102,6 +103,26 @@ impl Store {
         Ok(ExportResult { sha256, bytes })
     }
     pub fn import(&self, bundle: &Path, expected_sha256: &str) -> Result<ImportResult> {
+        self.import_checked(bundle, expected_sha256, None)
+    }
+    /// Admit an authorized binary closure after independently resolving its recipe.
+    pub fn substitute(
+        &self,
+        bundle: &Path,
+        authorization: &VerifiedCacheReceipt,
+    ) -> Result<ImportResult> {
+        self.import_checked(
+            bundle,
+            &authorization.receipt().bundle_sha256,
+            Some(authorization),
+        )
+    }
+    fn import_checked(
+        &self,
+        bundle: &Path,
+        expected_sha256: &str,
+        authorization: Option<&VerifiedCacheReceipt>,
+    ) -> Result<ImportResult> {
         if !hex(expected_sha256) {
             return Err(Error::Invalid(
                 "expected bundle SHA256 must be 64 lowercase hex digits".into(),
@@ -113,7 +134,10 @@ impl Store {
             let input: File = rustix::fs::openat(
                 rustix::fs::CWD,
                 bundle,
-                rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW,
+                rustix::fs::OFlags::RDONLY
+                    | rustix::fs::OFlags::NOFOLLOW
+                    | rustix::fs::OFlags::NONBLOCK
+                    | rustix::fs::OFlags::CLOEXEC,
                 rustix::fs::Mode::empty(),
             )?
             .into();
@@ -130,18 +154,25 @@ impl Store {
                 return Err(Error::Invalid("bundle exceeds 16 GiB".into()));
             }
             output.sync_all()?;
-            let (actual, _) = hash_file(&archive, MAX_BUNDLE)?;
+            let (actual, bytes) = hash_file(&archive, MAX_BUNDLE)?;
             if actual != expected_sha256 {
                 return Err(Error::Corrupt("bundle SHA256 differs from expected".into()));
             }
-            self.import_staged(&archive, &stage)
+            self.import_staged(&archive, &stage, &actual, bytes, authorization)
         })();
         if stage.exists() && !self.path().join("transactions/import.json").exists() {
             tree::remove(&stage)?;
         }
         result
     }
-    fn import_staged(&self, bundle: &Path, stage: &Path) -> Result<ImportResult> {
+    fn import_staged(
+        &self,
+        bundle: &Path,
+        stage: &Path,
+        sha256: &str,
+        bundle_bytes: u64,
+        authorization: Option<&VerifiedCacheReceipt>,
+    ) -> Result<ImportResult> {
         let mut archive = tar::Archive::new(File::open(bundle)?);
         let mut members = archive.entries()?;
         let mut first = members
@@ -266,6 +297,23 @@ impl Store {
             }
         }
         let order = dependency_order(&manifest)?;
+        if let Some(authorization) = authorization {
+            let root = manifest
+                .objects
+                .get(&authorization.receipt().root.object)
+                .ok_or_else(|| Error::Invalid("authorized bundle root is absent".into()))?;
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| Error::Invalid("system clock precedes Unix epoch".into()))?
+                .as_secs();
+            authorization.validate_bundle(
+                &manifest.roots,
+                &root.receipt,
+                sha256,
+                bundle_bytes,
+                now,
+            )?;
+        }
         let journal = ImportJournal {
             schema: 1,
             token: self.token.clone(),
@@ -278,7 +326,7 @@ impl Store {
             images: manifest.images.keys().cloned().collect(),
             roots: manifest.roots.clone(),
         };
-        write_json_new(&self.path().join("transactions/import.json"), &journal)?;
+        self.publish_import_journal(&journal)?;
         for (id, receipt) in &manifest.images {
             self.admit_image(&stage.join("images").join(&id[7..]), receipt)?;
         }
@@ -301,6 +349,7 @@ impl Store {
         })
     }
     pub(crate) fn recover_import(&self) -> Result<()> {
+        self.retire_import_next()?;
         let path = self.path().join("transactions/import.json");
         if !path.exists() {
             return Ok(());
@@ -331,6 +380,76 @@ impl Store {
         self.save_roots(&roots)?;
         tree::remove(&self.path().join("transactions").join(&journal.stage))?;
         fs::remove_file(path)?;
+        Ok(())
+    }
+    fn publish_import_journal(&self, journal: &ImportJournal) -> Result<()> {
+        let directory = self.path().join("transactions");
+        let pending = directory.join("import.next");
+        let destination = directory.join("import.json");
+        write_json_new(&pending, journal)?;
+        // A complete fsynced record is linked without replacement. Admission
+        // starts only after the extra link is retired and the directory synced.
+        fs::hard_link(&pending, &destination)?;
+        File::open(&directory)?.sync_all()?;
+        fs::remove_file(&pending)?;
+        File::open(directory)?.sync_all()?;
+        Ok(())
+    }
+    fn retire_import_next(&self) -> Result<()> {
+        let directory = self.path().join("transactions");
+        let pending = directory.join("import.next");
+        let metadata = match fs::symlink_metadata(&pending) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error.into()),
+        };
+        if !metadata.is_file()
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.mode() & 0o7777 != 0o600
+        {
+            return Err(Error::RecoveryRequired(
+                "unsafe import publication temporary".into(),
+            ));
+        }
+        let destination = directory.join("import.json");
+        match metadata.nlink() {
+            1 => match fs::symlink_metadata(&destination) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+                Ok(_) => {
+                    return Err(Error::RecoveryRequired(
+                        "import temporary conflicts with journal".into(),
+                    ));
+                }
+            },
+            2 => {
+                let published = fs::symlink_metadata(&destination)?;
+                if !published.is_file()
+                    || published.dev() != metadata.dev()
+                    || published.ino() != metadata.ino()
+                {
+                    return Err(Error::RecoveryRequired(
+                        "import temporary aliases another file".into(),
+                    ));
+                }
+                let journal: ImportJournal = read_json(&destination)?;
+                if journal.schema != 1 || journal.token != self.token {
+                    return Err(Error::RecoveryRequired(
+                        "import journal identity differs".into(),
+                    ));
+                }
+                crate::store::stage_name(&journal.stage)?;
+            }
+            _ => {
+                return Err(Error::RecoveryRequired(
+                    "import temporary has unexpected aliases".into(),
+                ));
+            }
+        }
+        // A lone partial temporary cannot have authorized admission. Its exact
+        // reserved name lives under the locked private store transaction root.
+        fs::remove_file(pending)?;
+        File::open(directory)?.sync_all()?;
         Ok(())
     }
 }

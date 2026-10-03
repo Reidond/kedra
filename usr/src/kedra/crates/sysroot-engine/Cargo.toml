@@ -10,6 +10,8 @@ path = "lib.rs"
 doctest = false
 
 [dependencies]
+base64.workspace = true
+p256.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

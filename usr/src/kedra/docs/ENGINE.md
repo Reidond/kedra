@@ -32,3 +32,10 @@ First support limits: local Unix Docker endpoints, native ARM, single output per
 derivation, one runtime image per closure and Docker29 OCI save archives. Native
 x86_64, remote endpoints/caches, existing `.nix` expressions/nixpkgs and complete
 kernel/boot/SELinux composition are not qualified by this implementation.
+
+The D5 draft adds authenticated substitution of an explicitly supplied local
+bundle, using a cache-specific key and consumer-resolved recipe/scope, plus leased
+composition/native temporary snapshots and `sysroot system recover`. These APIs
+are independent of OS signing and sysroot-core. The [library guide](../crates/sysroot-engine/README.md)
+describes the inputs and refusal boundaries; actual signed-transfer, native fault
+and bounded Linux ENOSPC outcomes remain unqualified.

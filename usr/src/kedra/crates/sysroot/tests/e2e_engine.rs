@@ -2,6 +2,8 @@
 //! ignored listing is not evidence of building, transferring or running a package.
 #![cfg(unix)]
 
+mod cache_recovery;
+
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::PermissionsExt;

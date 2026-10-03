@@ -1525,7 +1525,7 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Next: finish the exact bounded capacity plan/readback and start the reviewed warm invocation promptly under existing authorization. Preserve all earlier failed helper/constructor and capacity observations as distinct evidence.
 
 ### WL-20261003-01 — 2026-10-03 — Publish reviewable delivery layers while retaining runtime gates
-- Agent / state: Codex delivery coordinator; in-progress.
+- Agent / state: Codex delivery coordinator; partial, draft published and runtime gates retained.
 - Scope / base: `codex/nix-release-composition`, inspected `0b8bd1bd5e17127ed9c77db4ed645f8fb16ecb0b`, immediate parent D1 `712927e`; D3–D5 untracked preparation preserved.
 - Completed: verified tracked-clean ownership, stack ancestry and exact parent PR33 open/draft/current CI success. Publication is now separated from qualification: D2 draft will explicitly retain failed/not-run media and VM gates, then the current native-template D3 and reconciled D4/D5 packets will be adopted in dependency order.
 - Checks / evidence: pass — current pinned Rust 1.98.1 formatting and all-target Clippy; Ruff and Bash syntax. Ordinary CLI E2E passes 11 cases (six Docker cases ignored); workspace release build and both release-material/OpenSSL interoperability workflows pass. Exact frozen Docker endpoint has no running containers; runtime worker confirms retained controller/default stopped and owns further runtime audit.
@@ -1534,7 +1534,7 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Runtime audit follow-up: retained controller is restarted after its overnight exit; no media, signing or VM is started. Safe `d2-runtime/resume-20261003/audit.json` records old TLS validity refusal, Linux capacity 81,125,748,736 bytes below warm admission 81,695,739,904, and Podman refusal on stale boot-ID runtime directories. Bounded runtime recovery is separately owned; source publication continues.
 
 ### WL-20261003-02 — 2026-10-03 — Adopt real Rust catalog above published D2
-- Agent / state: Codex delivery coordinator; in-progress.
+- Agent / state: Codex delivery coordinator; partial, draft published and runtime gates retained.
 - Scope / base: `codex/nix-package-catalog` above D2 `582049b31a8b9cc0960586953a9c06b8ed5e5a95`. D2 is published/attached as draft PR34 with exact immediate base PR33.
 - Completed: gh-stack publication/readback confirms D2 open/draft. Adopted twenty D3 implementation paths from manifest `f9869424508b8fc28934c29b983f270e038bb984407e07326b8bc99ee7799983`, with current preimages and prepared hashes checked before writes. Later D2 fixture corrections are preserved. Native `.sh`, `.conf` and `.service` files own configuration text; Rust supplies typed closed bindings and inventory.
 - Checks / evidence: D2 current ordinary gates pass as recorded in WL-20261003-01. D3 owning-source fmt/Clippy/release build, two public catalog cases, released list/pins, Ruff/Bash/YAML and whitespace pass; real application case is ignored. Both enabled-target release-material workflows also pass. Previous private compiler evidence remains historical.
@@ -1542,12 +1542,23 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Next: run D3 standard and public catalog gates, publish its own truthful draft, then adopt D4.
 
 ### WL-20261003-03 — 2026-10-03 — Adopt independent catalog consumers
-- Agent / state: Codex delivery coordinator; in-progress.
+- Agent / state: Codex delivery coordinator; partial, draft published and runtime gates retained.
 - Scope / base: `codex/nix-second-consumer`, D3 `808405e4ed0e45ddcac6a42d937375c42f027fa5`, now published/attached as draft PR35 above D2 PR34.
 - Completed: adopted the four-path D4 delta from exact reconciled manifest `6813bf1b3448b5c7dae1ec9652e1cded797196c56604ab1117d339b0acc9414b`; all twenty native-template D3 implementation paths stay unchanged. Generated separate Fieldkit/Observatory workspaces using the public engine/catalog API and their own definitions.
 - Checks / evidence: pass — pinned fmt/all-target Clippy/release build; two independent external consumers compile offline and directly execute resolution with an unavailable daemon, all five policy-category refusals, other-project policy refusal and unknown-package distinction. Receipt: `publication/d4-consumers/manual-results.json`. Real native image/store/build/transfer/profile/GC workflow remains not-run.
 - Remaining / blockers: the full independent-consumer workflow requires serialized native Docker resources; no runtime pass follows from source preparation.
 - Next: finish compiler/manual pure policy gates and publish the D4 draft, then adopt D5.
+
+### WL-20261003-04 — 2026-10-03 — Adopt trusted cache and leased recovery
+- Agent / state: Codex delivery coordinator; in-progress.
+- Scope / base: `codex/nix-cache-recovery` above D4 `d591d2e`, now published/attached as draft PR36.
+- Completed: adopted the seventeen-path D5 delta from reconciled manifest `ed7333434da66f798a569568bc9e8bc0f4baa9cb9a8f9a2f591fec400f71c14f`, validating current base/prepared hashes. Generic engine cache verification and snapshot leases remain independent of sysroot-core; native templates are preserved.
+- Checks / evidence: pass — current fmt/Clippy/Ruff; first fmt failure corrected only two ENOSPC fixture layouts. Pinned debug CLI metadata FIFO/symlink/hardlink refusals pass with destinations absent and inputs preserved (`publication/d5-input-refusals/results.json`). Focused independent source review is clear; full ordinary CLI E2E passes 13 cases with 11 ignored; release build passes in 49 seconds; final mode-0500 host binaries are pinned under `publication/d5-binaries`. Public bundle FIFO/symlink/directory refusals also preserve an admitted root and leave no journal; initial add-source-before-init invocation was corrected explicitly. None of this qualifies actual native faults.
+- Remaining / blockers: signed native substitution, stopped-reader/SIGKILL leases, native publication windows and bounded Linux ENOSPC are not-run. Heavy runtime is separately serialized with the incomplete D2 qualification.
+- Next: finish owning-source gates and draft publication, then continue actual runtime qualification with source/executable identity pinned.
+- Runtime recovery checkpoint: bounded stale Podman runtime directories are preserved by rename. Final full-content comparison passes with the disclosed SQLite VolumeState BLOB→TEXT representation delta (each 37-byte value unchanged); 45 images, two volumes, zero inner containers and both MountCount0 remain. Final proof SHA `17d34fac23e41d720825be72a005998b203056faecef6b2e6873e89d428c2076`, `d2-runtime/resume-20261003/recovery-summary.json`. Latest Linux/host capacity is 73,070,911,488 / 77,944,786,944 bytes; filesystem total shrank during the read-only scan with cause unestablished. No signing/media/VM starts; fresh TLS and resource admission remain required.
+- Remote checkpoint: D2 PR34 and D3 PR35 both architecture workspace checks pass; D2 native workflow fails and is under independent read-only diagnosis. Other runtime jobs remain in progress; no all-green result is claimed.
+- Final D5 source gates: release-material for both targets and independent OpenSSL interoperability pass. Updated external cache consumers compile and reject actual FIFO/foreign scope before store access; a scratch-only omitted rustix dependency was corrected to match the already-correct tracked generator. Original D4 binaries remain unchanged. D2 native CI diagnosis identifies Quay CDN blob EOF on the pinned amd64 builder pull (run37107489350/job111158768746), before keys/registry/VM; no code fix is warranted by that evidence.
 
 ### WL-20261003-06 — 2026-10-03 — Preserve bounded D2 failure diagnostics before retry
 - Agent / state: Codex delivery coordinator; in-progress.

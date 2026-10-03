@@ -2,6 +2,8 @@
 #[cfg(unix)]
 mod bundle;
 #[cfg(unix)]
+mod cache;
+#[cfg(unix)]
 mod context;
 #[cfg(unix)]
 mod executor;
@@ -14,17 +16,27 @@ mod plan;
 #[cfg(unix)]
 mod profile;
 #[cfg(unix)]
+mod snapshot;
+#[cfg(unix)]
 mod store;
 #[cfg(unix)]
 mod system;
 #[cfg(unix)]
 mod tree;
 #[cfg(unix)]
+pub use cache::{
+    CACHE_RECEIPT_PURPOSE, CachePolicy, CacheReceipt, VerifiedCacheReceipt, verify_cache_receipt,
+};
+#[cfg(unix)]
 pub use context::VerifiedComposition;
 pub use model::*;
 #[cfg(unix)]
 pub use native::*;
 pub use plan::{plan, read_graph};
+#[cfg(unix)]
+pub use snapshot::{
+    ManagedSnapshot, SnapshotPurpose, SnapshotRecovery, SnapshotRefusal, recover_snapshots,
+};
 #[cfg(unix)]
 pub use store::Store;
 #[cfg(unix)]

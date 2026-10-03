@@ -3,8 +3,10 @@
 use super::{BUILDER, Capture, Fixture, RUNTIME, run, sha256, string, text};
 use serde_json::{Value, json};
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn consumer(fixture: &Fixture, project: &str, program: &str) -> PathBuf {
     let directory = fixture.path(&format!("{project}-consumer"));
@@ -26,6 +28,7 @@ sysroot-engine = {{ path = {} }}
 sysroot-catalog = {{ path = {} }}
 serde = "1.0"
 serde_json = "1.0"
+rustix = {{ version = "1.1.4", features = ["fs"] }}
 [profile.dev]
 debug = false
 "#,
@@ -423,5 +426,337 @@ fn independent_projects_reuse_catalog_and_store_without_kedra_authority() {
     );
     println!(
         "external projects passed: independent compilation, catalog policy, native calculations, transfer, profiles, rollback and GC isolation"
+    );
+}
+
+struct CacheSigner {
+    private: PathBuf,
+    public: PathBuf,
+    fingerprint: String,
+}
+
+fn cache_signer(fixture: &Fixture, label: &str) -> CacheSigner {
+    let private = fixture.path(&format!("{label}-private.pem"));
+    let public = fixture.path(&format!("{label}-public.pem"));
+    let der = fixture.path(&format!("{label}-public.der"));
+    run(Command::new("openssl")
+        .args([
+            "genpkey",
+            "-algorithm",
+            "EC",
+            "-pkeyopt",
+            "ec_paramgen_curve:P-256",
+            "-out",
+        ])
+        .arg(&private))
+    .success();
+    fs::set_permissions(&private, fs::Permissions::from_mode(0o600)).unwrap();
+    run(Command::new("openssl")
+        .args(["pkey", "-in"])
+        .arg(&private)
+        .args(["-pubout", "-out"])
+        .arg(&public))
+    .success();
+    run(Command::new("openssl")
+        .args(["pkey", "-pubin", "-in"])
+        .arg(&public)
+        .args(["-outform", "DER", "-out"])
+        .arg(&der))
+    .success();
+    CacheSigner {
+        private,
+        public,
+        fingerprint: sha256(&der),
+    }
+}
+
+fn sign_cache(fixture: &Fixture, signer: &CacheSigner, receipt: &Value) -> (PathBuf, PathBuf) {
+    let receipt = fixture.write_json("external-cache-receipt.json", receipt);
+    let der = fixture.path("external-cache-signature.der");
+    let signature = fixture.path("external-cache-signature.txt");
+    run(Command::new("openssl")
+        .args(["dgst", "-sha256", "-sign"])
+        .arg(&signer.private)
+        .arg("-out")
+        .arg(&der)
+        .arg(&receipt))
+    .success();
+    run(Command::new("openssl")
+        .args(["base64", "-A", "-in"])
+        .arg(&der)
+        .arg("-out")
+        .arg(&signature))
+    .success();
+    (receipt, signature)
+}
+
+struct CacheSelection<'a> {
+    consumer: &'a Path,
+    store: &'a Path,
+    catalog: &'a Path,
+    catalog_policy: &'a Path,
+    package: &'a str,
+    cache_policy: &'a Path,
+    bundle: &'a Path,
+}
+
+fn substitute_cache(
+    fixture: &Fixture,
+    selection: &CacheSelection<'_>,
+    signer: &CacheSigner,
+    receipt: &Value,
+) -> Capture {
+    let (receipt, signature) = sign_cache(fixture, signer, receipt);
+    invoke(
+        selection.consumer,
+        &[
+            "substitute",
+            text(selection.store),
+            text(selection.catalog),
+            text(selection.catalog_policy),
+            selection.package,
+            text(selection.cache_policy),
+            text(&receipt),
+            text(&signature),
+            text(&signer.public),
+            text(selection.bundle),
+        ],
+    )
+}
+
+struct CacheStoreState {
+    object: String,
+    receipt: Value,
+    roots: Vec<u8>,
+    sentinel: PathBuf,
+}
+
+fn cache_receiver(fixture: &Fixture, binary: &Path, store: &Path, label: &str) -> CacheStoreState {
+    invoke(binary, &["init", text(store)]).json();
+    let source = fixture.path(&format!("{label}-sentinel-source"));
+    fs::create_dir(&source).unwrap();
+    fs::write(
+        source.join("reading"),
+        b"preexisting immutable receiver data\n",
+    )
+    .unwrap();
+    let object = string(
+        &invoke(binary, &["admit-source", text(store), text(&source)]).json(),
+        "object",
+    );
+    let sentinel = store.join("project-sentinel");
+    fs::write(&sentinel, b"receiver-owned sentinel\n").unwrap();
+    CacheStoreState {
+        receipt: invoke(binary, &["verify", text(store), &object]).json(),
+        object,
+        roots: fs::read(store.join("roots/state.json")).unwrap(),
+        sentinel,
+    }
+}
+
+fn unchanged_cache_store(binary: &Path, store: &Path, state: &CacheStoreState) {
+    assert_eq!(
+        fs::read(store.join("roots/state.json")).unwrap(),
+        state.roots
+    );
+    assert_eq!(
+        fs::read(&state.sentinel).unwrap(),
+        b"receiver-owned sentinel\n"
+    );
+    assert_eq!(
+        invoke(binary, &["verify", text(store), &state.object]).json(),
+        state.receipt
+    );
+    let unselected = invoke(binary, &["gc-plan", text(store)]).json();
+    assert_eq!(
+        unselected["objects"],
+        json!([]),
+        "refusal admitted an unselected object"
+    );
+    assert_eq!(
+        unselected["images"],
+        json!([]),
+        "refusal admitted an unselected image"
+    );
+    assert_eq!(unselected["deleted"], false);
+}
+
+#[test]
+#[ignore = "requires native ARM Docker, retained images and OpenSSL; runs independently compiled consumers with signed cache policy"]
+fn independent_consumers_authenticate_cache_before_store_admission() {
+    let fixture = Fixture::new();
+    let fieldkit = consumer(&fixture, "fieldkit", "bin/field-report");
+    let observatory = consumer(&fixture, "observatory", "bin/station-report");
+    let producer = fixture.path("signed-cache-producer");
+    let source = source(&fixture, "fieldkit", "v1", 2, 1, "5\n7\n8\n");
+    let source_id = string(
+        &invoke(
+            &fieldkit,
+            &["admit", text(&producer), text(&source), BUILDER, RUNTIME],
+        )
+        .json(),
+        "object",
+    );
+    let declaration = declare(&fixture, &fieldkit, &source_id, "1.0.0", "signed-fieldkit");
+    let output = report_id(&build(&fieldkit, &producer, &declaration));
+    let root_receipt = invoke(&fieldkit, &["verify", text(&producer), &output]).json();
+    let bundle = fixture.path("signed-fieldkit.tar");
+    let exported = invoke(
+        &fieldkit,
+        &["export", text(&producer), &output, text(&bundle)],
+    )
+    .json();
+    let selected = cache_signer(&fixture, "selected-cache-authority");
+    let unauthorized = cache_signer(&fixture, "unauthorized-cache-authority");
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let policy = json!({"schema":1, "scope":"fieldkit/report", "revision":3,
+        "valid_from":now-60, "valid_until":now+7200, "trusted_keys":[selected.fingerprint]});
+    let policy_path = fixture.write_json("fieldkit-cache-policy.json", &policy);
+    let receipt = json!({"schema":1, "purpose":"sysroot-engine-binary-cache-v1",
+        "scope":"fieldkit/report", "policy_revision":3, "valid_from":now-30,
+        "valid_until":now+3600, "bundle_sha256":exported["sha256"],
+        "bundle_bytes":exported["bytes"], "root":root_receipt});
+    let receiver = fixture.path("fieldkit-cache-receiver");
+    let station = fixture.path("observatory-cache-receiver");
+    let field_before = cache_receiver(&fixture, &fieldkit, &receiver, "fieldkit");
+    let station_before = cache_receiver(&fixture, &observatory, &station, "observatory");
+    let normal = CacheSelection {
+        consumer: &fieldkit,
+        store: &receiver,
+        catalog: &declaration.catalog,
+        catalog_policy: &declaration.policy,
+        package: "report",
+        cache_policy: &policy_path,
+        bundle: &bundle,
+    };
+
+    // Identical recipes deliberately appear under another namespace/package.
+    // A resolved output identity alone cannot authorize either name.
+    let mut other_catalog = declaration.document["catalog"].clone();
+    other_catalog["namespace"] = json!("observatory");
+    let mut other_policy = declaration.document["policy"].clone();
+    other_policy["namespace"] = json!("observatory");
+    let other_catalog = fixture.write_json("same-recipe-other-namespace.json", &other_catalog);
+    let other_policy = fixture.write_json("same-recipe-other-policy.json", &other_policy);
+    let other_resolved = invoke(
+        &observatory,
+        &[
+            "resolve",
+            text(&other_catalog),
+            text(&other_policy),
+            "report",
+        ],
+    )
+    .json();
+    assert_eq!(other_resolved["plan"]["outputs"]["report"], output);
+    let wrong_namespace = CacheSelection {
+        consumer: &observatory,
+        store: &station,
+        catalog: &other_catalog,
+        catalog_policy: &other_policy,
+        ..normal
+    };
+    substitute_cache(&fixture, &wrong_namespace, &selected, &receipt)
+        .refused("cache scope differs from selected catalog namespace/package");
+    unchanged_cache_store(&observatory, &station, &station_before);
+    let absent = fixture.path("must-not-create-on-scope-refusal");
+    let absent_namespace = CacheSelection {
+        store: &absent,
+        ..wrong_namespace
+    };
+    substitute_cache(&fixture, &absent_namespace, &selected, &receipt)
+        .refused("cache scope differs from selected catalog namespace/package");
+    assert!(!absent.exists());
+
+    let mut alias_catalog = declaration.document["catalog"].clone();
+    alias_catalog["packages"]["alternate"] = alias_catalog["packages"]["report"].clone();
+    let mut alias_policy = declaration.document["policy"].clone();
+    alias_policy["packages"] = json!(["alternate"]);
+    let alias_catalog = fixture.write_json("same-recipe-other-package.json", &alias_catalog);
+    let alias_policy = fixture.write_json("same-recipe-other-package-policy.json", &alias_policy);
+    let alias_resolved = invoke(
+        &fieldkit,
+        &[
+            "resolve",
+            text(&alias_catalog),
+            text(&alias_policy),
+            "alternate",
+        ],
+    )
+    .json();
+    assert_eq!(alias_resolved["plan"]["outputs"]["report"], output);
+    let wrong_package = CacheSelection {
+        catalog: &alias_catalog,
+        catalog_policy: &alias_policy,
+        package: "alternate",
+        ..normal
+    };
+    substitute_cache(&fixture, &wrong_package, &selected, &receipt)
+        .refused("cache scope differs from selected catalog namespace/package");
+    unchanged_cache_store(&fieldkit, &receiver, &field_before);
+
+    substitute_cache(&fixture, &normal, &unauthorized, &receipt).refused("not authorized");
+    unchanged_cache_store(&fieldkit, &receiver, &field_before);
+    let absent_key_store = fixture.path("must-not-open-on-key-refusal");
+    let absent_key = CacheSelection {
+        store: &absent_key_store,
+        ..normal
+    };
+    substitute_cache(&fixture, &absent_key, &unauthorized, &receipt).refused("not authorized");
+    assert!(!absent_key_store.exists());
+    for (field, value) in [
+        ("scope", json!("observatory/report")),
+        ("scope", json!("fieldkit/alternate")),
+        ("policy_revision", json!(2)),
+    ] {
+        let mut changed = receipt.clone();
+        changed[field] = value;
+        substitute_cache(&fixture, &normal, &selected, &changed).refused("receipt scope");
+        unchanged_cache_store(&fieldkit, &receiver, &field_before);
+    }
+    let mut wrong_recipe = receipt.clone();
+    wrong_recipe["root"]["derivation"]["platform"] = json!("x86_64-linux");
+    substitute_cache(&fixture, &normal, &selected, &wrong_recipe)
+        .refused("independently resolved recipe");
+    unchanged_cache_store(&fieldkit, &receiver, &field_before);
+    let absent_recipe_store = fixture.path("must-not-open-on-recipe-refusal");
+    let absent_recipe = CacheSelection {
+        store: &absent_recipe_store,
+        ..normal
+    };
+    substitute_cache(&fixture, &absent_recipe, &selected, &wrong_recipe)
+        .refused("independently resolved recipe");
+    assert!(!absent_recipe_store.exists());
+    let mut wrong_references = receipt.clone();
+    wrong_references["root"]["references"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!(format!("src-{}", "9".repeat(64))));
+    substitute_cache(&fixture, &normal, &selected, &wrong_references)
+        .refused("staged closure differs");
+    unchanged_cache_store(&fieldkit, &receiver, &field_before);
+
+    let imported = substitute_cache(&fixture, &normal, &selected, &receipt).json();
+    assert_eq!(imported["namespace"], "fieldkit");
+    assert_eq!(imported["package"], "report");
+    assert_eq!(imported["scope"], "fieldkit/report");
+    assert_eq!(imported["roots"], json!([output]));
+    assert_eq!(imported["signer_fingerprint"], selected.fingerprint);
+    fs::rename(&producer, fixture.path("signed-cache-producer-unavailable")).unwrap();
+    fs::remove_dir_all(&source).unwrap();
+    expect_output(
+        &fieldkit,
+        &["run", text(&receiver), &output],
+        "fieldkit-v1: total=43\n",
+    );
+    let reused = build(&fieldkit, &receiver, &declaration);
+    assert_eq!(reused["built"], json!([]));
+    assert_eq!(reused["reused"].as_array().unwrap().len(), 2);
+    unchanged_cache_store(&observatory, &station, &station_before);
+    println!(
+        "external signed cache: own namespace/package/key/recipe bound before store admission; producer-absent result=43; other project preserved"
     );
 }

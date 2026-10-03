@@ -610,5 +610,9 @@ pub fn prepare(docker: &Docker, request: &Request) -> Result<Replay> {
             "foundation pin differs from verified Containerfile",
         ));
     }
-    recover_or_build(docker, &verified, &cache, &key, &engine)
+    let replay = recover_or_build(docker, &verified, &cache, &key, &engine)?;
+    verified
+        .finish()
+        .map_err(|error| invalid(error.to_string()))?;
+    Ok(replay)
 }

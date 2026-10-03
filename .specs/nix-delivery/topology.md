@@ -36,7 +36,9 @@ Declared source ownership:
 
 D1 is published as draft [PR33](https://github.com/Reidond/kedra/pull/33) through
 gh-stack at observed initial head8a8796c; local signed disk/cold-warm/security/
-desktop/refusal gates pass. D2–D5 source is prepared but unadopted/unqualified.
+desktop/refusal gates pass. D2–D5 source is subsequently adopted and published as drafts PR34/PR35/PR36/PR37
+on 2026-10-03. Current source gates and narrower manual checks pass; remaining
+runtime qualification is recorded per layer and is not completed by publication.
 Later branches are created only when the
 preceding source/verification boundary is committed. Replan if file ownership
 overlaps, ARM-only integration becomes a desktop migration, a signer needs

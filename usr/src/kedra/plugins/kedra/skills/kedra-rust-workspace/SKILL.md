@@ -112,6 +112,17 @@ Keep canonical ordinary skill files and Codex/Claude manifests in usr/src/kedra/
 
 Windows Git 2.55 rejected canonical verbatim paths in GIT_CONFIG_GLOBAL; use appropriate ordinary subprocess paths for generated fixtures, separately from filesystem path validation. Native CLI/VM E2E remains the acceptance boundary.
 
+D5 source contract (2026-10-03): cache receipt authorization lives entirely in
+`sysroot-engine/cache.rs`; callers independently select recipe, scope and key
+policy, and bundle admission rechecks expiry before journal publication. Do not
+source those expectations from a producer receipt. Composition/native temporary
+inputs now use lock-backed `ManagedSnapshot` leases and explicit `finish`; keep
+the guard alive through every child reader, and recover only recognized abandoned
+entries. Source: engine cache/snapshot/bundle/context modules and
+`.specs/nix-cache-recovery`. Compiler success does not qualify signed substitution,
+stopped-reader/SIGKILL recovery, native fault windows or Linux ENOSPC; those
+remain actual workflow gates.
+
 Catalog configure probes (2026-10-03): the native engine's `/build` tmpfs is
 observed noexec with the existing Docker flags. Real jq configure and a compiled
 ELF both exit126 there on compiler image07c0e384. Recipes needing executable

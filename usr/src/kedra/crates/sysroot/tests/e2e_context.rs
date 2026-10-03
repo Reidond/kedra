@@ -5,7 +5,8 @@
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::thread;
@@ -194,12 +195,15 @@ impl Fixture {
             .arg(self.path("context"))
             .args(["--expected-identity", identity, "--workdir"])
             .arg(self.path("snapshots")));
-        assert_eq!(
-            fs::read_dir(self.path("snapshots")).unwrap().count(),
-            0,
-            "consumer leaked private snapshots"
-        );
+        self.assert_recovered();
         output
+    }
+
+    fn assert_recovered(&self) {
+        let recovered = json_output(run(self
+            .cli(&["system", "recover", "--workdir"])
+            .arg(self.path("snapshots"))));
+        assert_eq!(recovered, json!({"removed":[], "active":[], "refused":[]}));
     }
 
     fn replay(&self, identity: &str, execute: bool) -> Output {
@@ -289,6 +293,184 @@ fn context_cli_refuses_invalid_identity_and_missing_context_without_docker() {
     refused(result, "malformed independent identity");
     refused(f.verify(&"0".repeat(64)), "absent context");
     assert!(!f.producer("store").exists());
+}
+
+fn executable_hash(path: &Path) -> String {
+    let mut file = File::open(path).unwrap();
+    let mut hash = Sha256::new();
+    let mut bytes = [0_u8; 65536];
+    loop {
+        let read = file.read(&mut bytes).unwrap();
+        if read == 0 {
+            break;
+        }
+        hash.update(&bytes[..read]);
+    }
+    hash.finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn start_copy(
+    f: &Fixture,
+    context: &Path,
+    identity: &str,
+    binary: &Path,
+    expected_hash: &str,
+) -> Process {
+    assert_eq!(executable_hash(binary), expected_hash);
+    Process(
+        f.cli(&["system", "verify", "--context"])
+            .arg(context)
+            .args(["--expected-identity", identity, "--workdir"])
+            .arg(f.path("snapshots"))
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap(),
+    )
+}
+
+#[test]
+#[ignore = "requires a retained valid context and pinned binary; allocates two real verified-copy snapshots"]
+fn killed_context_copy_recovers_without_removing_a_stopped_reader() {
+    let context = PathBuf::from(
+        std::env::var_os("KEDRA_CONTEXT_FAULT_SOURCE")
+            .expect("set KEDRA_CONTEXT_FAULT_SOURCE to a retained valid context"),
+    );
+    let identity = std::env::var("KEDRA_CONTEXT_FAULT_IDENTITY")
+        .expect("set independent KEDRA_CONTEXT_FAULT_IDENTITY");
+    let binary = PathBuf::from(
+        std::env::var_os("KEDRA_ENGINE_E2E_BINARY")
+            .expect("set the pinned private product executable"),
+    );
+    let hash = executable_hash(&binary);
+    let f = Fixture::new(false);
+    let executable = fs::symlink_metadata(&binary).unwrap();
+    assert!(executable.is_file());
+    assert_eq!(executable.nlink(), 1);
+    assert_eq!(executable.permissions().mode() & 0o7777, 0o500);
+    assert_eq!(executable.uid(), fs::metadata(&f.root).unwrap().uid());
+    fs::set_permissions(f.path("snapshots"), fs::Permissions::from_mode(0o755)).unwrap();
+    let legacy = f.path("snapshots/.sysroot-context-unregistered");
+    fs::create_dir(&legacy).unwrap();
+    fs::write(legacy.join("sentinel"), b"unregistered inputs survive\n").unwrap();
+    // Start concurrent first-use consumers against an unseeded registry. Their
+    // actual scheduling may serialize publication; both must retain live leases.
+    let mut abandoned = start_copy(&f, &context, &identity, &binary, &hash);
+    let mut active = start_copy(&f, &context, &identity, &binary, &hash);
+    let registry = f.path("snapshots/.sysroot-snapshots-v1");
+    let started = Instant::now();
+    let copying = loop {
+        assert!(
+            abandoned.0.try_wait().unwrap().is_none(),
+            "first consumer missed the copy window"
+        );
+        assert!(
+            active.0.try_wait().unwrap().is_none(),
+            "second consumer missed the copy window"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(120),
+            "did not observe both actual copies"
+        );
+        let copying: Vec<_> = fs::read_dir(&registry)
+            .ok()
+            .into_iter()
+            .flatten()
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| {
+                path.join("foundation.tar")
+                    .metadata()
+                    .is_ok_and(|metadata| metadata.len() >= 1024 * 1024)
+            })
+            .collect();
+        if copying.len() == 2 {
+            break copying;
+        }
+        thread::sleep(Duration::from_millis(1));
+    };
+    for child in [&abandoned, &active] {
+        let pid = child.0.id().to_string();
+        success(run(Command::new("kill").args(["-STOP", &pid])));
+        let state = success(run(Command::new("ps").args(["-o", "stat=", "-p", &pid])));
+        assert!(
+            String::from_utf8_lossy(&state.stdout).contains('T'),
+            "consumer is not actually stopped"
+        );
+    }
+    let total = context.join("foundation.tar").metadata().unwrap().len();
+    let mut observed = BTreeMap::new();
+    for snapshot in copying {
+        let bytes = snapshot.join("foundation.tar").metadata().unwrap().len();
+        assert!(bytes < total, "copy window was missed");
+        observed.insert(
+            snapshot.file_name().unwrap().to_str().unwrap().to_owned(),
+            bytes,
+        );
+    }
+    eprintln!("two actual stopped copies: executable_sha256={hash}; bytes={observed:?}");
+    assert_eq!(executable_hash(&binary), hash);
+    let held = json_output(run(f
+        .cli(&["system", "recover", "--workdir"])
+        .arg(f.path("snapshots"))));
+    assert_eq!(executable_hash(&binary), hash);
+    assert_eq!(held["active"].as_array().unwrap().len(), 2);
+    assert_eq!(held["removed"], json!([]));
+    assert_eq!(held["refused"], json!([]));
+    abandoned.0.kill().unwrap();
+    assert_eq!(abandoned.0.wait().unwrap().signal(), Some(9));
+    assert_eq!(executable_hash(&binary), hash);
+    let recovered = json_output(run(f
+        .cli(&["system", "recover", "--workdir"])
+        .arg(f.path("snapshots"))));
+    assert_eq!(executable_hash(&binary), hash);
+    assert_eq!(recovered["removed"].as_array().unwrap().len(), 1);
+    assert_eq!(recovered["active"].as_array().unwrap().len(), 1);
+    assert_eq!(recovered["refused"], json!([]));
+    let removed = recovered["removed"][0].as_str().unwrap();
+    let survivor = recovered["active"][0].as_str().unwrap();
+    assert!(observed.contains_key(removed));
+    assert!(!registry.join(removed).exists());
+    assert_eq!(
+        registry
+            .join(survivor)
+            .join("foundation.tar")
+            .metadata()
+            .unwrap()
+            .len(),
+        observed[survivor]
+    );
+    assert_eq!(
+        fs::read(legacy.join("sentinel")).unwrap(),
+        b"unregistered inputs survive\n"
+    );
+    success(run(
+        Command::new("kill").args(["-CONT", &active.0.id().to_string()])
+    ));
+    let start = Instant::now();
+    loop {
+        if let Some(status) = active.0.try_wait().unwrap() {
+            assert!(status.success(), "surviving consumer failed after recovery");
+            break;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(600),
+            "surviving consumer deadline exceeded"
+        );
+        thread::sleep(Duration::from_millis(25));
+    }
+    assert_eq!(executable_hash(&binary), hash);
+    f.assert_recovered();
+    assert_eq!(
+        fs::metadata(f.path("snapshots"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755
+    );
 }
 
 fn graph(source: &str, foundation: &str) -> BuildGraph {
@@ -491,7 +673,7 @@ fn large_configuration_roundtrip(f: &Fixture, object: &str) {
         .args(["--expected-identity", &expected.identity, "--workdir"])
         .arg(f.path("snapshots"))));
     assert_eq!(verified["identity"], expected.identity);
-    assert_eq!(fs::read_dir(f.path("snapshots")).unwrap().count(), 0);
+    f.assert_recovered();
     let mut count = 0;
     let mut payload = tar::Archive::new(File::open(context.join("payload.tar")).unwrap());
     for entry in payload.entries().unwrap() {

@@ -1,25 +1,12 @@
 # Verified status
 
-## D4 native consumer qualification (2026-10-03)
-
-The complete existing D4 native case passes 1/1 in 184.86 seconds with actual
-parent wait0 on owning `d591d2e`; relevant Rust/Cargo bytes match rebased `116c693`.
-Fieldkit43→57→43, Observatory20, producer-absent closure transfer, two profile
-generations/rollback and isolated orphan GC are verified, with other-project
-data and selected images preserved. Owned containers/processes are absent and
-the successful fixture is removed. The initial guard-format failure and unknown
-original child exit remain separate evidence. See [D4 verification](../../../../.specs/nix-second-consumer/verification.md).
-D2 media/VM, D3 real catalog/installed service and D5 cache/fault gates remain
-pending; this local pass does not establish all-green remote CI.
-
 ## Active delivery checkpoint (2026-10-03)
 
 All five drafts are published: [D1 PR33](https://github.com/Reidond/kedra/pull/33),
 [D2 PR34](https://github.com/Reidond/kedra/pull/34), [D3 PR35](https://github.com/Reidond/kedra/pull/35),
 [D4 PR36](https://github.com/Reidond/kedra/pull/36) and [D5 PR37](https://github.com/Reidond/kedra/pull/37).
 D1, D3 and D4 are locally qualified in their recorded scope. D2 and D5 runtime
-qualification remains incomplete; no updated-head all-green CI or production
-publication is claimed.
+qualification remains incomplete; no production publication is claimed.
 
 D4's complete native consumer case passes 1/1 in 184.86s with actual parent wait0
 on frozen d591. Fieldkit43→57→43, Observatory20, producer-absent transfer, two
@@ -51,8 +38,42 @@ ARM CI failures. D5 signed cache and independent authenticated-consumer cases
 now pass1/1 each in52.09s/67.71s on frozen2b, both actual parent waits0. FIFO/auth
 refusals, producer-absent execution and signed-case forced rebuild pass; the
 independent case preserves the unrelated project. Source/binaries and cleanup
-pass. Context lease interruption, native publication faults and Linux ENOSPC
-remain pending; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker continues guarded cases from exact snapshots.
+pass. Context lease interruption/recovery also passes1/1 in6.46s with actual
+parent wait0: real stopped readers, signal9 abandonment, live-reader/foreign
+sentinel preservation and successful survivor resume. Native publication faults
+remain not-run: Mac LLDB readiness failed before attach qualification; isolated
+pinned GDB installation in the disposable image passes; debugger readiness
+remains unverified. Bounded Linux ENOSPC import/recover/retry
+now passes1/1 in1.07s
+on freshly compiled exact2b native binaries, both host/container waits0, preserving
+the existing root and foreign sentinel with separate-device proof storage. This
+is source-copy/admission exhaustion, not metadata/Docker-layer/power-loss coverage; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker has resumed the approved GDB path; D2 capacity remains a separate prerequisite.
+
+The owner-approved disposable GDB image is now built from the unchanged696 base:
+image44bbc303, GDB16.3, exact8 new packages/0 upgrades/0 removals, all16 parent
+RootFS layers preserved. Offline build passes7.0302s with actual wait0; independent
+readback container cleanup passes. Recipe03b0cf58 retains every package/baseline,
+exact simulated-plan and offline guard. Receipt `d5-gdb-execution/image-proof.json`
+SHA `ffb9f5be74527aff157c4990babbb641b8e4f3e526d4d4f1d1fca1b57505112e`.
+Bare-ID and RepoDigest lookup failures and the APT pre-dpkg pathname failure are
+preserved; named local FROM and explicitly verified cache archives resolve them.
+There is no host or retained-controller installation. Exact2b Linux lab compilation
+is next; debugger readiness and native interruption cases remain unqualified.
+
+The complete D5 acceptance plan also requires remaining authorization/content/time
+refusals and staging expiry (AC-C2), the external consumer's explicit forced
+independent rebuild (AC-C3), hostile legitimate leases and interrupted cleanup
+(AC-C5), and snapshot/publication-metadata ENOSPC (AC-C7). Four native windows
+(AC-C6) alone cannot complete D5. The64MiB source-copy/import failure does not
+qualify transaction/binding/import/root metadata publication or daemon storage.
+See WL-20261003-19 and the D5 verification record for the corrected remaining scope.
+
+D2 remains separately below its81,695,739,904-byte warm threshold: debugger-build
+final host/Linux free72,869,720,064 /68,383,899,648 bytes, before fresh-authority
+reserve. No VM admission or freed-space claim follows from debugger approval.
+Exact5ec47d5 workspace runs [37140630916](https://github.com/Reidond/kedra/actions/runs/37140630916)
+and [37140627486](https://github.com/Reidond/kedra/actions/runs/37140627486) pass
+x86/ARM checks; later-source CI and remaining runtime gates remain separate.
 
 The dated sections below retain earlier evidence and source scopes; this active
 checkpoint supersedes older preparation/inactive wording.

@@ -1,5 +1,10 @@
 # D3 evidence and remaining gates
 
+Current outcome (2026-10-03): the full native package workflow passes on exact
+source57a47cf. Installed native::catalog/PATH/service and the production BuildKit
+compiler path remain separate pending gates. Earlier preparation and failure
+entries below retain their original scopes.
+
 Recorded 2026-10-02 by Codex catalog worker. D3 is prepared, privately type/lint
 checked and not yet adopted or runtime-qualified. User authorization covers the
 owning delivery; there is no new approval dependency in this record.
@@ -181,3 +186,37 @@ full native execution remains required. CLI `eb4bf1b471fac83b5674b2a9dc23d292b82
 case binary `dfcef691bac7b98820ad653d5f93beeda40e3a000c512a3efb53f89317b0737d`
 and pins `36bcc36bf8f666eb30088f091740ac2c056e3d8aad15f76c799823e02b2a9d87`
 are retained in publication/d3-jq-mtime artifacts.
+
+## Full native catalog workflow passes — 2026-10-03
+
+The unchanged existing case `real_catalog_build_reproduce_transfer_and_query`
+passes **1/1, zero failures, zero ignored** in580.87s, actual parent wait0
+(guard584.524s). Exact source is `57a47cf6664632839eeaf35528e9873a26c5cb12`,
+CLI `eb4bf1b471fac83b5674b2a9dc23d292b8251e5bc83e82a5c32477d952a375ef`,
+E2E `dfcef691bac7b98820ad653d5f93beeda40e3a000c512a3efb53f89317b0737d`.
+The source handoff, executables and selected global image identities are unchanged.
+
+Actual assertions cover canonical sources, complete compiler/runtime archive
+admission, jq1.8.2 and SQLite3.53.4 native builds, cache reuse and forced independent
+byte reproduction for all three outputs, exact SQLite shared-library loading,
+contribution metadata and mismatched-pins refusal, importing both closures into
+an independent receiver, removing the producer before SQL/jq regex evaluation,
+the expected alpha/gamma result and receiver-profile version execution.
+Selected jq is `out-80330acbc48ca807fdfe591c4bb94e2ba60570bc1e1c014aa8a5baa69e0d0168`;
+SQLite shell/library remain `out-51f112ad…` / `out-bf28350f…`.
+
+The successful fixture is gone, owned containers and host process group are
+absent, and selected compiler07c/runtime122 global images are preserved. Peak
+charged allocation is15,826,591,744 bytes; minimum Linux/host free space is
+59,967,152,128 /61,093,240,832 bytes, with the original capacity floor respected.
+Later capacity samples are retained without assigning an unobserved accounting
+cause. Aggregate `target/nix-delivery/d3-catalog-e2e-epoch/result.json` SHA is
+`ae3dbe525592a69b4d40ad449dbbaa42c93800181320b9a757f36126612906d7`;
+its linked stdout/guard, selected graphs/policy and image observations were read.
+
+The earlier808/noexec and bc34/generated-timestamp failures remain failed with
+their receipts preserved. This is a package/contribution workflow pass, not an
+installed-image or signed deployment pass. Compiler acquisition used the disclosed
+Podman backend with reviewed recipe/RPM material; production BuildKit equivalence
+is not asserted. The separate installed native::catalog service/PATH/persistence
+case, D2 media/VM and D5 cache/fault work remain outstanding.

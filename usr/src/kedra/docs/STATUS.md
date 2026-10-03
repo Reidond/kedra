@@ -42,7 +42,10 @@ independent case preserves the unrelated project. Source/binaries and cleanup
 pass. Context lease interruption/recovery also passes1/1 in6.46s with actual
 parent wait0: real stopped readers, signal9 abandonment, live-reader/foreign
 sentinel preservation and successful survivor resume. Native publication faults
-and Linux ENOSPC remain pending; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker continues guarded cases from exact snapshots.
+remain pending. Bounded Linux ENOSPC import/recover/retry now passes1/1 in1.07s
+on freshly compiled exact2b native binaries, both host/container waits0, preserving
+the existing root and foreign sentinel with separate-device proof storage. This
+is source-copy/admission exhaustion, not metadata/Docker-layer/power-loss coverage; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker continues guarded cases from exact snapshots.
 
 The dated sections below retain earlier evidence and source scopes; this active
 checkpoint supersedes older preparation/inactive wording.

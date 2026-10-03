@@ -99,3 +99,20 @@ Aggregate `target/nix-delivery/d5-signed-cache/result.json` SHA256
 binds guards and stdout/stderr. Both cases use the retained native ARM daemon;
 no cold-daemon equivalence is claimed. Context lease interruption, native fault
 windows and Linux ENOSPC remain separate unpassed gates.
+
+
+## Interrupted context lease recovery — 2026-10-03
+
+**Pass:** existing public `killed_context_copy_recovers_without_removing_a_stopped_reader`
+passes1/1 in6.46s, actual parent wait0 (guard8.115s), on immutable source
+`2b52355764d0e82d26010af437a79c9f4a7ca4da`, CLI63c2f608 and context E2E SHA
+`41f350b6db221879533224f77794cdb2d4301887b4077408491b98c081a83541`.
+Composition is91eff75d. Two actual SIGSTOP readers have copied92,340,224 and
+116,260,864 bytes; the abandoned child wait records signal9. Public recovery
+removes only abandoned state, preserves the stopped live reader and foreign
+sentinel, and the survivor resumes successfully. Owned temporary root is empty,
+process group absent, binaries unchanged; peak charged allocation12,245,504,000
+bytes with the original capacity floor intact. No daemon mutation or VM check.
+Aggregate `target/nix-delivery/d5-context-lease/result.json` SHA256
+`0ae779bb60ada1f23e88c67d7019daba59f01dd8465b2ab92d0b4f4e56476c60`.
+Native publication fault windows and Linux ENOSPC remain separate unpassed gates.

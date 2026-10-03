@@ -39,8 +39,10 @@ ARM CI failures. D5 signed cache and independent authenticated-consumer cases
 now pass1/1 each in52.09s/67.71s on frozen2b, both actual parent waits0. FIFO/auth
 refusals, producer-absent execution and signed-case forced rebuild pass; the
 independent case preserves the unrelated project. Source/binaries and cleanup
-pass. Context lease interruption, native publication faults and Linux ENOSPC
-remain pending; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker continues guarded cases from exact snapshots.
+pass. Context lease interruption/recovery also passes1/1 in6.46s with actual
+parent wait0: real stopped readers, signal9 abandonment, live-reader/foreign
+sentinel preservation and successful survivor resume. Native publication faults
+and Linux ENOSPC remain pending; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker continues guarded cases from exact snapshots.
 
 The dated sections below retain earlier evidence and source scopes; this active
 checkpoint supersedes older preparation/inactive wording.

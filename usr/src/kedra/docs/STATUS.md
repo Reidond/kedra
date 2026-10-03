@@ -46,7 +46,17 @@ remain not-run: Mac LLDB readiness failed before attach qualification; isolated
 pinned GDB tooling is proposed but not installed. Bounded Linux ENOSPC import/recover/retry now passes1/1 in1.07s
 on freshly compiled exact2b native binaries, both host/container waits0, preserving
 the existing root and foreign sentinel with separate-device proof storage. This
-is source-copy/admission exhaustion, not metadata/Docker-layer/power-loss coverage; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker continues guarded cases from exact snapshots.
+is source-copy/admission exhaustion, not metadata/Docker-layer/power-loss coverage; the retained native ARM daemon is not a cold-daemon proof. All runtime processes are now settled; the two operator decisions below are pending.
+
+The revised isolated GDB plan passes authenticated metadata/simulation in9.00s:
+8 new packages,0 upgrades/removals,7,164,876 archive bytes and26,850,304 installed
+bytes (plan91dcd553). Limited v2 review is CLEAR; no DEBs were downloaded or
+installed. Exact offline package hashes and same-state simulated operations are
+bound before install. AGENTS.md119–120 requires explicit missing-tool approval;
+no decision has been received. D2 separately awaits about15GiB of space: latest
+observed host/Linux gaps are9,299,288,064 /13,870,231,552 bytes below the unchanged
+81,695,739,904-byte warm threshold, before fresh-authority reserve. No VM run,
+new tool installation or four-window qualification is claimed.
 
 The dated sections below retain earlier evidence and source scopes; this active
 checkpoint supersedes older preparation/inactive wording.

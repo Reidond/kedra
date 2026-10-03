@@ -76,3 +76,26 @@ Remote D2 native failure is independently diagnosed as Quay CDN blob download
 EOF while pulling the pinned amd64 builder in run37107489350/job111158768746,
 before fixture keys/registry/VM. The manifest resolved; no source defect or
 missing digest is established. Its concurrent ARM job remains in progress.
+
+
+## Native signed workflows — 2026-10-03
+
+**Pass:** existing `cache_recovery::signed_closure_refuses_untrusted_changes_then_runs_without_producer`
+and `reuse::independent_consumers_authenticate_cache_before_store_admission`
+each pass1/1, zero failed/ignored, in52.09s and67.71s. Both actual parent waits0;
+guards54.309s/69.300s. Exact source is `2b52355764d0e82d26010af437a79c9f4a7ca4da`,
+CLI SHA `63c2f608452c8eafe7031f5eacc3ee51c761fd831bf3dcc29b6d6a78aa9d229b`,
+E2E SHA `8b8a33cbc446b2e9c88d2a8a75d222ee5a23d1d2970051b00eb521fa87d72d7d`.
+
+Actual coverage includes FIFO and authentication refusals before admission,
+signed import, producer-absent execution/reuse and forced rebuild in the signed
+case; independent namespace/package/key/recipe ownership, producer-absent result43
+and unrelated-project preservation. The independent case does not rebuild.
+All543 frozen source files and binaries remain unchanged; temporary roots are
+empty and owned host process groups/containers absent. Peak charged allocations
+are10,312,855,552 and10,390,278,144 bytes, with the original capacity floor intact.
+Aggregate `target/nix-delivery/d5-signed-cache/result.json` SHA256
+`cad381235f4734043ba192007b0b2b60cbbd52ea337f6e61566d06c2cc8045e1`
+binds guards and stdout/stderr. Both cases use the retained native ARM daemon;
+no cold-daemon equivalence is claimed. Context lease interruption, native fault
+windows and Linux ENOSPC remain separate unpassed gates.

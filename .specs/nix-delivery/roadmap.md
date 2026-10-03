@@ -8,8 +8,10 @@ Source-review checkpoint (2026-10-03): D1–D5 are drafts
 [34](https://github.com/Reidond/kedra/pull/34),
 [35](https://github.com/Reidond/kedra/pull/35),
 [36](https://github.com/Reidond/kedra/pull/36),
-[37](https://github.com/Reidond/kedra/pull/37), respectively. D2–D5 runtime gates
-below remain required; publication alone does not complete an outcome.
+[37](https://github.com/Reidond/kedra/pull/37), respectively. D4 subsequently passes its complete native consumer case on
+frozen owning source d591d2e (relevant Rust/Cargo unchanged after the cascade).
+D2, D3 and D5 runtime gates below remain required; publication alone does not
+complete an outcome.
 
 1. Derived image: compose current committed Kedra, closed graphical native plan,
    exact derived→fixture→Podman→disk→boot provenance; verify actual booted kernel/

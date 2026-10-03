@@ -165,3 +165,32 @@ GDB16.3-1 artifact identity, ordinary UID502/private PID/default seccomp with
 explicit ptrace and daemon-socket authority, unchanged budget and a new exact2b
 Linux lab build. Missing-tool installation requires the operator's explicit
 choice under AGENTS.md; it does not justify weakening native identity or tests.
+
+
+## Final dependency readiness and pending decision — 2026-10-03
+
+Authenticated isolated APT metadata and simulation pass in9.00s, host/container
+waits0:8 new packages,0 upgrades/removals,7,164,876 archive bytes and26,850,304
+declared installed bytes. No DEBs downloaded or installed; dpkg status is unchanged
+and the exact query container is removed. Canonical `package-plan.json` SHA
+`91dcd553c600dac79361a7d246d57ba4db07116bdb6bc1b8be090f18a66c0296`
+binds versions/architectures/URIs/hashes and authenticated metadata. Earlier
+metadata sandbox-capability failures remain separate.
+
+The initial install-plan review rejected `--no-upgrade` as insufficient to bind
+dependency changes. Revised target-only Containerfile SHA
+`a7e7d59fba9e0b38146f340f1860f152e5ad80b6e7db7f1a759d8464dc5a1b0b`
+and proposal SHA `dee32ffa1f17209feb4d67baed6373fc3bb27192918a0c9cb9956b58aa94d2bf`
+receive limited review CLEAR. V2 binds baseline dpkg status and all eight local
+DEB hashes, uses empty repository/index/archive inputs, network none,
+`--no-download --no-remove`, and exact same-state simulated Inst/Conf comparison
+before installation. Artifacts are under `target/nix-delivery/d5-gdb-proposal/`;
+the rejected proposal is retained. This is source review, not permission or execution.
+
+All runtime jobs are settled. No owner decision has been received for isolated
+GDB installation; AGENTS.md119–120 prohibits installing missing tools automatically.
+Four native publication windows remain not-run. D2 is independently short of its
+unchanged81,695,739,904-byte warm gate by9,299,288,064 host /13,870,231,552 Linux
+bytes at the last observation, before fresh authority reserve. Its resource choice,
+fresh authority and exact retained/new producer eligibility remain unresolved;
+no VM or complete five-outcome qualification is implied.

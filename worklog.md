@@ -18,6 +18,15 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 
 ## Work entries
 
+### WL-20261005-10 — 2026-10-05 — Observe the hosted installer without publishing private logs
+- Agent / state: Codex with Astra CI/runtime reviewers; in-progress diagnostic qualification.
+- Scope / base: owning D2 53c0116828e633dd7d8e5a0c621c3d5036ecd21e. Six fixture Python files add bounded observer inputs, generated Kickstart stage markers and closed failure metadata; mandatory final completion, guest trust/disk checks and deadlines are preserved.
+- Completed: all four QMP-fixed hosted negative/refusal phases pass, then installation times out at7200 seconds. The private logs were removed during successful cleanup, so later stage state cannot be recovered from their hashes. New fixture-only diagnostics observe exact service states, actual exit-qualified results, tmux foreground categories and fixed error tokens, never raw logs or credentials. Diagnostic serial writes are nonblocking and best-effort. Observer source is included in fixture recipe material; existing retained-media transition admission is not widened.
+- Checks / evidence: pass — independent source/privacy/provenance review, uv/Ruff, Python compilation, public prepare help and compilation of actual generated marker snippets. Not-run — new observer/guest execution. Existing final artifacts and source boundaries are listed in release-composition verification. Local retained-source comparison report SHA a33bd98c5497299af388a98a7e0869cb5c682cb5868d26f24845e7dbeeda01bf; original reviewed patch SHA14f9ba4e535a747af88f92f35bf071625b9b93a85caa7d1d13c32e84d553d3c2 is followed by the coordinator's explicit nonblocking emitter API and retryable diagnostic-write handling.
+- Sources: Anaconda44.30 [normal service](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda.service), [pre service](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda-pre.service) and [target](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda.target). Wrapper startup is not completion of its foreground installer.
+- Remaining / blockers: new hosted execution and the unknown installation cause; native fault execution remains blocked. The separate home-engine follow-up is planning only and is not part of this code change.
+- Next: publish this owning-layer diagnostic change, inspect one actual hosted run before propagating it, then make only an evidence-supported correction.
+
 
 ### WL-20260907-01 — 2026-09-07 — Bootstrap baseline (retrospective)
 
@@ -1727,6 +1736,14 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Checks / evidence: pass — aggregate `target/nix-delivery/d5-context-lease/result.json` SHA `0ae779bb60ada1f23e88c67d7019daba59f01dd8465b2ab92d0b4f4e56476c60` read by coordinator. Owned temporary root empty/process group absent and binaries unchanged. Peak charged12,245,504,000 bytes; capacity floor respected. No daemon mutation or VM qualification occurs.
 - Remaining / blockers: native publication fault windows and actual Linux ENOSPC remain pending. Linux2b compiler preparation is separate; invoking its existing rustup shim unexpectedly downloads rustfmt/clippy components in the disposable controller, not on the workstation. The worker records that side effect and uses direct offline toolchain executables thereafter; no package install or runtime pass is inferred.
 - Next: qualify actual Linux bounded ENOSPC from freshly compiled exact2b, then address native fault prerequisites without weakening assertions.
+
+### WL-20261003-15 — 2026-10-03 — Recover and retry a real bounded Linux ENOSPC import
+- Agent / state: Codex delivery coordinator with Astra runtime worker; completed bounded D5 Linux space-failure case, native interruption windows pending.
+- Scope / base: owning D5 `53102feb92d7894a76750625e612b8ebdb6e6e8c`; actual source `2b52355764d0e82d26010af437a79c9f4a7ca4da`, freshly compiled offline/locked native Linux CLI265b0e92 and E2E6d733da3 using readonly source/vendor and Rust1.98.1. No Rust change.
+- Completed: existing public import/recover/retry case passes1/1 in1.07s. Actual64MiB tmpfs space exhaustion refuses import while preserving the existing store root and foreign sentinel; proof/TMPDIR uses a different device. Removing only owned filler permits public recovery and successful retry.
+- Checks / evidence: pass — compile and case host-attach/container waits0, case guard3.390s; both exact owned containers removed without volumes, process groups absent and pinned binaries unchanged. Aggregate `target/nix-delivery/d5-enospc/result.json` SHA `a9e1482de2e19d94bd0e4a90bd7c848de514a77c47e1d3d5b3264f560de9651f` read by coordinator. Peak case allocation10,457,255,936 bytes; unchanged capacity floor respected. Readiness-sideeffect receipt records rustfmt/Clippy acquisition in the disposable controller; the compiler predates that invocation and subsequent compilation uses direct offline executables.
+- Remaining / blockers: this covers source-copy/admission exhaustion, not metadata publication, Docker-layer exhaustion or power-loss durability. Four native publication interruption windows remain pending; D2 still needs fresh authority, sufficient capacity and compatible or newly built producer material for full media/VM qualification.
+- Next: publish this owning D5 evidence and qualify the four native interruption windows through the exclusive runtime worker without weakening debugger permissions or assertions.
 
 ### WL-20261005-10 — 2026-10-05 — Observe the hosted installer without publishing private logs
 - Agent / state: Codex with Astra CI/runtime reviewers; in-progress diagnostic qualification.

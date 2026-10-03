@@ -116,3 +116,31 @@ bytes with the original capacity floor intact. No daemon mutation or VM check.
 Aggregate `target/nix-delivery/d5-context-lease/result.json` SHA256
 `0ae779bb60ada1f23e88c67d7019daba59f01dd8465b2ab92d0b4f4e56476c60`.
 Native publication fault windows and Linux ENOSPC remain separate unpassed gates.
+
+
+## Bounded Linux ENOSPC recovery — 2026-10-03
+
+**Pass:** existing `cache_recovery::full_bounded_store_recovers_and_retries_real_import`
+passes1/1, zero failed/ignored, in1.07s (guard3.390s). Exact source
+`2b52355764d0e82d26010af437a79c9f4a7ca4da` is freshly compiled for native Linux
+ARM64 with pinned Rust1.98.1, offline/locked Cargo and readonly source/vendor.
+CLI SHA `265b0e92bb18b58038691265136298780760e97df75720f3f65369b39975276f`;
+E2E SHA `6d733da3540af5be388105317c08c77be88913f350f51cfa5747d6353c71bfec`.
+
+Actual64MiB tmpfs exhaustion refuses public source import, preserving an already
+admitted root and foreign sentinel. Writable proof/TMPDIR resides on a different
+device. Removing owned filler, public recovery and successful import retry pass.
+Both compile/case host-attach and container waits are0; exact owned containers
+are removed without volumes, process groups absent and pinned binaries unchanged.
+Case peak charged allocation10,457,255,936 bytes respects the existing floor.
+Aggregate `target/nix-delivery/d5-enospc/result.json` SHA256
+`a9e1482de2e19d94bd0e4a90bd7c848de514a77c47e1d3d5b3264f560de9651f`
+binds the source/toolchain/ELF handoff, phase guards, assertions and cleanup.
+
+The linked readiness-sideeffect receipt explicitly records rustfmt/Clippy
+component acquisition caused by the existing disposable-controller rustup shim.
+The compiler itself predates that invocation; subsequent compilation uses direct
+offline executables, with no workstation installation. This case qualifies
+source-copy/admission failure only, not metadata publication, Docker-layer
+exhaustion or power-loss durability. Four native interruption windows remain
+pending; debugger readiness alone does not qualify them.

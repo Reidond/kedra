@@ -136,35 +136,6 @@ recorded scopes. Retained signed OS/recovery baselines and historical failures r
 separate. Dated sections below retain their earlier source scopes; worklog entries
 33–38 and subsequent exact run evidence supersede older preparation wording.
 
-## D4 native consumer qualification (2026-10-03)
-
-The complete existing D4 native case passes 1/1 in 184.86 seconds with actual
-parent wait 0 on owning `d591d2e`; relevant Rust/Cargo bytes match rebased `116c693`.
-Fieldkit 43→57→43, Observatory 20, producer-absent closure transfer, two profile
-generations/rollback and isolated orphan GC are verified, with other-project
-data and selected images preserved. Owned containers/processes are absent and
-the successful fixture is removed. The initial guard-format failure and unknown
-original child exit remain separate evidence. See [D4 verification](../../../../.specs/nix-second-consumer/verification.md).
-At this checkpoint, D2 media/VM, D3 real catalog/installed service and D5
-cache/fault gates remained pending; later outcomes are recorded above.
-
-## D3 catalog correction (2026-10-03)
-
-The real catalog case on owning `808405e` fails after 162.62 seconds with actual
-parent wait 101: jq configure returns 126. A same-image real compiler probe
-confirms `/build` is noexec; executable source bits were intact. SQLite outputs
-built first, but the overall case remains failed. Original receipts and output
-metadata are retained separately.
-
-Owning D3 fix `bc34a4c` builds jq in its existing executable output binding's
-`.work` directory, maps that prefix for reproducibility and removes scratch after
-installing the real ELF. Engine mounts and SQLite recipes are unchanged. Limited
-review, pinned fmt/Clippy, two public catalog cases and workspace release build
-pass. New source/CLI/test/pins are frozen in `publication/d3-jq-fix-handoff.json`;
-the corrected full native case and installed-service gates remain pending.
-D4's earlier independent-consumer pass retains its recorded source scope; its
-own declarations do not use the changed built-in jq recipe.
-
 ## Nix recreation investigation (2026-10-01)
 
 The owner requested research into a sharable Rust Nix-style build system and

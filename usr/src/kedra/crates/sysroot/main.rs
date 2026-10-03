@@ -5,6 +5,8 @@ use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, Subcommand};
 mod agents;
+#[cfg(unix)]
+mod catalog;
 mod deployment;
 mod doctor;
 #[cfg(unix)]
@@ -30,6 +32,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Resolve reviewed package catalogs and author installed contributions.
+    #[cfg(unix)]
+    Catalog(catalog::Options),
     /// Plan or export declarative configuration over a retained Fedora foundation.
     #[cfg(unix)]
     System(system::Options),
@@ -414,6 +419,16 @@ fn run_engine(command: engine::Command) -> ExitCode {
 
 fn main() -> ExitCode {
     match Cli::parse().command {
+        #[cfg(unix)]
+        Some(Commands::Catalog(options)) => {
+            return match catalog::run(options) {
+                Ok(code) => code,
+                Err(error) => {
+                    eprintln!("sysroot: {error}");
+                    engine::failure_code(&error)
+                }
+            };
+        }
         #[cfg(unix)]
         Some(Commands::System(options)) => match system::run(options) {
             Ok(()) => (),

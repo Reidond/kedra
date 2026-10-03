@@ -1,0 +1,8 @@
+# Unsigned native package builder; BASE_IMAGE is the reviewed preflight digest.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY builder.sh /tmp/kedra-catalog-builder.sh
+COPY catalog-builder-rpms.txt /tmp/catalog-builder-rpms.txt
+RUN /bin/bash /tmp/kedra-catalog-builder.sh --build \
+    && cmp /tmp/catalog-builder-rpms.txt /usr/share/kedra/catalog-builder-rpms.txt \
+    && rm /tmp/catalog-builder-rpms.txt /tmp/kedra-catalog-builder.sh

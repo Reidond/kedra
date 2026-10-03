@@ -6,8 +6,7 @@ All five drafts are published: [D1 PR33](https://github.com/Reidond/kedra/pull/3
 [D2 PR34](https://github.com/Reidond/kedra/pull/34), [D3 PR35](https://github.com/Reidond/kedra/pull/35),
 [D4 PR36](https://github.com/Reidond/kedra/pull/36) and [D5 PR37](https://github.com/Reidond/kedra/pull/37).
 D1, D3 and D4 are locally qualified in their recorded scope. D2 and D5 runtime
-qualification remains incomplete; no updated-head all-green CI or production
-publication is claimed.
+qualification remains incomplete; no production publication is claimed.
 
 D4's complete native consumer case passes 1/1 in 184.86s with actual parent wait0
 on frozen d591. Fieldkit43→57→43, Observatory20, producer-absent transfer, two
@@ -43,20 +42,26 @@ pass. Context lease interruption/recovery also passes1/1 in6.46s with actual
 parent wait0: real stopped readers, signal9 abandonment, live-reader/foreign
 sentinel preservation and successful survivor resume. Native publication faults
 remain not-run: Mac LLDB readiness failed before attach qualification; isolated
-pinned GDB tooling is proposed but not installed. Bounded Linux ENOSPC import/recover/retry now passes1/1 in1.07s
+pinned GDB tooling is explicitly approved; guarded preparation is active and
+installation/readiness remain unverified. Bounded Linux ENOSPC import/recover/retry
+now passes1/1 in1.07s
 on freshly compiled exact2b native binaries, both host/container waits0, preserving
 the existing root and foreign sentinel with separate-device proof storage. This
-is source-copy/admission exhaustion, not metadata/Docker-layer/power-loss coverage; the retained native ARM daemon is not a cold-daemon proof. All runtime processes are now settled; the two operator decisions below are pending.
+is source-copy/admission exhaustion, not metadata/Docker-layer/power-loss coverage; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker has resumed the approved GDB path; D2 capacity remains a separate prerequisite.
 
 The revised isolated GDB plan passes authenticated metadata/simulation in9.00s:
 8 new packages,0 upgrades/removals,7,164,876 archive bytes and26,850,304 installed
 bytes (plan91dcd553). Limited v2 review is CLEAR; no DEBs were downloaded or
 installed. Exact offline package hashes and same-state simulated operations are
-bound before install. AGENTS.md119–120 requires explicit missing-tool approval;
-no decision has been received. D2 separately awaits about15GiB of space: latest
+bound before install. The owner has now explicitly approved this exact
+eight-package disposable-image plan (WL-20261003-18), satisfying the missing-tool
+approval boundary. Installation and debugger readiness still require actual
+receipts. D2 separately awaits about15GiB of space: latest
 observed host/Linux gaps are9,299,288,064 /13,870,231,552 bytes below the unchanged
 81,695,739,904-byte warm threshold, before fresh-authority reserve. No VM run,
 new tool installation or four-window qualification is claimed.
+
+Exact bbb263f workspace runs [37121567361](https://github.com/Reidond/kedra/actions/runs/37121567361) and [37121564856](https://github.com/Reidond/kedra/actions/runs/37121564856) pass x86/ARM checks. This does not qualify the remaining runtime gates or later source.
 
 The dated sections below retain earlier evidence and source scopes; this active
 checkpoint supersedes older preparation/inactive wording.

@@ -4,6 +4,7 @@
 # dependencies = []
 # ///
 """Loopback-only controller for an isolated test registry; no production destinations."""
+import argparse
 import hashlib
 import http.server
 import json
@@ -16,13 +17,26 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-root = Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-ghcr'
-assert os.environ.get('GITHUB_ACTIONS') == 'true'
+from fixture import add_context_argument, load_context
+
+parser = argparse.ArgumentParser(description=__doc__)
+add_context_argument(parser)
+args = parser.parse_args()
+if args.fixture_context is not None:
+    fixture = load_context(args.fixture_context)
+    root = Path(fixture['runner_temp']) / 'kedra-ghcr'
+else:
+    # Preserve the existing desktop Actions fixture without ARM-specific context.
+    assert os.environ.get('GITHUB_ACTIONS') == 'true'
+    root = Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-ghcr'
 cases = json.loads((root / 'cases/cases.json').read_bytes())
 context = ssl.create_default_context(cafile=str(root / 'context/tls.crt'))
-MANIFESTS = 'https://127.0.0.1/v2/reidond/kedra-desktop/manifests/'
+TARGET = cases.get('target', 'desktop')
+assert TARGET in ('desktop', 'qemu-arm64')
+REPOSITORY = 'reidond/kedra-' + TARGET
+MANIFESTS = 'https://127.0.0.1/v2/' + REPOSITORY + '/manifests/'
 # Registry combined access-log line of one completed blob download.
-BLOB_GET = re.compile(r'"GET /v2/reidond/kedra-desktop/blobs/(sha256:[0-9a-f]{64}) HTTP/[0-9.]+" 2[0-9][0-9] ')
+BLOB_GET = re.compile(r'"GET /v2/' + re.escape(REPOSITORY) + r'/blobs/(sha256:[0-9a-f]{64}) HTTP/[0-9.]+" 2[0-9][0-9] ')
 
 
 def manifest(digest):

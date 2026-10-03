@@ -15,6 +15,34 @@ On the installed current-source OS, `sysroot update check` inspects the fixed GH
 
 Builds, isolated signing and verified stable publication run automatically in Actions after validation, natively per target (`ubuntu-24.04` for desktop, `ubuntu-24.04-arm` for qemu-arm64). Each signing environment restricts deployment to main and has no human-review gate; no checkout, repository script or candidate code executes while production private keys are available. Build-time scope/rank/material checks and independent key/signature verification remain mandatory. No-change builds do not publish, sign metadata or renew checkpoints. See [release operations](../image/release/README.md) for the owner steps a new target needs before its first publication.
 
+The ARM release source now routes its unsigned candidate through
+`image/release/compose.py`: a fresh Fedora foundation defers native transforms,
+the public composition APIs freeze committed configuration, and the existing
+harness derives schemas, systemd links, initial defaults and QEMU initramfs.
+Source and full RPM material must match before and after generation. Pinned
+recipes, binaries and source inputs determine no-change equality; realized
+native identities and artifact hashes are recorded separately. The existing
+public-trust derivative and isolated signer consume the verified result.
+Desktop retains complete assembly. This integration's current execution status
+is in [D2 verification](../../../../.specs/nix-release-composition/verification.md);
+source implementation does not establish protected-main publication success.
+
+The disposable ARM installer/update workflow has an explicit `--local-fixture`
+mode restricted to its dedicated ordinary-user controller container. It uses
+generated fixture keys and actual committed source, then the normal encrypted
+Anaconda installer and public updater. Its A/B fixture ranks share one native
+derivation, so that workflow does not qualify a changed-kernel upgrade.
+Production preparation, candidate inspection and publication retain their
+current-main guards; read-only base resolution grants no signing authority.
+
+For fixture-only corrections, local runs may select `--retained-candidate` with
+its independent `--retained-candidate-sha256` and an explicit `--fixture-revision`.
+The candidate's original `--source-revision` remains separate. Admission requires
+an ancestor source, a closed set of fixture/document changes, unchanged production
+recipes and executables, and fresh image/material readback before generating keys.
+Product changes require a fresh candidate. Actions always build their selected
+source; retained admission is local-only and creates no production authority.
+
 Create installation media locally using [INSTALL.md](INSTALL.md). Its hash records describe the local output; the installer verifies the signed embedded OS payload offline. Current code does not publish ISO parts, GitHub Releases, machine bundles or release/checksum assets.
 
 The r1, r2 and legacy-channel GitHub Releases and all 31 uploaded assets have been removed; their source Git tags remain. The owner confirmed that nobody installed those releases, so no deployed-system migration is required. The legacy protocol-1 metadata commands stay desktop/x86_64 only. [STATUS](STATUS.md) records verified signed GHCR publication per target and remaining installation qualification.

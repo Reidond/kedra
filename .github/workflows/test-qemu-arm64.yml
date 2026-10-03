@@ -15,6 +15,10 @@ on:
       - usr/src/kedra/image/agents/**
       - usr/src/kedra/image/bitwarden/**
       - usr/src/kedra/image/release/material.py
+      - usr/src/kedra/image/release/compose.py
+      - usr/src/kedra/image/release/native-steps.json
+      - usr/src/kedra/tests/container/**
+      - usr/src/kedra/tests/vm/ghcr-update/candidate.py
       - usr/src/kedra/image/release/targets.json
       - usr/src/kedra/image/release/compatibility.json
       - usr/src/kedra/image/targets/qemu-arm64/**
@@ -84,11 +88,14 @@ jobs:
             podman --version
             skopeo --version
           } > output/qemu-arm64-evidence/environment.txt
-          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
-            --tag localhost/kedra-qemu-arm64:research output/qemu-arm64-context \
-            2>&1 | tee output/qemu-arm64-evidence/build.log
-          # assemble.sh ends with bootc container lint; keep its positive result.
-          grep -E '^Checks passed: [0-9]+' output/qemu-arm64-evidence/build.log
+          uv run usr/src/kedra/tests/vm/ghcr-update/candidate.py \
+            --diagnostic-directory output/qemu-arm64-evidence \
+            --context output/qemu-arm64-context --source-plan output/qemu-arm64-evidence/source.json \
+            --base-image "$base" --work "$RUNNER_TEMP/kedra-arm-candidate" \
+            --tag localhost/kedra-qemu-arm64:research \
+            > output/qemu-arm64-evidence/composed-candidate.json
+          sudo podman run --rm --network=none localhost/kedra-qemu-arm64:research bootc container lint \
+            > output/qemu-arm64-evidence/final-lint.log
           sudo podman image inspect localhost/kedra-qemu-arm64:research > output/qemu-arm64-evidence/image-inspect.json
           jq -e '.[0].Os == "linux" and .[0].Architecture == "arm64"' output/qemu-arm64-evidence/image-inspect.json > /dev/null
           sudo podman run --rm localhost/kedra-qemu-arm64:research cat /usr/share/sysroot/packages.txt > output/qemu-arm64-evidence/packages.txt

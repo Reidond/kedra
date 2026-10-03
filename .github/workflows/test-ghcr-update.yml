@@ -9,6 +9,13 @@ on:
       - usr/src/kedra/tests/vm/ghcr-update/**
       - usr/src/kedra/tests/common/**
       - usr/src/kedra/image/inputs.json
+      - usr/src/kedra/image/Containerfile
+      - usr/src/kedra/image/assemble.sh
+      - usr/src/kedra/image/packages.list
+      - usr/src/kedra/image/remove.list
+      - usr/src/kedra/image/targets/qemu-arm64/**
+      - usr/src/kedra/tests/container/**
+      - usr/src/kedra/installer/**
       - usr/src/kedra/image/release/**
       - Cargo.toml
       - Cargo.lock
@@ -50,5 +57,39 @@ jobs:
         with:
           name: ghcr-native-${{ github.run_id }}-${{ github.run_attempt }}
           path: output/ghcr-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+  native-arm:
+    if: github.repository == 'Reidond/kedra' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.12.19
+          enable-cache: false
+      - name: Prepare native ARM fixture tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman skopeo qemu-system-arm qemu-efi-aarch64 qemu-utils python3-virt-firmware openssl jq e2fsprogs rpm cpio
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --test 'e2e_*' --locked
+          cargo build --workspace --release --locked
+      - name: Install the full composed image and exercise signed A/B/A
+        run: bash usr/src/kedra/tests/vm/ghcr-update/run-arm64.sh
+      - name: Retain only public fixture results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ghcr-arm-installed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/ghcr-arm-evidence/
           if-no-files-found: error
           retention-days: 14

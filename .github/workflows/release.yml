@@ -17,6 +17,7 @@ on:
       - '!usr/src/kedra/**'
       - usr/src/kedra/crates/**
       - usr/src/kedra/image/**
+      - usr/src/kedra/tests/container/**
 
 permissions:
   contents: read

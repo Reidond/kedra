@@ -1,0 +1,16 @@
+[Unit]
+Description=Disposable signed full ARM release workflow
+ConditionVirtualization=vm
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/kedra-ghcr-check.py
+StandardOutput=journal+console
+StandardError=journal+console
+SyslogIdentifier=kedra-ghcr-fixture
+TimeoutStartSec=60min
+
+[Install]
+WantedBy=multi-user.target

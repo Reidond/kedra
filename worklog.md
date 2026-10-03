@@ -1720,6 +1720,14 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Remaining / blockers: hosted ARM retest and its separate installation-timeout diagnosis remain pending. Local full HVF installation/update/rollback and exact-candidate13/13 passes retain their earlier source scope. Fresh TC03 contribution build continues separately; native C6 remains blocked and untouched.
 - Next: publish the owning-layer correction through native gh-stack, then require actual hosted outcome while finishing the independently admitted contribution proof.
 
+### WL-20261003-14 — 2026-10-03 — Recover an abandoned context without removing a stopped reader
+- Agent / state: Codex delivery coordinator with Astra runtime worker; completed D5 context-lease case, remaining fault qualification active.
+- Scope / base: owning D5 `05819703c9b1956d7b3d50cadc3d0d2c7d2a9f64`; actual immutable source2b, CLI63c2f608, context E2E41f350b6 and composition91eff75d. No product change.
+- Completed: existing public copy/recover case passes1/1 in6.46s, actual parent wait0, guard8.115s. Two real SIGSTOP readers are observed copying92,340,224 /116,260,864 bytes. The abandoned child has actual signal9 wait; recovery preserves the stopped live lease and foreign sentinel, and the survivor resumes successfully.
+- Checks / evidence: pass — aggregate `target/nix-delivery/d5-context-lease/result.json` SHA `0ae779bb60ada1f23e88c67d7019daba59f01dd8465b2ab92d0b4f4e56476c60` read by coordinator. Owned temporary root empty/process group absent and binaries unchanged. Peak charged12,245,504,000 bytes; capacity floor respected. No daemon mutation or VM qualification occurs.
+- Remaining / blockers: native publication fault windows and actual Linux ENOSPC remain pending. Linux2b compiler preparation is separate; invoking its existing rustup shim unexpectedly downloads rustfmt/clippy components in the disposable controller, not on the workstation. The worker records that side effect and uses direct offline toolchain executables thereafter; no package install or runtime pass is inferred.
+- Next: qualify actual Linux bounded ENOSPC from freshly compiled exact2b, then address native fault prerequisites without weakening assertions.
+
 ### WL-20261005-10 — 2026-10-05 — Observe the hosted installer without publishing private logs
 - Agent / state: Codex with Astra CI/runtime reviewers; in-progress diagnostic qualification.
 - Scope / base: owning D2 53c0116828e633dd7d8e5a0c621c3d5036ecd21e. Six fixture Python files add bounded observer inputs, generated Kickstart stage markers and closed failure metadata; mandatory final completion, guest trust/disk checks and deadlines are preserved.

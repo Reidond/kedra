@@ -81,7 +81,7 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
 
 
-def resolved_inputs(root, source, base, context, binaries, package_material, target):
+def resolved_inputs(root, source, base, context, binaries, package_material, target, catalog=None):
     """Record deterministic build inputs for a caller's frozen committed source.
 
     Production establishes accepted-main authority before calling this function;
@@ -111,6 +111,34 @@ def resolved_inputs(root, source, base, context, binaries, package_material, tar
     if target == 'qemu-arm64':
         recipes.extend((IMAGE + 'release/compose.py', NATIVE_RECIPE))
         artifacts['kedra-lab'] = binaries / 'kedra-lab'
+    if catalog is not None:
+        require(target == 'qemu-arm64' and isinstance(catalog, dict)
+                and set(catalog) == {'pins', 'builder_rpms'}, 'Unsupported catalog material inputs')
+        pins_data = read(catalog['pins'])
+        pins = document(pins_data)
+        require(isinstance(pins, dict) and pins.get('schema_version') == 1
+                and pins.get('namespace') == 'kedra' and set(pins.get('packages', {})) == {'jq', 'sqlite'},
+                'Unsupported catalog pin inventory')
+        templates = pins.get('templates')
+        require(isinstance(templates, dict) and 0 < len(templates) <= 16
+                and isinstance(pins.get('bindings'), dict) and pins['bindings'],
+                'Missing catalog template or binding inventory')
+        template_root = IMAGE + 'catalog/templates/'
+        for name, destination in templates.items():
+            require(isinstance(name, str) and name.startswith(template_root),
+                    'Catalog template is outside the development image tree')
+            relative = name.removeprefix(template_root)
+            require(relative and all(part not in ('', '.', '..') for part in relative.split('/'))
+                    and destination == '/' + relative, 'Catalog template destination differs from its path')
+        expected_recipes = ('usr/src/kedra/crates/sysroot-catalog/lib.rs',
+                            'usr/src/kedra/crates/sysroot-catalog/recipes.rs',
+                            'usr/src/kedra/crates/sysroot/catalog.rs', *sorted(templates))
+        require(set(pins.get('recipes', {})) == set(expected_recipes), 'Catalog recipe inventory differs')
+        for name in expected_recipes:
+            require(pins['recipes'][name] == sha(read(root / name)), 'Compiled catalog recipe differs: ' + name)
+        recipes.extend((*expected_recipes, IMAGE + 'catalog/Containerfile', IMAGE + 'catalog/builder.sh'))
+        artifacts['catalog-pins'] = catalog['pins']
+        artifacts['catalog-author'] = binaries / 'sysroot'
     recipe_hashes = {}
     for name in recipes:
         data = read(root / name)
@@ -123,6 +151,10 @@ def resolved_inputs(root, source, base, context, binaries, package_material, tar
                 'Build artifact must be a single-link regular file: ' + name)
         with path.open('rb') as stream:
             artifact_hashes[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+    if catalog is not None:
+        builder_rows = packages(read(catalog['builder_rpms']), 'aarch64')
+        artifact_hashes['catalog-builder-rpms'] = sha(canonical(builder_rows))
+        require(artifact_hashes['catalog-author'] == artifact_hashes['sysroot'], 'Catalog author differs from sysroot artifact')
     rows = packages(package_material, spec['architecture'])
     require_bootc(rows, spec['architecture'])
     return {'schema_version': 1, 'base': base,

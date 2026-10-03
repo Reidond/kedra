@@ -111,3 +111,20 @@ https://kobzol.github.io/rust/rustc/2025/05/20/disable-debuginfo-to-improve-rust
 Keep canonical ordinary skill files and Codex/Claude manifests in usr/src/kedra/plugins/kedra, with the pinned upstream Rust skills in usr/src/kedra/plugins/rust-skills. Preserve upstream NOTICE/provenance and review snapshot/version updates. No symlinks, submodules, generated copies or OS skill provisioning; the plugins are registered for this repository only (AGENTS.md), and skill changes bump the plugin version. Manual file access does not prove automatic plugin discovery.
 
 Windows Git 2.55 rejected canonical verbatim paths in GIT_CONFIG_GLOBAL; use appropriate ordinary subprocess paths for generated fixtures, separately from filesystem path validation. Native CLI/VM E2E remains the acceptance boundary.
+
+Catalog configure probes (2026-10-03): the native engine's `/build` tmpfs is
+observed noexec with the existing Docker flags. Real jq configure and a compiled
+ELF both exit126 there on compiler image07c0e384. Recipes needing executable
+probes must use named scratch inside their own output binding, map that scratch
+prefix for reproducibility and remove it before successful admission; do not
+weaken generic mounts or merely run configure through sh. Jq's recipe does this;
+its full native rerun remains required. Source/evidence:
+`.specs/nix-package-catalog/verification.md` and d3-catalog-e2e mount probe.
+
+Canonical source identity excludes timestamps (2026-10-03 jq/Oniguruma runtime
+proof). Admission/copy changed generated-file ordering and triggered unavailable
+aclocal-1.16 despite unchanged source bytes; top-level maintainer mode did not
+guard the vendor rule. Normalize only the recipe's disposable copied tree to its
+declared SOURCE_DATE_EPOCH before configure, including link inodes without target
+traversal (`find -P`, `touch -h`). Do not fake old tool names or alter readonly
+inputs. Source: catalog verification and d3-catalog-e2e-fixed timestamp receipt.

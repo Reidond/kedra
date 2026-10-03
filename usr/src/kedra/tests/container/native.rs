@@ -39,6 +39,14 @@ pub struct NativeTest {
 pub const TESTS: &[NativeTest] = &[
     NativeTest {
         source: SourceApplicability::Derivation,
+        name: "catalog",
+        profile: Profile::System,
+        fixtures: &[Fixture::TestUser],
+        targets: &["qemu-arm64"],
+        run: crate::catalog_tests::installed_catalog,
+    },
+    NativeTest {
+        source: SourceApplicability::Derivation,
         name: "native_artifacts",
         profile: Profile::System,
         fixtures: &[Fixture::TestUser],

@@ -1573,6 +1573,14 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Remaining / blockers: original808 and bc34 failures stay failed. Installed native::catalog/PATH/persistent-service and production BuildKit compiler path remain separate; D2 media/VM and D5 cache/fault gates remain pending. No production-signing or all-green-CI claim.
 - Next: publish the owning D3 evidence, keep runtime on the installed case, and prepare narrow D2 fixture options while D5 uses its immutable2b source/binaries.
 
+### WL-20261003-11 — 2026-10-03 — Qualify installed catalog PATH and persistent service
+- Agent / state: Codex delivery coordinator with Astra runtime worker; completed local D3 installed scope.
+- Scope / base: owning D3 documentation base `e1398e6e26384893c1448b99360f82edb501a3a4`; runtime catalog source `57a47cf6664632839eeaf35528e9873a26c5cb12`, OS source `1dc8d2e5a6286bb4d13e2ac7d53caa89ed26cb45`, pinned foundation122. No Rust change.
+- Completed: generic composition91eff75d and closed GLib native derivationa4940a7a produce imagea3074c6c; sanctioned System-profile `native::catalog` passes1/1 in3736ms. Login/user PATH selects catalog jq/sqlite, SQL/jq yields alpha/gamma, original RPM jq remains, service restart retains the user row and two history generations with SQLite3.53.4 and source57. Service Result=success/ExecMainStatus=0.
+- Checks / evidence: pass — all five phase parent waits0; image verification65.5s, installed guard73.023s, no cleanup failure or retained container. Exact harness SHA `50dca02062729b174a8a779d0601a4155cd9c291243b4653689b6b1f978cdb79`; aggregate `target/nix-delivery/d3-installed/result.json` SHA `e3c14088e3e422245848d2ab3ff75835b2c7126f189d8377dba7b7941c9c8975`. Coordinator read the aggregate; owned process groups/containers are absent and protected compiler/runtime images unchanged. Initial untrusted mise uv-shim refusal remains a separate fixture-tooling failure, corrected using existing real uv without global trust changes.
+- Remaining / blockers: production BuildKit equivalence, signed release/VM/kernel/SELinux qualification are not inferred. D2 media/update/rollback and D5 remaining fault/recovery gates remain separate; no all-green CI claim. Earlier catalog failures remain preserved.
+- Next: publish owning D3 evidence and cascade dependent documentation; runtime qualifies cache workflows and the reviewed immutable D2 tiny-volume handoff serially.
+
 ### WL-20261003-13 — 2026-10-03 — Bind retained registry custody before stopped creation
 - Agent / state: Codex delivery coordinator with Astra runtime/review workers; completed narrow fixture options, D2 full qualification remains blocked.
 - Scope / base: owning D2 `46921c1b35ce2b1f22bee9f3538cafa32dc3921d`; public helper/wrapper only. Independent compatible fixture `f6209a68142b5c8c8130ada4de2ff6ab4b2202b9` descends from cad6 with exactly these two files changed; original producer1dc recipes/binaries remain unchanged.

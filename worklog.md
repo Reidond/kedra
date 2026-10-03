@@ -1618,6 +1618,14 @@ Last updated: 2026-10-03 (Europe/Kyiv).
 - Remaining / blockers: production BuildKit equivalence, signed release/VM/kernel/SELinux qualification are not inferred. D2 media/update/rollback and D5 remaining fault/recovery gates remain separate; no all-green CI claim. Earlier catalog failures remain preserved.
 - Next: publish owning D3 evidence and cascade dependent documentation; runtime qualifies cache workflows and the reviewed immutable D2 tiny-volume handoff serially.
 
+### WL-20261003-12 — 2026-10-03 — Qualify signed cache and independent authenticated consumers
+- Agent / state: Codex delivery coordinator with Astra runtime worker; partial D5 qualification.
+- Scope / base: publication base `0e36b4a96b3059d537e04b895c1199d0eab4dc7f`; actual immutable source `2b52355764d0e82d26010af437a79c9f4a7ca4da`, CLI63c2f608 and E2E8b8a33cb. No Rust change.
+- Completed: existing signed-closure and independent authenticated-consumer native cases each pass1/1, zero failed/ignored, in52.09s and67.71s; both actual parent waits0. Covers FIFO/authentication refusals before admission, signed import, producer-absent execution/reuse and forced rebuild in signed case; independent namespace/package/key/recipe ownership and result43 with unrelated project preserved.
+- Checks / evidence: pass — aggregate `target/nix-delivery/d5-signed-cache/result.json` SHA `cad381235f4734043ba192007b0b2b60cbbd52ea337f6e61566d06c2cc8045e1` read by coordinator. All543 frozen source files and executable hashes unchanged; temporary roots empty and owned process groups/containers absent. Guard54.309s/69.300s, peak10,312,855,552 /10,390,278,144 bytes; capacity floor respected.
+- Remaining / blockers: independent case does not rebuild; both use the retained native ARM daemon, not a cold-daemon proof. Context lease interruption, native publication fault windows and Linux ENOSPC remain unpassed. D2 full signed media/VM remains blocked separately.
+- Next: runtime completes the reviewed D2 tiny-volume proof at its serialized boundary, then actual lease/fault qualification; publish this owning D5 subset without claiming full completion.
+
 ### WL-20261003-13 — 2026-10-03 — Bind retained registry custody before stopped creation
 - Agent / state: Codex delivery coordinator with Astra runtime/review workers; completed narrow fixture options, D2 full qualification remains blocked.
 - Scope / base: owning D2 `46921c1b35ce2b1f22bee9f3538cafa32dc3921d`; public helper/wrapper only. Independent compatible fixture `f6209a68142b5c8c8130ada4de2ff6ab4b2202b9` descends from cad6 with exactly these two files changed; original producer1dc recipes/binaries remain unchanged.

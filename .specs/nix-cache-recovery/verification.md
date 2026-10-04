@@ -241,3 +241,15 @@ owned container removal and absence pass. Independent coordinator read/hash of
 This exercises inert public help only. Four native publication windows remain
 not-run; the full AC-C2/C3/C5/C6/C7 list above is unchanged. D2 capacity,
 fresh-authority and producer/source eligibility remain independent gates.
+
+## Fresh runtime audit and planning — 2026-10-04
+
+Coordinator read/hash confirms `d5-native-oct04/audit-plan-proof.json` SHA
+`e4ef3d6c489b74f0ebd8afe5d584e6ecb4be2fea22849a2e6a25751af2954738`.
+Prior containers were absent on the same daemon3745; the cause is unknown.
+Retained images/volumes were untouched by that audit. Fresh host/Linux capacity
+595,460,612,096 /564,071,206,912 bytes exceeds D2's storage prerequisite,
+without qualifying authority/source/custody or media. Public derive-plan passes
+with actual wait0 in5.69s and native identityd14a332d. At that aggregate's
+checkpoint all four publication fault windows were not-run. Later attempts
+require their own actual state/exit/retry evidence before changing coverage.

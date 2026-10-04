@@ -11,8 +11,8 @@ Delivery checkpoint (2026-10-05): D1–D5 are drafts
 [37](https://github.com/Reidond/kedra/pull/37), respectively. D4 subsequently passes its complete native consumer case on
 frozen owning source d591d2e (relevant Rust/Cargo unchanged after the cascade).
 D1/D3/D4 local qualification passes in its recorded scope. D2 local installation,
-signed A/B/rollback and exact-candidate13/13 container checks now pass; actual
-production contribution and hosted direct ARM testing remain active. D5 ordinary
+signed A/B/rollback, exact-candidate13/13 container checks and genuine production
+contribution with nine refusals now pass. Hosted direct ARM testing remains active. D5 ordinary
 signed-cache/rebuild/refusal and several genuine lease/ENOSPC cases pass, while
 native fault qualification remains blocked and incomplete. Publication alone
 does not complete an outcome. Exact current evidence is in the owning

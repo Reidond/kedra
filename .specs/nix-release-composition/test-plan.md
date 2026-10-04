@@ -32,8 +32,12 @@ TC-03 contribution partitions include real `aarch64-linux` definitions and
 `out-<hex>`/`src-<hex>` identities, valid underscore/hyphen aliases, and refusal of
 the Docker `linux/arm64` spelling, bare object digests and aliases containing `.`
 or `+`. These are actual engine transport boundaries (`model.rs`, `plan.rs`), not
-a new producer schema. Execute through the public composer with real retained
-objects; do not add isolated parser/model tests.
+a new producer schema. The catalog author emits fixed `jq`/`sqlite` aliases;
+qualify custom valid aliases separately through generic public composition,
+verification and static replay using real retained objects and explicit fixture
+provenance. Keep the compiled contribution receipt unchanged and do not imply
+custom production-author support. Use the release composer for the genuine packet
+and its refusal cases; do not add isolated parser/model tests.
 TC-08 trust table: valid signature + enabled Secure Boot -> verifier succeeds;
 invalid signature + enabled -> refusal; valid signature + disabled -> refusal;
 invalid signature + disabled -> refusal. Cases test product behavior, not source.

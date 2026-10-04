@@ -223,3 +223,21 @@ image-ID journal, binding.next, import.next and root-state metadata ENOSPC with
 public recovery/retry and preserved unrelated data. Existing64MiB source-copy
 failure qualifies none of the missing metadata boundaries. All remaining outcomes
 must be independently recorded; debugger installation is only a prerequisite.
+
+## Linux debugger readiness checkpoint — 2026-10-04
+
+Retrospective readback of the pre-interruption receipts confirms the exact2b
+standard optimized Linux lab build passed in133.09s, actual host/container waits0,
+using readonly source/vendor and direct offline Rust1.98.1. The pinned executable
+SHA is `012112e9679dff00b6195a354a94bad8959875f404fecd423889499ba6f6ccc0`;
+handoff SHA is `e490df9b82af3f6518d2291edbd91596c3e35305c5c65229b91d963fb2207ca3`.
+
+GDB readiness passes on approved image44bbc303: the hardware main breakpoint
+actually hit; detach left the same executable/start identity stopped and untraced;
+the inferior's actual wait is-9 and debugger/outer/container waits are0. Exact
+owned container removal and absence pass. Independent coordinator read/hash of
+`target/nix-delivery/d5-gdb-execution/readiness-proof.json` confirms SHA
+`74d5e8d47f3e78f3df109aad6e63a939d938ccf54cbd10fca60d09951bec26b7`.
+This exercises inert public help only. Four native publication windows remain
+not-run; the full AC-C2/C3/C5/C6/C7 list above is unchanged. D2 capacity,
+fresh-authority and producer/source eligibility remain independent gates.

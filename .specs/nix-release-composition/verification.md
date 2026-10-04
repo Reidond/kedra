@@ -994,3 +994,11 @@ passes fresh owner/context/nonce, cold83,751,862,272-byte checks and TLS36000;
 public U/W installer calls return1 at their required unsigned/wrong-key gates,
 with private bounded capture. Receipt699d6945 explicitly records A media active
 and VM not-run. Full local media/install/A/B/A remains incomplete.
+
+The exact-head CI audit also found direct-GHCR native-arm jobs37217459561 and
+37217459682 still using the classic image store: both foundation-retention
+reports hash821276fa and bind exit78/exact98-byte root-ID error9a037aaa. Their
+x86 jobs passed. The proven QEMU containerd setup is now reused immediately
+before the ARM fixture and conditionally before a changed qemu-arm64 production
+build. It does not touch x86 or isolated signing jobs. Actual direct ARM execution
+is pending; protected production signing remains main-only and unrun.

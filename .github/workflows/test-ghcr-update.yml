@@ -83,6 +83,31 @@ jobs:
           cargo clippy --workspace --all-targets --locked -- -D warnings
           cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
+      - name: Select the OCI-root Docker image store
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          # This hosted disposable runner has no candidate state yet. Preserve
+          # unrelated daemon settings and refuse to hide existing containers.
+          containers=$(docker ps --all --quiet)
+          test -z "$containers"
+          test ! -L /etc/docker/daemon.json
+          config=$(mktemp -d "$RUNNER_TEMP/kedra-docker-config.XXXXXXXX")
+          trap 'rm -rf -- "$config"' EXIT
+          if sudo test -e /etc/docker/daemon.json; then
+            sudo test -f /etc/docker/daemon.json
+            sudo cat /etc/docker/daemon.json > "$config/original.json"
+          else
+            printf '{}\n' > "$config/original.json"
+          fi
+          jq --exit-status 'type == "object" and ((.features // {}) | type == "object")' "$config/original.json" >/dev/null
+          jq '.features = ((.features // {}) + {"containerd-snapshotter": true})' \
+            "$config/original.json" > "$config/daemon.json"
+          sudo dockerd --validate --config-file "$config/daemon.json" > "$config/validate.log" 2>&1
+          sudo install -m 0600 -o root -g root "$config/daemon.json" /etc/docker/daemon.json
+          sudo systemctl restart docker
+          docker info --format '{{json .DriverStatus}}' | \
+            jq --exit-status 'any(.[]; . == ["driver-type", "io.containerd.snapshotter.v1"])' >/dev/null
       - name: Install the full composed image and exercise signed A/B/A
         run: bash usr/src/kedra/tests/vm/ghcr-update/run-arm64.sh
       - name: Retain only public fixture results

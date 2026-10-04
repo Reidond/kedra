@@ -962,3 +962,35 @@ bounded16MiB private capture with independently checked hash/mode/link count.
 Receipt d2-protocol-oct04/result.json SHAdb1a6c98 preserves the initial missing
 mount failure and final exact-container cleanup. Full wrapper reply/EOF/stale
 nonce, TLS boundaries, registry/media and HVF install/A/B/A remain unqualified.
+
+## Full hosted candidate and Secure Boot workflow passed — 2026-10-04
+
+The reviewed backend/default-field corrections pass the complete existing QEMU
+workflow on owning D2 source332f450 (run37217459554/job111480783634/artifact11309730964)
+and top D5 source8c35755 (run37217459773/job111480784437/artifact11309466550).
+Both runs pass checked Rust tools, containerd selection, public image retention,
+full composition/transfer/lint, observer and disposable disk construction, UEFI
+Secure Boot TCG boot, sanitization and upload. Actual QEMU exits0 in288s/370s.
+Guest markers confirm SecureBoot enabled, lockdown integrity, enforcing SELinux,
+exact booted observer digest and bootc/unit checks. Separate observer derivatives
+are not relabeled as the source candidate. Candidate transfer config digest equals
+the independently inspected Podman image ID on both runs.
+
+Coordinator independently reads/hashes `ci-oct04/QEMU-PASS.md` SHA
+`63aa519c71d9260b71d7fac7328df89d2cf86b83a010257820f56258dd223139`,
+actual VM result/timing receipts and completed Actions state. D2 candidate JSON
+SHA765534c0 binds configedb100ba; D5 SHAab0dcf6f binds config49e81007.
+Both receipts explicitly remain unsigned, not production publication and not
+fresh installation. This is the existing candidate/boot workflow, not the local
+fresh installer or signed A/B/A gate. Earlier failures remain preserved.
+
+Compatible6146d96 local wrapper also passes actual first-gate EOF refusal
+(wrapper1, guard0; receiptc430846e) and previous-lifecycle nonce refusal
+(wrapper1 in46.603s, guard0; receipt1c0863e3), with private inputs removed,
+registry not created, owner absent and no nested containers. Post-refusal full
+working/backup custody passes; idle controller stop137/removal is recorded
+separately from the wrapper's actual exit. Live positive registry/U/W/A admission
+passes fresh owner/context/nonce, cold83,751,862,272-byte checks and TLS36000;
+public U/W installer calls return1 at their required unsigned/wrong-key gates,
+with private bounded capture. Receipt699d6945 explicitly records A media active
+and VM not-run. Full local media/install/A/B/A remains incomplete.

@@ -46,6 +46,12 @@ FOUNDATION_FIELDS = frozenset(('schema_version', 'target', 'source_revision',
 CONTRIBUTION_FIELDS = frozenset(('schema_version', 'source_revision', 'foundation_image',
                                 'input_material_sha256', 'definition_sha256',
                                 'catalog_pins_sha256', 'author_sha256', 'outputs'))
+CONFIG_DIAGNOSTIC_KEYS = (
+    'Hostname', 'Domainname', 'User', 'AttachStdin', 'AttachStdout', 'AttachStderr',
+    'ExposedPorts', 'Tty', 'OpenStdin', 'StdinOnce', 'Env', 'Cmd', 'Healthcheck',
+    'ArgsEscaped', 'Image', 'Volumes', 'WorkingDir', 'Entrypoint', 'NetworkDisabled',
+    'MacAddress', 'OnBuild', 'Labels', 'StopSignal', 'StopTimeout', 'Shell',
+)
 NATIVE_STEPS = [
     {'kind': 'glib_schemas'},
     {'kind': 'systemd', 'enable': ['NetworkManager.service', 'bluetooth.service', 'greetd.service'],
@@ -139,6 +145,42 @@ def write_json(path, value):
     return m.sha(data)
 
 
+def transfer_comparison(config, observed):
+    """Fixed-field metadata only; never emit image config values or unknown keys."""
+    exported, inspected = config.get('config'), observed.get('Config')
+    exported_ids = config.get('rootfs', {}).get('diff_ids')
+    inspected_ids = observed.get('RootFS', {}).get('Layers')
+    report = {'os_matches': config.get('os') == 'linux',
+              'architecture_matches': config.get('architecture') == 'arm64',
+              'config_matches': exported == inspected, 'diff_ids_match': exported_ids == inspected_ids,
+              'config_fields': []}
+
+    def shape(value):
+        kinds = {dict: 'object', list: 'array', str: 'string', bool: 'boolean',
+                 int: 'number', float: 'number', type(None): 'null'}
+        return {'type': kinds.get(type(value), 'unsupported'), 'is_null': value is None,
+                'is_empty': value in ('', [], {}), 'is_false': value is False}
+
+    report['exported_config_shape'] = shape(exported)
+    report['inspected_config_shape'] = shape(inspected)
+    if isinstance(exported, dict) and isinstance(inspected, dict):
+        for key in CONFIG_DIAGNOSTIC_KEYS:
+            left, right = exported.get(key), inspected.get(key)
+            report['config_fields'].append({'key': key, 'exported_present': key in exported,
+                'inspected_present': key in inspected, 'equal': left == right,
+                'exported': shape(left), 'inspected': shape(right)})
+        for side, value in (('exported', exported), ('inspected', inspected)):
+            unknown = sorted(set(value) - set(CONFIG_DIAGNOSTIC_KEYS))
+            report[side + '_unknown_key_count'] = len(unknown)
+            report[side + '_unknown_keys_sha256'] = m.sha(m.canonical(unknown))
+    for side, values in (('exported', exported_ids), ('inspected', inspected_ids)):
+        report[side + '_diff_ids_count'] = len(values) if isinstance(values, list) else None
+        report[side + '_diff_ids_sha256'] = (m.sha(m.canonical(values)) if isinstance(values, list)
+            and len(values) <= 1024 and all(isinstance(value, str)
+            and re.fullmatch('sha256:[a-f0-9]{64}', value) for value in values) else None)
+    return report
+
+
 def failure_diagnostic(operation, error, progress):
     """Public metadata only; exception messages, argv and log text stay private."""
     kinds = (OSError, RuntimeError, ValueError, subprocess.SubprocessError)
@@ -186,7 +228,8 @@ def failure_diagnostic(operation, error, progress):
             'exit_code': progress.get('exit_code'), 'exception_category': category,
             'exception_type': exception_type,
             'os_errno': error.errno if isinstance(error, OSError) else None,
-            'locations': locations[-4:], 'logs': logs}
+            'locations': locations[-4:], 'logs': logs,
+            'transfer_comparison': progress.get('transfer_comparison')}
 
 
 def publish_failure(path, operation, error, progress):
@@ -601,6 +644,11 @@ class Runner:
         source_config = self.run('archive-config', ['/usr/bin/skopeo', 'inspect', '--config', '--raw', source])
         source_manifest = self.run('archive-manifest', ['/usr/bin/skopeo', 'inspect', '--raw', source])
         config = m.document(source_config)
+        # A diagnostic error must not change the existing strict admission result.
+        try:
+            self.progress['transfer_comparison'] = transfer_comparison(config, observed)
+        except (TypeError, ValueError, KeyError, AttributeError, MemoryError):
+            self.progress['transfer_comparison'] = {'available': False}
         m.require(config.get('os') == 'linux' and config.get('architecture') == 'arm64'
                   and config.get('config') == observed.get('Config')
                   and config.get('rootfs', {}).get('diff_ids') == observed.get('RootFS', {}).get('Layers'),

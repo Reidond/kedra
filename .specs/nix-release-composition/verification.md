@@ -916,3 +916,24 @@ Containerfile lacked an explicit Docker --file selection. Revised workflow
 attempted/skipped cleanup flags. YAML/Bash/Ruff and scoped revised review pass;
 corrected hosted execution remains pending. The lost original build log is not
 reconstructed or presented as observed Docker stderr.
+
+## Actual hosted backend distinction — 2026-10-04
+
+Corrected D2 run37199831847/source937d3ce and D5 run37199833274/source69cc325
+both record Docker28.0.4/overlay2 and no containerd driver marker. Each archive
+has exactly one root, whose manifest digest differs from the selected image ID;
+the selected ID equals the manifest's config digest. Public add-image refuses78
+with exact98-byte stderrSHA9a037aaa. This confirms the selected-root mismatch on
+that backend, not a multiple-root archive. D2 metadataSHA53492fa2 and D5a92f5650
+were independently read/hash-checked; cleanup04196b02 records actual attempted
+unpin/GC/image removal0, work removal0 and diagnostic0. Source report:
+`target/nix-delivery/ci-oct04/HOSTED-CONFIRMED.md`, SHAbfc9a58e.
+
+The proposed hosted-only correction enables Docker's containerd-snapshotter
+feature, preserves other daemon settings, refuses existing containers, validates
+configuration before restart and requires the exact containerd DriverStatus.
+The original public retention preflight then remains the behavioral gate; no
+engine validation or archive acceptance is relaxed. Actual configuration/pass is
+pending. [Docker's primary instructions](https://docs.docker.com/engine/storage/containerd/)
+define the feature/restart/readback sequence; previous backend data stays on disk,
+so this correction neither prunes nor migrates images.

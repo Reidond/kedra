@@ -100,3 +100,14 @@ creation is expected, so describe payload preservation precisely. Fixture-only
 compatible descendants still satisfy original recipe/binary admission; newer
 production recipe changes require fresh material. Installer-base overrides do
 not replace signed payload identity or waive TLS, deadline or capacity gates.
+
+Hosted Docker28.0.4/overlay2 image retention (2026-10-04): the real public tiny
+preflight selected a config digest while Docker save emitted a different single
+OCI root manifest. Strict store add-image correctly refused78; this is not a
+multiple-root or CDN failure. Keep the engine's root/graph binding. The QEMU
+workflow explicitly selects containerd-snapshotter and must pass the unchanged
+public preflight before full candidate work; configuration alone is not a pass.
+Preserve other daemon settings, refuse existing containers before switching,
+and retain bounded backend/root/config metadata plus actual cleanup exits.
+Sources: `.specs/nix-release-composition/verification.md`, runs37199831847 and
+37199833274, https://docs.docker.com/engine/storage/containerd/ .

@@ -111,3 +111,11 @@ Preserve other daemon settings, refuse existing containers before switching,
 and retain bounded backend/root/config metadata plus actual cleanup exits.
 Sources: `.specs/nix-release-composition/verification.md`, runs37199831847 and
 37199833274, https://docs.docker.com/engine/storage/containerd/ .
+
+Docker28.0.4 inspect Config also injects three empty strings, six false booleans
+and three null fields absent from the actual exported config (2026-10-04,
+QEMU runs37215763783/37215764140). The producer adjusts only those twelve typed
+inspect-only defaults, refusing nondefault/other mismatches; platform, all diff
+IDs and full transferred config-byte identity remain required. Do not expand
+normalization from assumptions. Source/evidence: release-composition verification
+and https://docs.docker.com/engine/deprecated/#non-standard-fields-in-image-inspect .

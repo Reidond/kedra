@@ -937,3 +937,28 @@ engine validation or archive acceptance is relaxed. Actual configuration/pass is
 pending. [Docker's primary instructions](https://docs.docker.com/engine/storage/containerd/)
 define the feature/restart/readback sequence; previous backend data stays on disk,
 so this correction neither prunes nor migrates images.
+
+## Observed Docker inspect defaults and closed transfer correction — 2026-10-04
+
+Actual D2run37215763783 (compose-failureSHAacb2d9cd) and D5run37215764140
+(SHA71595369) report OS/architecture/diff-ID matches, all77 layers with hash
+8ce5b4e5, zero unknown Config keys, and only twelve inspect-side injected fields.
+The empty strings are Hostname/Domainname/Image; false booleans are AttachStdin,
+AttachStdout, AttachStderr, Tty, OpenStdin, StdinOnce; null fields are Volumes,
+Entrypoint and OnBuild. Actual User/Env/Cmd/WorkingDir/Labels match.
+
+The reviewed source7262cbbd correction permits only those exact typed defaults
+when absent from exported Config. Every other presence/value mismatch remains
+an error, including integer zero in place of false. Platform, complete diff IDs,
+archive hash, full source/target config bytes and loaded config digest checks
+remain unchanged. [Docker's versioned inspection behavior](https://docs.docker.com/engine/deprecated/#non-standard-fields-in-image-inspect)
+explains these presentation fields; no general empty-value normalization is used.
+Ruff/public help/diff checks and scoped review pass; full corrected candidate
+execution is pending.
+
+Public D2 helper qualification also passes on frozen compatible6146d96: real
+context/capacity/request/custody/capture waits0, seven expected refusals1 and
+bounded16MiB private capture with independently checked hash/mode/link count.
+Receipt d2-protocol-oct04/result.json SHAdb1a6c98 preserves the initial missing
+mount failure and final exact-container cleanup. Full wrapper reply/EOF/stale
+nonce, TLS boundaries, registry/media and HVF install/A/B/A remain unqualified.

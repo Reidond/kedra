@@ -52,6 +52,14 @@ CONFIG_DIAGNOSTIC_KEYS = (
     'ArgsEscaped', 'Image', 'Volumes', 'WorkingDir', 'Entrypoint', 'NetworkDisabled',
     'MacAddress', 'OnBuild', 'Labels', 'StopSignal', 'StopTimeout', 'Shell',
 )
+# Docker 28's inspect API injects these defaults outside the underlying config.
+# Keep this closed to the twelve differences observed in hosted transfer evidence.
+INSPECT_ONLY_DEFAULTS = {
+    'Hostname': '', 'Domainname': '', 'Image': '',
+    'AttachStdin': False, 'AttachStdout': False, 'AttachStderr': False,
+    'Tty': False, 'OpenStdin': False, 'StdinOnce': False,
+    'Volumes': None, 'Entrypoint': None, 'OnBuild': None,
+}
 NATIVE_STEPS = [
     {'kind': 'glib_schemas'},
     {'kind': 'systemd', 'enable': ['NetworkManager.service', 'bluetooth.service', 'greetd.service'],
@@ -145,6 +153,19 @@ def write_json(path, value):
     return m.sha(data)
 
 
+def image_config_matches(exported, inspected):
+    if not isinstance(exported, dict) or not isinstance(inspected, dict):
+        return False
+    actual = dict(inspected)
+    for key, default in INSPECT_ONLY_DEFAULTS.items():
+        if key in actual and key not in exported:
+            # In particular, integer zero is not the documented boolean false.
+            if type(actual[key]) is not type(default) or actual[key] != default:
+                return False
+            del actual[key]
+    return exported == actual
+
+
 def transfer_comparison(config, observed):
     """Fixed-field metadata only; never emit image config values or unknown keys."""
     exported, inspected = config.get('config'), observed.get('Config')
@@ -152,7 +173,9 @@ def transfer_comparison(config, observed):
     inspected_ids = observed.get('RootFS', {}).get('Layers')
     report = {'os_matches': config.get('os') == 'linux',
               'architecture_matches': config.get('architecture') == 'arm64',
-              'config_matches': exported == inspected, 'diff_ids_match': exported_ids == inspected_ids,
+              'config_matches': exported == inspected,
+              'config_matches_inspect_defaults': image_config_matches(exported, inspected),
+              'diff_ids_match': exported_ids == inspected_ids,
               'config_fields': []}
 
     def shape(value):
@@ -650,7 +673,7 @@ class Runner:
         except (TypeError, ValueError, KeyError, AttributeError, MemoryError):
             self.progress['transfer_comparison'] = {'available': False}
         m.require(config.get('os') == 'linux' and config.get('architecture') == 'arm64'
-                  and config.get('config') == observed.get('Config')
+                  and image_config_matches(config.get('config'), observed.get('Config'))
                   and config.get('rootfs', {}).get('diff_ids') == observed.get('RootFS', {}).get('Layers'),
                   'Exported image differs from native filesystem lineage')
         # Loading verified local bytes is not a registry pull and installs no policy.

@@ -879,3 +879,29 @@ Revised patchd4537cef received scoped Astra CLEAR after the initial review found
 and the source owner repaired a directory-open identity race. The reviewer matched
 fixture SHA8a596379 and wrapper41756481. Actual runtime qualification remains
 required; this source review does not pass those cases.
+
+## Hosted archive-retention diagnosis — 2026-10-04
+
+Exact7932622 QEMU run37197340534 built the foundation, then public
+`sysroot store add-image` refused78. Uploaded foundation-failure.json SHA
+`1bd36569309eac81d284218b95a8feb13a8714aee5191bede86831f87d2cc113`
+binds98-byte stderr SHA
+`9a037aaab5f16844baabca5cb22420e7abdeffd127471d0dcd346b901f3248bc`,
+which exactly matches the fixed public root-identity/multiple-roots error.
+This is not a CDN failure. Root-count versus selected-root mismatch remains
+undetermined; runner inventory Docker28.0.4 does not establish its live backend.
+
+A reviewed preflight in the existing QEMU workflow now builds a tiny native
+scratch image containing one literal public file, then executes real public
+store init/add-image before full candidate construction. It records only
+allowlisted live backend/version, selected ID, bounded archive root/manifest/
+config digests, actual exit and bounded log hashes/fixed error marker. Archive
+metadata reads never extract files or publish contents. Exact-image unpin and
+private-store GC handle sealed directories; owned tag/work cleanup exits are
+recorded separately while preserving the original failure. No engine/archive
+validation, schema or producer recipe is changed.
+
+Pass: YAML parse, Bash syntax, Ruff on the exact uv heredoc, public CLI help and
+limited revised Astra review (workflowe10dc64c/patchb2d434a3). Hosted execution
+is not-run at this source checkpoint; no backend or compatibility correction
+is justified until the actual preflight distinguishes the failure.

@@ -905,3 +905,14 @@ Pass: YAML parse, Bash syntax, Ruff on the exact uv heredoc, public CLI help and
 limited revised Astra review (workflowe10dc64c/patchb2d434a3). Hosted execution
 is not-run at this source checkpoint; no backend or compatibility correction
 is justified until the actual preflight distinguishes the failure.
+
+The first hosted tiny preflight failed before metadata/add-image on D2
+37199328971 and D5 37199328839. Both artifacts contain only cleanup receipt
+SHA `f72edcac78a64b30a589a4fad28ddfb0b210db6c1f3785bfb713dbaaab682db1`,
+original exit1; zero cleanup codes did not distinguish skipped operations.
+No backend/root/config conclusion follows. Source review found the generated
+Containerfile lacked an explicit Docker --file selection. Revised workflow
+7b103ed8 adds that selection and bounded stage diagnostics before cleanup, with
+attempted/skipped cleanup flags. YAML/Bash/Ruff and scoped revised review pass;
+corrected hosted execution remains pending. The lost original build log is not
+reconstructed or presented as observed Docker stderr.

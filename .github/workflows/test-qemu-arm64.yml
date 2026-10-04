@@ -68,15 +68,53 @@ jobs:
           tag="localhost/kedra-image-retention:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           image=
           store_initialized=false
+          stage=prepare
           cleanup() {
             result=$?
             trap - EXIT
+            diagnostic_exit=0
+            uv run python - "$probe" "$stage" "$result" <<'PY' || diagnostic_exit=$?
+          import hashlib
+          import json
+          import os
+          import stat
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          phases = ('prepare', 'build', 'identity', 'backend', 'save', 'store-init', 'retain', 'metadata', 'result')
+          report = {'schema_version': 1, 'stage': sys.argv[2] if sys.argv[2] in phases else 'unknown',
+                    'original_exit': int(sys.argv[3]), 'logs': []}
+          markers = {'dockerfile_unavailable': b'failed to read dockerfile',
+                     'build_solve_failure': b'failed to solve', 'permission_denied': b'permission denied',
+                     'daemon_unavailable': b'Cannot connect to the Docker daemon',
+                     'archive_root_refusal': b'root identity differs or archive has multiple roots'}
+          for name in ('build.log', 'identity.stderr', 'backend.stderr', 'save.stderr', 'init.stderr',
+                       'retain.stdout', 'retain.stderr', 'metadata.stderr'):
+              item = {'name': name, 'available': False}
+              try:
+                  descriptor = os.open(root / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                  with os.fdopen(descriptor, 'rb') as stream:
+                      info = os.fstat(stream.fileno())
+                      if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.getuid():
+                          raise ValueError('unsupported private log')
+                      data = stream.read(65536)
+                  item.update(available=True, bytes=info.st_size, hashed_bytes=len(data),
+                              sha256=hashlib.sha256(data).hexdigest(), complete=len(data) == info.st_size,
+                              observed_markers=[key for key, marker in markers.items() if marker in data])
+              except (OSError, ValueError):
+                  pass
+              report['logs'].append(item)
+          Path('output/qemu-arm64-evidence/image-retention-stage.json').write_text(json.dumps(report, sort_keys=True) + '\n')
+          PY
             store_unpinned=0
             store_collected=0
+            gc_attempted=false
             if test "$store_initialized" = true; then
               target/release/sysroot store unpin-image --store "$probe/store" --image "$image" \
                 > "$probe/unpin.stdout" 2> "$probe/unpin.stderr" || store_unpinned=$?
               if test "$store_unpinned" -eq 0; then
+                gc_attempted=true
                 target/release/sysroot store gc --store "$probe/store" --delete \
                   > "$probe/gc.stdout" 2> "$probe/gc.stderr" || store_collected=$?
               else
@@ -84,7 +122,9 @@ jobs:
               fi
             fi
             image_removed=0
+            image_attempted=false
             if test -n "$image"; then
+              image_attempted=true
               if test "$(docker image inspect --format '{{.Id}}' "$tag")" = "$image"; then
                 docker image rm "$tag" >/dev/null || image_removed=$?
               else
@@ -93,28 +133,37 @@ jobs:
             fi
             work_removed=0
             rm -rf -- "$probe" || work_removed=$?
-            printf '{"schema_version":1,"original_exit":%s,"store_unpin_exit":%s,"store_gc_exit":%s,"image_remove_exit":%s,"work_remove_exit":%s}\n' \
-              "$result" "$store_unpinned" "$store_collected" "$image_removed" "$work_removed" > output/qemu-arm64-evidence/image-retention-cleanup.json
-            if test "$result" -eq 0 && { test "$store_unpinned" -ne 0 || test "$store_collected" -ne 0 || test "$image_removed" -ne 0 || test "$work_removed" -ne 0; }; then result=1; fi
+            if ! printf '{"schema_version":1,"original_exit":%s,"diagnostic_exit":%s,"store_unpin_attempted":%s,"store_unpin_exit":%s,"store_gc_attempted":%s,"store_gc_exit":%s,"image_remove_attempted":%s,"image_remove_exit":%s,"work_remove_exit":%s}\n' \
+              "$result" "$diagnostic_exit" "$store_initialized" "$store_unpinned" "$gc_attempted" "$store_collected" "$image_attempted" "$image_removed" "$work_removed" > output/qemu-arm64-evidence/image-retention-cleanup.json; then
+              if test "$result" -eq 0; then result=1; fi
+            fi
+            if test "$result" -eq 0 && { test "$diagnostic_exit" -ne 0 || test "$store_unpinned" -ne 0 || test "$store_collected" -ne 0 || test "$image_removed" -ne 0 || test "$work_removed" -ne 0; }; then result=1; fi
             exit "$result"
           }
           trap cleanup EXIT
           printf 'public image retention probe\n' > "$probe/payload"
           printf 'FROM scratch\nCOPY payload /payload\n' > "$probe/Containerfile"
+          stage=build
           docker build --platform linux/arm64 --network none --pull=false --no-cache \
             --label "dev.kedra.retention-probe=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            --iidfile "$probe/image.id" --tag "$tag" "$probe" > "$probe/build.log" 2>&1
+            --iidfile "$probe/image.id" --file "$probe/Containerfile" --tag "$tag" "$probe" > "$probe/build.log" 2>&1
+          stage=identity
           image=$(cat "$probe/image.id")
           [[ "$image" =~ ^sha256:[a-f0-9]{64}$ ]]
-          test "$(docker image inspect --format '{{.Id}} {{.Os}} {{.Architecture}} {{index .Config.Labels "dev.kedra.retention-probe"}}' "$tag")" = "$image linux arm64 ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          docker info --format '{"version":{{json .ServerVersion}},"driver":{{json .Driver}},"status":{{json .DriverStatus}}}' > "$probe/backend.json"
-          docker image save --output "$probe/image.tar" "$image"
-          target/release/sysroot store init --store "$probe/store" > "$probe/init.json"
+          test "$(docker image inspect --format '{{.Id}} {{.Os}} {{.Architecture}} {{index .Config.Labels "dev.kedra.retention-probe"}}' "$tag" 2> "$probe/identity.stderr")" = "$image linux arm64 ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          stage=backend
+          docker info --format '{"version":{{json .ServerVersion}},"driver":{{json .Driver}},"status":{{json .DriverStatus}}}' > "$probe/backend.json" 2> "$probe/backend.stderr"
+          stage=save
+          docker image save --output "$probe/image.tar" "$image" 2> "$probe/save.stderr"
+          stage=store-init
+          target/release/sysroot store init --store "$probe/store" > "$probe/init.json" 2> "$probe/init.stderr"
           store_initialized=true
           retained=0
+          stage=retain
           target/release/sysroot store add-image --store "$probe/store" --image "$image" \
             > "$probe/retain.stdout" 2> "$probe/retain.stderr" || retained=$?
-          uv run python - "$probe" "$retained" <<'PY'
+          stage=metadata
+          uv run python - "$probe" "$retained" 2> "$probe/metadata.stderr" <<'PY'
           import hashlib
           import json
           import os
@@ -222,6 +271,7 @@ jobs:
               report['archive_metadata'] = 'unavailable_or_unsupported'
           Path('output/qemu-arm64-evidence/image-retention-preflight.json').write_text(json.dumps(report, sort_keys=True) + '\n')
           PY
+          stage=result
           test "$retained" -eq 0
       - name: Prepare explicit committed payload
         run: |

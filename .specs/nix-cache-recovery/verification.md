@@ -289,3 +289,45 @@ step, including its cleanup gate. Owning D2d18e7da run37200380542 also passes.
 Full candidate validation and artifact upload remain running/pending; this
 compiler/hosted retention milestone adds no native interruption/retry coverage.
 See WL-20261004-28 for exact job/step readback.
+
+## Ordinary admission and snapshot recovery reconciliation — 2026-10-04
+
+Nine metadata refusals now pass with actual78 and public sentinel verify0:
+wrong root/runtime/prefix/platform, duplicate/self references, before-from,
+after-until and exact-until. Receipt dabfddf3 retains initial fixture errors
+separately. Combined receipt `d5-admission-oct04/admission-combined.json` SHA
+`484be00c51ccec5d66089bee2db70a4b77e11cca375bb2d780e49b763e43d6b2`
+adds genuine positive admission0 in36.709s at exact valid-from (launch and first
+real staged bytes in the same second), and natural expiry after actual growing
+copy bytes followed by refusal78 in34.100s. No publication/remnants; genuine jq
+object/closure and source-sentinel public checks0, pins unchanged. Peak10.402GB
+is below derived10.509GB; actual maximum observation gap0.370264s is retained.
+All processes settled. Exact until-minus-one success and Linux ELF execution
+remain unrun; no full C2/C6 claim.
+
+Historical permitted public snapshot recovery completed0 (stdout26866828,
+guardda9d9fd7), removing only the abandoned snapshot-e1d330aa and leaving
+active/refused lists empty. Pending native journal/.next/image remained intact.
+Native derive retry still did not run, so the captured pre-ID window remains
+unqualified. Earlier automatic-review blocks are not bypassed or relabeled.
+
+## Batched provenance, lease refusals and inherited hosted pass — 2026-10-04
+
+Old retained external-consumer hashes were not relabeled as exact2b. New
+offline/locked/jobs2 builds use direct Rust1.98.1 and immutable543-file source,
+with unchanged before/after source and fixture/lock pins, both actual waits0.
+Receipt e86e32c8 pins fieldkit4cc15ddb/observatorye8408c9c, mode0500/single-link;
+C3 runtime and independent forced rebuild remain unqualified.
+
+Genuine-lease ordinary recovery receipt c769e815 records eight actual78
+refusals (unknown member/schema/lease mode/member mode/directory mode/inode/
+symlink/hardlink), preserved source/payload/sentinel and final authentic
+restore/recover0 removing the exact snapshot/lease. Peak2.605GB below3GiB,
+settled118,784 bytes. Owner/device/interrupted cleanup and C6 remain unrun.
+
+Inherited release correction passes full hosted QEMU workflow on exact D5
+8c35755/run37217459773 and owning D2332f450/run37217459554. Actual candidate/
+transfer/lint/disk/SecureBoot/lockdown/SELinux/exact-observer checks pass with
+QEMU0 in370s/288s. Report ci-oct04/QEMU-PASS.md SHA63aa519c binds final artifacts.
+This is unsigned candidate/boot qualification, not local fresh installation,
+signed A/B/A, production publication or native fault/retry coverage.

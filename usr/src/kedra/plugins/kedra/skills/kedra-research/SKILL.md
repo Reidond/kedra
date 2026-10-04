@@ -160,3 +160,29 @@ boundary adoption separate from normal fresh media qualification. The ARM target
 already orders serial before tty0; bootc 1.16.13 deduplicates repeated arguments
 without reordering them. Use the fixture journald destination rather than an
 appended reversed karg pair. These new routes require their own actual fresh run.
+
+Observed qualification boundaries (2026-10-04; Podman5.4.2, Rust1.98.1):
+perform the fixture's volatile cgroup/socket initialization before its first
+Podman operation. A premature resolver start left a threaded subtree; a fresh
+private namespace initialized first succeeds with the same8GiB/4CPU/2048-pid
+limits. This was not evidence that those limits must be removed. Retain failed
+attempts and the original deadline. Evidence: worklog completion entries and
+`d2-tc03-current-oct04/proof/volatile-init-r2.stdout` plus preflight-r3 receipts.
+
+Probe controller storage from an independently pinned read-only observer when
+controller work can block Docker exec. Preserve sample/floor thresholds and record
+sampler stage, duration and bounded error metadata. The old monitor discarded
+its sampler exception; Docker-copy causation remains unproven. A resumed workflow
+must bind original inputs, authority and deadline, and distinguish new child waits
+from an unavailable original parent wait. The exact Docker execution's exit can
+be recorded separately. See `d2-runtime-oct04/QUALIFICATION-FINAL.md` and its hashes
+in the worklog; this is ordinary runtime recovery, not native fault qualification.
+
+A harness compiled from a Git archive can run catalog checks yet fail the full
+home workflow because the embedded repository path lacks Git metadata. `git -C`
+may silently find a parent checkout, which is not provenance. For the full suite,
+use a genuine checkout at the compiled path, or add exact-commit metadata while
+standard Git comparison proves tracked bytes/modes unchanged. The13-case rerun
+passes on source57a47cf/candidatee0fd after that prerequisite is restored; the
+initial12/13 result remains a separate failed attempt. See TC05 evidence in
+`d2-acceptance-reconcile-oct04/` and the worklog.

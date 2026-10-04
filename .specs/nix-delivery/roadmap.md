@@ -3,15 +3,20 @@
 All five implementation outcomes are authorized. Five drafts are the reviewable
 delivery surface; merging/protected production execution is separate.
 
-Source-review checkpoint (2026-10-03): D1–D5 are drafts
+Delivery checkpoint (2026-10-05): D1–D5 are drafts
 [33](https://github.com/Reidond/kedra/pull/33),
 [34](https://github.com/Reidond/kedra/pull/34),
 [35](https://github.com/Reidond/kedra/pull/35),
 [36](https://github.com/Reidond/kedra/pull/36),
 [37](https://github.com/Reidond/kedra/pull/37), respectively. D4 subsequently passes its complete native consumer case on
 frozen owning source d591d2e (relevant Rust/Cargo unchanged after the cascade).
-D2, D3 and D5 runtime gates below remain required; publication alone does not
-complete an outcome.
+D1/D3/D4 local qualification passes in its recorded scope. D2 local installation,
+signed A/B/rollback and exact-candidate13/13 container checks now pass; actual
+production contribution and hosted direct ARM testing remain active. D5 ordinary
+signed-cache/rebuild/refusal and several genuine lease/ENOSPC cases pass, while
+native fault qualification remains blocked and incomplete. Publication alone
+does not complete an outcome. Exact current evidence is in the owning
+verification records and `usr/src/kedra/docs/STATUS.md`.
 
 1. Derived image: compose current committed Kedra, closed graphical native plan,
    exact derived→fixture→Podman→disk→boot provenance; verify actual booted kernel/

@@ -1,8 +1,10 @@
 # D5 manual qualification commands
 
-Status: prepared procedure only; every fault below is not-run. Execute only after
-parent adoption, source freeze, compiler gates and reservation of the bounded
-qualification resources. Keep the retained default VM/container untouched.
+Status: procedure reference; actual completed, failed and blocked cases are in
+[verification.md](verification.md). Execute only after source freeze, compiler
+gates and reservation of bounded qualification resources. Keep the retained
+default VM/container untouched; this procedure does not authorize resuming a
+blocked native operation.
 
 ## Public workflow entrypoints
 
@@ -24,7 +26,7 @@ none is a live workstation path or production key.
 "$D5_SYSROOT" store recover --store "$D5_STORE"
 ```
 
-These new adapters exist only in the ignored shadow until adopted. The independent
+These adapters are now integrated in the published draft. The independent
 consumer derives the expected recipe from `resolved.plan.specs[resolved.recipe.root]`
 and binds `$D5_SCOPE` to its own catalog namespace/package before opening a store.
 

@@ -1,6 +1,7 @@
 # Release composition verification plan
 
-Every case starts **not-run**. Only actual E2E/manual workflows and standard
+This plan defines coverage; current results are recorded in
+[verification.md](verification.md). Only actual E2E/manual workflows and standard
 tools; no source scanners, unit/model/mock/doctests or alternative test runner.
 Cases have one owning level; lower-level output inspection supports that case,
 not an additional purported acceptance pass. The source/controller is frozen and
@@ -39,11 +40,11 @@ invalid signature + disabled -> refusal. Cases test product behavior, not source
 
 ## Commands and receipts
 
-These are implementation-target commands, **not commands already present or run**.
-Paths in angle brackets are independently observed/pinned values. The composer
-must implement the stated interface before these become executable instructions.
-The fixture command may reuse the existing ghcr-update workflow entrypoint, not
-introduce another general test harness.
+These are interface examples, not execution evidence. Paths in angle brackets
+must be replaced with independently observed/pinned values. Use the implemented
+composer and existing ghcr-update workflow entrypoint; exact executed commands
+and receipts are recorded in verification.md. Do not introduce another general
+test harness.
 
 ```sh
 uv run usr/src/kedra/image/release/compose.py foundation \

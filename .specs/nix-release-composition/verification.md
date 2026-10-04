@@ -1,5 +1,9 @@
 # D2 verification
 
+Current outcomes are in the dated completion appendices below and
+`usr/src/kedra/docs/STATUS.md`. Earlier pending/failed checkpoints retain their
+historical meaning; they are not the current task summary.
+
 Source is adopted on `codex/nix-release-composition` above D1
 `712927eb0180610fd1ea3e29cccd5fdc6ac16f2b`. The twenty-path preparation was
 hash/mode reconciled before adoption; later-layer modules remain inactive.
@@ -1003,6 +1007,127 @@ before the ARM fixture and conditionally before a changed qemu-arm64 production
 build. It does not touch x86 or isolated signing jobs. Actual direct ARM execution
 is pending; protected production signing remains main-only and unrun.
 
+## Local installation and exact candidate completion — 2026-10-05
+
+The complete public HVF sequence on producer1dc/compatible fixture6146d96 passes
+insecure-boot refusal, fresh installation, A, B, rollback and finish. All actual
+new phase waits, five native guards and the continuation supervisor return0.
+Secure Boot/lockdown/enforcing SELinux, twelve native artifacts, kernel7.2.8 and
+home/var preservation pass. Private inputs, registry and control processes are
+removed; protected backup1170/work477/candidate custody is preserved. The
+original Docker execution also records exit0; its lost original host-parent
+wait remains unavailable. Failed sampler/fixture attempts are preserved, and
+the original22:58:05UTC deadline was not renewed.
+
+Coordinator readback: `target/nix-delivery/d2-runtime-oct04/qualification-final.json`
+SHA `92ad69e969437f64ec68e28c196ac9a61e8d1b37cb4aefac9310f981abc9f8fe`,
+with report `QUALIFICATION-FINAL.md` SHA
+`0ad1261c87e93bc1ce6a32ca05e6ab60f57bb6f85662098ebd43bade8c57f7a5`.
+The aggregate binds the actual phase records and cleanup outcomes.
+
+TC05 full sanctioned container rerun passes13/13 in91.42s on exact candidate
+`e0fd3f5ac864e1cacc66df955c894e46984fdae33e11146cd1814015c8c926f4`,
+frozen57 harness50dca, overlaynone; actual parent/guard0 and no cleanup failures.
+The first12/13 run failed because the compiled archive path lacked Git metadata.
+Only genuine exact-commit metadata was added there, with standard Git comparison
+confirming unchanged tracked bytes/modes. Evidence:
+`target/nix-delivery/d2-acceptance-reconcile-oct04/tc05-final.json` SHA
+`d252cae3210377fb597f5702d4413966f02d1a9cdb3970ee2f57b8778e335fc0`.
+
+## Hosted QMP shutdown correction — 2026-10-05
+
+Diagnostic D2run37227946844 and D3run37227947203 observe the actual insecure-boot
+refusal before a controller timeout. QEMU8.2.2 queues in-band commands and clears
+the queue on monitor close; the old helper flushed quit then closed immediately.
+Owning correction53c0116 keeps the connection open for a matching reply or
+server EOF, then requires actual owned-process exit0. All frames, reads/writes
+and child wait share min(15 seconds, remaining original phase budget), with
+bounded messages and fixed diagnostics. No guest/security/phase limit changes.
+
+Ruff/Python compilation/review pass. One manual real QEMU11 no-guest/no-disk
+process executes the actual helper and exits0 in0.002337s, with exact PID/socket
+absence and unchanged helper/binary hashes. Receipt
+`target/qmp-proof-oct04/result.json` SHA
+`7c58923d24085f7f84efb52a29f610d91bea74b4b11227e35cfff43fb8a2e50e`.
+This is not full hosted8.2 qualification. Hosted retest remains active. Earlier
+D5run37220454933 passed refusal but timed out during installation; that separate
+guest failure is not explained by the shutdown fix. Production signing remains
+not-run. See worklog WL-20261005-01 for primary QEMU sources and exact limits.
+
+## Genuine current package contribution passed — 2026-10-05
+
+Frozen source580078d and actual material2271c5c2 produce foundationb5e4 and a
+genuine public catalog contribution. jq and SQLite are built from the selected
+sources, including SQLite's separate runtime-library node. The untouched authored
+definition is SHA `b16001008faa5137166268c221481dd371eee3592b5b939bf4e68cd1363e4810`;
+its receipt is SHA `8b09a4d0aed0f2b889bdd540975048e70fa02db1db6a90c978e2551f9f1da5d0`.
+
+The complete public composer passes0 in564.444s, producing native image
+`sha256:a28a41d6861cf23d458f3ce49bf341f4ff9d34030416923bff91d0df064d3a3f`
+and complete candidate receipt SHA
+`c29d2d548a65c7969f26d827cc6309e23ad5a5f55a14ea71b2c577b34a4a3292`.
+Actual exact-image executions return jq42 and SQLite `TC03|42`; installed paths
+match selected outputs. Loader readback proves the separately selected SQLite
+library initializes. Runtime containers have actual exit0 and exact removal.
+
+Nine real public-composer refusals pass: wrong pin, wrong author, absent alias,
+other foundation, reserved path, Docker platform spelling, bare object identity,
+dot alias and plus alias. Each exits1 at its expected gate, publishes no candidate
+and preserves the accepted candidate, complete runtime custody and sentinel.
+Final public jq/SQLite output verification returns0. This does not claim that the
+fixed catalog author emits custom underscore/hyphen aliases.
+
+The first attempt remains failed at its32GiB resource trigger. A separately
+admitted retry preserves the same source/material/binaries, with a new60-minute
+deadline and measured aggregate48GiB trigger/56GiB ceiling. Its pre-composer
+path error, later malformed heartbeat read and seven-case fixture TypeError
+remain recorded. The heartbeat reader stays strict; unique exclusive temporary
+publication with flush/fsync/replace passes25s of real cross-mount reads and the
+subsequent composer. Missing fsync is not established as the original cause.
+Only the two unrun alias refusals were continued after the fixture iteration fix.
+
+The new case finishes in2161.39s, peak original-baseline growth44,352,012,288 bytes,
+additional8,609,062,912 bytes and no reclaim. All four runtime containers are
+absent; idle controller/observer stop and wait commands return0 with idle137 and
+no OOM. Source/binaries, work volume and native image remain preserved. Settlement
+`target/nix-delivery/d2-tc03-current-oct04/proof/retry-oct05/settlement.json` SHA
+`aded3a8cbf8eb3447e9a6c15cc2c3bad0d1dfea2bfaf4384cda1a47c2f261a19`
+binds all constituent receipts; coordinator independently reads/hashes it and
+the per-case results. TC05's earlier13/13 pass remains on candidatee0fd, not this
+different contribution candidate. Hosted direct ARM and production signing
+remain separate gates.
+
+Label correction: run37227947203/source3438970d is the package-catalog branch
+(D3), not D4 as previously described in the worklog. Its exact run, source,
+diagnostic contents and failure outcome are unchanged. Fixed sibling runs are
+D3run37234495358/sourceaa713aa5 and D4run37234495136/sourcefd8c700b.
+
+## Generic underscore/hyphen aliases passed — 2026-10-05
+
+A separate fixture-authored typed definition uses `jq_tool` and `sqlite-tool`
+with the same real retained outputs, updates all five input references, marks
+fixture provenance and omits the copied catalog metadata. The original compiled
+catalog definition/receipt, material, foundation and accepted candidate remain
+unchanged. This tests generic composition, not new production-author support.
+
+The independently pinned optimized ARM CLI SHA
+`d4b9ba250fe850aef5dbdcb2a4ac92b809bd95b38a80560449599f5bb7658ecf`
+comes from checked source27df/run37234496254. Ordinary Git comparison finds its
+Rust/Cargo inputs identical to frozen580; its separate provenance is recorded,
+and it never replaces the earlier TC03 material's author executable. Public
+compose0/verify0/static replay0 produce compositiona6a1e940 and static imagead43c0c0.
+Actual `jq_tool` and `sqlite-tool` executions return42 and `TC03|42`, both0.
+
+The case finishes in317.17s within600s, peak additional7,901,130,752 bytes;
+original output/image custody, source, pins and sentinel are unchanged. Both
+fresh controllers are removed after idle stop/wait0; all17 observed ephemeral
+containers are absent. Context/static image remain retained. Initial socket
+permission failure is preserved; only the disposable fixture user's supplemental
+group changed, with no host socket/mode/group change. Result SHA
+`ce6fffc84ec1c41cdee7e22a9f928a5135013b2fb07cc62ca24ea699e49244a6`;
+settlement `target/nix-delivery/d2-generic-alias-oct05/proof/settlement.json` SHA
+`bc4e647cec8748d010c30639b2c4a625eff35b609b533a05ee9daa86962bc74d`.
+
 ## Hosted installation boundary and stage diagnostics — 2026-10-05
 
 The QMP-fixed hosted runs D2 37234495769/source53c0116, D3
@@ -1038,6 +1163,29 @@ checks of the actual generated marker snippets pass. No guest snippet was run by
 those syntax checks. Actual observer startup and installation outcome remain
 not-run for the new source until the single owning hosted workflow executes.
 This is a diagnostic change; no specific installer root cause or fix is claimed.
+
+### Exact diagnostic source and x86 result
+
+Owning source `deb442c6f220c570cc7cc804d641b74e0b1454ed` passes both architecture
+source checks in push37283817896 and PR37283824525. Diagnostic
+[run37283817872](https://github.com/Reidond/kedra/actions/runs/37283817872)
+remains active on ARM. Its x86 job111677859263 passes at2026-10-05 08:45:09UTC.
+Artifact11333719783 has1,135,854 ZIP bytes and SHA
+`1b642501fc37497d569c4a5fdbc26f1cc99d845885fa82f5de4858bf4f7efe50`, matching
+GitHub's artifact digest. A/B/ROLLBACK each contain their exact phase-pass and
+Secure Boot markers, no failure marker, and38 public CLI outcomes:23 exit0 and15
+expected exit78 refusals. Exact-source assertions bind image identities,
+ordering, retained data, cache/recovery and resume behavior. Independently read
+summary SHA `aefff72916c8118063537c37705bdfb56e81a8bef8a9513efa84091f99b471f0`
+is retained under `target/nix-delivery/ci-finish-oct05/run37283817872-x86/`.
+
+The x86 fixture's cleanup trap suppresses controller/registry errors and publishes
+no structured cleanup receipt. No cleanup failure is observed, but independent
+cleanup is not established. Deterministic tag race, interrupted helper/bootc,
+legacy-state migration and native OCI-platform mismatch remain explicitly
+not-run in that artifact. Its signed update boots do not qualify ARM Anaconda
+installation or the new observer. D3–D5 carry the diagnostic source locally;
+publishing the cascade waits for the owning ARM result.
 
 ## Observed post-verifier installation boundary — 2026-10-05
 
@@ -1168,6 +1316,19 @@ Independent source/privacy/host-integration review also passes, receipt SHA
 Actual corrected classifier execution remains not-run. The installer root
 cause remains unknown; the successful older local HVF result does not validate
 these new observations or the current hosted guest.
+
+Owning correction `c01ee2f7e0a1e5bde5560a4ae71fd73e0046fea0` passes exact
+push Check37330502152 and PR Check37330513592 on both architectures. Direct
+[run37330502213 attempt1](https://github.com/Reidond/kedra/actions/runs/37330502213/attempts/1)
+fails before guest execution: x86 explicitly reports a Quay bearer-token
+HTTP502; ARM resolves its pinned base then fails the pull-always resolver
+creation. The underlying ARM error is unavailable, so the x86 cause is not
+assigned to ARM. ARM cleanup passes with original exit1, private inputs and
+resolver removed, registry/observer not created. Parent API/local ZIP hashes:
+ARM11354312603 `85ab6daa2121ed3eedfaa78a29229c02c139631565e37df2058f0fb11ac2155d`;
+x8611354546110 `dd3eaf93757308bc7bb7c612ff1bf6ebae642f4418ad137637e4bf4ccfe4b608`.
+One same-source failed-jobs retry is requested. No classifier/installer result
+is established by this preparation failure, and attempt1 remains preserved.
 
 ## Corrected classifier final retry — 2026-10-05
 

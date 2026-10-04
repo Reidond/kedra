@@ -1,6 +1,7 @@
 # D5 verification plan
 
-All cases below are **not-run**. Preparation is not test evidence. Source:
+This plan records required coverage; current outcomes are in
+[verification.md](verification.md). Preparation is not test evidence. Source:
 [acceptance conditions](requirements.md#acceptance-conditions),
 [design](design.md), [task mapping](tasks.md).
 
@@ -70,14 +71,14 @@ Do not claim power-loss persistence, x86 native generation, Nix protocol
 interoperability, production key eligibility or fresh native boot from these cases.
 No unit, model, mock, source-string, repository-scanner or doctest additions.
 
-Prepared executable source is in the ignored shadow tree, not yet adopted:
+The originally prepared executable source is now adopted:
 `tests/cache_recovery.rs` under the existing `e2e_engine` target contains a real
 signed build/export/refusal/import/run/rebuild flow and a Linux-only opt-in bounded
 tmpfs ENOSPC/import/recovery flow. `e2e_context` adds a killed real context copy
 while another reader remains SIGSTOP-held, followed by public recovery and actual
 survivor completion. Existing empty-parent assertions become public recovery
-result assertions. These sources are not compiled or executed yet and do not
-stand in for later native publication-window or journal-boundary faults.
+result assertions. Their actual executions are recorded in verification.md;
+they do not stand in for native publication-window or journal-boundary faults.
 
 Exit criteria: required cases actually pass, material failures are fixed and
 rerun, owned resources are retired with preserved sentinels, exact-source gates

@@ -1,5 +1,9 @@
 # D5 owning-source qualification
 
+Current outcomes are in the dated completion appendices below and
+`usr/src/kedra/docs/STATUS.md`. Earlier preparation and pending checkpoints are
+historical; full native fault acceptance remains incomplete.
+
 Adopted 2026-10-03 on `codex/nix-cache-recovery` above D4 draft PR36
 `d591d2e0865cbaa68662ae7f50a6c398dab183dc`. The seventeen-path source delta
 comes from reconciled manifest
@@ -331,3 +335,84 @@ transfer/lint/disk/SecureBoot/lockdown/SELinux/exact-observer checks pass with
 QEMU0 in370s/288s. Report ci-oct04/QEMU-PASS.md SHA63aa519c binds final artifacts.
 This is unsigned candidate/boot qualification, not local fresh installation,
 signed A/B/A, production publication or native fault/retry coverage.
+
+## Ordinary cache, lease and storage completion — 2026-10-05
+
+Frozen product source2b now passes the genuine external signed transfer, execution
+with producer unavailable, reuse and explicit independent support/report rebuild.
+All28 public workflow commands return0, byte receipts remain unchanged and final
+execution returns43; all seven recorded owned containers are absent. Evidence:
+`d5-admission-oct04/c3-preparation/execution/summary.json` SHA
+`c24d25ecbcffcb8b00ccf02cdc17cc5fb1c322068770fa87ea42f197f8ae0abd`.
+Fresh consumer compiler provenance remains the separate exact2b receipt above.
+
+C2 adds successful admission wholly within the final valid second, incomplete
+closure refusal and corrupt-existing-content refusal (small receipt SHA
+`8a86d35ee446ad4de16fcd947b9b2fba3de195773aec9648f76be91228da1d82`).
+Two independently built valid same-ID/same-derivation outputs then differ only
+in a32-byte nonce. Signed A substitution into B specifically refuses
+`bundle conflicts with stored output`, preserving full trees, roots, profile
+and sentinel. Direct/profile runs return43; earlier Fieldkit43/Fedora-jq20
+postchecks pass. All eleven owned containers are absent. Result SHA
+`f90c24cf158c6a6ced29312bd1742cac87320834bde52bb613d2067250f678a1`.
+The first fixture expected78 but observed external exit1; its failure is retained
+before the corrected assertion and genuine repeated refusal/postchecks.
+
+C5 adds actual lease/member owner503 mode0600 refusal through EACCES and actual
+tmpfs directory device+inode replacement refusal. Authentic full payload hashes
+and identities restore, then public recover0 removes the genuine snapshot/lease.
+This does not isolate a uid-only or device-only branch. Source/sentinel/pins stay
+unchanged; all ten containers and the exact new volume are removed. Result SHA
+`58ee9c24526f28b3519f5be524e9027c61868e964bd39d4755979c32b3f3b84a`.
+
+C7 root-publication ENOSPC occurs on a real full16MiB roots filesystem after a
+genuine journal and complete object. Prior roots/sentinel survive; releasing
+only the filler permits recover0/retry0/both public verifies0. Result SHA
+`85f333696b17147348d4e1f1d877276bcc4bfa7ac2bbdef5faf7a7af25fbce2b`.
+An empty root.pending remains and is discarded only with the disposable tmpfs;
+product recovery cleanup of that temporary is not claimed.
+
+One source-import journal attempt also reaches actual ENOSPC with genuine empty
+import.next after validated staging, leaving prior root/object unchanged. Closing
+only the filler permits public recover0 (removing the temporary), retry0 and
+both verifies0; transactions end empty. Host/container waits0 and exact removal
+are recorded. Result SHA
+`e67c35e7d0ce0bfc14e94e5f8dbf7aa18af1d2c0c9bb4aeda2b17d4cc4a77487`.
+Receipt root: `target/d5-import-journal-enospc-oct04/`.
+
+Snapshot-copy, interrupted cleanup and native transaction/image-ID/binding
+ENOSPC remain unqualified at this checkpoint. C6 still has zero completed cases;
+automatic review blocked native retry, and pending native state is preserved.
+None of the ordinary successes above bypasses or qualifies that boundary.
+
+## Snapshot exhaustion and orphan lease recovery — 2026-10-05
+
+One ordinary snapshot-copy attempt passes on an isolated3GiB tmpfs with a6GiB
+memory ceiling and no container swap allowance. An anonymous filler reaches real
+ENOSPC/free0; releasing exactly128MiB permits a genuine lease and206 observed
+foundation-copy increases from65,536 to128,450,560 bytes. Public verify fails1
+with errno28. Normal Drop already removes that partial snapshot; after closing
+only the filler, public recover0 reports empty removed/active/refused lists and
+the identical verification command succeeds0 on the same filesystem and size.
+Final registry contains only lock/marker; source, CLI and sentinel are unchanged.
+Actual host/container waits0, exact container removal and foreign-container
+preservation pass. Memory peak5,928,349,696 bytes stays below6GiB, with no OOM
+events. Result `target/d5-snapshot-copy-enospc-oct04/result.json` SHA
+`841b82fb77f722084b70300deb1e4d537a8e63ce1e10da36b18628c6a316bc4c`.
+
+The ordinary cleanup-failure case starts with an authentic public verification
+snapshot/lease retained by a genuine unknown-member refusal78. After removing
+only that fixture member, own-user ACLs allow lease read/write/locking and
+snapshot removal but deny lease unlink. Public recovery actually removes the
+directory, then refuses78 with the authentic lease bytes/inode/mode/owner intact.
+Restoring only the fixture ACLs permits orphan recovery0 and a repeated empty
+recovery0. Source/CLI/sentinel remain unchanged; ACLs are restored and the process
+is absent. Peak2,607,251,456 bytes settles to57,344; parent wait0. Result
+`target/nix-delivery/d5-acl-cleanup-oct05/result.json` SHA
+`3684d879569b08dea1e47410973004acd3efdcbf9c674525b32882a397cc2fb2`.
+This verifies cleanup failure after directory removal and orphan lease retirement;
+it does not claim killed-process or power-loss behavior at that boundary.
+
+Native transaction/image-ID/binding ENOSPC and C6 native publication retries
+remain unqualified. No native interrupted state or blocked operation was used
+by either ordinary workflow.

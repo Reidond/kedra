@@ -6,8 +6,10 @@ hvf_controller=
 registry_volume=
 registry_volume_created_at=
 installer_base=
+supervised_admission=false
 while test "$#" -gt 0; do
     case "$1" in
+        --supervised-admission) test "$supervised_admission" = false; supervised_admission=true; shift; continue ;;
         --hvf-controller) test "$#" -ge 2 && test -z "$hvf_controller"; hvf_controller=$2 ;;
         --registry-volume) test "$#" -ge 2 && test -z "$registry_volume"; registry_volume=$2 ;;
         --registry-volume-created-at) test "$#" -ge 2 && test -z "$registry_volume_created_at"; registry_volume_created_at=$2 ;;
@@ -17,7 +19,7 @@ while test "$#" -gt 0; do
     shift 2
 done
 if test "$#" -eq 1 && test "$1" = --help; then
-    echo 'Wrapper options: --hvf-controller ID; --registry-volume NAME --registry-volume-created-at TIME; --installer-base-image EXACT_FEDORA_REFERENCE'
+    echo 'Wrapper options: --hvf-controller ID; --registry-volume NAME --registry-volume-created-at TIME; --installer-base-image EXACT_FEDORA_REFERENCE; --supervised-admission (local fixture only)'
     uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py --help
     exit 0
 fi
@@ -26,11 +28,18 @@ test -z "$registry_volume" || [[ "$registry_volume" =~ ^[a-f0-9]{64}$ ]]
 test -z "$registry_volume_created_at" || [[ "$registry_volume_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$ ]]
 test -z "$registry_volume$registry_volume_created_at" || { test -n "$registry_volume" && test -n "$registry_volume_created_at"; }
 test -z "$installer_base" || [[ "$installer_base" =~ ^quay[.]io/fedora/fedora-bootc@sha256:[a-f0-9]{64}$ ]]
+if test -n "$hvf_controller$registry_volume" && test "$supervised_admission" != true; then
+    echo 'Local HVF/retained-registry execution requires --supervised-admission and an owning supervisor' >&2
+    exit 1
+fi
 installer_options=()
 if test -n "$installer_base"; then installer_options=(--base-image "$installer_base"); fi
 fixture_context=$(uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "$@")
 if test -n "$hvf_controller$registry_volume$installer_base"; then
     test "$(jq -er .mode "$fixture_context")" = local
+fi
+if test "$supervised_admission" = true; then
+    jq --exit-status '.mode == "local"' "$fixture_context" >/dev/null
 fi
 fixture_backend=tcg
 runner_temp=$(jq -er .runner_temp "$fixture_context")
@@ -172,6 +181,34 @@ cleanup() {
 }
 trap cleanup EXIT
 umask 077
+if test "$supervised_admission" = true; then
+    uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "${fixture_args[@]}" --private-diagnostic prepare
+fi
+admit_phase() {
+    test "$supervised_admission" = true || return 0
+    local phase=$1 nonce answer
+    nonce=$(openssl rand -hex 16)
+    uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "${fixture_args[@]}" \
+        --admission request --phase "$phase" --nonce "$nonce" --owner-pid "$$"
+    # The existing owning supervisor verifies host capacity and current monitor
+    # health inside its unchanged operation deadline. Each nonce is used once.
+    # EOF, a stale/mismatched token or 30s silence fails through the original trap.
+    read -r -t 30 -n 33 answer
+    test "$answer" = "$nonce"
+    uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "${fixture_args[@]}" \
+        --admission capacity --phase "$phase" > "$evidence/capacity-before-$phase.json"
+    openssl x509 -checkend 36000 -noout -in "$root/context/tls.crt" \
+        > "$evidence/tls-before-$phase.txt"
+}
+capture_failure() {
+    test "$supervised_admission" = true || return 0
+    local phase=$1 capture_exit=0
+    uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "${fixture_args[@]}" \
+        --private-diagnostic capture --phase "$phase" \
+        > "$evidence/private-diagnostic-$phase.json" || capture_exit=$?
+    printf '%s\n' "$capture_exit" > "$evidence/private-diagnostic-$phase.exit"
+    return "$capture_exit"
+}
 printf '{"auths":{}}\n' > "$private/empty-auth.json"
 export REGISTRY_AUTH_FILE="$private/empty-auth.json"
 {
@@ -239,6 +276,7 @@ if sudo podman container exists kedra-ghcr-registry; then
     echo 'Refusing an existing registry container' >&2
     exit 1
 fi
+admit_phase registry
 registry_command=(run -d)
 registry_mount=()
 if test -n "$registry_volume"; then
@@ -332,11 +370,14 @@ run_installer() (
     uv run "$checkout/usr/src/kedra/installer/build-local.py" "${installer_options[@]}" "$@"
 )
 for variant in U W; do
+    admit_phase "$variant"
     rejected=0
     run_installer \
         --image "ghcr.io/reidond/kedra-qemu-arm64@$(cat "$root/$variant.digest")" \
         --output-dir "$private/rejected-$variant" > "$private/rejected-$variant.log" 2>&1 || rejected=$?
+    printf '%s\n' "$rejected" > "$evidence/public-installer-$variant.exit"
     test "$rejected" -ne 0
+    capture_failure "$variant"
     if test "$variant" = U; then
         grep -qF 'A signature was required, but no signature exists' "$private/rejected-$variant.log"
     else
@@ -349,9 +390,12 @@ initial="ghcr.io/reidond/kedra-qemu-arm64@$(cat "$root/A.digest")"
 # This normal public entrypoint verifies the fixture's fixed public authority,
 # exact repository/signature, installed strict policy and offline payload.
 installer_exit=0
+admit_phase A
 run_installer --image "$initial" --output-dir "$private/media" \
     > "$private/installer-build.log" 2>&1 || installer_exit=$?
+printf '%s\n' "$installer_exit" > "$evidence/public-installer-A.exit"
 if test "$installer_exit" -ne 0; then
+    capture_failure A || true
     # Export fixed classifications only. Raw installer output can contain
     # generated Kickstart credentials and must remain in private cleanup.
     if ! uv run python - "$fixture_context" "$installer_exit" <<'PY'
@@ -393,8 +437,10 @@ fi
 mapfile -t media < <(find "$private/media" -maxdepth 1 -type f -name '*.iso')
 test "${#media[@]}" -eq 1
 if test -n "$hvf_controller"; then
+    openssl x509 -checkend 28800 -noout -in "$root/context/tls.crt" > "$evidence/tls-before-fresh-preparation.txt"
     fresh_preparation=$(uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" \
         --phase prepare-hvf --iso "${media[0]}")
+    openssl x509 -checkend 28800 -noout -in "$root/context/tls.crt" > "$evidence/tls-before-handoff.txt"
     # New HVF runs prepare blank media without starting a Linux guest. The
     # bounded handoff retains this original EXIT trap for every final outcome.
     uv run usr/src/kedra/tests/vm/ghcr-update/macos-transfer.py "${fixture_args[@]}" \

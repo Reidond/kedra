@@ -20,6 +20,8 @@ PROGRAMS = ('sysroot', 'sysroot-helper', 'kedra-lab')
 FIELDS = {'schema_version', 'kind', 'mode', 'source_revision', 'fixture_revision', 'repository', 'runner_temp',
           'evidence', 'binaries', 'binary_sha256', 'uid', 'retained_candidate', 'retained_candidate_sha256'}
 MARKER = Path('/usr/share/kedra-release-fixture/controller')
+COLD_ADMISSION_BYTES = 83_751_862_272
+DIAGNOSTIC_LIMIT = 16 * 1024**2
 
 
 def require(value, message):
@@ -135,6 +137,131 @@ def add_context_argument(parser):
     parser.add_argument('--fixture-context', type=Path, help='Previously selected closed local or Actions fixture context')
 
 
+def local_operation(args):
+    fixture = load_context(args.fixture_context)
+    require(fixture['mode'] == 'local', 'Supervised operations require a local fixture')
+    context = args.fixture_context
+    require(context == Path(fixture['runner_temp']) / 'kedra-release-context.json',
+            'Operation context belongs to another lifecycle')
+    return fixture
+
+
+def admission(args):
+    fixture = local_operation(args)
+    require(args.phase in ('registry', 'U', 'W', 'A'), 'Missing admission phase')
+    if args.admission == 'request':
+        require(args.owner_pid is not None and args.owner_pid > 1
+                and args.nonce is not None and re.fullmatch('[a-f0-9]{32}', args.nonce),
+                'Admission requires an owner PID and fresh nonce')
+        state = Path(f'/proc/{args.owner_pid}/stat').read_text().rsplit(')', 1)[1].split()
+        require(Path(f'/proc/{args.owner_pid}').stat().st_uid == fixture['uid'],
+                'Admission owner differs from fixture owner')
+        result = {'event': 'fixture-admission', 'phase': args.phase, 'nonce': args.nonce,
+                  'owner_pid': args.owner_pid, 'owner_start_ticks': int(state[19]),
+                  'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                  'context': str(args.fixture_context),
+                  'context_sha256': hashlib.sha256(args.fixture_context.read_bytes()).hexdigest(),
+                  'admission_bytes': COLD_ADMISSION_BYTES, 'base_credit_bytes': 0}
+    else:
+        require(args.owner_pid is None and args.nonce is None, 'Capacity does not accept an approval')
+        samples = {}
+        for name in (fixture['repository'], fixture['runner_temp'], '/var/lib/containers/storage'):
+            value = os.statvfs(name)
+            samples[name] = value.f_bavail * value.f_frsize
+        require(min(samples.values()) >= COLD_ADMISSION_BYTES, 'Cold fixture capacity admission failed')
+        result = {'schema_version': 1, 'phase': args.phase, 'free_bytes': samples,
+                  'admission_bytes': COLD_ADMISSION_BYTES, 'base_credit_bytes': 0}
+    print(json.dumps(result, sort_keys=True), flush=True)
+
+
+def file_identity(info):
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_nlink,
+            info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def directory_identity(info):
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid)
+
+
+def private_diagnostic(args):
+    fixture = local_operation(args)
+    runner = Path(fixture['runner_temp'])
+    private = runner / 'kedra-ghcr-private'
+    custody = runner / 'kedra-ghcr-diagnostics'
+    if args.private_diagnostic == 'prepare':
+        require(not Path(fixture['evidence']).is_relative_to(custody)
+                and not custody.is_relative_to(Path(fixture['evidence'])),
+                'Private diagnostic custody must be outside uploaded evidence')
+        custody.mkdir(mode=0o700)
+    directories = {}
+    for folder in (private, custody):
+        info = folder.lstat()
+        require(folder.resolve() == folder and stat.S_ISDIR(info.st_mode)
+                and info.st_uid == fixture['uid'] and stat.S_IMODE(info.st_mode) == 0o700,
+                'Private diagnostic directory identity refused')
+        directories[folder] = directory_identity(info)
+    if args.private_diagnostic == 'prepare':
+        return
+    require(args.phase in ('U', 'W', 'A'), 'Diagnostic capture requires an installer phase')
+    source_name = 'installer-build.log' if args.phase == 'A' else 'rejected-' + args.phase + '.log'
+    # Keep bounded raw bytes solely in local 0700 custody, outside EXIT cleanup
+    # and uploaded evidence. Open directory descriptors before either file.
+    source_dir = os.open(private, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        require(directory_identity(os.fstat(source_dir)) == directories[private],
+                'Private source directory changed before open')
+        destination_dir = os.open(custody, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            require(directory_identity(os.fstat(destination_dir)) == directories[custody],
+                    'Private custody directory changed before open')
+            descriptor = os.open(source_name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=source_dir)
+            with os.fdopen(descriptor, 'rb') as origin:
+                before = os.fstat(origin.fileno())
+                require(stat.S_ISREG(before.st_mode) and before.st_uid == fixture['uid']
+                        and before.st_nlink == 1 and stat.S_IMODE(before.st_mode) == 0o600,
+                        'Diagnostic source must be an ordinary owner-private file')
+                offset = max(0, before.st_size - DIAGNOSTIC_LIMIT)
+                origin.seek(offset)
+                data = origin.read(DIAGNOSTIC_LIMIT + 1)
+                require(len(data) == before.st_size - offset <= DIAGNOSTIC_LIMIT
+                        and file_identity(os.fstat(origin.fileno())) == file_identity(before)
+                        and file_identity(os.stat(source_name, dir_fd=source_dir, follow_symlinks=False))
+                        == file_identity(before), 'Diagnostic source changed during capture')
+            for folder, directory in ((private, source_dir), (custody, destination_dir)):
+                require(folder.resolve() == folder
+                        and directory_identity(folder.lstat()) == directories[folder]
+                        and directory_identity(os.fstat(directory)) == directories[folder],
+                        'Private diagnostic directory changed before publication')
+            output_name = args.phase + '.log'
+            descriptor = os.open(output_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                 0o600, dir_fd=destination_dir)
+            with os.fdopen(descriptor, 'wb') as output:
+                output.write(data)
+                output.flush()
+                os.fsync(output.fileno())
+                written = os.fstat(output.fileno())
+                require(stat.S_ISREG(written.st_mode) and written.st_uid == fixture['uid']
+                        and stat.S_IMODE(written.st_mode) == 0o600 and written.st_nlink == 1
+                        and written.st_size == len(data)
+                        and file_identity(os.stat(output_name, dir_fd=destination_dir, follow_symlinks=False))
+                        == file_identity(written), 'Private diagnostic output changed')
+            os.fsync(destination_dir)
+            for folder, directory in ((private, source_dir), (custody, destination_dir)):
+                require(folder.resolve() == folder
+                        and directory_identity(folder.lstat()) == directories[folder]
+                        and directory_identity(os.fstat(directory)) == directories[folder],
+                        'Private diagnostic directory changed during publication')
+            result = {'schema_version': 1, 'phase': args.phase, 'source_bytes': before.st_size,
+                      'captured_bytes': len(data), 'offset_bytes': offset,
+                      'captured_sha256': hashlib.sha256(data).hexdigest(),
+                      'complete': offset == 0, 'raw_content_public': False}
+            print(json.dumps(result, sort_keys=True))
+        finally:
+            os.close(destination_dir)
+    finally:
+        os.close(source_dir)
+
+
 def registry_volume(args):
     fixture = load_context(args.fixture_context)
     require(fixture['mode'] == 'local' and fixture['retained_candidate'] is not None,
@@ -218,8 +345,29 @@ def main():
     parser.add_argument('--registry-volume-created-at', help='Independently selected exact volume creation time')
     parser.add_argument('--registry-container', help='Exact stopped registry container, after creation with nocopy')
     parser.add_argument('--registry-volume-before', type=Path, help='Private pre-creation volume observation')
+    parser.add_argument('--admission', choices=('request', 'capacity'), help='Fixed local supervisor admission protocol')
+    parser.add_argument('--phase', choices=('registry', 'U', 'W', 'A'))
+    parser.add_argument('--nonce')
+    parser.add_argument('--owner-pid', type=int)
+    parser.add_argument('--private-diagnostic', choices=('prepare', 'capture'), help='Private local installer failure custody')
     args = parser.parse_args()
     selected = (args.source_revision, args.runner_temp, args.evidence, args.binaries)
+    if args.admission is not None or args.private_diagnostic is not None:
+        if (args.fixture_context is None or args.local_fixture
+                or (args.admission is not None and args.private_diagnostic is not None)
+                or any(item is not None for item in (*selected, args.fixture_revision,
+                    args.retained_candidate, args.retained_candidate_sha256, args.registry_volume,
+                    args.registry_volume_created_at, args.registry_container, args.registry_volume_before))):
+            parser.error('supervised operations require only an existing local fixture context')
+        if args.admission is not None:
+            admission(args)
+        else:
+            if args.nonce is not None or args.owner_pid is not None:
+                parser.error('diagnostic custody does not accept admission credentials')
+            private_diagnostic(args)
+        return
+    if any(item is not None for item in (args.phase, args.nonce, args.owner_pid)):
+        parser.error('phase, nonce and owner PID require a supervised operation')
     if args.registry_volume is not None:
         if (args.fixture_context is None or args.registry_volume_created_at is None or args.local_fixture
                 or any(item is not None for item in (*selected, args.fixture_revision,

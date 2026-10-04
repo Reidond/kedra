@@ -853,3 +853,29 @@ changes correctly prohibit old1dc replay; f6209 differs from cad6 only in the tw
 already allowlisted fixture files. No recipe gate is widened. Full replay still
 requires fresh authority and unchanged capacity/deadline admission; actual
 installer-base media execution and signed A/B/A remain unpassed.
+
+## Local admission seam — 2026-10-04 (pending runtime qualification)
+
+Fresh runtime storage observation now exceeds the previous warm gate: host
+595,460,612,096 and Linux564,071,206,912 bytes (`d5-native-oct04/audit-plan-proof.json`,
+SHA `e4ef3d6c489b74f0ebd8afe5d584e6ecb4be2fea22849a2e6a25751af2954738`).
+Old containers were absent at resumption, cause unknown; retained images/volumes
+were not changed by that audit. Fresh TLS/source/custody and media/VM outcomes
+remain unqualified.
+
+The small local fixture patch adds a fixed supervised pre-registry/per-U/W/A
+nonce handshake, immediate local cold capacity/TLS checks, and bounded private
+failed-installer custody. It deliberately takes zero base-cache credit and
+requires83,751,862,272 bytes on both sides; the existing overall deadline,
+35GiB trigger/30GiB floor/250ms monitoring remain external supervisor contracts.
+No production recipe or context schema changes. Retained source1dc must still
+pass every original recipe/binary check from a compatible fixture-only descendant.
+
+Host checks: pass — Bash syntax, pinned Ruff check, public help, missing-context
+admission refusal(exit2), missing-supervisor wrapper refusal(exit1), conflicting
+operation refusal(exit2). These check the actual public argument boundary only;
+Linux success/stale-nonce/EOF/capacity/TLS/capture/cleanup execution remains not-run.
+Revised patchd4537cef received scoped Astra CLEAR after the initial review found
+and the source owner repaired a directory-open identity race. The reviewer matched
+fixture SHA8a596379 and wrapper41756481. Actual runtime qualification remains
+required; this source review does not pass those cases.

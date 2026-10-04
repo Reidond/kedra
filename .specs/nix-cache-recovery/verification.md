@@ -282,3 +282,10 @@ cases0: recovery/retry and owned pending cleanup remain not-run. Windows2–4 an
 remaining AC-C2/C3/C5/C7 are unchanged. D2 storage passes current measurements,
 but its source6146d96 Linux protocol/capture and fresh-authority media remain
 unqualified. Preserve the exact interrupted state for permitted continuation.
+
+Hosted D2 backend correction inherited by D5: exact34e7d17 run37200381218
+passes actual backend selection and the unchanged real public store retention
+step, including its cleanup gate. Owning D2d18e7da run37200380542 also passes.
+Full candidate validation and artifact upload remain running/pending; this
+compiler/hosted retention milestone adds no native interruption/retry coverage.
+See WL-20261004-28 for exact job/step readback.

@@ -73,21 +73,57 @@ def qmp_key(path, password):
         request('send-key', {'keys': [{'type': 'qcode', 'data': 'ret'}]})
 
 
-def qmp_quit(path):
+def qmp_quit(path, process, phase_deadline):
+    deadline = min(time.monotonic() + 15, phase_deadline)
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-        client.settimeout(15)
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'QMP quit deadline exceeded')
+        client.settimeout(remaining)
         client.connect(str(path))
-        stream = client.makefile('rwb')
-        require('QMP' in json.loads(stream.readline(65536)), 'Unexpected QMP greeting')
-        stream.write(b'{"execute":"qmp_capabilities","id":"capabilities"}\n')
-        stream.flush()
-        while True:
-            result = json.loads(stream.readline(65536))
-            if result.get('id') == 'capabilities':
-                require('return' in result, 'QMP capabilities refused')
-                break
-        stream.write(b'{"execute":"quit"}\n')
-        stream.flush()
+        with client.makefile('rwb') as stream:
+            def message(allow_eof=False):
+                remaining = deadline - time.monotonic()
+                require(remaining > 0, 'QMP quit deadline exceeded')
+                client.settimeout(remaining)
+                line = stream.readline(65536)
+                if not line and allow_eof:
+                    return None
+                require(line.endswith(b'\n'), 'QMP response absent or oversized')
+                try:
+                    result = json.loads(line)
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    raise RuntimeError('Malformed QMP response') from None
+                require(isinstance(result, dict), 'Unexpected QMP response')
+                return result
+
+            def response(identifier, allow_eof=False):
+                for _ in range(128):
+                    result = message(allow_eof)
+                    if result is None:
+                        return
+                    if result.get('id') == identifier:
+                        require('return' in result and 'error' not in result, 'QMP command refused')
+                        return
+                    require('event' in result, 'Unexpected QMP response identifier')
+                raise RuntimeError('QMP response bound exceeded')
+
+            def send(payload):
+                remaining = deadline - time.monotonic()
+                require(remaining > 0, 'QMP quit deadline exceeded')
+                client.settimeout(remaining)
+                stream.write(payload)
+                stream.flush()
+
+            require('QMP' in message(), 'Unexpected QMP greeting')
+            send(b'{"execute":"qmp_capabilities","id":"capabilities"}\n')
+            response('capabilities')
+            send(b'{"execute":"quit","id":"quit"}\n')
+            # Closing first can discard a queued command in QEMU's monitor.
+            # QAPI permits server EOF before the reply; only real exit0 qualifies it.
+            response('quit', allow_eof=True)
+            remaining = deadline - time.monotonic()
+            require(remaining > 0, 'QMP quit deadline exceeded')
+            require(process.wait(timeout=remaining) == 0, 'QEMU quit failed')
 
 
 def stop(process):
@@ -160,6 +196,10 @@ def publish_phase_failure(fixture, root, phase, error, progress):
             'fixture_revision': fixture['fixture_revision'],
             'elapsed_seconds': time.monotonic() - started if started is not None else None,
             'deadline_seconds': progress.get('deadline_seconds'),
+            'refusal_seen_elapsed_seconds': progress.get('refusal_seen_elapsed_seconds'),
+            'quit_attempted': progress.get('quit_attempted', False),
+            'quit_completed': progress.get('quit_completed', False),
+            'quit_completed_elapsed_seconds': progress.get('quit_completed_elapsed_seconds'),
             'qemu_started': process is not None, 'qemu_exit_code': exit_code,
             'qemu_reaped': process is not None and exit_code is not None,
             'logs': logs, 'raw_private_output_exported': False,
@@ -316,7 +356,10 @@ def phase_main(progress=None):
                     require('systemd[1]: Freezing execution.' not in text, 'Guest PID 1 froze')
                     if insecure and not refused and 'installation requires UEFI Secure Boot and must not start' in text:
                         require('KEDRA_FIXTURE_INSTALL_COMPLETE' not in text, 'Insecure installation unexpectedly completed')
-                        qmp_quit(qmp)
+                        progress['refusal_seen_elapsed_seconds'] = time.monotonic() - started
+                        progress['quit_attempted'] = True
+                        qmp_quit(qmp, process, deadline)
+                        progress.update(quit_completed=True, quit_completed_elapsed_seconds=time.monotonic() - started)
                         refused = True
                     if not media_boot and not entered and 'Please enter passphrase for disk' in text:
                         qmp_key(qmp, password)

@@ -347,7 +347,7 @@ def phase(args, manifest, state, execute):
                     require('systemd[1]: Freezing execution.' not in output, 'Guest PID 1 froze')
                     if insecure and not refused and 'installation requires UEFI Secure Boot and must not start' in output:
                         require('KEDRA_FIXTURE_INSTALL_COMPLETE' not in output, 'Insecure installation completed')
-                        arm.qmp_quit(qmp)
+                        arm.qmp_quit(qmp, process, deadline)
                         refused = True
                     if not media and not entered and 'Please enter passphrase for disk' in output:
                         arm.qmp_key(qmp, password)

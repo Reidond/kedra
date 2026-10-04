@@ -253,3 +253,32 @@ without qualifying authority/source/custody or media. Public derive-plan passes
 with actual wait0 in5.69s and native identityd14a332d. At that aggregate's
 checkpoint all four publication fault windows were not-run. Later attempts
 require their own actual state/exit/retry evidence before changing coverage.
+
+## First capture preserved; public retry blocked — 2026-10-04
+
+Actual initial outcomes are preserved in capture-readiness-proof.json
+(SHA `4008eb4b9652f0fdfe93c2189ef12a013b8e7c595a2fa17a8d68bda6824c6091`):
+missed-main normal derive0/GDB1 produced natived14a/imagecd55; absent-unit
+selection refused1/GDB1. Neither is a fault pass. Same-PID exec readiness then
+passes hardware main, stopped/untraced detach and direct inferior-9/GDB0/outer0.
+
+Third attempt captures the actual pre-ID boundary for native
+`16d9843e05ab46f9a4b68149bcdb45926a0993bba683fd02db1dad41fd93f081`.
+Pending imagee9dcd725/tag57348624 exists while live journal image is null
+(journal SHA1beabbf4/next42b69426); binding and final tag are absent. Actual
+inferior wait-9 and debugger/supervisor/tool waits0 are recorded. Read-only
+settlement `target/nix-delivery/d5-native-oct04/settlement-proof.json` SHA
+`e0930ff4ccbb0add279ca59c70f805da8c53f5072ac2416013c910023a80467a`
+confirms no active writer/debugger, two idle owned controllers and preserved
+pending snapshot/journal/image. Peak charged16,813,470,491 bytes; observed
+maximum Linux sample gap0.272386s is recorded without relabeling it250ms.
+
+Automatic review stopped the runtime task twice, including a subsequent task
+limited to ordinary public same-material recovery/retry. Its generic reason was
+possible cybersecurity risk; no specific action was identified. No bypass, model
+switch or further debugger attempt followed. This execution-review block is not
+evidence of a product security defect. Captured windows1, fully qualified C6
+cases0: recovery/retry and owned pending cleanup remain not-run. Windows2–4 and
+remaining AC-C2/C3/C5/C7 are unchanged. D2 storage passes current measurements,
+but its source6146d96 Linux protocol/capture and fresh-authority media remain
+unqualified. Preserve the exact interrupted state for permitted continuation.

@@ -12,6 +12,7 @@ import os
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -99,7 +100,81 @@ def stop(process):
             process.wait(timeout=20)
 
 
-def phase_main():
+def publish_phase_failure(fixture, root, phase, error, progress):
+    """Retain bounded public metadata before private fixture cleanup."""
+    try:
+        reasons = {
+            'ARM fixture exceeded its phase deadline': 'phase_deadline',
+            'ARM serial output exceeded its bound': 'serial_limit',
+            'Guest PID 1 froze': 'pid1_frozen',
+            'QEMU failed': 'qemu_failed',
+            'Expected phase result is absent or failed': 'phase_result_absent',
+            'Secure-Boot-disabled refusal or untouched target evidence is absent': 'refusal_evidence_absent',
+        }
+        markers = {
+            'firmware_boot_started': b'BdsDxe: starting Boot',
+            'grub_version': b'GRUB version ',
+            'installer_menu': b'Install Kedra (Fedora 44)',
+            'grub_autoboot': b'executed automatically',
+            'grub_prompt': b'grub>',
+            'kernel_started': b'Linux version ',
+            'initramfs_started': b'Running in initial RAM disk',
+            'systemd_started': b'systemd[1]:',
+            'secureboot_refusal': b'installation requires UEFI Secure Boot and must not start',
+            'pid1_frozen': b'systemd[1]: Freezing execution.',
+            'install_complete': b'KEDRA_FIXTURE_INSTALL_COMPLETE',
+            'guest_failed': b'KEDRA_GHCR_FAIL',
+            'no_space': b'No space left on device',
+        }
+        if phase in ('A', 'B', 'ROLLBACK'):
+            markers['phase_pass'] = ('KEDRA_GHCR_' + phase + '_PASS').encode()
+        private = root.parent / 'kedra-ghcr-private'
+        serial_root = private if phase in ('refuse-insecure', 'install') else root
+        logs = []
+        for kind, path in (('serial', serial_root / (phase + '.serial.log')),
+                           ('qemu', private / (phase + '.qemu.log'))):
+            item = {'stream': kind, 'available': False}
+            try:
+                flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+                with os.fdopen(os.open(path, flags), 'rb') as stream:
+                    before = os.fstat(stream.fileno())
+                    require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1,
+                            'Diagnostic input is not an ordinary log')
+                    data = stream.read(16 * 1024**2)
+                    after = os.fstat(stream.fileno())
+                item.update(available=True, size_bytes=before.st_size, hashed_bytes=len(data),
+                            sha256=hashlib.sha256(data).hexdigest(),
+                            complete=len(data) == before.st_size == after.st_size
+                            and before.st_mtime_ns == after.st_mtime_ns,
+                            observed_markers=[name for name, value in markers.items() if value in data])
+            except (OSError, RuntimeError, ValueError):
+                pass
+            logs.append(item)
+        process = progress.get('process')
+        exit_code = process.poll() if process is not None else None
+        started = progress.get('started')
+        report = {
+            'schema_version': 1, 'phase': phase,
+            'reason': reasons.get(str(error), 'phase_failed'),
+            'source_revision': fixture['source_revision'],
+            'fixture_revision': fixture['fixture_revision'],
+            'elapsed_seconds': time.monotonic() - started if started is not None else None,
+            'deadline_seconds': progress.get('deadline_seconds'),
+            'qemu_started': process is not None, 'qemu_exit_code': exit_code,
+            'qemu_reaped': process is not None and exit_code is not None,
+            'logs': logs, 'raw_private_output_exported': False,
+        }
+        with (Path(fixture['evidence']) / (phase + '-failure.json')).open('x') as stream:
+            json.dump(report, stream, sort_keys=True)
+            stream.write('\n')
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError, MemoryError):
+        # No diagnostic exception or private text may replace the first failure.
+        print('ARM public phase diagnostic unavailable', file=sys.stderr)
+
+
+def phase_main(progress=None):
+    if progress is None:
+        progress = {}
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--phase', choices=('prepare-hvf', 'refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
@@ -228,8 +303,10 @@ def phase_main():
     refused = False
     started = time.monotonic()
     deadline = started + (1800 if insecure else 7200 if media_boot else 5400)
+    progress.update(started=started, deadline_seconds=deadline - started)
     with (private / (args.phase + '.qemu.log')).open('xb') as errors:
         process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=errors, stderr=errors, start_new_session=True)
+        progress['process'] = process
         try:
             while process.poll() is None:
                 require(time.monotonic() < deadline, 'ARM fixture exceeded its phase deadline')
@@ -289,20 +366,25 @@ def main():
         require(not (root / 'hvf-owner.json').exists(), 'Fixture was transferred; Linux boot is retired')
         require(not ((root / 'hvf-preparation.json').exists() or (root / 'hvf-preparation.json').is_symlink()),
                 'Fixture was prepared for HVF; Linux boot is retired')
+        progress = {}
         try:
-            phase_main()
-        except RuntimeError as error:
+            phase_main(progress)
+        except Exception as error:
+            publish_phase_failure(fixture, root, args.phase, error, progress)
             # phase_main has already reaped its owned QEMU in finally. Only the
             # unchanged phase deadline licenses a fresh-target HVF retry.
-            if str(error) == 'ARM fixture exceeded its phase deadline':
-                receipt = {'schema_version': 1, 'phase': args.phase, 'reason': 'phase_deadline',
-                           'source_revision': fixture['source_revision'],
-                           'fixture_revision': fixture['fixture_revision'], 'qemu_reaped': True}
-                with (root / (args.phase + '-timeout.json')).open('x') as stream:
-                    json.dump(receipt, stream, sort_keys=True)
-                    stream.write('\n')
-                    stream.flush()
-                    os.fsync(stream.fileno())
+            if isinstance(error, RuntimeError) and str(error) == 'ARM fixture exceeded its phase deadline':
+                try:
+                    receipt = {'schema_version': 1, 'phase': args.phase, 'reason': 'phase_deadline',
+                               'source_revision': fixture['source_revision'],
+                               'fixture_revision': fixture['fixture_revision'], 'qemu_reaped': True}
+                    with (root / (args.phase + '-timeout.json')).open('x') as stream:
+                        json.dump(receipt, stream, sort_keys=True)
+                        stream.write('\n')
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                except (OSError, ValueError, TypeError):
+                    print('ARM timeout receipt unavailable', file=sys.stderr)
             raise
 
 

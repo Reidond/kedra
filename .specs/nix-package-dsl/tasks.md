@@ -1,32 +1,31 @@
 # Future implementation tasks
 
-Status: **all not-started**. This PR creates the plan only. Implementation needs
-separate authorization after review and reconciliation with the delivered engine
-stack. One owner serializes Git and heavyweight container/VM work. No worker or
-background task is dispatched by this spec.
+Status: **all not-started**. The owner approved the language/inline-content direction
+and requested this specification update, not implementation. Reconcile with the
+finished delivery baseline before starting; one owner serializes Git and heavy work.
+No workers or workloads are dispatched by this spec.
 
-| Task | Files / mechanism and user-visible result | Depends on | Test requirements | State |
+| Task | Files / mechanism and author-visible result | Depends on | Test requirements | State |
 |---|---|---|---|---|
-| T1 — Freeze contracts | Reinspect delivered catalog, source, engine and release APIs; settle v1 intent/resolution schemas, independent target package policy, format discriminator and diagnostics. Make unknown/mixed data refuse explicitly. | Delivery baseline reviewed | TC-01, TC-02, TC-08, TC-10 | not-started |
-| T2 — Author API and owner definitions | Extend `sysroot-catalog/lib.rs`, add `author.rs`; add flat `kedra-packages` binary/library, per-package modules, scripts, sets and pins; root Cargo manifests/lockfile. Authors edit package files without changing engine algorithms. | T1 | TC-01, TC-02, TC-03 | not-started |
-| T3 — Bounded author execution | Explicit CLI author entry and existing sanctioned container integration; compile/evaluate with admitted dependencies, bounded IO/resources, separate policy and safe output publication. Data-only operations remain data-only. | T2 | TC-06, TC-09, TC-10 | not-started |
-| T4 — Fedora resolution and lowering | `source.rs`, `system.rs`, `assemble.sh`, image Containerfile, catalog compiler scripts and `refresh.py`; resolve role-specific requirements before binding exact engine graphs. Preserve actual RPM comparison and target restrictions. | T1, T2 | TC-02, TC-04, TC-05 | not-started |
-| T5 — General contribution and release material | `catalog.rs`, templates, `material.py`, `compose.py`, public build/check workflow inputs. Derive selected packages/references from verified material, removing the special jq/SQLite whitelist without weakening signer trust. | T3, T4 | TC-05, TC-07 | not-started |
-| T6 — Deliberate source cutover | Versioned source-input descriptor; remove current shared/target lists and embedded owner recipes as authority only after parity. Retain old-source readers. No implicit new-to-old fallback. | T4, T5 | TC-08, TC-11 | not-started |
-| T7 — Consumer and qualification | Extend existing public CLI E2E and sanctioned container/manual workflows. Build real programs, test dependency transfer, run candidate checks, preserve failed attempts and exact provenance. | T3–T6 | TC-03, TC-05, TC-06, TC-07, TC-09, TC-10, TC-11 | not-started |
-| T8 — Documentation and publication review | Update PACKAGES/ENGINE/SYSTEM/STATUS, relevant first-party skills and both plugin manifests if needed, plus worklog. Review separate implementation PRs; no automatic merge/release. | T7 | TC-01 through TC-11 (evidence readback) | not-started |
+| T1 — Freeze language and policy contracts | Reinspect delivered engine/catalog/source/release APIs; freeze language v1, intent/resolution envelopes, independent target policy, resource decoding and format discriminator. Scope the approved exception in architecture/AGENTS guidance. | Delivery baseline reviewed | TC-01, TC-02, TC-08, TC-13 | not-started |
+| T2 — Parser, types, formatter and owner definitions | `sysroot-catalog/intent.rs`, `language/*.rs`; new `image/packages/*.kedra`, sets and lockfile. Authors edit inline recipes without compiling Rust; diagnostic locations and formatter preserve content. | T1 | TC-01, TC-02, TC-12, TC-13 | not-started |
+| T3 — Input admission and resource lowering | Catalog CLI/root loader and existing engine APIs; materialize canonical source/resource trees, source-preparation nodes and script-file execution with current argument bounds. Keep original inputs immutable and operations bounded. | T2 | TC-03, TC-06, TC-09, TC-12, TC-14 | not-started |
+| T4 — Fedora role resolution | `source.rs`, `system.rs`, `assemble.sh`, image/catalog compiler scripts and refresh; collect build/runtime requirements before freezing exact images, preserve required base policy and complete RPM material comparison. | T1, T2 | TC-02, TC-04, TC-05 | not-started |
+| T5 — Contribution and release material | `catalog.rs`, template lowering, `material.py`, `compose.py`, existing public workflow inputs. Derive selected packages/config from independently verified frontend/resources instead of central jq/SQLite names. | T3, T4 | TC-05, TC-07, TC-12 | not-started |
+| T6 — Inline-first cutover | Versioned entry descriptor; replace current list authority and embedded Rust owner recipes only after parity. Migrate jq/SQLite and a real inline C package with in-file build logic; retain old-source readers. | T4, T5 | TC-08, TC-11, TC-12 | not-started |
+| T7 — Consumer and qualification | Extend existing public CLI E2E/container/manual workflows. Exercise `.kedra` and direct Rust API consumers against identical intent; real builds, resource identity/refusal, dependencies and installed behavior. | T3–T6 | TC-03 through TC-14 (runtime/evidence) | not-started |
+| T8 — Documentation and review | Update package/engine/system/architecture/status guides, AGENTS and applicable repository skills with the narrow approved language decision; bump both plugin manifests if skills change. Record actual evidence and review implementation PRs. | T7 | TC-01 through TC-14 (evidence readback) | not-started |
 
-T1→T2→T3/T4→T5→T6→T7→T8 is dependency order, not a promise of parallel execution
-or a duration estimate. Existing release/VM/runtime owners control exclusive
-resources. The current delivery's fault tests and installer repair remain owned
-by their existing work; this initiative cannot substitute its own prerequisites
-for those results.
+T1→T2→T3/T4→T5→T6→T7→T8 describes dependencies, not a promised concurrency or
+completion estimate. No new Cargo author crate or engine rewrite is planned.
+A parser dependency, if justified later, requires the ordinary small-dependency
+review and existing workspace lockfile update, not per-package Cargo files.
 
-Suggested later review slices are author model/evaluator, Fedora integration,
-contribution/release migration, then qualified cutover. Exact branch topology is
-chosen at implementation start against the then-current base. The current PR
-contains no such code and has no merge-train dependency on drafts33–37.
+Suggested implementation review slices: language/intent/tooling, inline resources
+and actual package builds, Fedora/contribution integration, then qualified migration.
+Choose branch topology against the eventual baseline; this spec PR remains separate
+from drafts33–37 and cannot waive their unfinished tests.
 
-Every affected file family in design section7 has an owner above. Runtime evidence
-belongs to T7, even when the same existing E2E workflow exercises several cases.
-Any added requirement reopens this task-to-case reconciliation before implementation.
+Every affected file family in design section7 has an owner above. One case has one
+owning level even when several tasks contribute. Any syntax or inline-content
+amendment reopens task/case reconciliation, especially TC-12/13/14.

@@ -1,76 +1,86 @@
 # Specification review
 
-Status: specification self-review completed 2026-10-05; implementation not started.
-Reviewer: Codex side conversation, single-agent review. No subagents were used.
+Status: revised following the owner's approval on 2026-10-05. Standalone language
+and inline-first direction are approved; implementation remains unstarted. This
+is a single-agent Codex side-conversation review, with no subagent interaction.
 
-## Scope and evidence
+## Scope and source evidence
 
-This branch contains only `.specs/nix-package-dsl/` and scoped status/worklog
-documentation. Runtime/catalog/image/workflow code and package lists are unchanged.
-Source comparison and the primary references in design.md support the current-state
-description. Proposed APIs are illustrative and have not been compiled or executed.
+The revision changes only `.specs/nix-package-dsl/`, STATUS and worklog in the
+isolated PR38 worktree. The entry README retains exact delivery-source links and
+separates those APIs from the older main PR base. No main-thread checkout, package
+list, Cargo manifest, engine, workflow or installed system is changed.
 
-The worktree is based on main while engine/catalog contracts were inspected at
-the explicitly pinned delivery revision. Snapshot links distinguish that evidence
-from files available on main. The PR can be reviewed independently; implementing
-it must first reconcile with the eventual delivered source.
+The initial embedded-Rust/author-crate design is superseded by direct owner
+approval. This is not an attempt to reinterpret the earlier no-new-language rule:
+the spec records the narrow decision change and gives future implementation tasks
+for reconciling the corresponding operational guidance. It does not implement a
+parser merely because the direction was approved.
 
-## Design review resolutions
+## Review resolutions
 
-- A single undifferentiated package node would hide Fedora solver/privilege
-  requirements. The design retains separate provider kinds and explicit role
-  resolution under one authoring API.
-- Requiring exact builder image IDs during initial authoring creates a dependency
-  cycle when the same DSL declares compiler RPMs. Intent uses symbolic roles;
-  checked resolution precedes lowering into the existing engine graph.
-- Sandboxing only the emitted program misses Cargo build scripts. Both compilation
-  and evaluation use the declared isolated environment; `--frozen` alone is not
-  described as isolation.
-- An RPM version list cannot guarantee future replay from moving servers. The
-  design retains actual complete material checks and requires retained artifacts
-  or explicit re-resolution rather than promising a mirror it does not build.
-- External-catalog parsing alone does not generalize release contribution. T5
-  owns the fixed package inventory, templates, preflight and actual candidate
-  path, with TC-07 requiring a third real package without central-name edits.
-- Inferring format from file presence would let legacy lists mask DSL failures.
-  New source formats require an explicit discriminator, mixed-authority refusal
-  and legacy source compatibility before cutover.
-- A protected-base rule without an owner could become an author-controlled
-  escape hatch. Independent TargetPackagePolicy now owns required base names and
-  is bound to resolution; T1 and TC-02 cover its introduction and refusal.
-- Treating every library node as a runnable catalog package would invent an
-  executable entrypoint. Internal recipes now lower into dependency graphs;
-  selectable program packages retain the existing entrypoint contract. T2 and
-  TC-03 cover this model distinction.
+1. **Primary authoring outcome:** replace the Rust author-crate/sidecar default
+   throughout the requirements, design, examples, tasks and tests. jq/SQLite and
+   a small C pilot must carry actual build logic/resources inline; a conceptual
+   ability to embed code is insufficient if ordinary recipes still require wrappers.
+2. **Language scope:** define explicit v1 grammar, fields/types, local imports,
+   namespaces and bounded package-template expansion. No hidden Rust/shell eval,
+   network import, environment lookup, loop or plugin escape.
+3. **Literal stability:** document indentation/newline/escape behavior, formatter
+   preservation and file modes/paths. Opaque shell strings are never interpolated
+   by the frontend; template binding is a separate typed operation.
+4. **Existing argument limits:** current engine plan validation bounds arguments
+   to 32 KiB. Scripts lower to admitted resource files and execute by typed input
+   path; TC-14 requires a valid longer script without widening engine limits.
+5. **Preparation ownership:** inline patches/overlays use an explicit owned
+   preparation node. Immutable archive sources stay read-only; unsafe paths,
+   missing replacement targets and fuzzy patch application refuse. Generated nodes
+   count toward graph bounds.
+6. **Phase identity:** build/preparation resources and post-build config resources
+   are separated. A config-only template edit changes contribution identity rather
+   than forcing an unrelated binary rebuild or creating a self-output cycle.
+7. **Role-resolution order:** builder/runtime dependencies contribute before exact
+   images are frozen; symbolic roles lower only after independent resolution.
+   Libraries remain dependency nodes, not invented runnable packages.
+8. **Fedora and release authority:** retain the independent target/repository/base
+   policy, actual complete RPM material and failure-on-drift. Generic contribution
+   still binds exact frontend/input/resource/policy/result identities; signers run
+   no language or recipe code. Material does not promise permanent RPM availability.
+   Resource object IDs are computed from independently accepted bytes and scoped
+   per invocation; a producer cannot expand standing source permissions.
+9. **Migration and versioning:** explicit source-format/version selection rejects
+   mixed authority and unknown versions without fallback. Old readers and signed
+   provenance survive. Both targets need actual Fedora parity; ARM source-build
+   results do not qualify x86 execution.
+10. **Traceability:** new AC-11/12/13 cover self-contained packages, resource identity
+    and language tooling. TC-12/13/14 and T2/T3/T6/T7 own those outcomes; every AC/NFR
+    appears in the matrix and every case has an owning task/level.
 
-Security, minimal scope, failure handling, affected files, rollback, task ownership
-and verification coverage were reviewed against the specification checklist. AI
-service/web/API-specific checklist items do not apply. Project E2E/manual-only
-policy overrides generic unit/mock recommendations. Every AC/NFR is represented
-in test-plan.md; every TC has a task owner. No unresolved implementation-design
-question is used to imply current implementation readiness.
+## Check boundaries
 
-## What remains for the owner
+Source/API inspection confirms current data/node/argument bounds. Other limits
+in NFR-02 are proposed defaults, not measured performance. Syntax examples are
+reviewed illustrations and have not been compiled by a nonexistent parser.
+The grammar outline and schema rules together define proposed behavior; the
+future E2E cases must prove the complete frontend-to-build workflow.
 
-Review the proposed authoring ergonomics, migration sequence and initial scope.
-Approving this documentation or merging this spec does not start implementation,
-authorize a new release or waive current delivery qualification. Detailed method
-names can evolve during implementation as long as these acceptance contracts hold.
+Review applied scope/security, overengineering, failure handling, compatibility,
+affected-file ownership and task/case coverage checks. AI-service/web-specific
+items do not apply. Repository E2E/manual-only policy overrides generic unit/mock
+recommendations. Documentation and ordinary manual ID/diff inspection are used;
+no repository scanner or new test runner was created.
 
-## Checks for this PR
+The final local review and diff checks are recorded in the worklog amendment.
+All actual language/build/resolver/VM cases remain not-run. Automatic PR workspace
+CI exercises unchanged product code and does not qualify this future language.
+No new project-wide implementation learning or global skill change is claimed;
+these task-specific decisions belong in this spec.
 
-- Pass: current source/API and actual recipe/list/release consumer inspection.
-- Pass: manual requirements/design/tasks/case reconciliation and preservation of
-  the independent privilege and release boundaries.
-- Pass: `git diff --check` and ordinary changed-path inspection. Exact remote PR
-  readback for draft PR38 confirms exactly nine Markdown documents against main;
-  the publication follow-up is recorded in worklog.md.
-- Not-run: all future runtime cases, Cargo builds for the proposed API, DNF/image
-  transactions, VM/installer flows and production signing. No such code is added.
+## Closing challenge
 
-Closing challenge found no further unresolved design defect after the eight
-resolutions above. No implementation symbol changed, so runtime callers and
-signing behavior are unchanged by this diff. Future API ergonomics, isolation
-limits and actual solver/candidate behavior remain unverified until their named
-implementation cases run. Automatic workspace CI checks the existing main code;
-even a pass there would not qualify the proposed DSL.
+The review changed the proposal at the inline-script transport, preparation
+ownership, formatter semantics and build-vs-contribution identity boundaries.
+No remaining design blocker is being hidden behind a claimed implementation pass.
+Not inspected by execution: parser behavior, actual new lowering, resource ceilings,
+new Fedora migration and installed outputs, because this PR contains no code for
+those operations. They have explicit future case owners rather than assumed results.

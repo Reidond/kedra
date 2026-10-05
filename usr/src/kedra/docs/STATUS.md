@@ -2,12 +2,14 @@
 
 ## Package authoring specification (2026-10-05)
 
-The owner requested an independent specification for an embedded Rust package
-DSL covering Fedora package selection and source-built engine packages.
-[The proposal](../../../../.specs/nix-package-dsl/README.md) defines authoring,
-isolated evaluation, resolver/build boundaries, release provenance and migration.
-It is planning only: no DSL implementation, package migration, new runtime pass
-or production release is claimed. The separate D1–D5 draft delivery remains
+The owner approved revising the independent package specification to a standalone
+`.kedra` language implemented in Rust, with most package build commands, patches
+and small resources embedded directly in package definitions. This supersedes
+the draft's earlier embedded-Rust authoring choice for this planned frontend.
+[The proposal](../../../../.specs/nix-package-dsl/README.md) now defines language
+syntax/tooling, exact inline-content semantics, Fedora/source build boundaries,
+release provenance and migration. It is planning only: no parser, package migration,
+new runtime pass or production release is claimed. The separate D1–D5 delivery remains
 incomplete in its recorded runtime gates. This documentation branch is based on
 main; its spec pins the independently inspected delivery source explicitly.
 

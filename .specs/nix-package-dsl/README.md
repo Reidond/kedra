@@ -1,65 +1,74 @@
-# Rust package DSL for Kedra
+# Kedra package language
 
-Status: **proposed; specification only; no implementation authorized or delivered**.
-Date: 2026-10-05 (Europe/Kyiv). Independent documentation PR against main
+Status: **owner-approved direction; specification only; no implementation delivered**.
+Updated: 2026-10-05 (Europe/Kyiv). Independent draft
+[PR38](https://github.com/Reidond/kedra/pull/38) targets main
 `b224d5711e857f7dbcaabf7ed42870916525800c`; it does not join or rewrite the active
-delivery stack. Implementation depends on the reviewed engine/catalog/release
-contracts from drafts33–37 and must rebase its assumptions when those settle.
+delivery stack. Implementation needs separate authorization and must reconcile
+with the delivered engine/catalog/release contracts when drafts33–37 settle.
 
-The owner requested a better package-authoring experience using a custom Rust DSL,
-including Fedora packages. The proposal is a small **embedded DSL**: normal Rust
-constructors/builders, modules and compiler diagnostics. There is no second parser,
-interpreter, expression language, daemon or replacement RPM dependency solver.
+The owner approved a **standalone `.kedra` language implemented in Rust** and
+prefers most packages to carry their build logic directly in those files. This
+supersedes the first revision's embedded Rust DSL/author-crate choice. The approval
+changes the earlier no-new-language decision for this specific planned package
+frontend; it does not authorize a new OS backend, generic scripting platform or
+implementation work in this PR.
 
-An author will edit one package module, a nearby build script when needed, and
-reviewed source pins. One package-set declaration selects Fedora requirements and
-engine-built packages. The same intent lowers into two explicit paths:
+A normal package definition contains its metadata, pinned source reference,
+build/runtime dependencies, shell commands, patches, small source/generated files
+and exports. Separate `.sh`/patch/template files are supported exceptions for large
+or independently maintained assets, rather than the default recipe structure.
+Large upstream archives stay external and pinned. We are not proposing to paste
+whole upstream projects or credentials into package files.
 
 ```mermaid
 flowchart TD
-    A[Package modules and target selections in Rust] --> B[Bounded author evaluation]
-    B --> C[Versioned package intent]
-    C --> D[Fedora adapter resolves foundation and compiler images]
+    A[Self-contained .kedra package and target files] --> B[Rust parser and type checker]
+    B --> C[Canonical package intent and resource bytes]
+    C --> D[Fedora adapter resolves foundation and compiler roles]
     D --> E[Verified RPM material and exact image identities]
-    C --> F[Source admission and engine recipe lowering]
+    C --> F[Source/resource admission and engine graph lowering]
     E --> F
-    F --> G[Existing package engine builds runtime closures]
+    F --> G[Existing engine executes isolated builds]
     E --> H[Existing system composer]
     G --> H
     H --> I[Existing validation and isolated release signing]
 ```
 
-The DSL describes Fedora RPM selection; it does not build Fedora packages from
-source or relocate RPM files into the engine store. Fedora's installed paths and
-the engine's separate store paths remain distinct. Live home reconciliation and
-the separately planned niri/home-artifact improvement are outside this spec.
+Parsing, imports, template expansion and planning execute no author-provided
+commands. Embedded shell executes only later inside an approved builder. The Rust
+API remains a secondary programmatic frontend to the same validated intent; a
+package edit does not compile Rust or require rebuilding the engine/CLI.
+
+Fedora declarations select RPMs for the foundation/compiler environment. They do
+not rebuild Fedora packages from source or move RPM paths into the engine store.
+Live home reconciliation and the separate niri/home-artifact improvement remain
+outside this package-language spec.
 
 Read in order:
 
 1. [Requirements and acceptance scenarios](requirements.md)
-2. [Design, authoring examples and migration](design.md)
-3. [Implementation tasks](tasks.md)
-4. [Future executable/manual cases](test-cases.md) and [verification plan](test-plan.md)
-5. [Specification review and evidence](review.md)
+2. [Language syntax, examples and precise content semantics](language.md)
+3. [Architecture, lowering and migration](design.md)
+4. [Implementation tasks](tasks.md)
+5. [Future executable/manual cases](test-cases.md) and [verification plan](test-plan.md)
+6. [Review and evidence](review.md)
 
-All future tasks and runtime cases start **not-run**. Examples show proposed API
-shape, not existing callable methods. No package definition, list, Cargo manifest,
-engine, workflow, installer or live machine is changed by this PR.
+All future tasks/cases are **not-started/not-run**. Syntax and commands below are
+proposed, not implemented. This PR changes only these documents and status/worklog.
 
 ## Inspected source, not assumptions about main
 
-The separate delivery checkout was inspected at
+The delivery checkout was inspected at
 `95c5c6cf9856b9dc5d54bbb076f74aa185ae4c9f`; relevant package/source/release files
-match published `e908bb281c3dc5189373c48a5ab4958c1b9d2fde` by ordinary Git diff.
-The source links below pin that published snapshot because these components are
-not yet on this PR's main base:
+matched published `e908bb281c3dc5189373c48a5ab4958c1b9d2fde` by ordinary Git diff.
+The links pin that snapshot because these components are not yet on this PR's base:
 
-- [Built-in recipes](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot-catalog/recipes.rs): jq1.8.2 and SQLite3.53.4, archive/tree pins and embedded shell text.
-- [Catalog API](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot-catalog/lib.rs): typed packages, independent allowlists and lowering to engine graphs.
-- [Catalog CLI](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot/catalog.rs): external JSON catalogs are accepted for list/plan/resolve/build, while contribution selects the built-in jq/SQLite pair and embeds templates.
-- [Source resolver](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot/source.rs): shared/target package lists, global removals and retained-layout support.
-- [Foundation assembly](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/image/assemble.sh): DNF upgrade/install/remove plus actual RPM material.
-- [Release material](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/image/release/material.py): exact recipe/tool inventory, compiler RPM material and a currently closed jq/SQLite inventory.
+- [Recipes](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot-catalog/recipes.rs): jq 1.8.2, SQLite 3.53.4, archive/tree pins and shell text.
+- [Catalog API](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot-catalog/lib.rs): independent policies and engine graph lowering.
+- [Catalog CLI](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot/catalog.rs): external Catalog JSON support, fixed jq/SQLite contribution and embedded templates.
+- [Source resolver](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot/source.rs): package lists, removal lists and retained-layout compatibility.
+- [Assembly](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/image/assemble.sh) and [release material](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/image/release/material.py): DNF operations, exact RPM/compiler material and the current closed inventory.
+- [Engine model](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot-engine/model.rs) and [plan validation](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot-engine/plan.rs): 8 MiB graph data, 256 nodes and bounded arguments. Inline scripts must become file inputs, not oversized command arguments.
 
-Main-thread runtime failures and incomplete native fault qualification remain in
-their owning records. This document does not change those acceptance gates.
+This spec does not change the delivery's runtime failures or acceptance gates.

@@ -1,77 +1,81 @@
 # Verification management
 
-Status: **planned; nothing in this document has run**. The documentation PR is
-validated by manual source/design review and standard Git diff checks only.
-The cases describe future implementation acceptance.
+Status: **planned; all runtime cases not-run**. This documentation revision is
+checked by source/design review, traceability inspection and standard Git diff
+checks. It introduces no parser, recipe executable or package migration.
 
 ## Entry conditions and levels
 
-Implementation is authorized separately; the delivery baseline and schemas are
-frozen; actual native builder/runtime images and source pins are available;
-required resources have an owner and measured capacity. Use exact per-invocation
-binaries and source identities, bounded private fixtures and preserved external
-sentinels. No production keys, owner credentials or workstation install.
+Before implementation: separately authorize it, freeze the delivered baseline
+and schema/language/resource contracts, admit source/pins/images and obtain an
+owned resource window. Use exact per-invocation binaries, bounded fixtures and
+external sentinels. No owner credentials, production keys or workstation install.
 
-Use the existing public CLI E2E targets, sanctioned container harness and manual
-actual-process/release workflows. No new runner, unit/model/API-isolation tests,
-mock services, doctests, source-string assertions or manifest/layout scanners.
-This follows the repository's owner policy rather than a generic testing pyramid.
-Compiler/linter success alone cannot establish package execution or isolation.
+Use existing public CLI E2E targets, the sanctioned container harness and manual
+real-process/release workflows. Parser/formatter acceptance runs through the
+actual CLI on generated fixture input and observes behavior; no source-string
+assertions against repository files. No unit/model/mock/doctest or replacement
+runner. Cargo/Ruff/compiler checks remain appropriate supporting gates, not proof
+of installed behavior. Do not compile arbitrary Rust while parsing `.kedra`.
 
 ## Traceability and methods
 
-| Requirement | Cases | Verification status |
+| Requirement | Cases | Status |
 |---|---|---|
-| AC-01 | TC-01, TC-03 | not-run |
+| AC-01 | TC-01 | not-run |
 | AC-02 | TC-05 | not-run |
 | AC-03 | TC-02 | not-run |
-| AC-04 | TC-03 | not-run |
+| AC-04 | TC-03, TC-14 | not-run |
 | AC-05 | TC-04, TC-05, TC-11 | not-run |
 | AC-06 | TC-06, TC-10 | not-run |
 | AC-07 | TC-02, TC-03, TC-05 | not-run |
 | AC-08 | TC-07 | not-run |
 | AC-09 | TC-08, TC-11 | not-run |
 | AC-10 | TC-09, TC-10 | not-run |
-| NFR-01 | TC-01, TC-10; automated public workflows | not-run |
-| NFR-02 | TC-06, TC-09; manual limits/process evidence | not-run |
-| NFR-03 | Preservation readbacks in TC-01 through TC-11 | not-run |
-| NFR-04 | Standard Cargo gates and scope review; no prohibited test level | not-run |
+| AC-11 | TC-12 | not-run |
+| AC-12 | TC-12, TC-13, TC-14 | not-run |
+| AC-13 | TC-13 | not-run |
+| NFR-01 | TC-01, TC-10, TC-13; automated public workflows | not-run |
+| NFR-02 | TC-13 automated boundaries; TC-09 manual real timeout/lifecycle | not-run |
+| NFR-03 | Preservation readback throughout TC-01 through TC-14 | not-run |
+| NFR-04 | Standard Cargo gates and manual scope review | not-run |
 
-Every case has one owning level in test-cases.md and at least one task in tasks.md.
-Cases with several task contributors still have one authoritative result. Unit,
-mock and repository-text levels are excluded by owner policy; kernel VM tests
-are used only where installed boot behavior requires them, not for pure author
-serialization. No additional VM is required merely to test a Rust diagnostic.
+Each case has one owning level and tasks in tasks.md. Multiple contributors do
+not create duplicate authoritative assertions. VM boot is required only where the
+migrated installed OS boundary needs it, not to prove a parser diagnostic.
 
-## Execution sequence and exit
+## Execution order and exit
 
-1. Run pinned Cargo formatting, Clippy, appropriate public CLI E2E and release
-   build; run existing uv/Ruff/release interoperability/material checks where
-   affected. Do not install missing tools automatically.
-2. Execute author/selection/source/consumer flows TC-01/02/03/08/10, using real
-   compiled author programs and actual outputs.
-3. Serialize TC-04/05/07/11 heavyweight resolver/candidate workflows with the
-   current runtime owner; record actual RPM material and program execution.
-4. Execute isolated bounded TC-06/09 under fresh resource/ownership checks. A
-   denied execution or missed interruption point is blocked/not-run, never passed
-   by source inspection or a substitute case.
-5. Re-read all results and retained failure records, update operational docs and
-   status, and review implementation PRs before any separate merge/publication.
+1. Standard pinned Cargo formatting/Clippy/public CLI E2E/release compilation and
+   affected uv/Ruff/release interoperability/material workflows. Missing tools are
+   not automatically installed.
+2. Execute frontend/selection/compatibility/no-side-effect/formatter cases against
+   real CLI binaries; compiler success cannot substitute for syntax semantics.
+3. Execute real source/resource builds, runtime-library transfer and independent
+   frontend/API workflows. Assert actual nonempty package output and script bytes.
+4. Serialize Fedora/candidate/installed-target checks with the runtime owner;
+   retain exact full RPM observations and all failed attempts.
+5. Run bounded interruption/collision/source-preparation failure cases on generated
+   private inputs. A blocked or missed case stays blocked/not-run.
+6. Review all evidence, reconcile documentation, review implementation PRs, then
+   separately authorize any merge or production action.
 
-Exit requires every applicable AC/NFR above to pass, exact owned cleanup and
-sentinel preservation, no unresolved material defect, and explicit unrun gates.
-Any platform/environment prerequisite that is absent remains blocked. Exact-main
-production publication is separate and cannot be inferred from branch fixtures.
+Exit requires all applicable AC/NFR cases to pass, exact source/binary and cleanup
+readbacks, no material unresolved defects, and explicit remaining platform/trust
+limits. The source-package pilots must use inline build/resource definitions;
+passing by retaining mandatory sidecar scripts would miss AC-11. Publishing this
+spec cannot qualify language execution or the current delivery's outstanding work.
 
 ## Deliberate non-coverage
 
-| Boundary | Risk band from design | Why excluded / who owns it |
+| Boundary | Design risk band | Reason / owner |
 |---|---|---|
-| Permanent RPM availability or offline mirror | Fedora drift: high/high | No retention service is proposed; replay requires retained artifacts or explicit re-resolution. Release operator owns availability. |
-| Universal purity of arbitrary Rust | Author execution: medium/high | Isolation and repeated evaluation provide scoped evidence, not a mathematical purity claim; author/evaluator owner preserves this limit. |
-| General home activation and rollback of user data | Scope expansion: high/medium | Existing home subsystem and separate home-artifact plan own it; DSL only describes package inputs. |
-| Cross-compiling source packages or native x86 engine qualification | Scope expansion: high/medium | A future platform workstream must qualify it; current desktop Fedora migration still gets TC-11. |
-| New third-party repository/key policy, cluster atomicity, power loss | Trust expansion: medium/high | Separate trust/recovery projects; preserve existing policies and do not claim these outcomes. |
+| Permanent RPM availability or new mirror | Fedora drift: high/high | Requires retained artifacts or explicit new resolution; no retention service is proposed. |
+| General functions, loops, recursive eval or plugin/FFI execution | Language growth: medium/medium | Outside v1; unsupported syntax refuses. The frontend owner must not smuggle it into a built-in. |
+| IDE language server | Language growth: medium/medium | CLI diagnostics and formatting are required; editor protocol support can follow actual language use. |
+| General home management, database rollback and power-loss guarantees | Trust/recovery expansion: medium/high | Existing home/deployment and separate qualification own these boundaries. |
+| Cross-compilation/native x86 source-engine qualification | Delivery scope: high/medium | Future platform work; desktop Fedora migration still requires TC-11. |
+| Third-party repositories or new signing keys | Trust/recovery expansion: medium/high | Preserve current independent allowlists and signer authority. |
 
-Review note: thresholds in NFR-02 are proposed operational limits to qualify.
-No elapsed-time benchmark or success claim exists merely because a limit is named.
+Bounds in NFR-02 are proposed policy limits to qualify. No speed, sandbox quality,
+fully reproducible OS build or production eligibility is inferred from naming them.

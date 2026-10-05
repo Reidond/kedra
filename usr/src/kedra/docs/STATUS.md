@@ -37,10 +37,23 @@ but ARM installation fails at7201.685s. Its157 increasing guest heartbeats
 continue through7186.790s with no sequence gaps;239 host/owned-QEMU samples
 are retained. No sampled guest OOM or low available memory is observed. ARM
 refusal/shutdown and structured cleanup pass. The pinned Anaconda DBus modules
-use different log formats/routes from the main process, which the task reader
-does not yet handle correctly. Missing task markers therefore cannot locate
-the stall. A bounded classifier correction is in progress; no new runtime is
-active. The complete upper stack b7eb359 remains local and preserved.
+use different log formats/routes from the main process, which that revision's
+task reader handled incorrectly. Missing task markers cannot locate the stall.
+Owning `c01ee2f` corrects the classifier; source push Check37330502152 and PR
+Check37330513592 pass both architectures. Its
+[run37330502213](https://github.com/Reidond/kedra/actions/runs/37330502213)
+attempt1 fails before guest execution. Attempt2 passes x86 A/B/rollback but ARM
+installation fails at7201.573s. The corrected observations establish entry into
+bootc deployment after physical-root cleanup returns, before argument retrieval,
+mount setup and child creation. No bootc completion/post-install marker appears.
+Guest157 increasing health frames and239 host samples do not establish the
+installer's subsequent operation; no guest OOM is recorded. ARM refusal/QMP
+shutdown and structured cleanup pass. The cause remains unresolved; no further
+speculative run or acceptance relaxation is proposed. Full hosted ARM
+installation/update/rollback and native fault qualification remain incomplete.
+The aligned upper stack awaits publication; the home-artifact plan remains
+unimplemented. Nothing is merged, installed on the workstation or published to
+production. See WL-20261005-17 for exact receipts and source-review evidence.
 
 The Docker backend and twelve-field inspection-default correction pass the complete
 hosted QEMU workflow on D2 source332f450/run37217459554 and D5 source8c35755/run37217459773:

@@ -1,12 +1,30 @@
 # Release composition tasks
 
-State: source adopted above published D1 head712927e on
-`codex/nix-release-composition`; runtime qualification is pending. No production
-execution is authorized. The closed original/replacement hash manifest under
+State (2026-10-05): source is published in draft PR34 above D1 head712927e.
+Local fresh installation/update/rollback and exact-candidate container checks
+pass; the genuine package contribution now also passes. Hosted direct ARM
+qualification remains incomplete after the final diagnostic retry. No
+production execution is authorized. The original/replacement hash manifest under
 `target/nix-delivery/d2-preparation` was reconciled before adopting its20 paths.
 An explicit local fixture controller supplements the Actions workflow without
 inventing Actions environment identity; exact runtime evidence belongs in
 verification.md.
+
+Current task outcomes: T1–T4/T6 implementation and recorded source/material gates
+pass; T5's genuine production contribution, exact-image programs and nine refusal
+cases pass on frozen580/material2271. T7/T8 pass the complete local public
+HVF workflow on producer1dc/compatible fixture6146d96, with actual phase waits,
+security/native-artifact/data checks and cleanup. TC05 passes13/13 on exact
+candidatee0fd with frozen57 harness50dca and no overlay. T9 draft publication and
+source gates pass. Hosted TCG refusal/QMP shutdown passes; fresh installation
+still times out. Corrected-classifier source c01ee2f/run37330502213 attempt2
+reaches the bootc deployment path after physical-root cleanup, but the retained
+evidence cannot locate the subsequent wait or establish child execution.
+Its x86 A/B/rollback and ARM refusal/cleanup pass. Hosted ARM installation,
+update and rollback remain incomplete; no further speculative run is proposed.
+T10/TC11 stays not-run until separately authorized on protected main.
+These source domains are deliberately distinct; see the dated verification
+appendices for hashes, failures and the unavailable original host-parent wait.
 
 | Task | Work / files | Depends on | Test requirements |
 |---|---|---|---|

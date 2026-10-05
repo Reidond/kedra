@@ -1168,3 +1168,59 @@ Independent source/privacy/host-integration review also passes, receipt SHA
 Actual corrected classifier execution remains not-run. The installer root
 cause remains unknown; the successful older local HVF result does not validate
 these new observations or the current hosted guest.
+
+## Corrected classifier final retry — 2026-10-05
+
+Exact owning source/fixture `c01ee2f7e0a1e5bde5560a4ae71fd73e0046fea0`,
+[run37330502213 attempt2](https://github.com/Reidond/kedra/actions/runs/37330502213/attempts/2),
+ARM job111835961153: **fail**, completed18:11:52UTC. Attempt1 failed before guest
+execution and remains separately preserved; this retry does not erase it.
+Source push Check37330502152 and PR Check37330513592 pass both architectures.
+
+The applied observer `1f8e7ea1dc068fcda1c27eb33e2ac81dbb85777fbeba182cd6745312b4e619e9`
+now records StorageSpoke initialization, TUI Start return and automatic-partition
+model application at1145.292s. Bootc run/execute log points appear at1362.446s.
+Pinned Anaconda44.30 deployment source614ac3f3 logs the latter after
+`_clean_physroot()` returns and before storage `GetArguments()`, scratch/mount
+setup, child creation/output wait and adapter cleanup. No child-start/exit
+receipt is retained. No bootc-complete, fixture-post or final completion appears.
+The installation reaches7201.573s against its7200-second deadline. This narrows
+the failure to the deployment path; it does not identify an actionable defect.
+
+Verifier actual exit/status0 appears at394.949s.157 increasing guest health
+frames have no gaps, last7158.720s; sampled MemAvailable minimum6,234,744KiB,
+oom_kill0.239 host samples continue through7182.885s, available memory minimum
+5,152,376KiB and fixture space minimum54,374,727,680bytes. These observations
+establish sampled resources/liveness, not installer progress or a root cause.
+TMUX_MAIN_LIVE_PYTHON is first seen395.954s; process-family last-seen/counts are
+not retained. QEMU exit0 is controller settlement after failure.
+
+Insecure-boot refusal/QMP shutdown passes371.662s. Structured cleanup reports
+original exit1, private inputs/registry/resolver removed and no cleanup failure.
+Parent independently read the bounded receipts, actual final API/source/job and
+artifact11363722398 metadata and matching local ZIP:941910bytes, SHA
+`f1ea271a324a8f984fce3d71b624b091651eba3d131de2f4f1a71617f30a3923`.
+Failure receipt SHA
+`44c3d2e1612a8e6eeccce19a0d6462d4443b0de584c66f6e6ac8599c99deefe8`;
+cleanup SHA
+`9078eee2eb3b8e4085571c3ab2547d3f98293151994df14ea710e26505fdabec`;
+refusal SHA
+`b549ee6a096d1162c3db0722d8dc906b2f276ff013c550df94ddf00105286bde`.
+Independent pinned-source boundary report SHA
+`7491ed407069f44af71c4465cc9557a96e5c6935b36c79ba1a8bf24928daca1e`,
+under `target/nix-delivery/d2-runtime-oct05-readonly/attempt2-boundary.md`.
+Parent also read and hashed final CI report
+`d71b4c1189a0add1c9464b3a1c59d8cb78d84b5edb5e0378d065db2baafe46f8`.
+
+Paired x86 job111835961026 passes15:34:29UTC: A/B/ROLLBACK, Secure Boot and38
+CLI outcomes (23 exit0,15 expected exit78). Parent verified artifact11355586450,
+ZIP SHA `08e2e354e97fc71c750988a1a452513d18c758addaeb788ccd54e9d797b98cc2`,
+and summary SHA `032677ff357cceb46d639c6cf1570d358d33e44994d495046b25443cf50999fa`.
+Four not-run cases and independent x86 cleanup's missing receipt remain explicit.
+
+Close this diagnostic iteration with **incomplete hosted ARM qualification**.
+Do not infer a bootc deadlock, raise limits, weaken verification or launch another
+speculative run. Local HVF results retain their own exact source/runtime scope.
+Aligned upper-branch publication may cancel duplicate VM executions; cancelled
+runs are not passes. Native fault/recovery remains blocked by automatic approval
+review; its pending state is preserved. Main-only production remains not-run.

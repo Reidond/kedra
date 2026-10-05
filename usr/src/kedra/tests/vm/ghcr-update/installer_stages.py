@@ -15,26 +15,36 @@ STATES = ('inactive', 'activating', 'active', 'deactivating', 'failed', 'reloadi
 RESULTS = ('success', 'resources', 'timeout', 'exit-code', 'signal', 'core-dump',
            'watchdog', 'start-limit-hit', 'exec-condition', 'protocol')
 LOGS = {'ANACONDA': '/tmp/anaconda.log', 'STORAGE': '/tmp/storage.log',
-        'PROGRAM': '/tmp/program.log', 'PACKAGING': '/tmp/packaging.log'}
+        'PROGRAM': '/tmp/program.log', 'PACKAGING': '/tmp/packaging.log', 'DBUS': '/tmp/dbus.log'}
 PATTERNS = {'TRACEBACK': b'Traceback (most recent call last):',
             'KICKSTART_ERROR': b'KickstartError', 'NO_SPACE': b'No space left on device',
             'STORAGE_LAYOUT_ERROR': b'Failed to create storage layout:',
             'PAYLOAD_INSTALLATION_ERROR': b'PayloadInstallationError', 'MEMORY_ERROR': b'MemoryError'}
-# Anaconda44.30 log formatter; only actual record prefixes qualify task events.
+# Anaconda44.30 main UI and D-Bus modules use distinct log formats and files.
 STAMP = rb'(?m)^[0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{3} '
 TASKS = {'STORAGE': b'Create storage layout', 'MOUNT': b'Mount filesystems',
          'BOOTC_ARGS': b'Collect kernel arguments for bootc', 'BOOTC': b'Deploy bootc'}
-RECORD_PATTERNS = {}
+RECORD_PATTERNS = {label: {} for label in ('ANACONDA', 'DBUS', 'STORAGE', 'PACKAGING')}
 for task, name in TASKS.items():
-    for state, level, prefix in (('STARTED', b'INF', b'Task started: '), ('COMPLETED', b'DBG', b'Task completed: ')):
-        RECORD_PATTERNS['TASK_' + task + '_' + state] = re.compile(
-            STAMP + level + rb' modules\.boss\.installation: ' + re.escape(prefix + name + b' ('))
+    for state, level, prefix in (('STARTED', b'INFO', b'Task started: '), ('COMPLETED', b'DEBUG', b'Task completed: ')):
+        RECORD_PATTERNS['DBUS']['TASK_' + task + '_' + state] = re.compile(
+            rb'(?m)^' + level + rb':anaconda\.modules\.boss\.installation:' + re.escape(prefix + name + b' ('))
 for category, literal in (('BOOTC_RUN', b'Run the bootc based installation'),
                           ('BOOTC_EXEC', b'Executing bootc install command'),
                           ('BOOTC_DEPLOY_COMPLETE', b'Bootc deploy complete')):
-    RECORD_PATTERNS[category] = re.compile(STAMP + rb'(?:DBG|INF) modules\.payloads\.payload\.rpm_ostree\.installation: '
-                                                   + re.escape(literal) + rb'\r?$')
-RECORD_PATTERNS['TASK_THREAD_FAILED'] = re.compile(STAMP + rb'ERR modules\.common\.task\.task: Thread [A-Za-z0-9_-]{1,128} has failed: ')
+    RECORD_PATTERNS['PACKAGING'][category] = re.compile(
+        rb'(?m)^(?:DEBUG|INFO):anaconda\.modules\.payloads\.payload\.rpm_ostree\.installation:'
+        + re.escape(literal) + rb'\r?$')
+for label in ('DBUS', 'STORAGE', 'PACKAGING'):
+    RECORD_PATTERNS[label]['TASK_THREAD_FAILED'] = re.compile(
+        rb'(?m)^ERROR:anaconda\.modules\.common\.task\.task:Thread [A-Za-z0-9_-]{1,128} has failed: ')
+RECORD_PATTERNS['STORAGE']['AUTOPART_MODEL_STARTED'] = re.compile(
+    rb'(?m)^DEBUG:anaconda\.modules\.storage\.partitioning\.automatic\.automatic_partitioning:'
+    rb'Executing the automatic partitioning\.\r?$')
+RECORD_PATTERNS['ANACONDA']['STORAGE_SPOKE_INITIALIZED'] = re.compile(
+    STAMP + rb'INF lifecycle: Module initialized: StorageSpoke\r?$')
+RECORD_PATTERNS['ANACONDA']['INSTALLATION_STARTED'] = re.compile(
+    STAMP + rb'DBG ui\.tui\.spokes\.installation_progress: The installation has started\.\r?$')
 COMMAND_REASONS = ('LAUNCH', 'TIMEOUT', 'NONZERO', 'READ_LIMIT', 'READ_ERROR', 'MALFORMED', 'CLEANUP')
 TOKENS = {'OBSERVER_READY', 'OBSERVER_LIMIT', 'PRE_ENTERED', 'STORAGE_VALIDATED',
           'STORAGE_INCLUDE_WRITTEN', 'CHROOT_POST_ENTERED', 'CHROOT_POST_COMPLETE',
@@ -51,7 +61,8 @@ for label in UNITS:
 for label in LOGS:
     TOKENS.update(('LOG_' + label + '_PRESENT', 'LOG_' + label + '_TAIL_LIMIT'))
     TOKENS.update('LOG_' + label + '_' + name for name in PATTERNS)
-TOKENS.update('LOG_ANACONDA_' + name for name in RECORD_PATTERNS)
+for label, patterns in RECORD_PATTERNS.items():
+    TOKENS.update('LOG_' + label + '_' + name for name in patterns)
 
 
 HEALTH_PREFIX = 'KEDRA_INSTALL_HEALTH '
@@ -340,10 +351,9 @@ def main():
                         emit('LOG_' + label + '_TAIL_LIMIT')
                     stream.seek(max(0, info.st_size - 65536))
                     data = stream.read(65536)
-                if label == 'ANACONDA':
-                    for name, pattern in RECORD_PATTERNS.items():
-                        if pattern.search(data):
-                            emit('LOG_ANACONDA_' + name)
+                for name, pattern in RECORD_PATTERNS.get(label, {}).items():
+                    if pattern.search(data):
+                        emit('LOG_' + label + '_' + name)
                 for name, pattern in PATTERNS.items():
                     if pattern in data:
                         emit('LOG_' + label + '_' + name)

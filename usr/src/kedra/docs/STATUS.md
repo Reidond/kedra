@@ -31,6 +31,17 @@ not established. Worklog WL-20261005-13 records exact artifact hashes and the
 bounded task/resource diagnostic follow-up. No root cause or successful ARM
 installation is claimed. The aligned upper stack remains local and preserved.
 
+Owning D2 `7c59fd8` passes both architecture source checks and x86 A/B/rollback
+in [run37305788202](https://github.com/Reidond/kedra/actions/runs/37305788202),
+but ARM installation fails at7201.685s. Its157 increasing guest heartbeats
+continue through7186.790s with no sequence gaps;239 host/owned-QEMU samples
+are retained. No sampled guest OOM or low available memory is observed. ARM
+refusal/shutdown and structured cleanup pass. The pinned Anaconda DBus modules
+use different log formats/routes from the main process, which the task reader
+does not yet handle correctly. Missing task markers therefore cannot locate
+the stall. A bounded classifier correction is in progress; no new runtime is
+active. The complete upper stack b7eb359 remains local and preserved.
+
 The Docker backend and twelve-field inspection-default correction pass the complete
 hosted QEMU workflow on D2 source332f450/run37217459554 and D5 source8c35755/run37217459773:
 candidate composition/transfer, disk construction, UEFI Secure Boot, kernel lockdown,

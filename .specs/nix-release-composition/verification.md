@@ -1106,3 +1106,65 @@ review SHA
 New observer SHA
 `80f87c0afd0fc6670328c7623165b9f93e6ea23f51e133b8532e965bb0e8e809`.
 Actual new task/health observations remain not-run until the next hosted result.
+
+### Live guest health and corrected module-log contract
+
+Exact owning source `7c59fd85470e27a781a6fba3e8c20937553ed3ad` passes push
+Check37305788208 and PR Check37305797053 on both architectures. Direct
+[run37305788202](https://github.com/Reidond/kedra/actions/runs/37305788202)
+passes x86 signed A/B/rollback and38 expected public CLI outcomes. Artifact
+11343449866 ZIP SHA
+`4c853f7980082c7032f5b4bf333bf96cc9901b366a14c0a5eaa5d581a3c544e3`
+matches the API; independently read summary SHA
+`ae46438e2fc7600ef9f492161758f9fa314a6bdaf086d70223d3179be7c46db8`.
+The existing independent x86 cleanup limitation and four not-run cases remain.
+
+ARM job111749025691 fails at14:51:32UTC on2026-10-05. Installation reaches
+7201.685s against its7200-second bound. Verifier exit/status0 is observed
+at421.055s; generated storage instructions are validated/written at1116.240s.
+The observer emits157 increasing health frames with zero sequence gaps, the
+last at7186.790s. Guest MemAvailable minimum6,473,544KiB and oom_kill0 provide
+no sampled guest-memory-exhaustion evidence.239 live owned-QEMU/host samples
+show host available memory minimum5,542,920KiB and fixture space minimum
+53,463,064,576bytes. CPU/I/O activity does not establish installation progress;
+sampled extrema cannot exclude a transient between samples.
+
+Insecure-boot refusal/QMP shutdown passes377.802s. Structured cleanup preserves
+original exit1 and reports private inputs/registry/resolver removed with no
+cleanup failure. QEMU exit0 is after failure cleanup, not installation success.
+Parent API/source/job readback and local hashing confirm artifact11352463986,
+938168bytes, ZIP SHA
+`bed7292db8de8e3dbc019d41a7f1d9522f729bda186da8d40ccc8550177996d4`.
+Failure receipt SHA
+`7fc31dd8bd7bc0b1413e1b56a611e1632409aa76f43e43782b60b5c3d756fe9a`;
+cleanup SHA
+`9078eee2eb3b8e4085571c3ab2547d3f98293151994df14ea710e26505fdabec`.
+Bounded report/receipts remain under
+`target/nix-delivery/ci-finish-oct05/run37305788202-arm/`.
+
+Correction to the preceding classifier review: the main Anaconda formatter
+does not govern its D-Bus modules. Their
+[initializer](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/common/__init__.py)
+uses default Python logging. Boss inherits stderr, which the
+[launcher](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/core/startup/dbus_launcher.py)
+routes to `/tmp/dbus.log`; payload/storage modules also write their separate
+packaging/storage logs. Current absent task markers cannot locate the stall.
+The pinned bootc source hash matches the existing adapter input614ac3f3.
+
+The one-file correction routes fixed categories through the matching files and
+formats, retaining actual task-record prefixes and excluding the upfront task
+summary. It adds existing storage-model, StorageSpoke-initialization and TUI
+installation-start log categories. These are observations, not completion.
+The only extra input is fixed private `dbus.log` with the existing64KiB read
+bound. Output remains finite fixed tokens; no pane capture, UI injection,
+resource/deadline change or altered acceptance. Heartbeat behavior is unchanged.
+Proposed patch SHA
+`5cb8cb64d6b88b6fd64fb52dad968729296e9ccb420815d0cbc54f11aa15df7a`;
+applied observer SHA
+`1f8e7ea1dc068fcda1c27eb33e2ac81dbb85777fbeba182cd6745312b4e619e9`.
+Parent source review, Ruff/Python compilation and public controller help pass.
+Independent source/privacy/host-integration review also passes, receipt SHA
+`a737608e55045a44e9ab830c6ff8dee5b4d922b560a4715cb0f3565d191e08d3`.
+Actual corrected classifier execution remains not-run. The installer root
+cause remains unknown; the successful older local HVF result does not validate
+these new observations or the current hosted guest.

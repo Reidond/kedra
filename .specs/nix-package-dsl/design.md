@@ -75,6 +75,13 @@ reference to its library node; a build-only tool uses a distinct dependency
 constructor. A script is executable recipe content, not a trusted declarative
 value: it runs only later under the existing package executor restrictions.
 
+Distinguish selectable packages from internal library/tool recipe nodes in the
+author model. The SQLite library has a typed output but no invented executable
+entrypoint. Lower it into the shell package's dependency graph; only selectable
+program packages need the current `Catalog::Package` program field. Shared nodes
+retain the same derivation identity when referenced by multiple package roots.
+Do not broaden the legacy catalog's runnable-package contract to represent them.
+
 Authors can review emitted summaries and pins, add a package module, select it
 in a set and qualify it without altering engine algorithms. Source-version edits
 and pin changes are an explicit paired review; the resolver never silently

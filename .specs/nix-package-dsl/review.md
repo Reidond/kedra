@@ -38,6 +38,10 @@ it must first reconcile with the eventual delivered source.
 - A protected-base rule without an owner could become an author-controlled
   escape hatch. Independent TargetPackagePolicy now owns required base names and
   is bound to resolution; T1 and TC-02 cover its introduction and refusal.
+- Treating every library node as a runnable catalog package would invent an
+  executable entrypoint. Internal recipes now lower into dependency graphs;
+  selectable program packages retain the existing entrypoint contract. T2 and
+  TC-03 cover this model distinction.
 
 Security, minimal scope, failure handling, affected files, rollback, task ownership
 and verification coverage were reviewed against the specification checklist. AI
@@ -64,7 +68,7 @@ names can evolve during implementation as long as these acceptance contracts hol
 - Not-run: all future runtime cases, Cargo builds for the proposed API, DNF/image
   transactions, VM/installer flows and production signing. No such code is added.
 
-Closing challenge found no further unresolved design defect after the seven
+Closing challenge found no further unresolved design defect after the eight
 resolutions above. No implementation symbol changed, so runtime callers and
 signing behavior are unchanged by this diff. Future API ergonomics, isolation
 limits and actual solver/candidate behavior remain unverified until their named

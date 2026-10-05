@@ -1,6 +1,17 @@
 # Verified status
 
-## Active delivery checkpoint (2026-10-05)
+## Merge checkpoint (2026-10-05)
+
+The owner-authorized PR28/29/31/32 and PR33–37 are merged into main at
+`9b25c7885f6aa0a2e02a1829d231031e9a8bae72`. The protected atomic stack merge
+and all nine merged states are verified. New `dev` starts at that exact commit;
+[plan-only PR39](https://github.com/Reidond/kedra/pull/39) targets dev and stays
+a draft. Its three planning documents remain unchanged and unimplemented.
+Main release [run37359496666](https://github.com/Reidond/kedra/actions/runs/37359496666)
+is in progress at readback. Existing hosted ARM/native qualification gaps below
+remain incomplete; merge does not establish production publication or installation.
+
+## Pre-merge delivery checkpoint (2026-10-05)
 
 All five dependent drafts remain open: [D1 PR33](https://github.com/Reidond/kedra/pull/33),
 [D2 PR34](https://github.com/Reidond/kedra/pull/34), [D3 PR35](https://github.com/Reidond/kedra/pull/35),

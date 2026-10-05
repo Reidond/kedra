@@ -59,6 +59,14 @@ names can evolve during implementation as long as these acceptance contracts hol
 - Pass: manual requirements/design/tasks/case reconciliation and preservation of
   the independent privilege and release boundaries.
 - Pass: `git diff --check` and ordinary changed-path inspection. Exact remote PR
-  readback is recorded in the publication follow-up in worklog.md.
+  readback for draft PR38 confirms exactly nine Markdown documents against main;
+  the publication follow-up is recorded in worklog.md.
 - Not-run: all future runtime cases, Cargo builds for the proposed API, DNF/image
   transactions, VM/installer flows and production signing. No such code is added.
+
+Closing challenge found no further unresolved design defect after the seven
+resolutions above. No implementation symbol changed, so runtime callers and
+signing behavior are unchanged by this diff. Future API ergonomics, isolation
+limits and actual solver/candidate behavior remain unverified until their named
+implementation cases run. Automatic workspace CI checks the existing main code;
+even a pass there would not qualify the proposed DSL.

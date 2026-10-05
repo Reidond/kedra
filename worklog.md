@@ -6,9 +6,11 @@ Shared continuation record. Historical entries below are preserved; paths they n
 
 Last updated: 2026-10-05 (Europe/Kyiv).
 
-- **Active specification:** the side conversation requested a separate PR for an embedded Rust package DSL covering Fedora packages and engine-built packages. Work is isolated on `codex/package-dsl-spec`, based on main `b224d571`; implementation is not authorized by this specification task.
+- **Active specification:** an embedded Rust package DSL covering Fedora packages and engine-built packages is specified in independent draft [PR38](https://github.com/Reidond/kedra/pull/38). Work is isolated on `codex/package-dsl-spec`, based on main `b224d571`; implementation remains unstarted and is not authorized by this specification task.
 - **Concurrent delivery:** D1–D5 remain in separate drafts33–37. Inspected delivery source95c5c6c has completed local workflows but unresolved hosted ARM installation and native fault qualification. This spec does not change their code, checkout, evidence or completion state.
-- **Next:** finish source-grounded requirements/design/tasks/verification and publish this documentation-only draft independently of the delivery stack. The dated main baseline below describes the earlier completed Mac-first phase only.
+- **Checks / next:** specification self-review, `git diff --check` and exact remote nine-document diff readback pass. Automatic workspace CI is pending at publication. Review PR38's proposed API and migration before authorizing implementation. The retained main baseline below describes the earlier completed Mac-first phase only.
+
+### Retained main snapshot (2026-09-30)
 
 - **Current phase:** Mac-first QEMU/Testcontainers delivery and scoped qualification are complete (WL-20260930-01). Final qualification documentation is merged in PR26.
 - **Implemented / published:** private QEMU/HVF/Cocoa/VirGL/ANGLE Metal runtime, isolated retained VM controls, validated hot sync/capture, bounded Testcontainers lifecycle, Noctalia 5.2 exact compatibility and early GPU/input initramfs support. PRs [#23](https://github.com/Reidond/kedra/pull/23), [#24](https://github.com/Reidond/kedra/pull/24) and [#25](https://github.com/Reidond/kedra/pull/25) are merged; current published source is `f3d69dbaba0a50fc167efeb2e0e5d3a6caf6b2c8`.
@@ -1336,9 +1338,9 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Publication follow-up: the owner authorized committing this change and pushing directly to `main`; publication is pending at commit creation.
 
 ### WL-20261005-PKGDSL-01 — 2026-10-05 — Specify unified Rust package authoring
-- Agent / state: Codex side conversation; in-progress.
+- Agent / state: Codex side conversation; completed specification/publication only.
 - Scope / base: isolated `codex/package-dsl-spec` from main `b224d5711e857f7dbcaabf7ed42870916525800c`; delivery source inspected at95c5c6cf9856b9dc5d54bbb076f74aa185ae4c9f. Owner requests a spec and separate PR only.
-- Completed: read current package/catalog/source/release boundaries and the main-thread status. Chosen direction is an embedded typed Rust DSL with distinct Fedora resolution and engine build backends, ordinary per-package source files and no new interpreted language.
-- Checks / evidence: pass — ordinary source and Git inspection; no workload, test, package installation, engine implementation or main-checkout modification performed.
-- Remaining / blockers: author and review the complete plan, then create its independent draft PR. All runtime acceptance cases in the plan remain not-run.
-- Next: finish the specification and self-review, publish only documentation and retain the separate implementation approval boundary.
+- Completed: wrote requirements, design with illustrative Rust API, tasks, cases, verification plan and self-review under `.specs/nix-package-dsl/`; updated this isolated branch's status. Published commit712d6da3a06408f54681cd6f1c3a95fa9a684f1b in independent draft [PR38](https://github.com/Reidond/kedra/pull/38), base main. Design keeps Fedora resolution and engine builds distinct, makes compiler roles resolvable before exact graph binding, isolates Cargo compilation/evaluation, and generalizes release contribution through independently verified material.
+- Checks / evidence: pass — current source and primary Cargo/DNF reference inspection, requirements/task/case self-review, staged and complete-branch `git diff --check`, and remote PR readback showing exactly seven spec documents plus STATUS/worklog. Initial automatic workspace checks37282390836/37282452770 are pending; no runtime result is inferred. No package installation, engine implementation or main-checkout modification performed. The app could not attach the worktree/PR to this side conversation because it could not find the thread; GitHub creation and exact readback succeeded.
+- Remaining / blockers: all future tasks/cases are not-started/not-run. Existing delivery failures remain owned by the main thread. No new durable implementation learning or AI-rule change was made; task-specific design findings are in review.md.
+- Next: review the draft specification and separately authorize implementation. This final documentation follow-up does not modify the proposed behavior or start runtime work.

@@ -4,6 +4,13 @@
 
 ## 2026-10-05
 
+### SKILL-MODIFIED: Distinguish planned installer tasks from live progress
+- **What:** Recorded the observed post-verifier boundary, Anaconda 44.30 task-log format and bounded heartbeat/owned-process evidence rules; bumped both plugin manifests to 0.3.25.
+- **Why:** Run37283817872 proves that generated storage instructions and earlier stage tokens cannot establish continued installation progress. The new diagnostic remains unqualified until its hosted result.
+- **Files:** `usr/src/kedra/plugins/kedra/skills/kedra-github-actions/SKILL.md`, both first-party plugin manifests.
+- **Evidence:** D2 verification, exact run37283817872 and the pinned upstream installation-queue logger.
+- **Affected workflows:** Disposable ARM installation diagnosis; no installed behavior or user configuration changes.
+
 ### SKILL-MODIFIED: Ground installer diagnosis in actual stage evidence
 - **What:** Updated the Kedra Actions skill with Anaconda 44.30's tmux-wrapper behavior, exit-qualified service status and private-log limits; bumped both plugin manifests to 0.3.24.
 - **Why:** The hosted installation failures and successful local comparison show that wrapper startup and absent generic serial phrases cannot establish installer progress or success.

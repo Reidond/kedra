@@ -132,5 +132,18 @@ and D2 verification, hosted runs37234495769/37234495358/37234495136/37234496224.
 Keep private Kickstart/guest logs private: the research boot-probe's raw journal
 trap is unsuitable for credential-bearing installer fixtures. Use fixed bounded
 stage/state tokens and unchanged acceptance/deadline checks. Owning source
-deb442c adds that diagnostic path; actual observer startup and its guest outcome
-require the recorded hosted run, not source inspection or compiler success.
+deb442c adds that diagnostic path. Run37283817872 observes successful verifier
+exit and Kickstart storage-include emission before another installation timeout.
+Writing that include does not prove Anaconda applied it. Unavailable metadata
+commands and deduplicated stage tokens do not establish ongoing guest health.
+
+Anaconda44.30's [installation queue logger](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/boss/installation.py)
+prints the future task list before execution. Match actual task-start/completion
+records with the verified formatter/module prefix; a bare task name is not
+progress. Source7c59fd8 adds those fixed observations and bounded numeric health
+summaries. Only new increasing guest sequences refresh liveness, and host
+samples refer to the live owned QEMU process before cleanup. Drop malformed data;
+stop further metadata subprocesses if child cleanup cannot be established.
+Keep health sampling independent of token saturation. Dropped frames, sampled
+extrema and missing bounded-log messages cannot prove a specific stall cause.
+The new observations remain unqualified until their actual hosted result.

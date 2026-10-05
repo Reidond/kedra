@@ -14,7 +14,7 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - **D5 remaining:** ordinary C2/C3, actual owner/filesystem C5 refusals, cleanup-failure/orphan recovery and source-import journal/root/snapshot-copy ENOSPC recovery/retry pass in their recorded scopes. Killed-process cleanup and native transaction/binding failure cases remain unqualified. Native C6 still has one captured pre-ID window but no completed retry/window after earlier automatic review; pending native state is preserved. Empty root temporary cleanup is not promised by the observed recovery result.
 - **Retained OS:** signed main sourceb224d571/ARM7a8f6324 and recovery image9d6eb030/ISOcb8578a4 remain historical baselines. No workstation installation, enrollment or reboot is authorized here.
 - **Ownership / next:** primary Codex has published the aligned draft stack and final evidence. Corrected D2 c01ee2f/run37330502213 attempt2 still fails installation after entering the bootc deployment path; the subsequent operation remains unknown. No further speculative run is proposed. Review the drafts with incomplete hosted/native qualification, preserve blocked native state, and keep the niri/home-artifact plan unimplemented until separate authorization.
-- **Planned follow-up:** the reviewed niri/home-artifact proposal, tasks and verification plan are being moved from D5 into the separate `codex/nix-home-artifacts-plan` PR above it. All rows remain unimplemented/not-run; existing image/home workflows are preserved and no home implementation is authorized.
+- **Planned follow-up:** `.specs/nix-home-artifacts` is restored unchanged on the separate `codex/nix-home-artifacts-plan` branch above D5 for its own draft PR. All rows remain unimplemented/not-run; existing image/home workflows are preserved and no home implementation is authorized.
 - **Latest source gates:** published D2 ad75aa6/D3 948d3aa/D4 7171e4e/D5 5e94e8b pass both architectures in push Check37355982483/37355982477/37355982505/37355984106. Run37330502213 attempt2 passes x86 updates and ARM refusal/cleanup but fails ARM installation at7201.573s. Eighteen redundant runtime runs from the cascade are completed/cancelled, not passes. Final status edits change documentation only; no runtime remains active.
 
 ## Work entries
@@ -2021,3 +2021,11 @@ Last updated: 2026-10-05 (Europe/Kyiv).
 - Checks / evidence: pass — clean checkout, current PR37 head/base/draft state, native stack and backup verification. Plan-only PR publication is pending. Runtime tests are not-run because this change only relocates documentation.
 - Remaining / blockers: create and publish the separate draft above D5; existing hosted/native qualification gaps remain unchanged.
 - Next: restore the three unchanged planning documents on `codex/nix-home-artifacts-plan`, inspect its documentation-only diff and publish its own draft PR.
+
+### WL-20261005-21 — 2026-10-05 — Publish the home-artifact plan as its own review
+- Agent / state: Codex; plan separation prepared, draft publication pending.
+- Scope / base: `codex/nix-home-artifacts-plan` directly above D5 extraction commitb54d792d045d606f355941f044f8ad0725530ac0; source plan preserved frome717dd3.
+- Completed: restore the exact reviewed spec, seven tasks and nine verification cases as three added files in the new branch. The separate PR diff contains those documents and this required worklog update. D5's net diff no longer contains the plan files; all existing implementation branches and their qualification gaps remain intact.
+- Checks / evidence: pass — standard Git diff againste717dd3 shows identical plan bytes; branch diff contains documentation only and whitespace passes. Runtime/compiler tests are not-run for this file relocation; no implementation or runtime behavior changes.
+- Remaining / blockers: publish/read back the separate draft and link it from PR37. Implementation still requires separate authorization and current prerequisite qualification.
+- Next: review this plan independently from D5; keep every implementation task planned and every new behavior case not-run.

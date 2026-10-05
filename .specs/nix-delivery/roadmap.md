@@ -80,7 +80,8 @@ Power loss and Docker layer-storage exhaustion are distinct from tmpfs metadata
 ENOSPC. Full Nix language/nixpkgs, optional OS-backend replacement, future hardware
 and owner vault/account workflows remain outside this five-PR scope.
 
-The owner requested a [niri home-artifact follow-up plan](../nix-home-artifacts/spec.md)
+The owner requested a [niri home-artifact follow-up plan](https://github.com/Reidond/kedra/blob/codex/nix-home-artifacts-plan/.specs/nix-home-artifacts/spec.md)
 on 2026-10-05. It proposes an engine-produced baseline in the existing image
 pipeline and consumption through existing home commands. It is planning only;
-no implementation is included here, and it does not close current delivery gates.
+its documents are reviewed in a separate PR above D5. No implementation is
+included here, and the plan does not close current delivery gates.

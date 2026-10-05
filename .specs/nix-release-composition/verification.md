@@ -1038,3 +1038,71 @@ checks of the actual generated marker snippets pass. No guest snippet was run by
 those syntax checks. Actual observer startup and installation outcome remain
 not-run for the new source until the single owning hosted workflow executes.
 This is a diagnostic change; no specific installer root cause or fix is claimed.
+
+## Observed post-verifier installation boundary — 2026-10-05
+
+Exact source `deb442c6f220c570cc7cc804d641b74e0b1454ed`,
+[run37283817872](https://github.com/Reidond/kedra/actions/runs/37283817872),
+ARM job111677859501: **fail** at the unchanged7200-second installation bound
+(observed7201.558s). The observer SHA matches
+`361fbb7edaa4d56c3585c6a93450cd66884f7cf103b23604d4bc238b7f8a0d73`.
+Actual observer startup is observed372.466s; the verifier has a positive exit
+timestamp, success result and status0 at398.532s. Generated Kickstart enters at
+591.029s and validates selected disks/writes its storage include at592.031s.
+The latter is instruction generation, not evidence of actual partitioning,
+encryption or payload installation. No chroot/nochroot post stage or mandatory
+completion is observed. Unit metadata queries become unavailable at3046–3059s;
+timeout/nonzero/read failures are not distinguished and later observer health
+cannot be inferred from deduplicated tokens. No OOM, host pressure, UI wait or
+TCG root cause is established.
+
+The actual Secure-Boot-disabled refusal/QMP shutdown passes364.759s. Cleanup
+preserves original exit1 and reports no cleanup failure: private inputs, registry
+and resolver removed. QEMU is still alive at the phase deadline; its exit0 is
+after owned-process cleanup, not an installation pass. Complete retained serial
+classification does not contain the selected fatal PID1-freeze/no-space markers;
+other kernel errors were not part of that allowlist and cannot be ruled out.
+
+Artifact11341964672 contains936387 ZIP bytes; computed SHA
+`76c31e9771ea78089bca5cd2edbd98fc24ebcc4171e23a93793a240b3cc8dbbc`
+matches the GitHub API digest. Retained under
+`target/nix-delivery/ci-finish-oct05/run37283817872-arm/`:
+install-failure SHA
+`4135a5c8b883ef82f8667572f2f33ed132f3cf25b633ac2cca807bc8654adbdc`,
+cleanup SHA
+`9078eee2eb3b8e4085571c3ab2547d3f98293151994df14ea710e26505fdabec`.
+The initial host sample has14GiB available RAM,3GiB unused swap and105G disk
+free; it is not a failure-time or peak measurement. Private logs remain private.
+
+Exact-source push Check37283817896 and PR Check37283824525 pass both architectures.
+Same-run x86 signed A/B/rollback and38 expected CLI outcomes pass; its older
+cleanup trap suppresses errors and emits no independent cleanup receipt.
+These results do not qualify the failed ARM installation.
+
+The next diagnostic keeps the same guest, resources, deadlines and completion
+criteria. It adds anchored actual Anaconda task-start/completion categories and
+bounded numeric guest/owned-QEMU health. Anaconda44.30 logs an upfront future-task
+summary before execution, so bare task names cannot establish progress. Source
+anchors and the proposed observation limits are retained in
+`target/nix-delivery/d2-runtime-oct05-readonly/after-pre-deb442c.md`, SHA
+`8bfec4d6b43eae9521acb63346c3f560b88edf852df3bfb56f1dccbee7c20ec1`.
+This follow-up is diagnostic preparation; no successful later run is claimed.
+
+The two-module follow-up is implemented locally: fixed actual task records,
+512-byte numeric guest frames, at most 240 health attempts at intervals of at
+least 30 seconds, and first/last/min/max/count summaries. The host samples its
+live owned QEMU process before cleanup. Only a new increasing guest sequence
+refreshes last-seen time; stale serial rereads cannot fabricate liveness.
+Uncertain child cleanup disables future metadata commands while health/log
+observations continue. Partial nonblocking writes can be dropped; a missing
+heartbeat alone does not prove guest death. Sampled extrema are not guaranteed
+instantaneous peaks. No UI source hook or private pane capture was added.
+
+Independent review and parent Ruff/Python compilation/public boot-controller help
+pass. Patch SHA
+`6f7c01510671f109f21f4a958fd1dffd8c4e47b0110f6f6acedea71522a0ddc4`;
+review SHA
+`52a2629169b347c4d4a7797effb4e51b7eda454eb59f078f3e39d7b01c7874b2`.
+New observer SHA
+`80f87c0afd0fc6670328c7623165b9f93e6ea23f51e133b8532e965bb0e8e809`.
+Actual new task/health observations remain not-run until the next hosted result.

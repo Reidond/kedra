@@ -9,16 +9,27 @@ D1, D3 and D4 are locally qualified in their recorded scopes. The independent
 signed-cache consumer now also passes explicit rebuild qualification. Full D2
 and D5 acceptance remains incomplete; nothing has been merged or published to production.
 
-Published documentation heade908bb2 passes both architectures in
-[push Check37241140437](https://github.com/Reidond/kedra/actions/runs/37241140437)
-and [PR Check37241143014](https://github.com/Reidond/kedra/actions/runs/37241143014).
+Published plan/documentation head77300b9 passes both architectures in
+[push Check37285542956](https://github.com/Reidond/kedra/actions/runs/37285542956).
 The QMP-fixed direct ARM runs have now failed:
 D2 37234495769, D3 37234495358, D4 37234495136 and D5 37234496224.
 All paired x86 jobs pass. All four actual insecure-boot refusal/QMP shutdown
 phases pass in368–411 seconds, then fresh installation exceeds its7200-second
 deadline. Final bounded diagnostics show firmware/GRUB/kernel/systemd startup
 but no installation-complete marker; they do not locate the later guest cause.
-Cleanup passes. A bounded fixture-only stage observer is being qualified on the owning D2 branch; no installation root cause is established. Worklog WL-20261005-10 and release-composition verification record its scope and checks.
+Cleanup passes.
+
+Owning D2 deb442c passes both architecture source checks and the x86 signed
+update/rollback job in [run37283817872](https://github.com/Reidond/kedra/actions/runs/37283817872).
+ARM installation fails at 7201.558s. Its observer starts, the payload verifier
+actually exits successfully, and Kickstart validates the selected disks and writes
+the storage include. These markers do not establish storage-plan application.
+No post-install stage or final completion is observed. Unit metadata becomes
+unavailable around 3046–3059s without enough resource evidence to establish why.
+ARM refusal/shutdown and structured cleanup pass; independent x86 cleanup is
+not established. Worklog WL-20261005-13 records exact artifact hashes and the
+bounded task/resource diagnostic follow-up. No root cause or successful ARM
+installation is claimed. The aligned upper stack remains local and preserved.
 
 The Docker backend and twelve-field inspection-default correction pass the complete
 hosted QEMU workflow on D2 source332f450/run37217459554 and D5 source8c35755/run37217459773:

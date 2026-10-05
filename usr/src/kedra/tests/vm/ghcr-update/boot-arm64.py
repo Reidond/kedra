@@ -200,6 +200,8 @@ def publish_phase_failure(fixture, root, phase, error, progress):
             'elapsed_seconds': time.monotonic() - started if started is not None else None,
             'deadline_seconds': progress.get('deadline_seconds'),
             'installer_stages_first_seen_seconds': progress.get('installer_stages', {}),
+            'guest_health': progress.get('guest_health', {}),
+            'host_qemu_health': progress.get('host_qemu_health', {}),
             'installer_stage_observer_sha256': sha(Path(installer_stages.__file__)),
             'refusal_seen_elapsed_seconds': progress.get('refusal_seen_elapsed_seconds'),
             'quit_attempted': progress.get('quit_attempted', False),
@@ -355,9 +357,13 @@ def phase_main(progress=None):
         try:
             while process.poll() is None:
                 require(time.monotonic() < deadline, 'ARM fixture exceeded its phase deadline')
+                if args.phase == 'install':
+                    installer_stages.sample_host_health(process, root, progress, int((time.monotonic() - started) * 1000))
                 if log.exists():
                     require(log.stat().st_size <= LIMIT, 'ARM serial output exceeded its bound')
                     text = log.read_text(errors='replace')
+                    if args.phase == 'install':
+                        installer_stages.observe_health(text, progress, int((time.monotonic() - started) * 1000))
                     stages = progress.setdefault('installer_stages', {})
                     for token in re.findall(r'(?:^|\n)KEDRA_INSTALL_STAGE_([A-Z0-9_]{1,64})\r?(?=\n|$)', text):
                         if token in installer_stages.TOKENS and len(stages) < 256:

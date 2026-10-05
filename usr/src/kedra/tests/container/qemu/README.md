@@ -47,6 +47,30 @@ permission exist only in the unsigned lab derivative. Native DRM, SELinux and th
 Secure Boot chain remain enabled. Signed installer media contains none of these
 fixture adaptations.
 
+Verified native derivations can enter this same disposable VM path:
+
+```sh
+kedra-lab vm image --image composition:/private/current-context --overlay none \
+  --composition-identity COMPOSITION_ID --native-plan /private/native.json \
+  --derivation-identity NATIVE_ID
+```
+
+The complete tuple is required. The controller verifies native material and exact
+parent layers, rebuilds the fixed fixture recipe rather than adopting a tools tag,
+and checks native bytes again after fixture packages. Only generated schemas/
+initramfs may be restored after package triggers; differences are recorded. Disk
+receipts distinguish native image, fixture ID, imported Podman manifest and disk
+hash. The fixed root observer writes `/run/kedra-lab/native-boot.json` with selected
+BLS/kernel/initrd, bootc and security facts. For qualification, compare its reported
+bootc reference/digest/native tuple with retained image.json on every boot; the
+observer alone cannot bind the circular final fixture digest.
+
+Use current committed graphical declarations for actual desktop qualification;
+the synthetic multi-user native E2E is a different test. Unsigned fixture boot
+does not establish production signature admission, install/update or encrypted
+login. Retain expected trust failures and actual outcome boundaries in
+[derived boot evidence](../../../../../../.specs/nix-derived-boot/verification.md).
+
 ## Retained iteration
 
 ```sh

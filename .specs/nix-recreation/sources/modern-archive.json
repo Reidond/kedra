@@ -1,0 +1,947 @@
+[
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/",
+    "archive_path": "web/nix-2.34-index.html",
+    "accessed_date": "2026-10-01",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 20682,
+    "sha256": "871404283550cabadf3a83db6af180dc4038af9b3b61db2f39edd34fc19a5d55",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/"
+      }
+    ]
+  },
+  {
+    "source_id": "S-020",
+    "requested_url": "https://nixos.org/manual/nixos/stable/",
+    "resolved_url": "https://nixos.org/manual/nixos/stable/",
+    "archive_path": "web/nixos-stable-manual.html",
+    "accessed_date": "2026-10-01",
+    "version_context": "NixOS26.05, generator nixos-render-docs26.05.3869.95ca1e203c07; captured mutable stable alias",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 1200007,
+    "sha256": "aacdf5ec7d2f7b425ec736aa74bbdfa53c81b8fee62d4fd5e3bf560212788aea",
+    "cited_urls": [
+      "https://nixos.org/manual/nixos/stable/"
+    ],
+    "research_context": [
+      {
+        "source_id": "S-020",
+        "url": "https://nixos.org/manual/nixos/stable/",
+        "observed_version": "26.05; nixos-render-docs 26.05.3869.95ca1e203c07",
+        "observed_date": "2026-10-01",
+        "anchors": [
+          "sec-writing-modules",
+          "sec-option-types",
+          "sec-option-definitions",
+          "sec-option-definitions-delaying-conditionals",
+          "sec-option-definitions-setting-priorities",
+          "sec-option-definitions-ordering",
+          "sec-switching-systems",
+          "sec-unit-handling",
+          "sec-activation-script",
+          "ch-system-state",
+          "sec-bootspec",
+          "sec-changing-config",
+          "sec-kernel-config",
+          "sec-nixos-tests",
+          "sec-nixos-test-testing-hardware-features"
+        ]
+      }
+    ]
+  },
+  {
+    "source_id": "S-021",
+    "requested_url": "https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines",
+    "resolved_url": "https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines",
+    "archive_path": "web/nixos-vm-testing.html",
+    "accessed_date": "2026-10-01",
+    "version_context": "Undated tutorial",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 57458,
+    "sha256": "4bd2548181c92d5c076253982be874bf3304ac56100d2633a35d364b083fdf57",
+    "cited_urls": [
+      "https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines"
+      }
+    ]
+  },
+  {
+    "source_id": "S-023",
+    "requested_url": "https://robbertkrebbers.nl/research/articles/nix.pdf",
+    "resolved_url": "https://robbertkrebbers.nl/research/articles/nix.pdf",
+    "archive_path": "papers/verified-nix-interpreters-2025.pdf",
+    "accessed_date": "2026-10-01",
+    "version_context": "August 2025 author-hosted preprint",
+    "content_type": "application/pdf",
+    "bytes": 873949,
+    "sha256": "55f91088c56086a89c8bfc7d762ca38e37b1ae4997ae3f64d92c1abb9dd84ba0",
+    "pages": 30,
+    "text_path": "text/verified-nix-interpreters-2025.txt",
+    "cited_urls": [
+      "https://robbertkrebbers.nl/research/articles/nix.pdf"
+    ],
+    "research_context": [
+      {
+        "url": "https://robbertkrebbers.nl/research/articles/nix.pdf"
+      }
+    ]
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://tvl.fyi/blog/rewriting-nix",
+    "accessed_date": "2026-10-01",
+    "cited_urls": [
+      "https://tvl.fyi/blog/rewriting-nix"
+    ],
+    "research_context": [
+      {
+        "url": "https://tvl.fyi/blog/rewriting-nix",
+        "observed_version": "2021-12-01 by tazjin"
+      }
+    ],
+    "capture_status": "blocked",
+    "error": "<urlopen error [Errno 65] No route to host>"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://github.com/tvlfyi/tvix",
+    "resolved_url": "https://github.com/tvlfyi/tvix",
+    "archive_path": "web/S-022-141f5daefd4020.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=utf-8",
+    "bytes": 314328,
+    "sha256": "602ca6723abf69ffcb28e2c85e92e3ae5255c41eb29c71cd394f32da6c04791a",
+    "cited_urls": [
+      "https://github.com/tvlfyi/tvix"
+    ],
+    "research_context": [
+      {
+        "url": "https://github.com/tvlfyi/tvix",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686; read-only josh mirror"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://api.github.com/repos/tvlfyi/tvix/commits/9bed4ce6fc4c308f28df485b286a9aee467af686",
+    "resolved_url": "https://api.github.com/repos/tvlfyi/tvix/commits/9bed4ce6fc4c308f28df485b286a9aee467af686",
+    "archive_path": "web/S-022-c222dca0061909.json",
+    "accessed_date": "2026-10-01",
+    "content_type": "application/json; charset=utf-8",
+    "bytes": 4772,
+    "sha256": "759434c4f4693186b07c4dffd48169f2a515c0403e03bbdbf48190b884db1872",
+    "cited_urls": [
+      "https://api.github.com/repos/tvlfyi/tvix/commits/9bed4ce6fc4c308f28df485b286a9aee467af686"
+    ],
+    "research_context": [
+      {
+        "url": "https://api.github.com/repos/tvlfyi/tvix/commits/9bed4ce6fc4c308f28df485b286a9aee467af686",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://api.github.com/repos/tvlfyi/tvix/git/trees/9bed4ce6fc4c308f28df485b286a9aee467af686?recursive=1",
+    "resolved_url": "https://api.github.com/repos/tvlfyi/tvix/git/trees/9bed4ce6fc4c308f28df485b286a9aee467af686?recursive=1",
+    "archive_path": "web/S-022-ffcb906af0a7a6.json",
+    "accessed_date": "2026-10-01",
+    "content_type": "application/json; charset=utf-8",
+    "bytes": 322492,
+    "sha256": "ecb3446b88b154376bf3f4b1f9d12628a49f70a0c3f10fba96dbe1f3e05f11dd",
+    "cited_urls": [
+      "https://api.github.com/repos/tvlfyi/tvix/git/trees/9bed4ce6fc4c308f28df485b286a9aee467af686?recursive=1"
+    ],
+    "research_context": [
+      {
+        "url": "https://api.github.com/repos/tvlfyi/tvix/git/trees/9bed4ce6fc4c308f28df485b286a9aee467af686?recursive=1",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/README.md",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/README.md",
+    "archive_path": "web/S-022-8abe69065b9d98.md",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 5178,
+    "sha256": "7e80c29be47f9d57f19158e2f98365fc62d033c3d5371be39c49b9d5c7094c74",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/README.md"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/README.md",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/Cargo.toml",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/Cargo.toml",
+    "archive_path": "web/S-022-a4b4ef24c43c3d.toml",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 2537,
+    "sha256": "78d702862a8da5afea8bb39db713f82d8fd7fd2caaea20bb10eb66fed09b88d3",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/Cargo.toml"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/Cargo.toml",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/docs/src/architecture.md",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/docs/src/architecture.md",
+    "archive_path": "web/S-022-ca0f3acf6900d8.md",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 6618,
+    "sha256": "caa11b1a6e1bb2b6e32da40df4f9ab50d9df43104bb765c6eefd0ad6243706da",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/docs/src/architecture.md"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/docs/src/architecture.md",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/glue/src/tvix_store_io.rs",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/glue/src/tvix_store_io.rs",
+    "archive_path": "web/S-022-1c4d68d3d0ad1b.rs",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 6570,
+    "sha256": "a90485ea3e29ba7058ebd53af5e91a5a0b3224b86738a5d2eb3107f3f16eac26",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/glue/src/tvix_store_io.rs"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/glue/src/tvix_store_io.rs",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/simstore/src/lib.rs",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/simstore/src/lib.rs",
+    "archive_path": "web/S-022-8a3fd71f8b4099.rs",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 14573,
+    "sha256": "928b40af8d208789c616396a2ce14f255aadece859906fedc149c264b01e7bfe",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/simstore/src/lib.rs"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/simstore/src/lib.rs",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/derivation/mod.rs",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/derivation/mod.rs",
+    "archive_path": "web/S-022-6e90494a6e98e9.rs",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 11592,
+    "sha256": "00fad4b2ad82636cc00debd48dbb328e6d21354d044c93c97f1f7a086c1e515f",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/derivation/mod.rs"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/derivation/mod.rs",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/utils.rs",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/utils.rs",
+    "archive_path": "web/S-022-1fb212a58b48cc.rs",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 10123,
+    "sha256": "ee5727982b78b1ae1bc0c17fd1379fab53b9a8f34d9aebe9f33f44d085af67b7",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/utils.rs"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/utils.rs",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/mod.rs",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/mod.rs",
+    "archive_path": "web/S-022-83d40fda919402.rs",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 20131,
+    "sha256": "885e947073fd21da26731ebc06b88401d777eb4387d799c3dc62db1d72edd82e",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/mod.rs"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/mod.rs",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/eval/src/io.rs",
+    "resolved_url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/eval/src/io.rs",
+    "archive_path": "web/S-022-4ad829f947f4d6.rs",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/plain; charset=utf-8",
+    "bytes": 7167,
+    "sha256": "0b12e92d5c73644a09ef3064ce3f58d41b68db6ef99cbc3d6a918105c949c441",
+    "cited_urls": [
+      "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/eval/src/io.rs"
+    ],
+    "research_context": [
+      {
+        "url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/eval/src/io.rs",
+        "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-004",
+    "requested_url": "https://nixos.org/~eelco/pubs/nixos-jfp-final.pdf",
+    "resolved_url": "https://edolstra.github.io/pubs/nixos-jfp-final.pdf",
+    "archive_path": "papers/nixos-jfp-final.pdf",
+    "accessed_date": "2026-10-01",
+    "content_type": "application/pdf",
+    "bytes": 422472,
+    "sha256": "33cca5dd38c08520691e658981c1226c3b55b8bb024a6c672edc93be266be57d",
+    "cited_urls": [
+      "https://nixos.org/~eelco/pubs/nixos-jfp-final.pdf"
+    ],
+    "research_context": [
+      {
+        "source_id": "S-004",
+        "url": "https://nixos.org/~eelco/pubs/nixos-jfp-final.pdf",
+        "observed_version": "Supplied 38-page manuscript, header 2 September 2010",
+        "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+      }
+    ],
+    "capture_status": "pass",
+    "matches_supplied_sha256": true
+  },
+  {
+    "source_id": "S-005",
+    "requested_url": "https://nixos.org/~eelco/pubs/icse-cloud09-final.pdf",
+    "resolved_url": "https://edolstra.github.io/pubs/icse-cloud09-final.pdf",
+    "archive_path": "papers/icse-cloud09-final.pdf",
+    "accessed_date": "2026-10-01",
+    "content_type": "application/pdf",
+    "bytes": 124997,
+    "sha256": "8d678174ee3a0813eb48255283bf3aff79c18a1e3a7351a86f9c8f08b8eb3636",
+    "cited_urls": [
+      "https://nixos.org/~eelco/pubs/icse-cloud09-final.pdf"
+    ],
+    "research_context": [
+      {
+        "source_id": "S-005",
+        "url": "https://nixos.org/~eelco/pubs/icse-cloud09-final.pdf",
+        "observed_version": "Supplied 6-page paper",
+        "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+      }
+    ],
+    "capture_status": "pass",
+    "matches_supplied_sha256": true
+  },
+  {
+    "source_id": "S-007",
+    "requested_url": "https://nixos.org/~eelco/pubs/nixos-icfp2008-final.pdf",
+    "resolved_url": "https://edolstra.github.io/pubs/nixos-icfp2008-final.pdf",
+    "archive_path": "papers/nixos-icfp2008-final.pdf",
+    "accessed_date": "2026-10-01",
+    "content_type": "application/pdf",
+    "bytes": 368638,
+    "sha256": "5714366dcb5f7812d77c598ac1da52cc4dd548d2818bf4267cf62f5a970279de",
+    "cited_urls": [
+      "https://nixos.org/~eelco/pubs/nixos-icfp2008-final.pdf"
+    ],
+    "research_context": [
+      {
+        "source_id": "S-007",
+        "url": "https://nixos.org/~eelco/pubs/nixos-icfp2008-final.pdf",
+        "observed_version": "Distinct supplied 12-page conference paper",
+        "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+      }
+    ],
+    "capture_status": "pass",
+    "matches_supplied_sha256": true
+  },
+  {
+    "source_id": "S-010",
+    "requested_url": "https://nixos.org/~eelco/pubs/hotos-final.pdf",
+    "resolved_url": "https://edolstra.github.io/pubs/hotos-final.pdf",
+    "archive_path": "papers/hotos-final.pdf",
+    "accessed_date": "2026-10-01",
+    "content_type": "application/pdf",
+    "bytes": 128754,
+    "sha256": "eedd2457f8888d31e47ce2c1aac925d859f33400235b83483e9566acb2c26d7e",
+    "cited_urls": [
+      "https://nixos.org/~eelco/pubs/hotos-final.pdf"
+    ],
+    "research_context": [
+      {
+        "source_id": "S-010",
+        "url": "https://nixos.org/~eelco/pubs/hotos-final.pdf",
+        "observed_version": "Supplied 6-page paper; ACM record identifier 10.5555/1361397.1361410 is not asserted as independently registered DOI",
+        "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+      }
+    ],
+    "capture_status": "pass",
+    "matches_supplied_sha256": true
+  },
+  {
+    "source_id": "S-014",
+    "requested_url": "https://nixos.org/~eelco/pubs/servicecm-scm12-final.pdf",
+    "resolved_url": "https://edolstra.github.io/pubs/servicecm-scm12-final.pdf",
+    "archive_path": "papers/servicecm-scm12-final.pdf",
+    "accessed_date": "2026-10-01",
+    "content_type": "application/pdf",
+    "bytes": 192891,
+    "sha256": "3d202afbd315f1419995ed927a48619d114720fa1a4613052c7368a464bad8fc",
+    "cited_urls": [
+      "https://nixos.org/~eelco/pubs/servicecm-scm12-final.pdf"
+    ],
+    "research_context": [
+      {
+        "source_id": "S-014",
+        "url": "https://nixos.org/~eelco/pubs/servicecm-scm12-final.pdf",
+        "observed_version": "Supplied 16-page paper; venue city omitted due index/bibliography disagreement",
+        "access_route": "Retained supplied full PDF; canonical URL cited, not re-fetched"
+      }
+    ],
+    "capture_status": "pass",
+    "matches_supplied_sha256": true
+  },
+  {
+    "source_id": "bibliography-index",
+    "requested_url": "https://nixos.org/research/",
+    "resolved_url": "https://nixos.org/research/",
+    "archive_path": "web/nixos-research.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 153700,
+    "sha256": "c651f0a76bd8928fd8aa381bc9c682e6f8ad260011514c4fc8c21e8c8332caf1",
+    "cited_urls": [
+      "https://nixos.org/research/"
+    ],
+    "research_context": [
+      {
+        "source_id": "bibliography-index",
+        "url": "https://nixos.org/research/",
+        "observed_version": "Retained official index snapshot 2026-10-01",
+        "sha256": "c651f0a76bd8928fd8aa381bc9c682e6f8ad260011514c4fc8c21e8c8332caf1"
+      }
+    ],
+    "capture_status": "pass"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/derivation/",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/derivation/",
+    "archive_path": "web/S-019-1b03721e4cd12e.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 29388,
+    "sha256": "0ae62834a64f5e903287e029403dc21c88ebaef9c461606bc7a3547c403d63fa",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/derivation/"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/derivation/"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/",
+    "archive_path": "web/S-019-bbf27540834a10.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 18633,
+    "sha256": "5bab5a4022824f4ee02fb5ed3ad90806c3e2b222d05ba57380cd1f223749d4d8",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/derivation/outputs/"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/input-address",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/input-address",
+    "archive_path": "web/S-019-7a03bf0be679d9.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 25509,
+    "sha256": "1565953962de34e79f56e1dcc4f9f2d2e9c628b3adb072544dd9583f54df8200",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/derivation/outputs/input-address"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/input-address"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/content-address",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/content-address",
+    "archive_path": "web/S-019-4b22deb381e776.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 26517,
+    "sha256": "568d3cecd01a57ee3029efe9f05cae37f343c6cb8f64368c33f1b967d042d1a4",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/derivation/outputs/content-address"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/derivation/outputs/content-address"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/store-object/content-address",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/store-object/content-address",
+    "archive_path": "web/S-019-ea1b2d3ffad56b.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 20630,
+    "sha256": "64886168a172d2c0ea33e1c5fcd390f6b9361d8bbb0224dd068942fc12e85807",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/store-object/content-address"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/store-object/content-address"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/protocols/json/store-object-info",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/protocols/json/store-object-info",
+    "archive_path": "web/S-019-8c42073019c827.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 84710,
+    "sha256": "d199bf135515f5193ba6f58a6881753e2edf11b6da728c7db1fa069ecfff89ef",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/protocols/json/store-object-info"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/protocols/json/store-object-info"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/command-ref/new-cli/nix3-store-verify",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/command-ref/new-cli/nix3-store-verify",
+    "archive_path": "web/S-019-fca22b3723a857.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 24792,
+    "sha256": "0536cf25e9564e375c3b1691ab6a51fccab9a1f393ec2414b04617ffbe2bf687",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/command-ref/new-cli/nix3-store-verify"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/command-ref/new-cli/nix3-store-verify"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/store-object",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/store-object",
+    "archive_path": "web/S-019-cb6e588f5cd5e6.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 16628,
+    "sha256": "e87a22b482d6ac42a248374adcb621610c1fd6c1b628677a60181ea46fdd5cc0",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/store-object"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/store-object"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/building",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/building",
+    "archive_path": "web/S-019-09b5e84ed46dfe.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 17160,
+    "sha256": "e3e09a2795308d0507e1a5ea5d9fe00c6787cc23411a7e0d80be4ef2f93965c1",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/building"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/building"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/language/string-context",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/language/string-context",
+    "archive_path": "web/S-019-fb4fab81bcc9d8.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 19157,
+    "sha256": "6a141e812174109dc275adb71924fb3363d4be2a494079c8221826b10ff5469f",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/language/string-context"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/language/string-context"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/language/import-from-derivation",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/language/import-from-derivation",
+    "archive_path": "web/S-019-bb0e2b3b504ee6.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 20685,
+    "sha256": "a689bfd22c6859c45176878f717b63882e0eab3f421b8740ebd1c6c319f35987",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/language/import-from-derivation"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/language/import-from-derivation"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/language/builtins",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/language/builtins",
+    "archive_path": "web/S-019-e6ce2ee6f73afb.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 116329,
+    "sha256": "9984f3099e07321824ccbb2d8e8aef38075246932b498f2584ddb9565343364b",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/language/builtins"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/language/builtins"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/package-management/garbage-collector-roots",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/package-management/garbage-collector-roots",
+    "archive_path": "web/S-019-fe629e959b3637.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 12991,
+    "sha256": "70b8612a05f7ad6adc3d595e1a8c62a3708c2378810f6742163f3e30afd1ebf6",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/package-management/garbage-collector-roots"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/package-management/garbage-collector-roots"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/package-management/garbage-collection",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/package-management/garbage-collection",
+    "archive_path": "web/S-019-2658a358421342.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 15169,
+    "sha256": "b50d2238416d162e03c9291eb207750c3a93906012c85eab2250eb849fae851d",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/package-management/garbage-collection"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/package-management/garbage-collection"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/command-ref/nix-store/gc",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/command-ref/nix-store/gc",
+    "archive_path": "web/S-019-6b58ba2ca60ddf.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 38080,
+    "sha256": "56c197a08970fb1f2d7bd6f1e5b8114226bf96f733a2b490d060b0435f9bd0e6",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/command-ref/nix-store/gc"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/command-ref/nix-store/gc"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/package-management/profiles",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/package-management/profiles",
+    "archive_path": "web/S-019-70c54ea4692012.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 18545,
+    "sha256": "8a0910b134c0bb289faaf357fdc38cd1a14dfa153356fa2ae9f67610573a40ef",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/package-management/profiles"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/package-management/profiles"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/types/local-store",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/types/local-store",
+    "archive_path": "web/S-019-570f895c248ad6.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 22929,
+    "sha256": "521ce47e7d41ee8e46bfbe152f039aa16184ba7851f9b8206fa8f0dc19627a33",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/types/local-store"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/types/local-store"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/command-ref/conf-file",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/command-ref/conf-file",
+    "archive_path": "web/S-019-09282aa162ac37.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 112739,
+    "sha256": "34ba76bad2a9d86328fd1c6b630805cab0c36333df6104b1a4acef51479715d3",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/command-ref/conf-file"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/command-ref/conf-file"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/installation/multi-user",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/installation/multi-user",
+    "archive_path": "web/S-019-aa1ffc3270a1ee.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 15598,
+    "sha256": "6b4e4e53d4c08a2df161ea85fb9b99cb3bec11fa7cc35b5b8790630d6968547a",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/installation/multi-user"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/installation/multi-user"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/file-system-object",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/file-system-object",
+    "archive_path": "web/S-019-033614c0f8dcbc.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 14543,
+    "sha256": "89e5788f83882675a755916e45f083a56bb2cc52dec3b049c93768041e355e8f",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/file-system-object"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/file-system-object"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/protocols/nix-archive/",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/protocols/nix-archive/",
+    "archive_path": "web/S-019-cf5cccd89aebc4.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 19998,
+    "sha256": "d7207fadcac75da266a1ffd78e1a507c20497cca41d15f177fa1337afc71dcb6",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/protocols/nix-archive/"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/protocols/nix-archive/"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-019",
+    "requested_url": "https://nix.dev/manual/nix/2.34/store/secrets",
+    "resolved_url": "https://nix.dev/manual/nix/2.34/store/secrets",
+    "archive_path": "web/S-019-be82b768e79fae.html",
+    "accessed_date": "2026-10-01",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 13039,
+    "sha256": "6923b5607b36ec9859cbf73f98fb71772cfafee0a85001182273d85691b3d9e4",
+    "cited_urls": [
+      "https://nix.dev/manual/nix/2.34/store/secrets"
+    ],
+    "research_context": [
+      {
+        "url": "https://nix.dev/manual/nix/2.34/store/secrets"
+      }
+    ],
+    "capture_status": "pass",
+    "version_context": "Nix 2.34.9 observed 2026-10-01; not claimed newest"
+  },
+  {
+    "source_id": "S-022",
+    "requested_url": "https://tvl.fyi/blog/rewriting-nix",
+    "resolved_url": "https://tvl.fyi/blog/rewriting-nix",
+    "archive_path": "web/tvix-rewriting-nix-rendered.json",
+    "text_path": "web/tvix-rewriting-nix-rendered.txt",
+    "accessed_date": "2026-10-01",
+    "version_context": "2021-12-01 by tazjin",
+    "capture_status": "pass",
+    "capture_format": "web tool rendered text in JSON string; raw HTML fetch failed with no route to host",
+    "limits": "Rendered source capture, not raw HTML byte equivalence",
+    "bytes": 4606,
+    "sha256": "ec65f8dd8afe05f14c298518d8592e9e5eda4f69eb3d1776e78d486dfb57e3b4"
+  }
+]

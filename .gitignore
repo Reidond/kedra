@@ -19,3 +19,11 @@ __pycache__/
 **/.credentials.json
 **/settings.local.json
 # Never use ignore rules as a substitute for excluding credentials before capture.
+
+# Research captures remain local; public development records retain URLs/hashes.
+/.specs/nix-recreation/sources/papers/
+/.specs/nix-recreation/sources/text/
+/.specs/nix-recreation/sources/web/
+/.specs/nix-recreation/sources/local-input-paths.json
+/.specs/nix-engine/sources/*.html
+/.specs/nix-engine/sources/*.md

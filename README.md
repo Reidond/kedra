@@ -18,6 +18,15 @@ Home files stay writable. Review selected [Noctalia settings](usr/src/kedra/docs
 
 Read [AGENTS.md](AGENTS.md), [architecture](usr/src/kedra/docs/ARCHITECTURE.md) and [worklog](worklog.md). Rust uses a pinned workspace, one lockfile and explicit flat entry paths.
 
+The [independent Rust engine](usr/src/kedra/docs/ENGINE.md) supplies ordinary-user
+build/store/runtime/profile workflows. Its first Docker backend targets native
+aarch64 Linux. [Typed system composition](usr/src/kedra/docs/SYSTEM.md) exports
+config and runtime closures over an exact retained Fedora foundation; installed
+release trust remains separate. [Native derivations](usr/src/kedra/docs/NATIVE.md)
+generate settings caches, service links, account defaults and initramfs contents.
+[Package declarations and delivery](usr/src/kedra/docs/PACKAGES.md) explains the
+Fedora RPM lists and engine-built packages.
+
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings

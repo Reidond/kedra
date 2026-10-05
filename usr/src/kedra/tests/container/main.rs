@@ -10,7 +10,9 @@
 //! KEDRA_LAB_BINARIES, KEDRA_LAB_ARTIFACTS and KEDRA_LAB_KEEP (never, failed,
 //! always; local debugging only, refused when CI is set). See README.md.
 
+mod catalog_tests;
 mod native;
+mod native_artifacts_tests;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -42,6 +44,8 @@ struct Shared {
     results: Mutex<Vec<TestResult>>,
     setups: std::collections::BTreeMap<String, Setup>,
     selected_count: usize,
+    composition_identity: Option<String>,
+    derivation_identity: Option<String>,
 }
 
 enum Body {
@@ -142,6 +146,8 @@ fn execute(shared: &Shared, name: &str, body: &Body) -> Result<(), Failed> {
                 session: None,
                 artifacts: artifacts.clone(),
                 target: shared.image.target.clone(),
+                composition_identity: shared.composition_identity.clone(),
+                derivation_identity: shared.derivation_identity.clone(),
             };
             let prepared: kedra_container_tests::Result<()> = (|| {
                 if fixtures.contains(&Fixture::TestUser) {
@@ -315,11 +321,28 @@ fn main() -> ExitCode {
             )
         })
         .collect();
+    let composition_source = std::env::var("KEDRA_LAB_IMAGE")
+        .is_ok_and(|value| value.trim().starts_with("composition:"));
+    let native_plan = std::env::var_os("KEDRA_LAB_NATIVE_PLAN").map(PathBuf::from);
+    let derivation_identity = std::env::var("KEDRA_LAB_DERIVATION_IDENTITY").ok();
+    let derivation_source = native_plan.is_some() && derivation_identity.is_some();
+    if native_plan.is_some() != derivation_identity.is_some()
+        || derivation_source && !composition_source
+    {
+        eprintln!(
+            "container tests: native plans require composition source, KEDRA_LAB_NATIVE_PLAN and KEDRA_LAB_DERIVATION_IDENTITY; nothing was provisioned"
+        );
+        return ExitCode::from(2);
+    }
     bodies.extend(
         native::TESTS
             .iter()
+            .filter(|test| test.source.applies(composition_source, derivation_source))
             .map(|test| (format!("native::{}", test.name), Body::Native(test))),
     );
+    if composition_source {
+        bodies.retain(|(_, body)| matches!(body, Body::Native(test) if test.source.applies(true, derivation_source)));
+    }
     match std::env::var("KEDRA_LAB_ORDER").as_deref() {
         Ok("reverse") => bodies.reverse(),
         Err(_) | Ok("") | Ok("forward") => {}
@@ -386,7 +409,13 @@ fn main() -> ExitCode {
     let execution = execution_id();
     let run_dir = artifact_root().join("runs").join(&execution);
     let preparation = Instant::now();
-    let image = match image::prepare(&docker, &request) {
+    let prepared_image = match (&native_plan, &derivation_identity) {
+        (Some(plan), Some(identity)) => {
+            image::prepare_native_system(&docker, &request, plan, identity)
+        }
+        _ => image::prepare_system(&docker, &request),
+    };
+    let image = match prepared_image {
         Ok(image) => image,
         Err(error) => {
             eprintln!("container tests: could not prepare the image under test: {error}");
@@ -420,6 +449,8 @@ fn main() -> ExitCode {
         results: Mutex::new(Vec::new()),
         setups: suite.setups,
         selected_count: applicable.len(),
+        composition_identity: request.composition_identity.clone(),
+        derivation_identity,
     });
     let trials: Vec<Trial> = bodies
         .into_iter()

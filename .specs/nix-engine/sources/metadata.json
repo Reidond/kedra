@@ -1,0 +1,50 @@
+[
+  {
+    "file": "docker-run.html",
+    "url": "https://docs.docker.com/reference/cli/docker/container/run/",
+    "resolved_url": "https://docs.docker.com/reference/cli/docker/container/run/",
+    "accessed": "2026-10-01",
+    "bytes": 745665,
+    "sha256": "8d5b5abf4b0c6bac6db69aef482738cfc1357f29e4cba6f3f3bf8ce3a54df944"
+  },
+  {
+    "file": "rust-file-lock.html",
+    "url": "https://doc.rust-lang.org/std/fs/struct.File.html",
+    "resolved_url": "https://doc.rust-lang.org/std/fs/struct.File.html",
+    "accessed": "2026-10-01",
+    "bytes": 194160,
+    "sha256": "08408e08c43cdc3cd02398bed2e216530bbe1eb6c108d7ed74d81d0a20b48874"
+  },
+  {
+    "file": "oci-config-v1.1.1.md",
+    "url": "https://raw.githubusercontent.com/opencontainers/image-spec/v1.1.1/config.md",
+    "resolved_url": "https://raw.githubusercontent.com/opencontainers/image-spec/v1.1.1/config.md",
+    "accessed": "2026-10-01",
+    "bytes": 15479,
+    "sha256": "0504e056297a41dd14cf2ec276d53fab4321d2b08a3e7fd98b2f87792f3f0a57"
+  },
+  {
+    "file": "oci-manifest-v1.1.1.md",
+    "url": "https://raw.githubusercontent.com/opencontainers/image-spec/v1.1.1/manifest.md",
+    "resolved_url": "https://raw.githubusercontent.com/opencontainers/image-spec/v1.1.1/manifest.md",
+    "accessed": "2026-10-01",
+    "bytes": 14010,
+    "sha256": "fc35d252c5cc192ce972bbd52b560184ba427a8a374107fc5cdd7442034cd867"
+  },
+  {
+    "file": "oci-index-v1.1.1.md",
+    "url": "https://raw.githubusercontent.com/opencontainers/image-spec/v1.1.1/image-index.md",
+    "resolved_url": "https://raw.githubusercontent.com/opencontainers/image-spec/v1.1.1/image-index.md",
+    "accessed": "2026-10-01",
+    "bytes": 8289,
+    "sha256": "abbd4ecefe1d85588ae98393600a20b618cc190d630bb534d596c9a642584bf9"
+  },
+  {
+    "file": "oci-layout-v1.1.1.md",
+    "url": "https://raw.githubusercontent.com/opencontainers/image-spec/v1.1.1/image-layout.md",
+    "resolved_url": "https://raw.githubusercontent.com/opencontainers/image-spec/v1.1.1/image-layout.md",
+    "accessed": "2026-10-01",
+    "bytes": 8783,
+    "sha256": "1acffaec92b011010edc14264ffc772d0699d8917dfcda6f7f824e16823e2d0c"
+  }
+]

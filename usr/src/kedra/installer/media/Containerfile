@@ -44,7 +44,7 @@ RUN test -n "$PAYLOAD_IMAGE" && \
     rm -rf /tmp/kedra-installer-trust && \
     chmod 0755 /usr/libexec/sysroot/helper && \
     python3 -c 'import os,json,hashlib,pathlib; p=pathlib.Path("/usr/lib/sysroot/trust"); (p/"installer-payload.json").write_text(json.dumps({"schema_version":1,"image":os.environ["PAYLOAD_IMAGE"],"source_manifest_sha256":hashlib.sha256(pathlib.Path("/usr/share/sysroot/source.json").read_bytes()).hexdigest()})+"\n"); (p/"installer-request.json").write_text(json.dumps({"schema_version":1,"request":{"operation":"verify_installer"}})+"\n")' && \
-    printf 'bootc --source-imgref containers-storage:%s --target-imgref %s\nrootpw --lock\n' \
+    printf 'bootc --source-imgref containers-storage:%s --target-imgref %s\nrootpw --lock\nxconfig --startxonboot\n' \
       "$PAYLOAD_IMAGE" "$PAYLOAD_IMAGE" > /usr/share/anaconda/interactive-defaults.ks && \
     printf '\n%%post --nochroot --erroronfail\n/usr/bin/python3 /usr/libexec/kedra-installer-finalize-fstab.py\n%%end\n' >> /usr/share/anaconda/interactive-defaults.ks && \
     /bin/bash /tmp/kedra-installer-prepare.sh && \

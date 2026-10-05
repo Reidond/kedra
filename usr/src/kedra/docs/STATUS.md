@@ -1,6 +1,346 @@
 # Verified status
 
+## Active delivery checkpoint (2026-10-05)
+
+All five dependent drafts remain open: [D1 PR33](https://github.com/Reidond/kedra/pull/33),
+[D2 PR34](https://github.com/Reidond/kedra/pull/34), [D3 PR35](https://github.com/Reidond/kedra/pull/35),
+[D4 PR36](https://github.com/Reidond/kedra/pull/36), and [D5 PR37](https://github.com/Reidond/kedra/pull/37).
+D1, D3 and D4 are locally qualified in their recorded scopes. The independent
+signed-cache consumer now also passes explicit rebuild qualification. Full D2
+and D5 acceptance remains incomplete; nothing has been merged or published to production.
+
+Published plan/documentation head77300b9 passes both architectures in
+[push Check37285542956](https://github.com/Reidond/kedra/actions/runs/37285542956).
+The QMP-fixed direct ARM runs have now failed:
+D2 37234495769, D3 37234495358, D4 37234495136 and D5 37234496224.
+All paired x86 jobs pass. All four actual insecure-boot refusal/QMP shutdown
+phases pass in368–411 seconds, then fresh installation exceeds its7200-second
+deadline. Final bounded diagnostics show firmware/GRUB/kernel/systemd startup
+but no installation-complete marker; they do not locate the later guest cause.
+Cleanup passes.
+
+Owning D2 deb442c passes both architecture source checks and the x86 signed
+update/rollback job in [run37283817872](https://github.com/Reidond/kedra/actions/runs/37283817872).
+ARM installation fails at 7201.558s. Its observer starts, the payload verifier
+actually exits successfully, and Kickstart validates the selected disks and writes
+the storage include. These markers do not establish storage-plan application.
+No post-install stage or final completion is observed. Unit metadata becomes
+unavailable around 3046–3059s without enough resource evidence to establish why.
+ARM refusal/shutdown and structured cleanup pass; independent x86 cleanup is
+not established. Worklog WL-20261005-13 records exact artifact hashes and the
+bounded task/resource diagnostic follow-up. No root cause or successful ARM
+installation is claimed. The aligned upper stack remains local and preserved.
+
+Owning D2 `7c59fd8` passes both architecture source checks and x86 A/B/rollback
+in [run37305788202](https://github.com/Reidond/kedra/actions/runs/37305788202),
+but ARM installation fails at7201.685s. Its157 increasing guest heartbeats
+continue through7186.790s with no sequence gaps;239 host/owned-QEMU samples
+are retained. No sampled guest OOM or low available memory is observed. ARM
+refusal/shutdown and structured cleanup pass. The pinned Anaconda DBus modules
+use different log formats/routes from the main process, which that revision's
+task reader handled incorrectly. Missing task markers cannot locate the stall.
+Owning `c01ee2f` corrects the classifier; source push Check37330502152 and PR
+Check37330513592 pass both architectures. Its
+[run37330502213](https://github.com/Reidond/kedra/actions/runs/37330502213)
+attempt1 fails before guest execution. Attempt2 passes x86 A/B/rollback but ARM
+installation fails at7201.573s. The corrected observations establish entry into
+bootc deployment after physical-root cleanup returns, before argument retrieval,
+mount setup and child creation. No bootc completion/post-install marker appears.
+Guest157 increasing health frames and239 host samples do not establish the
+installer's subsequent operation; no guest OOM is recorded. ARM refusal/QMP
+shutdown and structured cleanup pass. The cause remains unresolved; no further
+speculative run or acceptance relaxation is proposed. Full hosted ARM
+installation/update/rollback and native fault qualification remain incomplete.
+The aligned stack is published as drafts. Exact D2 ad75aa6, D3 948d3aa,
+D4 7171e4e and D5 5e94e8b pass both architecture workspace jobs in
+[Check37355982483](https://github.com/Reidond/kedra/actions/runs/37355982483),
+[Check37355982477](https://github.com/Reidond/kedra/actions/runs/37355982477),
+[Check37355982505](https://github.com/Reidond/kedra/actions/runs/37355982505) and
+[Check37355984106](https://github.com/Reidond/kedra/actions/runs/37355984106).
+Eighteen redundant runtime runs from the cascade are cancelled, not qualified.
+The home-artifact plan remains unimplemented. Nothing is merged, installed on
+the workstation or published to production. See WL-20261005-17/19 for exact
+runtime receipts, source review and final publication evidence.
+
+The Docker backend and twelve-field inspection-default correction pass the complete
+hosted QEMU workflow on D2 source332f450/run37217459554 and D5 source8c35755/run37217459773:
+candidate composition/transfer, disk construction, UEFI Secure Boot, kernel lockdown,
+enforcing SELinux and exact guest image markers; QEMU exits0 in288s/370s. These are
+unsigned disposable boot results. The direct ARM update workflow now passes backend selection and signed media
+construction. D2/D3 diagnostics observe actual insecure-boot refusal before
+a controller timeout. The shared QMP helper previously closed before a queued quit
+command was necessarily dispatched; the owning correction waits for a reply or
+server EOF and then real owned-process exit0 within min(15 seconds, original phase
+budget). One manual QEMU11 process check and all four hosted refusal/shutdown
+phases pass; complete hosted installation/update qualification remains incomplete.
+Old D5run37220454933 passed refusal but timed out during fresh installation, a
+separate unknown guest boundary. x86 jobs pass. Protected main-only signing is unrun.
+
+The local D2 compatible fixture6146d96 preserves producer1dc. The complete public
+HVF sequence passes insecure-boot refusal, fresh installation, A/B/rollback and
+finish, including security, twelve native artifacts and home/var persistence.
+Every new launcher/native guard and the continuation supervisor returns0. The
+original Docker execution reports exit0; the missing old host-parent wait remains
+unavailable. Cleanup and protected custody are independently verified. Failed
+monitor/fixture attempts remain in the record. Aggregate SHA
+92ad69e969437f64ec68e28c196ac9a61e8d1b37cb4aefac9310f981abc9f8fe.
+
+TC05 full sanctioned container coverage passes13/13 on exact candidatee0fd with
+frozen57 harness50dca and overlaynone. Its initial12/13 attempt lacked Git metadata
+at the compiled source path; adding genuine exact-commit metadata leaves tracked
+bytes/modes unchanged, and the complete rerun passes with no cleanup failure.
+TC03 genuine release-composer contribution now passes on frozen580/material2271c5c2:
+actual foundation/catalog construction, complete public composer, exact-image
+jq42/SQLite `TC03|42`, selected separate-library initialization, installed paths,
+nine expected public-composer refusals and final store verification. Candidatea28a
+receipt SHA c29d2d548a65c7969f26d827cc6309e23ad5a5f55a14ea71b2c577b34a4a3292.
+The original32GiB resource-stop remains failed; its separately admitted retry
+finishes in2161.39s within60minutes, with peak44.35GB below48GiB trigger and no
+reclaim. All runtime containers are absent; controller/observer are stopped,
+and retained artifacts/source/binaries are unchanged. Setup/heartbeat/fixture
+failures remain recorded. Settlement SHA
+aded3a8cbf8eb3447e9a6c15cc2c3bad0d1dfea2bfaf4384cda1a47c2f261a19.
+TC05's full suite result stays bound to its earlier exact candidatee0fd.
+Separate generic composition/verification/static replay also passes `jq_tool`
+and `sqlite-tool` execution with unchanged production-author material. This uses
+the separately checked optimized27df CLI and does not expand the catalog
+author's fixed alias set. Its result/settlement are recorded in D2 verification.
+
+D5 results use frozen product source2b52355:
+
+- Nine metadata refusals, exact valid-from admission, natural expiry during copying,
+  successful admission wholly within the final valid second, incomplete-closure
+  refusal and corrupt-existing-content refusal pass. A genuine valid same-recipe/different-result winner also refuses conflicting
+  substitution while preserving the receiver and profile; Linux readbacks pass.
+- Fresh external consumers compiled against the exact immutable source. Actual signed
+  transfer, producer-unavailable execution, reuse, explicit independent rebuild of
+  support/report, unchanged public receipts and execution with total43 pass. All28
+  workflow commands return0; seven recorded owned container names are independently
+  absent. Evidence summary SHA c24d25ecbcffcb8b00ccf02cdc17cc5fb1c322068770fa87ea42f197f8ae0abd.
+- Eight genuine-lease schema/member/mode/inode/link refusal cases preserve payload
+  and sentinel; restoring authentic state permits public recovery and exact removal.
+  Actual wrong-owner/EACCES and filesystem replacement (device and inode both
+  changed) also refuse and preserve state. Actual ACL-induced failure after
+  snapshot-directory removal leaves the genuine lease intact; restoring ACLs
+  permits orphan recovery and an empty repeat. Killed-process cleanup at that
+  boundary is not claimed.
+- Source-import ENOSPC and actual root-publication ENOSPC pass recovery/retry and
+  prior-root preservation. The root-publication case leaves an empty root temporary;
+  it was discarded only with the disposable tmpfs, not by product recovery. A genuine source-import journal write also fails with ENOSPC and recovers/retries
+  successfully. Actual snapshot-copy ENOSPC and identical same-filesystem retry
+  also pass on3GiB tmpfs with no OOM. Native transaction/binding ENOSPC remains
+  unqualified.
+- One native pre-ID publication window is captured and its abandoned snapshot was
+  publicly recovered. Native derive retry is unrun, so no C6 window is fully qualified.
+  Pending journal/image state is preserved. Earlier automatic approval review blocked
+  that runtime work with a generic possible-cybersecurity-risk reason; it was not bypassed.
+
+Current source/Git ownership is with the primary Codex agent; the Astra runtime worker
+owns local Docker/VM operations. Local runtime work is settled; the next work is
+to diagnose the hosted ARM installer after early boot. The local VM, genuine contribution, supplementary
+generic aliases and listed ordinary cache/recovery checks are complete in their
+recorded scopes. Retained signed OS/recovery baselines and historical failures remain
+separate. Dated sections below retain their earlier source scopes; worklog entries
+33–38 and subsequent exact run evidence supersede older preparation wording.
+
+## Nix recreation investigation (2026-10-01)
+
+The owner requested research into a sharable Rust Nix-style build system and
+declarative OS configuration, targeting Kedra. Kedranix is reference only and a
+future consumer after rewriting. Sources, citations and the completed research
+proposal are retained in [the research workspace](../../../../.specs/nix-recreation/README.md).
+Status: research complete; engine, static composition and replay are published
+as dependent drafts. Closed native generation and installed container workflows
+are locally implemented and tested; fresh-daemon/fault qualification is active.
+The [engine guide](ENGINE.md) describes package planning/builds, immutable store,
+runtime closure transfer, profiles/develop and collection/recovery. The
+[system adapter](SYSTEM.md) exports typed config/runtime contexts over a retained
+Fedora44 ARM foundation. The [native stage](NATIVE.md) generates settings caches,
+unit links, initial account defaults and generic QEMU initramfs content.
+[Package declarations/delivery](PACKAGES.md) explains retained Fedora RPM lists
+and ordinary engine store artifacts. Nix frontend/nixpkgs and production backend
+integration remain subsequent phases. Existing Fedora bootc release and home
+contracts remain in force.
+
+The [proposal](../../../../.specs/nix-recreation/proposal.md) recommends an
+independent core, first aarch64/one-output build-and-transfer workflow, then
+typed Rust/native-config OS composition into the existing image pipeline.
+[Implementation evidence](../../../../.specs/nix-engine/verification.md) records ten
+engine cases observed across a nine-pass/fixture-failure full run and repaired
+context-only pass. The real C executable/shared library, independent rebuild,
+offline receiver store, rollback, artifact/image refusal, interruption and private
+Docker context-switch behavior pass with a macOS controller/native ARM Docker29.4.
+Native Linux ARM controller compile and seven filesystem/planning/recovery cases
+also pass offline. Workspace format/Clippy/E2E/release build and legacy release
+interop/material gates pass. The engine is published as draft
+[PR28](https://github.com/Reidond/kedra/pull/28) at `7329ef1`; both architecture
+workspace checks pass in [run36857909727](https://github.com/Reidond/kedra/actions/runs/36857909727).
+All observed engine checks pass, including both architecture workspace/container,
+ARM boot, desktop, native, native-home and signed-VM workflows. The dependent
+`codex/nix-system-composition` is draft [PR29](https://github.com/Reidond/kedra/pull/29),
+implementation `bace56e`, with [concrete requirements](../../../../.specs/nix-system-composition/requirements.md).
+Both PRs are in native GitHub stack30 submitted through gh-stack; observed checks pass.
+Its final native Fedora composition workflow passes 2/2, including compiled Rust
+authoring, actual package/RPM observations, deterministic contexts, typed
+references, foundation passthrough and refusal/preservation cases. Workspace
+format/Clippy/E2E/release build and legacy release CLI checks pass; exact coverage
+is in [composition evidence](../../../../.specs/nix-system-composition/verification.md).
+The historical candidate cache still exports incomplete data and is refused.
+Continuation restores reviewed signed production9d6eb030 under the installed
+signature policy, verifies all78 layers/config/root, and loads a complete native
+archive. [Replay evidence](../../../../.specs/nix-context-replay/verification.md)
+records public context verification, compiled ELF/runtime-library execution after
+producer removal,1MiB config round trip and semantic/cache refusals (2/2 pass).
+Generated-unit systemd container case passes1/1; actual pre-build journal
+interruption/retry passes. Current source3350732 now composes20 files/1435 RPM rows
+and builds a complete static image. The adapter asserts assembly's existing0755
+session-wrapper mode while preserving raw source provenance. New branch
+`codex/nix-context-replay` is draft [PR31](https://github.com/Reidond/kedra/pull/31),
+implementation09473e1, above PR29 in gh-stack30. Both architecture workspace
+checks pass on exact head1c85ca4 in
+[run36869495760](https://github.com/Reidond/kedra/actions/runs/36869495760).
+
+Continuation `codex/nix-native-artifacts` is the fourth local layer above exact
+PR31 head. Closed GLib/systemd/initial-skeleton/QEMU-initramfs derivations and
+fixed offline harness recipe bind actual artifacts, unchanged RPM material and
+exact parent filesystem layers. Final public native CLI passes1/1 in570.08s;
+installed harness passes1/1 in8.56s (report1790873248-91553). Fresh user defaults,
+explicit dconf preferences, unit start/mask/default, initial account/existing-home
+preservation and initramfs content are executed evidence. The first module-name
+and missing dbus-run-session fixture failures are preserved with their corrections
+in [native qualification](../../../../.specs/nix-native-artifacts/verification.md).
+Cold TLS attempts1/2 hit import timeout/disk budget and cleaned owned resources;
+serialized attempt3 passes194.55s on a new empty Docker29.8.1 daemon with exact
+ELF/library/config stdout and private binding. Final local workspace/compiler/
+legacy release CLI gates pass. Cache repeat and four actual static publication
+SIGKILL/retry windows pass: pre-ID rebuild, then exact-ID resume after journal,
+binding and final tag publication. A workspace build replaced the shared release
+path with a different dependency-feature variant; per-fault hashes were absent
+and remain a disclosed provenance limit. Corrective pinned final-executable cold
+replay140.43s / cache40.08s pass on another new empty daemon with identical
+before/after hashes. All four attempts' exact owned resources/credentials are
+removed; outer daemon/default are preserved. Final native cached readback64.14s
+passes with that same pinned executable, exact image/identity and actual material.
+Implementation3a966f0 is [draft PR32](https://github.com/Reidond/kedra/pull/32),
+fourth in native gh-stack30 above exact PR31 head; remote/local ancestry match.
+Both architecture workspace checks pass on exact PR32 head3ba7d1b in
+[workspace36900727082](https://github.com/Reidond/kedra/actions/runs/36900727082).
+Native-cache publication faults,
+boot/SELinux/install/update and signed integration remain unqualified.
+
+The owner has authorized five further dependent drafts with Astra subagents:
+[derived boot, release integration, catalog, reuse and cache/recovery](NIX-DELIVERY.md).
+The first layer is draft [PR33](https://github.com/Reidond/kedra/pull/33),
+`codex/nix-derived-boot`, published through gh-stack above PR32; exact initial
+published head8a8796c matches local/remote ancestry. Final head712927e has passing
+workspace checks on both architectures in
+[run36941595156](https://github.com/Reidond/kedra/actions/runs/36941595156).
+All six image/runtime workflows also pass on implementation head `8a8796c`:
+[container](https://github.com/Reidond/kedra/actions/runs/36941403723),
+[desktop](https://github.com/Reidond/kedra/actions/runs/36941403745),
+[QEMU](https://github.com/Reidond/kedra/actions/runs/36941403765),
+[home](https://github.com/Reidond/kedra/actions/runs/36941403758),
+[direct GHCR](https://github.com/Reidond/kedra/actions/runs/36941403715) and
+[signed updates](https://github.com/Reidond/kedra/actions/runs/36941403740).
+Its exact image source6c38ab05 composes successfully and generates twelve native
+artifacts/kernel7.2.7. The disposable signed disk recipee19113d preserves target
+production trust and uses a separate generated-key buildroot. Bounded signature
+probes and actual signed BIB/install/disk pass806.088s after retained context/
+tool-dependency failures. Cold30.119s and warm22.113s pass exact host-bound
+deployment/kernel/initrd/native/trust checks, Secure Boot/lockdown, enforcing
+SELinux and real Metal desktop/settings/input. AVC notices/denials are retained.
+Corrected public native diagnostics passes2.032s on script1f32337; no guest root
+authority is added. Earlier systemd Alias-only enable/disable regressions pass.
+Compiler/ordinary CLI/legacy release gates pass. D2 source is adopted on
+`codex/nix-release-composition`; producer `1dc8d2e` passes fresh foundation,
+composition/native generation, complete retention and verified Podman transfer.
+Earlier fixture `f1db145` passes independently pinned retained admission and
+refusals, with actual ordinary-user public-file reads. It then exposes recorded
+fixture umask and layer-representation failures. Corrected fixture `d4d4c77`
+passes retained admission on controller `696341b8`, generated-authority signed
+media construction and disabled-Secure-Boot installer refusal. Fresh Anaconda
+installation under Linux TCG fails at its unchanged 7,200-second deadline; the
+disk remains incomplete. Native-HVF transport/cancellation/cleanup is subsequently
+qualified. Host source `81528db` installs a new encrypted disk in 291.553 seconds
+from the original ISO with separately bound external Kickstart, and cold checks
+match all twelve native artifacts and three initial home seeds. A boot passes
+security/native-material checks, but its fixture process exits 120 after saving
+an enrolled response; no complete A pass or CLI return code is recorded. Narrow
+read-only diagnosis and full-hash cleanup pass. Original keeper cleanup now records
+real parent exit 143, adopted keeper exit 1 and acknowledged ABORT; retained replay
+custody remains explicit. Identical host commits are integrated, and fixture-output,
+public graphical-default and embedded-marker corrections are integrated at
+`cad6e7a`. That source passes retained admission, twelve regenerated variants and
+unsigned/wrong-key public-installer refusals. Default-media construction is stopped
+by the capacity guard; a subsequent stage guard fails closed before productive
+resume, and the original media deadline expires while held. Controlled cleanup
+records real parent exit 130, cleanup_failed=false, no remaining bound consumers,
+private mounts or inner containers, and verified restricted replay custody. No final
+ISO, new installation or complete update/rollback passes. See
+[release verification](../../../../.specs/nix-release-composition/verification.md).
+D3's latest native `.sh`/`.conf`/`.service` template revision passes isolated
+pinned 1.98.1 formatting, workspace/all-target check and Clippy with all twenty
+frozen source hashes unchanged. D3–D5 remain inactive in the owning checkout;
+their actual package/reuse/recovery runtime gates remain not-run. D1's dedicated
+base/overlay disks and two obsolete PR31/D1 foundation-archive clone aliases are
+subsequently retired after exact ownership/reference/hash checks. Historical
+qualification, metadata and reports remain; that D1 instance is no longer runnable
+from retained disks. Current D2 native/foundation/replay and default/recovery
+resources remain preserved. Retirement raises host free space to about 83.5 GiB,
+while immediate controller samples remain about 66.4 GiB and fail admission.
+Three later independent settled samples, without further deletion/settings change,
+report 84,208,209,920 controller bytes and at least 89,623,035,904 host bytes,
+passing the unchanged 78 GiB both-filesystem gate. The earlier failed samples
+remain recorded. A reviewed fresh exact-cad6 replay then passes actual unsigned
+and wrong-key public-installer refusals. Run `ad57f07f5459d594` enters A's normal
+public media construction with immediate Linux/host capacity above 78 GiB and
+the healthy original guard, then exits 1 after 4.339 seconds. Actual parent wait
+is 1; original cleanup and independent remote absence pass. The 9,000-byte private
+constructor log was removed after generic failure classification, so the exact
+cause remains unknown. A controlled diagnostic invocation requires bounded private
+log custody outside the unchanged cleanup root before another run. The earlier
+pre-registry permission failure remains separate evidence. No final ISO or new VM
+success is claimed; producer, fixture and owning-source identities remain distinct.
+
+That controlled diagnostic subsequently runs as `1710f8ceb4110185`: U/W refuse,
+A and its actual parent exit 1, cleanup/independent absence pass, and the complete
+9,000-byte constructor log remains in restricted local-only custody. Safe parsing
+and a separate anonymous raw inspection establish that the selected old Fedora
+base `9ac02a78…e443b` currently returns `manifest unknown` upstream. Its retained
+local raw manifest still hashes to the same digest; no registry-retention cause is
+inferred. The next smallest supported route under review is the existing explicit
+`--base-image` parameter with a pinned retrievable official Fedora 44 ARM base,
+separately recorded from signed payload/native producer 1dc. No mirror substitution,
+pull-policy relaxation or native-payload relabeling is performed.
+
+The official ARM base `ad037f87…` is subsequently acquired and verified in a
+separately guarded phase: two normal exact pulls and an actual FROM-only
+pull-always/no-cache probe all exit 0. A final read-only lookup syntax failure is
+preserved and corrected without repeating those operations. Linked completion
+and all 65 local layer identities/backing entries pass review. Only the already
+budgeted 2,056,122,368 base bytes may now be credited, yielding warm admission
+81,695,739,904 bytes on both filesystems with fresh cache revalidation at every
+call. Other reserves and the 35/30 GiB guard boundaries remain unchanged. No new
+constructor/ISO/VM pass is claimed while actual space remains below this gate.
+Exact attempts, failures and provenance distinctions are retained in
+[derived-boot verification](../../../../.specs/nix-derived-boot/verification.md).
+
+Power-loss/ENOSPC windows, the complete adverse matrices, native x86_64,
+further frontends/caches and new OS composition/boot qualification remain
+not-run. No image publication or deployment was performed. Research
+archive provenance and its dated proposal review remain preserved.
+
 The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
+
+Read-only observation on2026-10-02: existing main
+[release36946414360](https://github.com/Reidond/kedra/actions/runs/36946414360)
+passes all eight jobs on `b224d5711e857f7dbcaabf7ed42870916525800c`.
+Its verified ARM publication receipt advances the prior9d6eb030 image to
+`sha256:7a8f6324305c1d17e9a76df7a21fed5fc11b1d59bbb7ad883e905fff2a230c9f`.
+This is the existing main implementation, not the unmerged Nix delivery pipeline.
+The session neither triggered that publication nor installed the new image;
+earlier installer/native hardware observations remain tied to their exact retained
+images and recovery media.
 
 ## Active completion and identity replacement (2026-09-30)
 

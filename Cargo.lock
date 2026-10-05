@@ -1409,11 +1409,13 @@ dependencies = [
  "clap",
  "futures-util",
  "libtest-mimic",
+ "rustix",
  "serde",
  "serde-saphyr",
  "serde_json",
  "sha2",
  "signal-hook",
+ "sysroot-engine",
  "tar",
  "testcontainers",
  "tokio",
@@ -1934,6 +1936,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",
@@ -2366,11 +2369,22 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sysroot-catalog",
  "sysroot-core",
+ "sysroot-engine",
  "sysroot-linux",
  "tar",
  "toml",
  "toml_edit",
+]
+
+[[package]]
+name = "sysroot-catalog"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sysroot-engine",
 ]
 
 [[package]]
@@ -2383,6 +2397,19 @@ dependencies = [
  "serde_json",
  "sha2",
  "toml",
+]
+
+[[package]]
+name = "sysroot-engine"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "p256",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
 ]
 
 [[package]]

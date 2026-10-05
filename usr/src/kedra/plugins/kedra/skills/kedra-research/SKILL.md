@@ -14,6 +14,42 @@ Choose the layer by what the behavior needs:
 - **Containers.** usr/src/kedra/tests/container, run through `cargo test -p kedra-container-tests --test container`, for installed-system behavior without a kernel boot: files, units, the real session, portals, keyring, home review, apps and screenshots. Add YAML scenarios for linear checks, native tests (native.rs) for control flow, and guest probes (lab/probes) for in-guest logic.
 - **VMs.** For Secure Boot, SELinux enforcement, VT/greetd password login and PAM, bootc switch/update/rollback, the installer, and Xwayland/Qt keyboard-driven dialogs.
 
+Exported system contexts use `kedra-lab replay --image composition:<dir>
+--composition-identity <independent-id>`. Static replay loads/builds/runs with no
+pulls/network before any separate networked lab-tools adaptation. The composition
+System-profile native unit case runs the static image directly. Keep the same
+private artifact/cache root for cache reuse: a tag without its independent binding
+is refused. Actual producer-removal ELF/library replay, large config, unit and
+pre-build journal interruption/retry pass (2026-10-01); later publication windows
+and independent-daemon results are recorded separately in native qualification.
+Boot/signature deployment remains a separate gate.
+Evidence: `.specs/nix-context-replay/verification.md`. No new runner/root authority.
+
+Fresh empty mutual-TLS Docker29.8.1 replay and same-binding cache repeat pass
+(2026-10-01). Four actual static publication SIGKILL windows also pass: temporary
+image/pre-ID rebuild, then exact-ID resume after journal ID, binding and final
+tag publication. Capture actual state before killing; do not reconstruct it or
+count a missed window. SIGKILL leaves the private verification snapshot because
+Drop cannot run; qualification removes only its exact recorded process-owned
+temporary copy after exit, preserving journal/tag/binding for public retry.
+Evidence: `.specs/nix-native-artifacts/verification.md`. Native-cache interruption,
+kernel boot/signing and power-loss/ENOSPC remain separate gates.
+
+Native generation uses `kedra-lab derive-plan`/`derive` with separate composition
+and derivation identities. Installed checks use the existing container test's
+`KEDRA_LAB_NATIVE_PLAN`/`KEDRA_LAB_DERIVATION_IDENTITY`, composition source and
+`native_artifacts` filter. Actual fresh-user GLib default/explicit dconf override,
+unit start/mask/default, initial skeleton/preserved existing home and generated
+initramfs content pass (2026-10-01). Start the fixture's existing systemd user bus;
+Fedora's reviewed foundation lacks dbus-run-session, so do not add an RPM merely
+to satisfy that fixture assumption. Evidence: `.specs/nix-native-artifacts/verification.md`.
+Dracut's `/root` symlink handling required a temporary empty `/var/roothome` only
+for the exact dangling foundation link; remove only the directory created for
+that operation. Its diagnostic about unavailable build-container syslog remains
+visible; require actual success and independent content readback. Module names
+can use kernel-equivalent hyphens/underscores, while exact kernel path and module
+file suffix remain mandatory. These are content/workflow checks, not kernel boot.
+
 Container adaptations and limits are listed in the harness README. Examples: no SELinux labels, a shared kernel (per-UID limits apply across containers), and bootc images hard-linked to their ostree objects. A passing container scenario never qualifies boot, firmware or hardware.
 
 Harness additions measured 2026-09-28 (M2 Pro, Docker 29.4.0): `--test-threads 2`
@@ -31,7 +67,30 @@ Use a named local tag for BuildKit FROM when the stage resolves to a bare image 
 retains the ID. A bare `sha256:...` was treated as a Docker Hub image name and
 failed before provisioning (WL-20260928-04; `usr/src/kedra/tests/container/image.rs`).
 
-Image stages for local runs are `stable`, `run-*`, `sha256:*`, `builds:*`, `ref:*`, or `build[:rev]`, with an optional working-tree overlay. Local builds are unsigned and never pushed or installed. Published OS images are built and signed only in Actions; local on-demand ISO builds consume reviewed signed images. Local CLI E2E uses generated fixtures; never install over the workstation, enroll real home, use vault content or production signing keys as fixtures.
+Image stages for local runs are `stable`, `run-*`, `sha256:*`, `builds:*`, `ref:*`, or `build[:rev]`, with an optional working-tree overlay. Local candidates are unsigned and never published or installed over the workstation. Disposable test derivatives may use generated fixture keys solely for normal signature-admission tests. Published OS images are built and signed only in Actions; local on-demand owner ISO builds consume reviewed signed images. Local CLI E2E uses generated fixtures; never enroll real home, use vault content or production signing keys as fixtures.
+
+Derived QEMU qualification (2026-10-02) uses `vm image` with the complete
+composition/native identity tuple. Preserve declared artifact bytes after DNF
+fixture triggers and independently bind booted reference/manifest/native tuple/
+trust to host image.json. Actual signed BIB plus cold/warm Secure Boot/lockdown,
+enforcing SELinux and Metal desktop pass; AVC notices remain recorded.
+Source: `.specs/nix-derived-boot/verification.md`. Image source, disk recipe and
+diagnostic script can have separate revisions; never relabel a retained image
+as newer committed source. Hash the pinned controller before/after each call.
+
+Inherited sigpolicy rejects an unsigned fixture. Keep target production trust
+bytes unchanged; use a separate generated-key buildroot and two exact-image-ID
+rules for ordinary/BIB stores, requiring the unique signed reference. BIB's
+ID-only source cannot match a repository-only rule. The actual pinned builder
+supports `--build-container NAME@MANIFEST_DIGEST`; a bare config ID can parse as
+a registry name. Strict default-policy unsigned/wrong-key refusals and allowed
+admission precede install. Keys stay in tmpfs and are removed before BIB; do not
+save/load signatures afterward. Podman5.8.7/Skopeo1.22.3 producer normalization
+changes manifest digest while preserving config/native bytes; record both.
+The disk builder lacks cmp/Python/OpenSSL CLI; use its verified existing tools,
+and include new scripts in the closed Docker context. Preserve observed absent
+default-VM PIDs rather than claiming a running default. Disposable admission is
+not production enrollment/update authority. No generic guest root transport.
 
 Record source/run/attempt, exact artifacts, versions and expected/actual result. Separate pass/fail/not-run/blocked, build/boot/install/healthy and physical hardware. Link Actions evidence from usr/src/kedra/docs/STATUS.md and worklog.md; do not commit raw logs, screenshots or research reports. Historical evidence is retained in Git history.
 
@@ -57,3 +116,73 @@ and payload SHA equality plus real refusal/concurrency/interruption workflows pa
 Five visibly changed native sync/capture samples pass median 4.453 s/max 5.136 s;
 phase metrics distinguish source, transport and capture. Measure after unrelated
 host load finishes and preserve contended samples as diagnostics.
+
+Fixture-output boundary observed 2026-10-02: the ARM checker exited 120 after
+saving enrollment stdout/stderr but before printing/publishing its result. Safe
+read-only diagnosis found enrolled:true; the CLI exit code was not saved, so this
+is not a complete phase or CLI-exit pass. Persist exit metadata before printing,
+emit phase success only after required evidence, and put poweroff in a final
+cleanup path that output errors cannot bypass. The updated VM-only unit follows
+the desktop journal+console approach with a fixture-only journald serial destination
+and a fixed identifier; product graphical console ordering is preserved. The Mac installed-phase parser accepts only that anchored
+journal prefix plus the exact marker; installer completion remains exact. New
+routing/full-flow runtime is pending; do not infer it from source checks.
+Sources: `.specs/nix-release-composition/verification.md`, Python sys.exit cleanup
+semantics, and systemd v259 `journald-console.c` (per-line console reopen after
+hangups). A service exit 120 supports an output failure but does not prove EIO.
+
+Treat monitor health as part of resource-guard evidence. A timed-out whole-system
+process query can silently remove protection; record that failure, bind guards to
+exact native PID/start/executable/arguments and require advancing heartbeats.
+Record actual parent wait separately from an EXIT trap's prior status. On abort,
+original private-root removal and explicitly retained generated replay custody
+are different scopes; no signing private key enters retained evidence. Use inactive
+hashed clones and read-only mappings for narrowly selected diagnostics, preserving
+failed originals and complete reverse-cleanup/full-hash evidence.
+
+Podman 5.4.2 interrupted public-media cleanup (2026-10-02) removed the builder
+container but left its anonymous osbuild volume with about 14.7 GB of incomplete
+stage data. Empty container/mount/process lists do not establish reclaimed disk
+capacity. Inspect the exact volume's recorded identity, anonymous status, all
+references and completed/input-cache contents before separately authorized
+retirement; never prune by category. Preserve failure/replay custody and measure
+settled host and controller gains. The observed bounded retirement reclaimed
+14,024,830,976 controller bytes; logical size alone was not the result.
+Source: `.specs/nix-release-composition/verification.md`, attempt 9 cleanup and
+`orphan-builder-cache-retirement.json`. Public media's `--pull=always --no-cache`
+still requires a new installer-environment build; retained signed payload reuse
+does not qualify the new ISO or eliminate that build's resource budget.
+
+For the explicit fresh HVF fixture path, prepare firmware/blank disk/sentinel
+without starting TCG and bind a separate fresh-preparation receipt before export.
+Do not fabricate a timeout to enter recovery admission. Keep legacy interrupted
+boundary adoption separate from normal fresh media qualification. The ARM target
+already orders serial before tty0; bootc 1.16.13 deduplicates repeated arguments
+without reordering them. Use the fixture journald destination rather than an
+appended reversed karg pair. These new routes require their own actual fresh run.
+
+Observed qualification boundaries (2026-10-04; Podman5.4.2, Rust1.98.1):
+perform the fixture's volatile cgroup/socket initialization before its first
+Podman operation. A premature resolver start left a threaded subtree; a fresh
+private namespace initialized first succeeds with the same8GiB/4CPU/2048-pid
+limits. This was not evidence that those limits must be removed. Retain failed
+attempts and the original deadline. Evidence: worklog completion entries and
+`d2-tc03-current-oct04/proof/volatile-init-r2.stdout` plus preflight-r3 receipts.
+
+Probe controller storage from an independently pinned read-only observer when
+controller work can block Docker exec. Preserve sample/floor thresholds and record
+sampler stage, duration and bounded error metadata. The old monitor discarded
+its sampler exception; Docker-copy causation remains unproven. A resumed workflow
+must bind original inputs, authority and deadline, and distinguish new child waits
+from an unavailable original parent wait. The exact Docker execution's exit can
+be recorded separately. See `d2-runtime-oct04/QUALIFICATION-FINAL.md` and its hashes
+in the worklog; this is ordinary runtime recovery, not native fault qualification.
+
+A harness compiled from a Git archive can run catalog checks yet fail the full
+home workflow because the embedded repository path lacks Git metadata. `git -C`
+may silently find a parent checkout, which is not provenance. For the full suite,
+use a genuine checkout at the compiled path, or add exact-commit metadata while
+standard Git comparison proves tracked bytes/modes unchanged. The13-case rerun
+passes on source57a47cf/candidatee0fd after that prerequisite is restored; the
+initial12/13 result remains a separate failed attempt. See TC05 evidence in
+`d2-acceptance-reconcile-oct04/` and the worklog.

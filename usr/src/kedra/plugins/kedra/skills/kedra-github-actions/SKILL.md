@@ -157,4 +157,10 @@ write `/tmp/packaging.log` and `/tmp/storage.log` using that module format.
 Sourcec01ee2f corrects fixed per-file matching under the same64KiB bounds.
 Do not infer task non-execution from the old classifier's absent markers.
 Existing UI initialization/task-start observations do not establish physical
-formatting or completion. Actual corrected classifier execution remains pending.
+formatting or completion. Corrected sourcec01ee2f/run37330502213 attempt2
+still fails installation at7201.573s. Its bootc EXEC log follows
+`_clean_physroot()` returning but precedes storage `GetArguments()`, adapter
+mounts and child creation (Anaconda44.30 deployment source614ac3f3).
+It cannot prove bootc child launch; a command log before Popen cannot either.
+Preserve that narrower boundary without inventing a cause. Guest heartbeats
+prove observer liveness, not the installer process family or useful progress.

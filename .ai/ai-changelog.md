@@ -4,6 +4,13 @@
 
 ## 2026-10-05
 
+### SKILL-MODIFIED: Bound the observed bootc deployment milestone
+- **What:** Recorded the executed Anaconda44.30 bootc-log boundary and its pre-child limit; bumped both first-party plugin manifests to0.3.27.
+- **Why:** Corrected run37330502213 attempt2 reaches deployment code but fails installation. Neither its command log nor observer heartbeat proves child execution or progress.
+- **Files:** Actions skill and both first-party plugin manifests.
+- **Evidence:** D2 verification, exactc01ee2f, final ARM artifact11363722398 and pinned deployment source614ac3f3.
+- **Affected workflows:** Disposable installer diagnosis and truthful qualification; no runtime behavior or personal configuration change.
+
 ### SKILL-MODIFIED: Correct the Anaconda module-log contract
 - **What:** Corrected the Actions skill's main-process-only formatter assumption with pinned D-Bus initializer and stderr routing; bumped both plugin manifests to 0.3.26.
 - **Why:** Run37305788202 verifies continued guest heartbeats but the task reader omitted the actual module files/formats. Absent old task markers cannot locate the installer stall.

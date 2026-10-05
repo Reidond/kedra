@@ -13,8 +13,12 @@ frozen owning source d591d2e (relevant Rust/Cargo unchanged after the cascade).
 D1/D3/D4 local qualification passes in its recorded scope. D2 local installation,
 signed A/B/rollback, exact-candidate13/13 container checks and genuine production
 contribution with nine refusals now pass. Four hosted ARM runs pass refusal/shutdown
-but time out during installation; targeted diagnostic run37283817872 on owning
-D2 deb442c is active. D5 ordinary
+but time out during installation. Corrected-classifier c01ee2f/run37330502213
+attempt2 also fails at7201.573s after entering the bootc deployment path;
+the retained evidence cannot identify the subsequent operation or root cause.
+X86 updates/rollback and ARM refusal/cleanup pass. D3–D5 are aligned locally
+with final evidence and await publication. No further speculative VM run is
+proposed. D5 ordinary
 signed-cache/rebuild/refusal and several genuine lease/ENOSPC cases pass, while
 native fault qualification remains blocked and incomplete. Publication alone
 does not complete an outcome. Exact current evidence is in the owning

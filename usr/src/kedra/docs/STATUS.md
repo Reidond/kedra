@@ -1,49 +1,105 @@
 # Verified status
 
-## Active delivery checkpoint (2026-10-03)
+## Active delivery checkpoint (2026-10-05)
 
-All five drafts are published: [D1 PR33](https://github.com/Reidond/kedra/pull/33),
+All five dependent drafts remain open: [D1 PR33](https://github.com/Reidond/kedra/pull/33),
 [D2 PR34](https://github.com/Reidond/kedra/pull/34), [D3 PR35](https://github.com/Reidond/kedra/pull/35),
-[D4 PR36](https://github.com/Reidond/kedra/pull/36) and [D5 PR37](https://github.com/Reidond/kedra/pull/37).
-D1, D3 and D4 are locally qualified in their recorded scope. D2 and D5 runtime
-qualification remains incomplete; no updated-head all-green CI or production
-publication is claimed.
+[D4 PR36](https://github.com/Reidond/kedra/pull/36), and [D5 PR37](https://github.com/Reidond/kedra/pull/37).
+D1, D3 and D4 are locally qualified in their recorded scopes. The independent
+signed-cache consumer now also passes explicit rebuild qualification. Full D2
+and D5 acceptance remains incomplete; nothing has been merged or published to production.
 
-D4's complete native consumer case passes 1/1 in 184.86s with actual parent wait0
-on frozen d591. Fieldkit43→57→43, Observatory20, producer-absent transfer, two
-profile generations/rollback and isolated GC pass, including other-project and
-selected-image preservation. Owned cleanup passes. The first guard-format failure
-and unavailable original child exit remain separate historical outcomes.
+Published documentation heade908bb2 passes both architectures in
+[push Check37241140437](https://github.com/Reidond/kedra/actions/runs/37241140437)
+and [PR Check37241143014](https://github.com/Reidond/kedra/actions/runs/37241143014).
+The QMP-fixed direct ARM runs have now failed:
+D2 37234495769, D3 37234495358, D4 37234495136 and D5 37234496224.
+All paired x86 jobs pass. All four actual insecure-boot refusal/QMP shutdown
+phases pass in368–411 seconds, then fresh installation exceeds its7200-second
+deadline. Final bounded diagnostics show firmware/GRUB/kernel/systemd startup
+but no installation-complete marker; they do not locate the later guest cause.
+Cleanup passes. A bounded fixture-only stage observer is being qualified on the owning D2 branch; no installation root cause is established. Worklog WL-20261005-10 and release-composition verification record its scope and checks.
 
-D3's full native package case now passes 1/1 in580.87s, actual parent wait0, on
-exact57 source with pinned eb4 CLI/dfce test. Real jq1.8.2 and SQLite3.53.4 builds,
-all three cache/forced reproductions, exact library loading, contribution/refusal,
-producer-absent SQL/jq regex evaluation and profiles pass. Source/binary/global
-image preservation and owned cleanup pass. The original808 noexec and bc34
-vendored-timestamp failures remain separate historical failures. Installed
-`native::catalog` now also passes1/1 in3736ms on exact57 harness50dca and
-imagea3074c6c: login/user PATH, SQL/jq, original RPM jq preservation and persistent
-service restart/history pass. All phase waits0 and owned cleanup/global-image
-preservation pass; aggregate `d3-installed/result.json` SHA `e3c14088…`. This
-combines OS1dc/foundation122 with catalog57 through generic composition91eff75d
-and nativea4940a7a. Production BuildKit equivalence and signed VM qualification
-remain separate.
+The Docker backend and twelve-field inspection-default correction pass the complete
+hosted QEMU workflow on D2 source332f450/run37217459554 and D5 source8c35755/run37217459773:
+candidate composition/transfer, disk construction, UEFI Secure Boot, kernel lockdown,
+enforcing SELinux and exact guest image markers; QEMU exits0 in288s/370s. These are
+unsigned disposable boot results. The direct ARM update workflow now passes backend selection and signed media
+construction. D2/D3 diagnostics observe actual insecure-boot refusal before
+a controller timeout. The shared QMP helper previously closed before a queued quit
+command was necessarily dispatched; the owning correction waits for a reply or
+server EOF and then real owned-process exit0 within min(15 seconds, original phase
+budget). One manual QEMU11 process check and all four hosted refusal/shutdown
+phases pass; complete hosted installation/update qualification remains incomplete.
+Old D5run37220454933 passed refusal but timed out during fresh installation, a
+separate unknown guest boundary. x86 jobs pass. Protected main-only signing is unrun.
 
-D2 corrected media/install/A/B/A and exact-image full suite remain unpassed;
-fresh TLS and admitted large-VM capacity are still required. Narrow retained-volume
-options pass the native stopped-nocopy identity/payload/refusal proof on compatible
-fixturef6209, preserving original1dc inputs. Explicit installer-base forwarding
-is reviewed, but actual media execution is not yet qualified. Diagnostic fix469
-preserves bounded first-failure metadata after the distinct CDN and missing-log
-ARM CI failures. D5 signed cache and independent authenticated-consumer cases
-now pass1/1 each in52.09s/67.71s on frozen2b, both actual parent waits0. FIFO/auth
-refusals, producer-absent execution and signed-case forced rebuild pass; the
-independent case preserves the unrelated project. Source/binaries and cleanup
-pass. Context lease interruption, native publication faults and Linux ENOSPC
-remain pending; the retained native ARM daemon is not a cold-daemon proof. The exclusive runtime worker continues guarded cases from exact snapshots.
+The local D2 compatible fixture6146d96 preserves producer1dc. The complete public
+HVF sequence passes insecure-boot refusal, fresh installation, A/B/rollback and
+finish, including security, twelve native artifacts and home/var persistence.
+Every new launcher/native guard and the continuation supervisor returns0. The
+original Docker execution reports exit0; the missing old host-parent wait remains
+unavailable. Cleanup and protected custody are independently verified. Failed
+monitor/fixture attempts remain in the record. Aggregate SHA
+92ad69e969437f64ec68e28c196ac9a61e8d1b37cb4aefac9310f981abc9f8fe.
 
-The dated sections below retain earlier evidence and source scopes; this active
-checkpoint supersedes older preparation/inactive wording.
+TC05 full sanctioned container coverage passes13/13 on exact candidatee0fd with
+frozen57 harness50dca and overlaynone. Its initial12/13 attempt lacked Git metadata
+at the compiled source path; adding genuine exact-commit metadata leaves tracked
+bytes/modes unchanged, and the complete rerun passes with no cleanup failure.
+TC03 genuine release-composer contribution now passes on frozen580/material2271c5c2:
+actual foundation/catalog construction, complete public composer, exact-image
+jq42/SQLite `TC03|42`, selected separate-library initialization, installed paths,
+nine expected public-composer refusals and final store verification. Candidatea28a
+receipt SHA c29d2d548a65c7969f26d827cc6309e23ad5a5f55a14ea71b2c577b34a4a3292.
+The original32GiB resource-stop remains failed; its separately admitted retry
+finishes in2161.39s within60minutes, with peak44.35GB below48GiB trigger and no
+reclaim. All runtime containers are absent; controller/observer are stopped,
+and retained artifacts/source/binaries are unchanged. Setup/heartbeat/fixture
+failures remain recorded. Settlement SHA
+aded3a8cbf8eb3447e9a6c15cc2c3bad0d1dfea2bfaf4384cda1a47c2f261a19.
+TC05's full suite result stays bound to its earlier exact candidatee0fd.
+Separate generic composition/verification/static replay also passes `jq_tool`
+and `sqlite-tool` execution with unchanged production-author material. This uses
+the separately checked optimized27df CLI and does not expand the catalog
+author's fixed alias set. Its result/settlement are recorded in D2 verification.
+
+D5 results use frozen product source2b52355:
+
+- Nine metadata refusals, exact valid-from admission, natural expiry during copying,
+  successful admission wholly within the final valid second, incomplete-closure
+  refusal and corrupt-existing-content refusal pass. A genuine valid same-recipe/different-result winner also refuses conflicting
+  substitution while preserving the receiver and profile; Linux readbacks pass.
+- Fresh external consumers compiled against the exact immutable source. Actual signed
+  transfer, producer-unavailable execution, reuse, explicit independent rebuild of
+  support/report, unchanged public receipts and execution with total43 pass. All28
+  workflow commands return0; seven recorded owned container names are independently
+  absent. Evidence summary SHA c24d25ecbcffcb8b00ccf02cdc17cc5fb1c322068770fa87ea42f197f8ae0abd.
+- Eight genuine-lease schema/member/mode/inode/link refusal cases preserve payload
+  and sentinel; restoring authentic state permits public recovery and exact removal.
+  Actual wrong-owner/EACCES and filesystem replacement (device and inode both
+  changed) also refuse and preserve state. Actual ACL-induced failure after
+  snapshot-directory removal leaves the genuine lease intact; restoring ACLs
+  permits orphan recovery and an empty repeat. Killed-process cleanup at that
+  boundary is not claimed.
+- Source-import ENOSPC and actual root-publication ENOSPC pass recovery/retry and
+  prior-root preservation. The root-publication case leaves an empty root temporary;
+  it was discarded only with the disposable tmpfs, not by product recovery. A genuine source-import journal write also fails with ENOSPC and recovers/retries
+  successfully. Actual snapshot-copy ENOSPC and identical same-filesystem retry
+  also pass on3GiB tmpfs with no OOM. Native transaction/binding ENOSPC remains
+  unqualified.
+- One native pre-ID publication window is captured and its abandoned snapshot was
+  publicly recovered. Native derive retry is unrun, so no C6 window is fully qualified.
+  Pending journal/image state is preserved. Earlier automatic approval review blocked
+  that runtime work with a generic possible-cybersecurity-risk reason; it was not bypassed.
+
+Current source/Git ownership is with the primary Codex agent; the Astra runtime worker
+owns local Docker/VM operations. Local runtime work is settled; the next work is
+to diagnose the hosted ARM installer after early boot. The local VM, genuine contribution, supplementary
+generic aliases and listed ordinary cache/recovery checks are complete in their
+recorded scopes. Retained signed OS/recovery baselines and historical failures remain
+separate. Dated sections below retain their earlier source scopes; worklog entries
+33–38 and subsequent exact run evidence supersede older preparation wording.
 
 ## Nix recreation investigation (2026-10-01)
 

@@ -9,6 +9,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -18,6 +19,7 @@ import sys
 import time
 from pathlib import Path
 
+import installer_stages
 from fixture import add_context_argument, load_context
 
 HERE = Path(__file__).resolve().parent
@@ -157,6 +159,7 @@ def publish_phase_failure(fixture, root, phase, error, progress):
             'initramfs_started': b'Running in initial RAM disk',
             'systemd_started': b'systemd[1]:',
             'secureboot_refusal': b'installation requires UEFI Secure Boot and must not start',
+            'payload_verification_failed': b'embedded payload signature verification failed; installation must not start',
             'pid1_frozen': b'systemd[1]: Freezing execution.',
             'install_complete': b'KEDRA_FIXTURE_INSTALL_COMPLETE',
             'guest_failed': b'KEDRA_GHCR_FAIL',
@@ -196,6 +199,8 @@ def publish_phase_failure(fixture, root, phase, error, progress):
             'fixture_revision': fixture['fixture_revision'],
             'elapsed_seconds': time.monotonic() - started if started is not None else None,
             'deadline_seconds': progress.get('deadline_seconds'),
+            'installer_stages_first_seen_seconds': progress.get('installer_stages', {}),
+            'installer_stage_observer_sha256': sha(Path(installer_stages.__file__)),
             'refusal_seen_elapsed_seconds': progress.get('refusal_seen_elapsed_seconds'),
             'quit_attempted': progress.get('quit_attempted', False),
             'quit_completed': progress.get('quit_completed', False),
@@ -353,6 +358,10 @@ def phase_main(progress=None):
                 if log.exists():
                     require(log.stat().st_size <= LIMIT, 'ARM serial output exceeded its bound')
                     text = log.read_text(errors='replace')
+                    stages = progress.setdefault('installer_stages', {})
+                    for token in re.findall(r'(?:^|\n)KEDRA_INSTALL_STAGE_([A-Z0-9_]{1,64})\r?(?=\n|$)', text):
+                        if token in installer_stages.TOKENS and len(stages) < 256:
+                            stages.setdefault(token, time.monotonic() - started)
                     require('systemd[1]: Freezing execution.' not in text, 'Guest PID 1 froze')
                     if insecure and not refused and 'installation requires UEFI Secure Boot and must not start' in text:
                         require('KEDRA_FIXTURE_INSTALL_COMPLETE' not in text, 'Insecure installation unexpectedly completed')

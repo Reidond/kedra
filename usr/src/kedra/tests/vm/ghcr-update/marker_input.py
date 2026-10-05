@@ -67,14 +67,15 @@ def write(path, payload):
         os.fsync(stream.fileno())
 
 
-def emit_script(marker):
+def emit_script(marker, *, nonblocking=False):
     # No O_CREAT/TRUNC: even a mistaken chroot cannot create or alter a regular file.
+    flags = 'os.O_WRONLY|os.O_NOFOLLOW|os.O_NOCTTY' + ('|os.O_NONBLOCK' if nonblocking else '')
     return f'''# Runs in the disposable installer, using its own Python interpreter.
 import os, stat
 device='/dev/ttyAMA0'
 before=os.stat(device,follow_symlinks=False)
 if not stat.S_ISCHR(before.st_mode): raise RuntimeError('serial endpoint is not a character device')
-descriptor=os.open(device,os.O_WRONLY|os.O_NOFOLLOW|os.O_NOCTTY)
+descriptor=os.open(device,{flags})
 try:
     actual=os.fstat(descriptor)
     if not stat.S_ISCHR(actual.st_mode) or actual.st_rdev != before.st_rdev:

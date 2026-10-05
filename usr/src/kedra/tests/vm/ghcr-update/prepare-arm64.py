@@ -65,7 +65,8 @@ def main():
     material['artifacts']['disposable-arm-journal-console'] = m.sha(journal_console)
     for name in ('prepare-arm64.py', 'arm64.Containerfile', 'arm64-variant.Containerfile',
                  'check.py', 'identity-recovery.py', 'arm64-check.service', 'fixture.py',
-                 'resume-arm64.py', 'run-arm64.sh', 'prepare-install-arm64.py', 'boot-arm64.py', 'marker_input.py'):
+                 'resume-arm64.py', 'run-arm64.sh', 'prepare-install-arm64.py', 'boot-arm64.py', 'marker_input.py',
+                 'installer_stages.py'):
         material['recipes']['fixture/' + name] = m.sha(Path(__file__).with_name(name).read_bytes())
     observer_hash = m.sha((ROOT / 'usr/src/kedra/tests/container/qemu/boot-check.py').read_bytes())
     material['recipes']['fixture/native-observer.py'] = observer_hash

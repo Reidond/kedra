@@ -10,6 +10,7 @@ in the new checkout. Product verifier/helper and install orchestration remain th
 dispatched source. Credentials/media stay private and are not evidence.
 """
 import argparse
+import hashlib
 import io
 import json
 import re
@@ -22,6 +23,12 @@ from fixture import add_context_argument, load_context
 from marker_input import COMPLETE, emit_script
 
 ROOT = Path(__file__).resolve().parents[6]
+
+
+def stage_script(token):
+    # Diagnostic writes must never become an installer admission or failure gate.
+    script = emit_script('KEDRA_INSTALL_STAGE_' + token, nonblocking=True)
+    return 'try:\n' + ''.join('    ' + line + '\n' for line in script.splitlines()) + 'except (OSError, RuntimeError):\n    pass\n'
 
 
 def main():
@@ -67,7 +74,7 @@ rootpw --lock
 user --name=kedra-test --groups=wheel --password=ACCOUNT_HASH --iscrypted
 shutdown
 %pre --interpreter=/usr/bin/python3 --erroronfail
-from pathlib import Path
+STAGE_PRE_ENTEREDfrom pathlib import Path
 import re, stat, subprocess
 assert subprocess.check_output(['systemd-detect-virt','--vm'],text=True).strip() in ('qemu','kvm')
 target=Path('/dev/disk/by-id/virtio-KEDRA_INSTALL_ONLY').resolve(strict=True)
@@ -76,20 +83,24 @@ assert target != keep and stat.S_ISBLK(target.stat().st_mode) and stat.S_ISBLK(k
 assert re.fullmatch('[a-z][a-z0-9]*',target.name)
 assert subprocess.check_output(['blockdev','--getsize64',str(target)],text=True).strip() == str(96*1024**3)
 assert subprocess.check_output(['blockdev','--getsize64',str(keep)],text=True).strip() == str(16*1024**2)
-Path('/tmp/kedra-fixture-storage.ks').write_text('ignoredisk --only-use='+target.name+'\\nclearpart --all --initlabel --drives='+target.name+'\\nautopart --type=btrfs --encrypted --passphrase=DISK_PASSPHRASE\\n')
-%end
+STAGE_STORAGE_VALIDATEDPath('/tmp/kedra-fixture-storage.ks').write_text('ignoredisk --only-use='+target.name+'\\nclearpart --all --initlabel --drives='+target.name+'\\nautopart --type=btrfs --encrypted --passphrase=DISK_PASSPHRASE\\n')
+STAGE_STORAGE_INCLUDE_WRITTEN%end
 %include /tmp/kedra-fixture-storage.ks
 %include /usr/share/anaconda/interactive-defaults.ks
 %post --interpreter=/usr/bin/python3 --erroronfail
-from pathlib import Path
+STAGE_CHROOT_POST_ENTEREDfrom pathlib import Path
 import json
 root=Path('/var/lib/kedra-ghcr-test')
 root.mkdir(mode=0o700,parents=True,exist_ok=True)
 (root/'fresh-install.json').write_text(json.dumps({'schema_version':1,'installer':'anaconda','target_serial':'KEDRA_INSTALL_ONLY','sentinel_serial':'KEDRA_KEEP_DATA'})+'\\n')
-%end
+STAGE_CHROOT_POST_COMPLETE%end
 '''.replace('ACCOUNT_HASH', hashed).replace('DISK_PASSPHRASE', passphrase)
+    for token in ('PRE_ENTERED', 'STORAGE_VALIDATED', 'STORAGE_INCLUDE_WRITTEN',
+                  'CHROOT_POST_ENTERED', 'CHROOT_POST_COMPLETE'):
+        kickstart = kickstart.replace('STAGE_' + token, stage_script(token))
     kickstart += '%post --nochroot --interpreter=/usr/bin/python3 --erroronfail\n'
-    kickstart += emit_script(COMPLETE) + '%end\n'
+    kickstart += stage_script('NOCHROOT_POST_ENTERED') + emit_script(COMPLETE)
+    kickstart += stage_script('NOCHROOT_POST_COMPLETE') + '%end\n'
     media = checkout / 'usr/src/kedra/installer/media'
     # The normal builder copies a closed context. Add only generated data to
     # its fixture media input and include it in the existing initramfs build.
@@ -103,6 +114,20 @@ root.mkdir(mode=0o700,parents=True,exist_ok=True)
                  "install -m 0600 /dev/null /usr/share/anaconda/fixture.ks\n"
                  "cat > /usr/share/anaconda/fixture.ks <<'KEDRA_GENERATED_FIXTURE_KS'\n"
                  + kickstart + "KEDRA_GENERATED_FIXTURE_KS\n")
+    observer = checkout / 'usr/src/kedra/tests/vm/ghcr-update/installer_stages.py'
+    observer_bytes = observer.read_bytes()
+    if len(observer_bytes) > 32768 or b'KEDRA_STAGE_OBSERVER_EOF' in observer_bytes:
+        raise RuntimeError('Fixture observer source is oversized or has an unsafe delimiter')
+    generated += ("cat > /usr/libexec/kedra-fixture-installer-stages.py <<'KEDRA_STAGE_OBSERVER_EOF'\n"
+                  + observer_bytes.decode('utf-8') + "KEDRA_STAGE_OBSERVER_EOF\n"
+                  "chmod 0644 /usr/libexec/kedra-fixture-installer-stages.py\n"
+                  "cat > /usr/lib/systemd/system/kedra-fixture-installer-stages.service <<'KEDRA_STAGE_UNIT_EOF'\n"
+                  "[Unit]\nDescription=Bounded private-fixture stage observer\nAfter=basic.target\nBefore=anaconda-pre.service kedra-installer-verify.service\n"
+                  "[Service]\nType=simple\nExecStart=/usr/bin/python3 /usr/libexec/kedra-fixture-installer-stages.py\n"
+                  "RuntimeMaxSec=7200\nRestart=no\nStandardOutput=null\nStandardError=null\n"
+                  "[Install]\nWantedBy=anaconda.target\nKEDRA_STAGE_UNIT_EOF\n"
+                  "chmod 0644 /usr/lib/systemd/system/kedra-fixture-installer-stages.service\n"
+                  "systemctl enable kedra-fixture-installer-stages.service\n")
     prepare.write_text(original.replace(needle, generated + needle
         + " --install '/usr/share/anaconda/fixture.ks /usr/share/anaconda/interactive-defaults.ks'"))
     iso = media / 'iso.yaml'
@@ -113,11 +138,12 @@ root.mkdir(mode=0o700,parents=True,exist_ok=True)
     iso.write_text(value.replace(old,
         'console=tty0 console=ttyAMA0,115200 inst.text inst.ks=file:/usr/share/anaconda/fixture.ks'))
     report = {'schema_version': 1, 'source_revision': fixture['source_revision'], 'fixture_revision': revision,
-              'fixture_authority': authority['fingerprint'], 'target_serial': 'KEDRA_INSTALL_ONLY',
+              'fixture_authority': authority['fingerprint'],
+              'installer_stage_observer_sha256': hashlib.sha256(observer_bytes).hexdigest(), 'target_serial': 'KEDRA_INSTALL_ONLY',
               'sentinel_serial': 'KEDRA_KEEP_DATA', 'target_bytes': 96 * 1024**3,
               'sentinel_bytes': 16 * 1024**2, 'installer': 'anaconda', 'fresh_installation_performed': False,
               'fixture_inputs': ['authority/qemu-arm64.pub', 'authority/qemu-arm64.sha256',
-                                 'media/prepare.sh generated Kickstart', 'media/iso.yaml boot arguments']}
+                                 'media/prepare.sh generated Kickstart and bounded stage observer', 'media/iso.yaml boot arguments']}
     (root / 'installation-plan.json').write_text(json.dumps(report, indent=2) + '\n')
     print(checkout)
 

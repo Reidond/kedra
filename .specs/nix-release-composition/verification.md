@@ -1002,3 +1002,39 @@ x86 jobs passed. The proven QEMU containerd setup is now reused immediately
 before the ARM fixture and conditionally before a changed qemu-arm64 production
 build. It does not touch x86 or isolated signing jobs. Actual direct ARM execution
 is pending; protected production signing remains main-only and unrun.
+
+## Hosted installation boundary and stage diagnostics — 2026-10-05
+
+The QMP-fixed hosted runs D2 37234495769/source53c0116, D3
+37234495358/sourceaa713aa5, D4 37234495136/sourcefd8c700b and D5
+37234496224/source27dfbb6 now complete the expected insecure-boot refusal and
+QMP shutdown in379.50/368.08/377.06/410.65 seconds. All paired x86 jobs pass.
+Every ARM run subsequently fails the fresh-install phase at its7200-second
+deadline; cleanup succeeds. QEMU exit0 after failure cleanup does not establish
+installation success. Public artifacts11319062175/11318459772/11319833181/
+11319309094 are retained under `target/nix-delivery/ci-oct05-final/<run>/`.
+
+The bounded failure records show firmware/GRUB/kernel/systemd startup but cannot
+locate the later guest failure. Anaconda44.30's normal service launches a detached
+tmux session; installer logs are inside the guest. A live wrapper or its default
+zero status is not installer completion. The successful local public HVF serial
+also lacks several earlier broad progress strings, so their absence cannot
+locate the hosted stall. The source/media comparison is recorded in
+`target/nix-delivery/d2-runtime-oct05-readonly/`, with findings SHA
+`a33bd98c5497299af388a98a7e0869cb5c682cb5868d26f24845e7dbeeda01bf`.
+
+The next owning-D2 fixture change adds fixed best-effort Kickstart stage tokens
+and a bounded guest observer of four exact units, tmux main-pane status and three
+literal error patterns in four log tails. Exit status/result tokens require a
+positive actual main-process exit timestamp. Raw logs, argv, account/disk data
+and exception bodies remain private. The observer is part of the exact fixture
+recipe material and generated media, with no restart, a7200-second cap,128 unique
+tokens,2KiB/3-second command observations and64KiB regular-file log tails.
+Host failure metadata records bounded first-observed stage times and the observer
+hash. Mandatory completion, security, disk and phase-deadline checks are unchanged.
+
+Coordinator review, uv/Ruff, Python compilation, public prepare help and compiler
+checks of the actual generated marker snippets pass. No guest snippet was run by
+those syntax checks. Actual observer startup and installation outcome remain
+not-run for the new source until the single owning hosted workflow executes.
+This is a diagnostic change; no specific installer root cause or fix is claimed.

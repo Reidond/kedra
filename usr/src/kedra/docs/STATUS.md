@@ -136,11 +136,6 @@ recorded scopes. Retained signed OS/recovery baselines and historical failures r
 separate. Dated sections below retain their earlier source scopes; worklog entries
 33–38 and subsequent exact run evidence supersede older preparation wording.
 
-The [home-artifact follow-up](../../../../.specs/nix-home-artifacts/spec.md) is a
-reviewed proposal only. It uses the existing image composition and home commands
-for a first niri baseline artifact while preserving live edits and recovery.
-No home feature code, new user workflow or deployment is implemented by the plan.
-
 ## Nix recreation investigation (2026-10-01)
 
 The owner requested research into a sharable Rust Nix-style build system and

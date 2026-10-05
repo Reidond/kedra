@@ -4,6 +4,13 @@
 
 ## 2026-10-05
 
+### SKILL-MODIFIED: Correct the Anaconda module-log contract
+- **What:** Corrected the Actions skill's main-process-only formatter assumption with pinned D-Bus initializer and stderr routing; bumped both plugin manifests to 0.3.26.
+- **Why:** Run37305788202 verifies continued guest heartbeats but the task reader omitted the actual module files/formats. Absent old task markers cannot locate the installer stall.
+- **Files:** `usr/src/kedra/plugins/kedra/skills/kedra-github-actions/SKILL.md`, both first-party plugin manifests.
+- **Evidence:** D2 verification, run37305788202, pinned Anaconda44.30 module initializer/launcher, independently reviewed sourcec01ee2f. Corrected runtime is pending.
+- **Affected workflows:** Disposable ARM installer diagnostics; no installed behavior or user configuration changes.
+
 ### SKILL-MODIFIED: Distinguish planned installer tasks from live progress
 - **What:** Recorded the observed post-verifier boundary, Anaconda 44.30 task-log format and bounded heartbeat/owned-process evidence rules; bumped both plugin manifests to 0.3.25.
 - **Why:** Run37283817872 proves that generated storage instructions and earlier stage tokens cannot establish continued installation progress. The new diagnostic remains unqualified until its hosted result.

@@ -146,4 +146,15 @@ samples refer to the live owned QEMU process before cleanup. Drop malformed data
 stop further metadata subprocesses if child cleanup cannot be established.
 Keep health sampling independent of token saturation. Dropped frames, sampled
 extrema and missing bounded-log messages cannot prove a specific stall cause.
-The new observations remain unqualified until their actual hosted result.
+Run37305788202 verifies157 increasing guest heartbeats near the deadline with
+no sampled OOM, but installation still fails. The previous task-log assumption
+was incomplete: the main UI formatter does not govern D-Bus module processes.
+The [module initializer](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/common/__init__.py)
+uses default Python logging (`INFO:anaconda.modules...`); the
+[launcher](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/core/startup/dbus_launcher.py)
+routes Boss stderr to private `/tmp/dbus.log`. Payload/storage modules also
+write `/tmp/packaging.log` and `/tmp/storage.log` using that module format.
+Sourcec01ee2f corrects fixed per-file matching under the same64KiB bounds.
+Do not infer task non-execution from the old classifier's absent markers.
+Existing UI initialization/task-start observations do not establish physical
+formatting or completion. Actual corrected classifier execution remains pending.

@@ -42,9 +42,12 @@ separate versioned native input boundary rather than broadening `/usr/lib` write
 Initial skeleton generation never applies changes to an existing live home.
 
 Force-killing a consumer can leave its private verification snapshot because
-destructor cleanup cannot run. Qualification removes only the exact observed
-process-owned temporary copy after exit; durable journal/tag state stays intact
-for the public retry. Automatic collection of such crash leftovers is not claimed.
+destructor cleanup cannot run. Managed snapshots now carry durable locked leases;
+explicit `sysroot system recover` validates and collects recognized abandoned
+copies while preserving active, stopped or unsafe entries. This snapshot cleanup
+does not retire native image journals/tags: those remain for the public native
+retry. The four native publication-window retry cases remain unqualified; see
+[D5 evidence](../../../../.specs/nix-cache-recovery/verification.md).
 
 Container generation/content and systemd/default/user workflow checks are separate
 from kernel boot, Secure Boot/SELinux, installer/update and production signing.

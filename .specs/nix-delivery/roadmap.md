@@ -12,7 +12,9 @@ Delivery checkpoint (2026-10-05): D1–D5 are drafts
 frozen owning source d591d2e (relevant Rust/Cargo unchanged after the cascade).
 D1/D3/D4 local qualification passes in its recorded scope. D2 local installation,
 signed A/B/rollback, exact-candidate13/13 container checks and genuine production
-contribution with nine refusals now pass. Hosted direct ARM testing remains active. D5 ordinary
+contribution with nine refusals now pass. Four hosted ARM runs pass refusal/shutdown
+but time out during installation; targeted diagnostic run37283817872 on owning
+D2 deb442c is active. D5 ordinary
 signed-cache/rebuild/refusal and several genuine lease/ENOSPC cases pass, while
 native fault qualification remains blocked and incomplete. Publication alone
 does not complete an outcome. Exact current evidence is in the owning
@@ -71,3 +73,8 @@ Resolve/fix before publishing that layer as qualified.
 Power loss and Docker layer-storage exhaustion are distinct from tmpfs metadata
 ENOSPC. Full Nix language/nixpkgs, optional OS-backend replacement, future hardware
 and owner vault/account workflows remain outside this five-PR scope.
+
+The owner requested a [niri home-artifact follow-up plan](../nix-home-artifacts/spec.md)
+on 2026-10-05. It proposes an engine-produced baseline in the existing image
+pipeline and consumption through existing home commands. It is planning only;
+no implementation is included here, and it does not close current delivery gates.

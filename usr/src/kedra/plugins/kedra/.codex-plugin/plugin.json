@@ -1,6 +1,6 @@
 {
   "name": "kedra",
-  "version": "0.3.23",
+  "version": "0.3.24",
   "description": "Repository development knowledge for the Kedra OS and sysroot CLI.",
   "author": {
     "name": "Kedra contributors"

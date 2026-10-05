@@ -54,6 +54,9 @@ SQLite history service. Rust binds four closed tokens from typed references and
 the exact source revision; ordinary shell PATH expansion remains literal.
 Preflight binds template hashes and compiler RPM material before the no-change
 comparison. The release workflow has an exact-native-image `native::catalog`
-gate before publication. Its existence is implementation evidence: real package
-build/rebuild/transfer and installed service/PATH qualification remain not-run at
-this draft checkpoint; see the [catalog evidence](../../../../.specs/nix-package-catalog/verification.md).
+gate before publication. Real package build/rebuild/transfer and installed
+service/PATH workflows pass in their recorded scopes; see the
+[catalog evidence](../../../../.specs/nix-package-catalog/verification.md).
+The genuine catalog contribution also passes the release composer and exact-image
+program checks in [D2 qualification](../../../../.specs/nix-release-composition/verification.md).
+These results do not establish protected production signing/publication.

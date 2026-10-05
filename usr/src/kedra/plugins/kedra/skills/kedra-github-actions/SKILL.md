@@ -119,3 +119,18 @@ inspect-only defaults, refusing nondefault/other mismatches; platform, all diff
 IDs and full transferred config-byte identity remain required. Do not expand
 normalization from assumptions. Source/evidence: release-composition verification
 and https://docs.docker.com/engine/deprecated/#non-standard-fields-in-image-inspect .
+
+Installer-stage evidence (2026-10-05, Anaconda 44.30): the normal
+`anaconda.service` starts detached tmux; a live wrapper is not the foreground
+installer's health. Default ExecMainStatus=0/Result=success before process exit is
+not completion. Observe actual exit timestamps before recording exit-qualified
+results. The successful local HVF serial also lacks several broad progress
+phrases, so absent prose cannot locate the hosted installation stall. Sources:
+[normal service](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda.service),
+[pre service](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda-pre.service)
+and D2 verification, hosted runs37234495769/37234495358/37234495136/37234496224.
+Keep private Kickstart/guest logs private: the research boot-probe's raw journal
+trap is unsuitable for credential-bearing installer fixtures. Use fixed bounded
+stage/state tokens and unchanged acceptance/deadline checks. Owning source
+deb442c adds that diagnostic path; actual observer startup and its guest outcome
+require the recorded hosted run, not source inspection or compiler success.

@@ -25,8 +25,9 @@ existing contracts. This engine's package/profile rollback does not roll back
 services, databases, home, credentials or an installed OS. General declarative
 system composition has a [static context export](SYSTEM.md) and a separate
 [native derivation stage](NATIVE.md). [PACKAGES](PACKAGES.md) explains where RPM
-and engine package declarations live. Production signing integration and an
-alternate OS backend remain later phases.
+and engine package declarations live. The release integration is implemented in
+the D2 draft; production qualification remains separate. An alternate OS backend
+is later work.
 
 First support limits: local Unix Docker endpoints, native ARM, single output per
 derivation, one runtime image per closure and Docker29 OCI save archives. Native
@@ -37,5 +38,8 @@ The D5 draft adds authenticated substitution of an explicitly supplied local
 bundle, using a cache-specific key and consumer-resolved recipe/scope, plus leased
 composition/native temporary snapshots and `sysroot system recover`. These APIs
 are independent of OS signing and sysroot-core. The [library guide](../crates/sysroot-engine/README.md)
-describes the inputs and refusal boundaries; actual signed-transfer, native fault
-and bounded Linux ENOSPC outcomes remain unqualified.
+describes the inputs and refusal boundaries. Signed transfer, independent rebuild,
+ordinary snapshot recovery and several bounded ENOSPC workflows have recorded
+passes. Native publication-window retries and native metadata ENOSPC remain
+unqualified; see [current status](STATUS.md) and the
+[exact D5 evidence](../../../../.specs/nix-cache-recovery/verification.md).

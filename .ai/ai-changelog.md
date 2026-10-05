@@ -2,6 +2,14 @@
 
 ---
 
+## 2026-10-05
+
+### SKILL-MODIFIED: Ground installer diagnosis in actual stage evidence
+- **What:** Updated the Kedra Actions skill with Anaconda 44.30's tmux-wrapper behavior, exit-qualified service status and private-log limits; bumped both plugin manifests to 0.3.24.
+- **Why:** The hosted installation failures and successful local comparison show that wrapper startup and absent generic serial phrases cannot establish installer progress or success.
+- **Files:** `usr/src/kedra/plugins/kedra/skills/kedra-github-actions/SKILL.md`, `usr/src/kedra/plugins/kedra/.claude-plugin/plugin.json`, `usr/src/kedra/plugins/kedra/.codex-plugin/plugin.json`.
+- **Affected workflows:** Kedra disposable ARM installer diagnosis and evidence review. Actual guest qualification remains in the owning D2 verification record.
+
 ## 2026-10-01
 
 ### SKILL-MODIFIED: Closed native artifacts and installed workflow evidence

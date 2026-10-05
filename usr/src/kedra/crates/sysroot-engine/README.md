@@ -157,7 +157,10 @@ stopped; callers explicitly finish after their consumers exit. `sysroot system
 recover --workdir PATH` collects only recognized abandoned snapshots and reports
 active or refused entries. It does not delete unknown paths by age or PID.
 
-These D5 source/API changes have compiler/ordinary CLI gates, but signed native
-transfer, stopped-reader crash recovery, native publication faults and Linux
-ENOSPC qualification remain pending in
-[the D5 record](../../../../../.specs/nix-cache-recovery/test-plan.md).
+Signed transfer, producer-independent execution/rebuild, stopped-reader snapshot
+recovery and several bounded Linux ENOSPC cases pass in their recorded scopes.
+Native publication-window retries and native transaction/binding ENOSPC remain
+unqualified. [The D5 evidence](../../../../../.specs/nix-cache-recovery/verification.md)
+records exact sources, passed cases, preserved failures and remaining limits;
+the [test plan](../../../../../.specs/nix-cache-recovery/test-plan.md) defines the
+full required coverage.

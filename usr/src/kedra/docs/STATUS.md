@@ -51,9 +51,16 @@ installer's subsequent operation; no guest OOM is recorded. ARM refusal/QMP
 shutdown and structured cleanup pass. The cause remains unresolved; no further
 speculative run or acceptance relaxation is proposed. Full hosted ARM
 installation/update/rollback and native fault qualification remain incomplete.
-The aligned upper stack awaits publication; the home-artifact plan remains
-unimplemented. Nothing is merged, installed on the workstation or published to
-production. See WL-20261005-17 for exact receipts and source-review evidence.
+The aligned stack is published as drafts. Exact D2 ad75aa6, D3 948d3aa,
+D4 7171e4e and D5 5e94e8b pass both architecture workspace jobs in
+[Check37355982483](https://github.com/Reidond/kedra/actions/runs/37355982483),
+[Check37355982477](https://github.com/Reidond/kedra/actions/runs/37355982477),
+[Check37355982505](https://github.com/Reidond/kedra/actions/runs/37355982505) and
+[Check37355984106](https://github.com/Reidond/kedra/actions/runs/37355984106).
+Eighteen redundant runtime runs from the cascade are cancelled, not qualified.
+The home-artifact plan remains unimplemented. Nothing is merged, installed on
+the workstation or published to production. See WL-20261005-17/19 for exact
+runtime receipts, source review and final publication evidence.
 
 The Docker backend and twelve-field inspection-default correction pass the complete
 hosted QEMU workflow on D2 source332f450/run37217459554 and D5 source8c35755/run37217459773:

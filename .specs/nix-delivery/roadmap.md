@@ -16,9 +16,11 @@ contribution with nine refusals now pass. Four hosted ARM runs pass refusal/shut
 but time out during installation. Corrected-classifier c01ee2f/run37330502213
 attempt2 also fails at7201.573s after entering the bootc deployment path;
 the retained evidence cannot identify the subsequent operation or root cause.
-X86 updates/rollback and ARM refusal/cleanup pass. D3–D5 are aligned locally
-with final evidence and await publication. No further speculative VM run is
-proposed. D5 ordinary
+X86 updates/rollback and ARM refusal/cleanup pass. D2–D5 are aligned and
+published as drafts; exact heads ad75aa6/948d3aa/7171e4e/5e94e8b pass both
+architecture workspace checks. Eighteen redundant cascade-triggered runtime
+runs were cancelled and confer no new qualification. No further speculative
+VM run is proposed. D5 ordinary
 signed-cache/rebuild/refusal and several genuine lease/ENOSPC cases pass, while
 native fault qualification remains blocked and incomplete. Publication alone
 does not complete an outcome. Exact current evidence is in the owning

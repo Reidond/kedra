@@ -4,7 +4,11 @@ Shared continuation record. Historical entries below are preserved; paths they n
 
 ## Current project status
 
-Last updated: 2026-09-30 (Europe/Kyiv).
+Last updated: 2026-10-05 (Europe/Kyiv).
+
+- **Active specification:** the side conversation requested a separate PR for an embedded Rust package DSL covering Fedora packages and engine-built packages. Work is isolated on `codex/package-dsl-spec`, based on main `b224d571`; implementation is not authorized by this specification task.
+- **Concurrent delivery:** D1–D5 remain in separate drafts33–37. Inspected delivery source95c5c6c has completed local workflows but unresolved hosted ARM installation and native fault qualification. This spec does not change their code, checkout, evidence or completion state.
+- **Next:** finish source-grounded requirements/design/tasks/verification and publish this documentation-only draft independently of the delivery stack. The dated main baseline below describes the earlier completed Mac-first phase only.
 
 - **Current phase:** Mac-first QEMU/Testcontainers delivery and scoped qualification are complete (WL-20260930-01). Final qualification documentation is merged in PR26.
 - **Implemented / published:** private QEMU/HVF/Cocoa/VirGL/ANGLE Metal runtime, isolated retained VM controls, validated hot sync/capture, bounded Testcontainers lifecycle, Noctalia 5.2 exact compatibility and early GPU/input initramfs support. PRs [#23](https://github.com/Reidond/kedra/pull/23), [#24](https://github.com/Reidond/kedra/pull/24) and [#25](https://github.com/Reidond/kedra/pull/25) are merged; current published source is `f3d69dbaba0a50fc167efeb2e0e5d3a6caf6b2c8`.
@@ -1330,3 +1334,11 @@ Last updated: 2026-09-30 (Europe/Kyiv).
 - Remaining / blockers: none for the ignore change; edits are local and uncommitted.
 - Next: continue normal development with Finder metadata excluded from Git.
 - Publication follow-up: the owner authorized committing this change and pushing directly to `main`; publication is pending at commit creation.
+
+### WL-20261005-PKGDSL-01 — 2026-10-05 — Specify unified Rust package authoring
+- Agent / state: Codex side conversation; in-progress.
+- Scope / base: isolated `codex/package-dsl-spec` from main `b224d5711e857f7dbcaabf7ed42870916525800c`; delivery source inspected at95c5c6cf9856b9dc5d54bbb076f74aa185ae4c9f. Owner requests a spec and separate PR only.
+- Completed: read current package/catalog/source/release boundaries and the main-thread status. Chosen direction is an embedded typed Rust DSL with distinct Fedora resolution and engine build backends, ordinary per-package source files and no new interpreted language.
+- Checks / evidence: pass — ordinary source and Git inspection; no workload, test, package installation, engine implementation or main-checkout modification performed.
+- Remaining / blockers: author and review the complete plan, then create its independent draft PR. All runtime acceptance cases in the plan remain not-run.
+- Next: finish the specification and self-review, publish only documentation and retain the separate implementation approval boundary.

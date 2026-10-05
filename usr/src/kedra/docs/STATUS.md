@@ -1,5 +1,16 @@
 # Verified status
 
+## Package authoring specification (2026-10-05)
+
+The owner requested an independent specification for an embedded Rust package
+DSL covering Fedora package selection and source-built engine packages.
+[The proposal](../../../../.specs/nix-package-dsl/README.md) defines authoring,
+isolated evaluation, resolver/build boundaries, release provenance and migration.
+It is planning only: no DSL implementation, package migration, new runtime pass
+or production release is claimed. The separate D1–D5 draft delivery remains
+incomplete in its recorded runtime gates. This documentation branch is based on
+main; its spec pins the independently inspected delivery source explicitly.
+
 The owner's current policy is **automatically signed GHCR images only**. At 00:00 UTC, changed inputs must pass public validation, isolated OCI signing and strict verification before stable publication. No human approval or manual signing action is required. Unchanged inputs publish nothing. Local ISO construction remains on demand and never uploads.
 
 ## Active completion and identity replacement (2026-09-30)

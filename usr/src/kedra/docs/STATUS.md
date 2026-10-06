@@ -11,8 +11,8 @@ publication. Its publication receipt records verified digest
 ARM build112047024567 fails before candidate validation/signing because the
 catalog builder context contains `Containerfile`, while the Docker invocation
 omits `--file` and looks for `Dockerfile`. The initial post-merge release
-37359496666 has the same failure. The focused fix explicitly selects the
-prepared catalog Containerfile. A real Docker29.4.0 scratch-context probe
+37359496666 has the same failure. [Fix PR40](https://github.com/Reidond/kedra/pull/40)
+explicitly selects the prepared catalog Containerfile. A real Docker29.4.0 scratch-context probe
 reproduces the failure, then builds successfully with the corrected selection,
 matching payload readback and successful owned cleanup. YAML/Bash/whitespace
 checks pass. Full corrected ARM release remains not-run until the change is on

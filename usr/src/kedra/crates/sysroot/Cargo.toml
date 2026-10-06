@@ -24,6 +24,26 @@ path = "tests/e2e_source_targets.rs"
 name = "e2e_setup_tpm_unlock"
 path = "tests/e2e_setup_tpm_unlock.rs"
 
+[[test]]
+name = "e2e_engine"
+path = "tests/e2e_engine.rs"
+
+[[test]]
+name = "e2e_system"
+path = "tests/e2e_system.rs"
+
+[[test]]
+name = "e2e_context"
+path = "tests/e2e_context.rs"
+
+[[test]]
+name = "e2e_native"
+path = "tests/e2e_native.rs"
+
+[[test]]
+name = "e2e_catalog"
+path = "tests/e2e_catalog.rs"
+
 [dependencies]
 sysroot-core.workspace = true
 clap.workspace = true
@@ -35,8 +55,12 @@ toml.workspace = true
 toml_edit.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
-rustix.workspace = true
 sysroot-linux.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix.workspace = true
+sysroot-engine.workspace = true
+sysroot-catalog.workspace = true
 
 [lints]
 workspace = true

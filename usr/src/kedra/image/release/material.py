@@ -17,6 +17,8 @@ from pathlib import Path
 
 LIMIT = 4 * 1024**2
 LABEL = 'org.kedra.image.identity'
+IMAGE = 'usr/src/kedra/image/'
+NATIVE_RECIPE = IMAGE + 'release/native-steps.json'
 # Closed release target table, shared with the Rust helper (embedded at build
 # time), the image input tooling and the local installer. Each target has its
 # own repository, key and signing environment; any other (target, architecture)
@@ -77,6 +79,123 @@ def sha(data):
 
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+
+
+def resolved_inputs(root, source, base, context, binaries, package_material, target, catalog=None):
+    """Record deterministic build inputs for a caller's frozen committed source.
+
+    Production establishes accepted-main authority before calling this function;
+    branch fixtures use their own frozen source. This function grants neither
+    publication nor installed trust and performs no package or registry operation.
+    """
+    spec = target_spec(target)
+    require(source.get('schema_version') == 1 and source.get('target', {}).get('id') == target
+            and source['target'].get('architecture') == spec['architecture']
+            and source['target'].get('image') == spec['repository']
+            and source['target'].get('fedora_release') == 44
+            and source['target'].get('candidate_target') is True
+            and re.fullmatch('[a-f0-9]{40}', source.get('source_revision', '')),
+            'Source plan differs from the closed release target')
+    require(re.fullmatch(r'quay\.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}', base),
+            'Unreviewed Fedora base')
+    recipes = [IMAGE + name for name in (
+        'Containerfile', 'assemble.sh', 'release/Containerfile', 'release/prepare-trust.py',
+        'release/refresh.py', 'release/material.py', 'release/targets.json',
+        'release/compatibility.json', 'agents/prepare.sh', 'agents/package.py',
+        'agents/fetch.py', 'agents/pins.py', 'agents/inputs.json', 'bitwarden/prepare.py',
+        'bitwarden/inputs.json')]
+    recipes.extend(('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml',
+                    '.github/workflows/release.yml', '.github/workflows/release-target.yml',
+                    spec['public_key'], spec['key_sha256']))
+    artifacts = {name: context / name for name in ('sysroot', 'sysroot-helper', 'agents.tar', 'bitwarden.tar')}
+    if target == 'qemu-arm64':
+        recipes.extend((IMAGE + 'release/compose.py', NATIVE_RECIPE))
+        artifacts['kedra-lab'] = binaries / 'kedra-lab'
+    if catalog is not None:
+        require(target == 'qemu-arm64' and isinstance(catalog, dict)
+                and set(catalog) == {'pins', 'builder_rpms'}, 'Unsupported catalog material inputs')
+        pins_data = read(catalog['pins'])
+        pins = document(pins_data)
+        require(isinstance(pins, dict) and pins.get('schema_version') == 1
+                and pins.get('namespace') == 'kedra' and set(pins.get('packages', {})) == {'jq', 'sqlite'},
+                'Unsupported catalog pin inventory')
+        templates = pins.get('templates')
+        require(isinstance(templates, dict) and 0 < len(templates) <= 16
+                and isinstance(pins.get('bindings'), dict) and pins['bindings'],
+                'Missing catalog template or binding inventory')
+        template_root = IMAGE + 'catalog/templates/'
+        for name, destination in templates.items():
+            require(isinstance(name, str) and name.startswith(template_root),
+                    'Catalog template is outside the development image tree')
+            relative = name.removeprefix(template_root)
+            require(relative and all(part not in ('', '.', '..') for part in relative.split('/'))
+                    and destination == '/' + relative, 'Catalog template destination differs from its path')
+        expected_recipes = ('usr/src/kedra/crates/sysroot-catalog/lib.rs',
+                            'usr/src/kedra/crates/sysroot-catalog/recipes.rs',
+                            'usr/src/kedra/crates/sysroot/catalog.rs', *sorted(templates))
+        require(set(pins.get('recipes', {})) == set(expected_recipes), 'Catalog recipe inventory differs')
+        for name in expected_recipes:
+            require(pins['recipes'][name] == sha(read(root / name)), 'Compiled catalog recipe differs: ' + name)
+        recipes.extend((*expected_recipes, IMAGE + 'catalog/Containerfile', IMAGE + 'catalog/builder.sh'))
+        artifacts['catalog-pins'] = catalog['pins']
+        artifacts['catalog-author'] = binaries / 'sysroot'
+    recipe_hashes = {}
+    for name in recipes:
+        data = read(root / name)
+        if name == NATIVE_RECIPE:
+            data = canonical(document(data))
+        recipe_hashes[name] = sha(data)
+    artifact_hashes = {}
+    for name, path in artifacts.items():
+        require(path.is_file() and not path.is_symlink() and path.stat().st_nlink == 1,
+                'Build artifact must be a single-link regular file: ' + name)
+        with path.open('rb') as stream:
+            artifact_hashes[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+    if catalog is not None:
+        builder_rows = packages(read(catalog['builder_rpms']), 'aarch64')
+        artifact_hashes['catalog-builder-rpms'] = sha(canonical(builder_rows))
+        require(artifact_hashes['catalog-author'] == artifact_hashes['sysroot'], 'Catalog author differs from sysroot artifact')
+    rows = packages(package_material, spec['architecture'])
+    require_bootc(rows, spec['architecture'])
+    return {'schema_version': 1, 'base': base,
+            'source': {key: value for key, value in source.items() if key not in ('source_revision', 'input_scope')},
+            'recipes': recipe_hashes, 'artifacts': artifact_hashes, 'packages': rows}
+
+
+def verify_native(config, receipt_bytes, inputs, selected=None):
+    """Validate signed native-receipt bindings; actual artifact execution is separate."""
+    receipt = document(receipt_bytes)
+    fields = {'schema', 'identity', 'parent_identity', 'implementation', 'driver_sha256',
+              'recipe_sha256', 'foundation_image', 'rpm_sha256', 'artifacts', 'kernels', 'tools'}
+    require(isinstance(receipt, dict) and set(receipt) == fields
+            and type(receipt['schema']) is int and receipt['schema'] == 1,
+            'Unsupported native material receipt')
+    for field in ('identity', 'parent_identity', 'driver_sha256', 'recipe_sha256', 'rpm_sha256'):
+        require(isinstance(receipt[field], str) and re.fullmatch('[a-f0-9]{64}', receipt[field]),
+                'Malformed native receipt identity')
+    require(isinstance(receipt['foundation_image'], str)
+            and re.fullmatch('sha256:[a-f0-9]{64}', receipt['foundation_image'])
+            and isinstance(receipt['artifacts'], list) and receipt['artifacts']
+            and isinstance(receipt['kernels'], list) and receipt['kernels']
+            and isinstance(receipt['tools'], dict) and receipt['tools'], 'Incomplete native material')
+    labels = config.get('config', {}).get('Labels', {})
+    require(config.get('os') == 'linux' and config.get('architecture') == 'arm64'
+            and NATIVE_RECIPE in inputs['recipes']
+            and labels.get('dev.kedra.native.identity') == receipt['identity']
+            and labels.get('dev.kedra.composition.identity') == receipt['parent_identity'],
+            'Native receipt differs from image composition labels')
+    rpm_bytes = ('\n'.join('\t'.join(row) for row in inputs['packages']) + '\n').encode()
+    require(sha(rpm_bytes) == receipt['rpm_sha256'], 'Native receipt differs from release RPM material')
+    if selected is not None:
+        require(selected.get('schema_version') == 1 and selected.get('target') == 'qemu-arm64'
+                and selected.get('input_material_sha256') == sha(canonical(inputs))
+                and selected.get('foundation_image') == receipt['foundation_image']
+                and selected.get('composition_identity') == receipt['parent_identity']
+                and selected.get('native_identity') == receipt['identity']
+                and selected.get('rpm_sha256') == receipt['rpm_sha256']
+                and selected.get('native_receipt_sha256') == sha(receipt_bytes),
+                'Candidate native material differs from independently retained build')
+    return receipt
 
 
 def packages(data, architecture):

@@ -9,6 +9,17 @@ Read usr/src/kedra/docs/ARCHITECTURE.md. Agents and home operations run as the o
 
 Use typed bounded requests, explicit process arguments and trusted executable/config paths. Reject arbitrary image references, claimed --verified flags, option/shell injection and inherited PATH/config substitution. User review stores and checkout code never establish root authority.
 
+Closed native artifact generation (2026-10-01) is a development harness image
+build, not an installed privileged operation. It accepts normalized typed steps
+and a fixed implementation only, checks exact parent RootFS layer lineage and
+actual generated material/RPMs, and runs with no network/host mounts/sockets/
+devices/privileged entitlements. Ordinary package execution remains nonroot.
+Do not adopt image labels without durable independent cache bindings. Generated
+files/receipts and selected input files must be single-link; inherited immutable
+foundation hardlinks are permitted. Source: native model/harness and
+`.specs/nix-native-artifacts/verification.md`. Signed deployment authority and
+live-home application remain separate.
+
 Adopt only safe paths. Defend traversal, symlink/hardlink escapes, special files, replacement races and mode/label changes. One canonicalize or hash check is not complete TOCTOU protection. Coordinate application writers and durable recovery; several atomic renames are not a global transaction.
 
 The verified image cache (`/var/lib/sysroot/verified-oci`; see kedra-release-signing) is validated before every copy, because skopeo follows symlinks when it writes `index.json` and manifests with `os.WriteFile`. Any of these makes the helper remove the whole layout without following links, then download again:

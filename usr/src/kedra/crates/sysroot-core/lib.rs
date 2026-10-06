@@ -27,6 +27,19 @@ pub const STATUS_JSON: &str = r#"{
   "kind": "implementation_capabilities",
   "installed_state_checked": false,
   "capabilities": {
+    "engine": {
+      "implemented": true, "platform": "unix_controller",
+      "operations": ["build", "store", "run", "profile", "develop"],
+      "execution_platform": "aarch64-linux",
+      "requires": ["private owner store", "local Unix Docker endpoint for execution", "retained Docker29 OCI image evidence"],
+      "os_activation_authorized": false
+    },
+    "system_composition": {
+      "implemented": true, "platform": "unix_controller", "operations": ["plan", "compose", "verify"],
+      "execution_platform": "aarch64-linux", "target": "qemu-arm64",
+      "requires": ["committed Kedra source", "private owner store", "retained Fedora 44 foundation", "matching package material"],
+      "scope": "static context export", "os_activation_authorized": false
+    },
     "source": {
       "implemented": true, "platform": "portable", "operations": ["plan", "archive"],
       "requires": ["Git", "Kedra checkout"]

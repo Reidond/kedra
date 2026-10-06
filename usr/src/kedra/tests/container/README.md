@@ -67,6 +67,38 @@ Every stage resolves to an immutable base and is recorded in the report.
 | `builds:<tag>` | an Actions candidate in `ghcr.io/reidond/kedra-<target>-builds` |
 | `ref:<reference>` | any local or pullable image, for example a CI candidate |
 | `build` / `build:<revision>` | a full local build of the working tree or one commit (below) |
+| `composition:/absolute/context` | verified static context, with a separately retained expected identity |
+
+For composition, provide `--composition-identity <identity>` or
+`KEDRA_LAB_COMPOSITION_IDENTITY`. Overlay defaults to `none`; worktree overlays,
+binary overrides and VM replay refuse. `kedra-lab replay --image composition:…`
+builds the static image without pulls/network; add `--output <typed-alias>
+--program <relative-path> -- <args>` to execute the copied closure with networking
+disabled. Verification consumes a private snapshot and checks foundation/load/tag,
+payload semantics and cache image provenance. Interrupted owned cache publication
+resumes on retry; unknown/foreign state refuses.
+
+For closed native generation, use `kedra-lab derive-plan --image composition:…
+--composition-identity <parent> --native-plan /private/plan.json`, then `derive`
+with the independently retained `--derivation-identity <identity>`. The fixed
+offline recipe generates GLib schemas, declared systemd links, initial account
+skeletons and QEMU initramfs contents; it accepts no arbitrary script/command.
+It verifies unchanged RPM material, actual artifacts and exact parent image
+layers. See [native declarations and limits](../../docs/NATIVE.md).
+
+The installed native case uses `KEDRA_LAB_IMAGE=composition:…`,
+`KEDRA_LAB_COMPOSITION_IDENTITY`, `KEDRA_LAB_NATIVE_PLAN` and
+`KEDRA_LAB_DERIVATION_IDENTITY`, with filter `native_artifacts`. Both native
+variables are required together; ordinary and static-composition cases remain
+separate selections. It runs directly on the derived System-profile image without
+a lab-tools adaptation. TLS Docker endpoints use the already locked ring provider;
+retained archive import allows600s while ordinary requests keep120s.
+
+The composition-only `native::composition_unit` System-profile case consumes the
+static image and validates/starts a generated unit. Ordinary scenario discovery
+omits it. Lab desktop adaptation still runs its normal networked tools layer, and
+is separate from the offline static replay. See [system composition](../../docs/SYSTEM.md)
+and [actual replay evidence](../../../../../.specs/nix-context-replay/verification.md).
 
 For an already cached `ref:` image, BuildKit receives a harness-owned
 `kedra-lab-base:<image-id>` tag because a bare local `sha256:...` in FROM is parsed

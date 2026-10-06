@@ -15,6 +15,10 @@ on:
       - usr/src/kedra/image/agents/**
       - usr/src/kedra/image/bitwarden/**
       - usr/src/kedra/image/release/material.py
+      - usr/src/kedra/image/release/compose.py
+      - usr/src/kedra/image/release/native-steps.json
+      - usr/src/kedra/tests/container/**
+      - usr/src/kedra/tests/vm/ghcr-update/candidate.py
       - usr/src/kedra/image/release/targets.json
       - usr/src/kedra/image/release/compatibility.json
       - usr/src/kedra/image/targets/qemu-arm64/**
@@ -54,6 +58,246 @@ jobs:
           cargo clippy --workspace --all-targets --locked -- -D warnings
           cargo test --workspace --test 'e2e_*' --locked
           cargo build --workspace --release --locked
+      - name: Select the OCI-root Docker image store
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          # This hosted disposable runner has no candidate state yet. Preserve
+          # unrelated daemon settings and refuse to hide existing containers.
+          containers=$(docker ps --all --quiet)
+          test -z "$containers"
+          test ! -L /etc/docker/daemon.json
+          config=$(mktemp -d "$RUNNER_TEMP/kedra-docker-config.XXXXXXXX")
+          trap 'rm -rf -- "$config"' EXIT
+          if sudo test -e /etc/docker/daemon.json; then
+            sudo test -f /etc/docker/daemon.json
+            sudo cat /etc/docker/daemon.json > "$config/original.json"
+          else
+            printf '{}\n' > "$config/original.json"
+          fi
+          jq --exit-status 'type == "object" and ((.features // {}) | type == "object")' "$config/original.json" >/dev/null
+          jq '.features = ((.features // {}) + {"containerd-snapshotter": true})' \
+            "$config/original.json" > "$config/daemon.json"
+          sudo dockerd --validate --config-file "$config/daemon.json" > "$config/validate.log" 2>&1
+          sudo install -m 0600 -o root -g root "$config/daemon.json" /etc/docker/daemon.json
+          sudo systemctl restart docker
+          docker info --format '{{json .DriverStatus}}' | \
+            jq --exit-status 'any(.[]; . == ["driver-type", "io.containerd.snapshotter.v1"])' >/dev/null
+      - name: Check public image retention on the runner backend
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p output/qemu-arm64-evidence
+          probe=$(mktemp -d "$RUNNER_TEMP/kedra-image-retention.XXXXXXXX")
+          tag="localhost/kedra-image-retention:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          image=
+          store_initialized=false
+          stage=prepare
+          cleanup() {
+            result=$?
+            trap - EXIT
+            diagnostic_exit=0
+            uv run python - "$probe" "$stage" "$result" <<'PY' || diagnostic_exit=$?
+          import hashlib
+          import json
+          import os
+          import stat
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          phases = ('prepare', 'build', 'identity', 'backend', 'save', 'store-init', 'retain', 'metadata', 'result')
+          report = {'schema_version': 1, 'stage': sys.argv[2] if sys.argv[2] in phases else 'unknown',
+                    'original_exit': int(sys.argv[3]), 'logs': []}
+          markers = {'dockerfile_unavailable': b'failed to read dockerfile',
+                     'build_solve_failure': b'failed to solve', 'permission_denied': b'permission denied',
+                     'daemon_unavailable': b'Cannot connect to the Docker daemon',
+                     'archive_root_refusal': b'root identity differs or archive has multiple roots'}
+          for name in ('build.log', 'identity.stderr', 'backend.stderr', 'save.stderr', 'init.stderr',
+                       'retain.stdout', 'retain.stderr', 'metadata.stderr'):
+              item = {'name': name, 'available': False}
+              try:
+                  descriptor = os.open(root / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                  with os.fdopen(descriptor, 'rb') as stream:
+                      info = os.fstat(stream.fileno())
+                      if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.getuid():
+                          raise ValueError('unsupported private log')
+                      data = stream.read(65536)
+                  item.update(available=True, bytes=info.st_size, hashed_bytes=len(data),
+                              sha256=hashlib.sha256(data).hexdigest(), complete=len(data) == info.st_size,
+                              observed_markers=[key for key, marker in markers.items() if marker in data])
+              except (OSError, ValueError):
+                  pass
+              report['logs'].append(item)
+          Path('output/qemu-arm64-evidence/image-retention-stage.json').write_text(json.dumps(report, sort_keys=True) + '\n')
+          PY
+            store_unpinned=0
+            store_collected=0
+            gc_attempted=false
+            if test "$store_initialized" = true; then
+              target/release/sysroot store unpin-image --store "$probe/store" --image "$image" \
+                > "$probe/unpin.stdout" 2> "$probe/unpin.stderr" || store_unpinned=$?
+              if test "$store_unpinned" -eq 0; then
+                gc_attempted=true
+                target/release/sysroot store gc --store "$probe/store" --delete \
+                  > "$probe/gc.stdout" 2> "$probe/gc.stderr" || store_collected=$?
+              else
+                store_collected=1
+              fi
+            fi
+            image_removed=0
+            image_attempted=false
+            if test -n "$image"; then
+              image_attempted=true
+              if test "$(docker image inspect --format '{{.Id}}' "$tag")" = "$image"; then
+                docker image rm "$tag" >/dev/null || image_removed=$?
+              else
+                image_removed=1
+              fi
+            fi
+            work_removed=0
+            rm -rf -- "$probe" || work_removed=$?
+            if ! printf '{"schema_version":1,"original_exit":%s,"diagnostic_exit":%s,"store_unpin_attempted":%s,"store_unpin_exit":%s,"store_gc_attempted":%s,"store_gc_exit":%s,"image_remove_attempted":%s,"image_remove_exit":%s,"work_remove_exit":%s}\n' \
+              "$result" "$diagnostic_exit" "$store_initialized" "$store_unpinned" "$gc_attempted" "$store_collected" "$image_attempted" "$image_removed" "$work_removed" > output/qemu-arm64-evidence/image-retention-cleanup.json; then
+              if test "$result" -eq 0; then result=1; fi
+            fi
+            if test "$result" -eq 0 && { test "$diagnostic_exit" -ne 0 || test "$store_unpinned" -ne 0 || test "$store_collected" -ne 0 || test "$image_removed" -ne 0 || test "$work_removed" -ne 0; }; then result=1; fi
+            exit "$result"
+          }
+          trap cleanup EXIT
+          printf 'public image retention probe\n' > "$probe/payload"
+          printf 'FROM scratch\nCOPY payload /payload\n' > "$probe/Containerfile"
+          stage=build
+          docker build --platform linux/arm64 --network none --pull=false --no-cache \
+            --label "dev.kedra.retention-probe=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --iidfile "$probe/image.id" --file "$probe/Containerfile" --tag "$tag" "$probe" > "$probe/build.log" 2>&1
+          stage=identity
+          image=$(cat "$probe/image.id")
+          [[ "$image" =~ ^sha256:[a-f0-9]{64}$ ]]
+          test "$(docker image inspect --format '{{.Id}} {{.Os}} {{.Architecture}} {{index .Config.Labels "dev.kedra.retention-probe"}}' "$tag" 2> "$probe/identity.stderr")" = "$image linux arm64 ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          stage=backend
+          docker info --format '{"version":{{json .ServerVersion}},"driver":{{json .Driver}},"status":{{json .DriverStatus}}}' > "$probe/backend.json" 2> "$probe/backend.stderr"
+          stage=save
+          docker image save --output "$probe/image.tar" "$image" 2> "$probe/save.stderr"
+          stage=store-init
+          target/release/sysroot store init --store "$probe/store" > "$probe/init.json" 2> "$probe/init.stderr"
+          store_initialized=true
+          retained=0
+          stage=retain
+          target/release/sysroot store add-image --store "$probe/store" --image "$image" \
+            > "$probe/retain.stdout" 2> "$probe/retain.stderr" || retained=$?
+          stage=metadata
+          uv run python - "$probe" "$retained" 2> "$probe/metadata.stderr" <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import sys
+          import tarfile
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          selected = (root / 'image.id').read_text().strip()
+          report = {'schema_version': 1, 'selected_image': selected,
+                    'public_add_image_exit': int(sys.argv[2])}
+          source = os.environ['GITHUB_SHA']
+          if re.fullmatch('[a-f0-9]{40}', source) is None:
+              raise ValueError('invalid source identity')
+          report['source_revision'] = source
+          with Path('target/release/sysroot').open('rb') as program:
+              report['sysroot_sha256'] = hashlib.file_digest(program, 'sha256').hexdigest()
+          backend = json.loads((root / 'backend.json').read_bytes())
+          version = backend.get('version', '')
+          report['docker_version'] = version if re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:[-+][a-zA-Z0-9.-]+)?', version) else None
+          driver = backend.get('driver')
+          report['storage_driver'] = driver if driver in ('overlay2', 'overlayfs', 'btrfs', 'zfs', 'vfs', 'aufs', 'devicemapper') else None
+          report['containerd_driver_marker_observed'] = any(row == ['driver-type', 'io.containerd.snapshotter.v1'] for row in backend.get('status') or [])
+          fixed_error = b'sysroot: corrupt engine state: image archive: root identity differs or archive has multiple roots\n'
+          for name in ('retain.stdout', 'retain.stderr'):
+              path = root / name
+              with path.open('rb') as stream:
+                  data = stream.read(65537)
+              report[name] = {'bytes': path.stat().st_size, 'hashed_bytes': min(len(data), 65536),
+                              'sha256': hashlib.sha256(data[:65536]).hexdigest(),
+                              'complete': len(data) <= 65536,
+                              'exact_root_identity_refusal': data == fixed_error}
+          try:
+              if not 0 < (root / 'image.tar').stat().st_size <= 16 * 1024**2:
+                  raise ValueError('oversized probe archive')
+              with tarfile.open(root / 'image.tar', mode='r:') as archive:
+                  members = {}
+                  for member in archive:
+                      if len(members) >= 256 or member.name in members:
+                          raise ValueError('duplicate or oversized archive')
+                      members[member.name] = member
+
+                  def document(name):
+                      member = members[name]
+                      if not member.isfile() or not 0 < member.size <= 65536:
+                          raise ValueError('unsupported metadata member')
+                      stream = archive.extractfile(member)
+                      if stream is None:
+                          raise ValueError('missing metadata member')
+                      with stream:
+                          data = stream.read(65537)
+                      if len(data) != member.size:
+                          raise ValueError('metadata size differs')
+                      return json.loads(data), hashlib.sha256(data).hexdigest()
+
+                  def digest(value):
+                      if not isinstance(value, str) or re.fullmatch('sha256:[a-f0-9]{64}', value) is None:
+                          raise ValueError('unsupported digest')
+                      return value
+
+                  compatibility, compatibility_hash = document('manifest.json')
+                  if not isinstance(compatibility, list) or len(compatibility) > 16:
+                      raise ValueError('unsupported Docker manifest count')
+                  configs = []
+                  for item in compatibility:
+                      name = item['Config']
+                      if not isinstance(name, str) or re.fullmatch(r'(?:blobs/sha256/[a-f0-9]{64}|[a-f0-9]{64}\.json)', name) is None:
+                          raise ValueError('unsupported Docker config name')
+                      _, config_hash = document(name)
+                      configs.append('sha256:' + config_hash)
+                  report.update(docker_manifest_count=len(compatibility), docker_config_digests=configs,
+                                docker_manifest_sha256=compatibility_hash)
+                  index, index_hash = document('index.json')
+                  roots = index['manifests']
+                  if not isinstance(roots, list) or len(roots) > 16:
+                      raise ValueError('unsupported root count')
+                  report.update(root_count=len(roots), root_digests=[digest(item['digest']) for item in roots],
+                                index_sha256=index_hash)
+                  pending = list(report['root_digests'])
+                  manifests = []
+                  seen = set()
+                  while pending:
+                      current = pending.pop()
+                      if current in seen or len(seen) >= 16:
+                          raise ValueError('duplicate or oversized metadata graph')
+                      seen.add(current)
+                      value, actual = document('blobs/sha256/' + current[7:])
+                      if current != 'sha256:' + actual:
+                          raise ValueError('metadata digest differs')
+                      if 'manifests' in value:
+                          children = value['manifests']
+                          if not isinstance(children, list) or len(children) > 16:
+                              raise ValueError('unsupported child count')
+                          pending.extend(digest(child['digest']) for child in children)
+                      else:
+                          config = digest(value['config']['digest'])
+                          _, actual_config = document('blobs/sha256/' + config[7:])
+                          if config != 'sha256:' + actual_config:
+                              raise ValueError('config digest differs')
+                          manifests.append({'manifest': current, 'config': config})
+                  report['manifest_configs'] = manifests
+                  report['archive_metadata'] = 'observed'
+          except (OSError, ValueError, KeyError, TypeError, tarfile.TarError):
+              report['archive_metadata'] = 'unavailable_or_unsupported'
+          Path('output/qemu-arm64-evidence/image-retention-preflight.json').write_text(json.dumps(report, sort_keys=True) + '\n')
+          PY
+          stage=result
+          test "$retained" -eq 0
       - name: Prepare explicit committed payload
         run: |
           mkdir -p output/qemu-arm64-evidence output/qemu-arm64-context
@@ -84,11 +328,14 @@ jobs:
             podman --version
             skopeo --version
           } > output/qemu-arm64-evidence/environment.txt
-          sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
-            --tag localhost/kedra-qemu-arm64:research output/qemu-arm64-context \
-            2>&1 | tee output/qemu-arm64-evidence/build.log
-          # assemble.sh ends with bootc container lint; keep its positive result.
-          grep -E '^Checks passed: [0-9]+' output/qemu-arm64-evidence/build.log
+          uv run usr/src/kedra/tests/vm/ghcr-update/candidate.py \
+            --diagnostic-directory output/qemu-arm64-evidence \
+            --context output/qemu-arm64-context --source-plan output/qemu-arm64-evidence/source.json \
+            --base-image "$base" --work "$RUNNER_TEMP/kedra-arm-candidate" \
+            --tag localhost/kedra-qemu-arm64:research \
+            > output/qemu-arm64-evidence/composed-candidate.json
+          sudo podman run --rm --network=none localhost/kedra-qemu-arm64:research bootc container lint \
+            > output/qemu-arm64-evidence/final-lint.log
           sudo podman image inspect localhost/kedra-qemu-arm64:research > output/qemu-arm64-evidence/image-inspect.json
           jq -e '.[0].Os == "linux" and .[0].Architecture == "arm64"' output/qemu-arm64-evidence/image-inspect.json > /dev/null
           sudo podman run --rm localhost/kedra-qemu-arm64:research cat /usr/share/sysroot/packages.txt > output/qemu-arm64-evidence/packages.txt

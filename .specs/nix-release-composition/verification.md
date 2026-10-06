@@ -1,0 +1,1387 @@
+# D2 verification
+
+Current outcomes are in the dated completion appendices below and
+`usr/src/kedra/docs/STATUS.md`. Earlier pending/failed checkpoints retain their
+historical meaning; they are not the current task summary.
+
+Source is adopted on `codex/nix-release-composition` above D1
+`712927eb0180610fd1ea3e29cccd5fdc6ac16f2b`. The twenty-path preparation was
+hash/mode reconciled before adoption; later-layer modules remain inactive.
+Explicit local fixture support is active implementation. No runtime production
+signing/main override is introduced.
+
+Pass: adopted Python Ruff/Bash syntax/diff checks; standard public
+release-material workflows for both targets, including no-change/rank/content/
+scope/architecture refusals; release-interop public trust, history and sixteen
+OpenSSL signature/artifact/installer workflows. Exact local fixtures:
+`target/nix-delivery/d2-release-{material,interop}`.
+
+Pass on the adopted D2 checkout above712927e: pinned Rust1.98.1 workspace
+formatting, Clippy with warnings denied, ordinary CLI E2E (11 passed, six
+Docker-dependent cases explicitly ignored) and workspace release build. No Rust
+source was edited during those gates. Ignored cases supply no runtime coverage.
+
+Source review caught root-owned failed installer scratch cleanup; correction
+captures/rechecks its owned root, refuses all kernel mountpoints beneath it,
+uses fixed narrow privileged removal and preserves failure/reporting semantics.
+The manual same-device mounted-descendant refusal is subsequently qualified below;
+whole-fixture cleanup outcomes remain tied to their individual attempts.
+
+## Controller inputs
+
+Read-only Docker inspection verifies cached native ARM Ubuntu24.04 image
+`008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3`,
+Rust1.98.1 image `a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546`
+and Docker image `3f3c01aaaebf7cce837356b688b7c059a4749f10bd7660dec7c58fc454a283f0`.
+Actual Docker client29.8.1 binary hash is
+`55bfa076d51381e0bc28b12d0a6338b74ec5e9e0ca537df04988ea21ef48e42c`.
+
+Pinned [uv0.12.19 release](https://github.com/astral-sh/uv/releases/tag/0.12.19)
+provides the ARM GNU archive/checksum. Direct release URL returns403; official
+GitHub release asset587158851 is downloaded through authenticated API and matches
+SHA256 `0804e9b164c64b6914182d5920c08551958a095986f10a3731056df701126436`.
+Only bounded regular ARM ELF uv/uvx files are extracted under private
+`target/nix-delivery/d2-runtime-inputs`; no workstation tool installation.
+Its receipt retains exact origin/hash/size. New controller execution/ABI remains
+not-run; library version comparisons confer no pass.
+
+## Remaining gates
+
+First local invocation on deee813 fails during the real Podman package resolver:
+its Netavark nftables backend cannot find `nft` in the dedicated controller.
+The reviewed base was pulled and pinned agent/Bitwarden inputs were prepared;
+foundation composition and installation had not started. Add the required
+`nftables` package to the disposable controller and rerun from a fresh owned
+fixture context. This is a retained failure, not a native-composition pass.
+Terminal cleanup passes: original exit1 is retained, private scratch is removed,
+no registry was created and no Podman container remains. The mount guard reports
+no mounted descendants; deliberate mounted-sentinel refusal remains not-run.
+Pinned executable hashes are unchanged. Safe attempt evidence is in
+`target/nix-delivery/d2-runtime/attempt1-evidence`.
+
+The nftables correction in86afd605 allows actual Fedora resolver startup.
+Attempt2 was deliberately stopped before composition or fixture secrets after
+review identified an unowned-client timeout path: killing a Podman client alone
+can leave its container alive. The exact observed resolver was explicitly removed,
+then the candidate received its pending termination. Original exit143, private
+scratch removal, empty Podman container inventory, unchanged binaries and the
+retained default are recorded in `attempt2-evidence` under the same runtime root.
+The correction records a uniquely labelled resolver and its inspected ID, removes
+it with bounded commands, checks exact absence, and propagates cleanup failure.
+Managed child process groups receive a graceful cancellation period before forced
+termination. Actual cancellation/retry qualification of that correction is pending.
+
+The corrected public candidate on1dc8d2e5 passes actual cancellation: an observed
+running resolver7711612a is followed by SIGTERM to the real candidate process,
+which exits1 with the signal15 diagnostic. Its cleanup reports removal and the
+independent `podman container exists` returns1. A separate live sentinel and the
+retained default remain running; all three pinned executable hashes are unchanged.
+The generated sentinel is subsequently retired with bounded force removal; its
+five-second graceful-stop escalation is retained in the log. This proves observed
+signal cancellation, not elapsed2400-second deadline coverage. Exact evidence is
+`target/nix-delivery/d2-runtime/termination-gate-*`. Fresh full attempt4 is active
+against source1dc8d2e5, controller recipe86afd605 and the unchanged deee813 Rust
+binary source; no composition/install/update result has been recorded yet.
+
+Attempt4 now passes actual package resolution, exact owned-resolver removal and
+fresh foundation construction (assembly260s, export122s). Public store retention
+validates the complete2,591,289,344-byte archive. Independent source and RPM
+readback match the deterministic273,022-byte resolved-input material. The Docker
+foundation ID is `sha256:12261f43bd1c11d9ebb32b3daaa6040bda9372454523dcf18c524c5259c9cc2e`;
+its separate config digest is `sha256:bb246035b4a51cc3e99e496ac0f3d0f089e6c79befec11af2a6056f1894ecf23`.
+Composition and public composition verification pass; native derivation is active.
+The host receipt is `target/nix-delivery/d2-runtime/attempt4-foundation.json`.
+These results do not yet qualify transfer, signing, installation or update.
+
+Native generation, independent actual source/RPM/native-receipt readback, complete
+native retention and Docker-to-Podman transfer subsequently pass. Composition
+identity is `b411990772cf34748be7cf2513b4bc66f9d4cceef2fb5dac5c622b0788a7a01a`;
+native identity is `0f109bbba6fe28ed5d86fcf33b7d977c47c2f65f8316da852add0460c518ce8a`.
+The native Docker image and destination manifest both name
+`sha256:e0fd3f5ac864e1cacc66df955c894e46984fdae33e11146cd1814015c8c926f4`;
+the separate config/Podman ID is
+`sha256:d36316539b09061fa0c39bf11e5e3b4f1d285c9ec376f16394e73fbd594976b7`.
+Source archive manifest `bbb428e0…` and destination manifest are recorded as
+distinct domains in `attempt4-candidate.json` and `attempt4-native.json`.
+
+Attempt4 then refuses the fixture registry's pinned AMD64 child image at its
+architecture guard. This happens before keys, fixture context or installation;
+terminal cleanup passes with the resolver removed and no registry created.
+The guarded run's minimum observed host free space is40,798,572,544 bytes, above
+the32GiB stop threshold. Two further exact old context archives were retired with
+full hash/manifest/metadata/inactive checks and parent modes restored; observed
+net free-space increase was6,379,663,360 bytes during active derivation. Their
+manifests, the canonical old store and D1 context remain intact.
+
+Review also confirms that fixture `umask077` plus plain COPY would make public
+source/trust metadata0600, breaking actual ordinary-user doctor/home readers.
+Explicit0644 public-file COPY modes and the correct ARM registry pin are pending
+fixture corrections. A bounded resume path must independently reverify the
+qualified candidate while recording its source separately from new fixture
+recipe revisions; production/composer source guards must remain intact.
+
+Those fixture corrections are implemented and reviewed: explicit0644 public COPY
+modes preserve ordinary-user access while host private inputs stay private.
+Registry `sha256:3ffcae348822784850e836f23449ff1d0503933524cef57ddcbdbd263eca0c52`
+was selected from the official3.1.2 index and actually executed as native ARM64
+registry3.1.2. The local retained-candidate path checks the independently selected
+receipt SHA, committed ancestor/closed fixture-only changes, original production
+recipes and executable pins, actual manifest/config/RootFS and source/RPM/native
+material. Copied metadata refuses aliases before and after non-dereferencing
+ownership adjustment. Review corrected raw-versus-canonical RPM hashing to match
+the producer's exact contract. Static checks and final source review pass;
+actual full retained admission/refusals/install/update remain pending.
+
+Fixture `f1db145` subsequently passes actual wrong-receipt-SHA and wrong-source
+refusals before observer/key generation, with private cleanup intact. Correct
+retained admission passes complete image/material/recipe/binary checks and observer
+removal. Built A allows UID502 to read all nine public files at0644 and parse its
+generated public key. All twelve fixture variants are prepared, including the
+deliberately unsigned U and wrong-key W. Both normal public installer refusal
+cases pass. The valid A installer invocation then fails before a media image is
+completed; its private raw log is removed by terminal cleanup, so no cause was
+inferred from that first failure. Attempt6 cleanup removes private inputs, registry
+and observer, with no Podman containers left.
+
+A bounded diagnostic restores only the exact retained signed registry data with a
+new disposable TLS certificate and the retained public signing authority. It does
+not recover a signing key and cannot qualify updates for A's older embedded CA.
+Redaction-before-capture reproduction proves valid A signature copying completes,
+then the ordinary installer cannot read root-created `payload.digest`: inherited
+fixture umask077 creates it0600. A fixture-only subshell umask022 around the public
+installer restores its normal environment; enclosing private directories remain
+0700 and credential files0600. Diagnostic media construction is pending.
+
+The controller also required an operational lookup correction for its existing
+`mkfs.ext4`/`mke2fs` (e2fsprogs1.47.2-3+b12): a root-owned alias to the existing
+verified executable made it reachable under the clean PATH. No tool was installed;
+the controller entrypoint PATH must be corrected in source after the frozen run.
+An independently verified APFS clone preserves the D1 foundation path/bytes/mode
+while sharing canonical archive blocks and reclaiming6.33GB. Exact generated
+incremental/compiler caches were retired after ownership/open-file/process checks;
+pinned executables and reusable dependency/release caches remain intact.
+
+With the installer's normal umask restored, the diagnostic passes strict A
+signature copying, digest readback, installed source/trust/policy validation and
+builder interface/platform checks. It builds the installer environment through
+dracut, then BIB correctly refuses a layer-representation change at a fixed
+destination digest. The original local A manifest is
+`5e1de6effe5e1016cb2cd4316ef9b934a21a61bdb677d5cb8fd639fa6071d456` with uncompressed
+OCI tar layers; the fixture's Podman push converted it to registry manifest
+`6ac6f5a6…` with gzip layers while retaining config
+`7a3555a457a0f6024d007a0e7353f32bedefdadbf7d36fa55a7a4454985fcfb1`.
+This is a producer representation failure, not a consumer-verification waiver.
+The ARM fixture now uses the existing production/desktop Skopeo
+`--preserve-digests` approach and requires source/published manifest equality.
+Only public-metadata producer and installer invocations use a scoped umask022;
+private creation and log redirection retain the enclosing077. Fixed error
+classifications preserve failure status without exporting raw private output.
+Both shell files, all four inline Python blocks and final source review pass.
+The corrected complete fixture still requires actual execution.
+
+Fresh attempt8 on fixture `d4d4c77` passes retained admission again. Controller
+`696341b8…` resolves the existing mkfs tool through its corrected PATH without an
+alias. Actual A source/registry manifest equality passes at
+`433fa2fbad3d84d78f4b2a7f58e126d15cac05f4b67cf91d92c64867dc8d3e8a`, with uncompressed
+layers preserved and config `f14f47d682c8e82429e688a67fd325efeceb08fcfe4655d688d94f3b56129d0c`.
+All twelve variants complete and unsigned/wrong-key installer refusals pass again.
+The valid media build reaches BIB staging; no complete ISO or installation has
+been reported.
+
+The storage guard pauses the exact current controller at33,135,529,984 free bytes.
+Queued writes continue to31,950,131,200 bytes (29.756 GiB), briefly below the30GiB
+floor. This is a recorded failure of the original guard margin. Removing an exact
+stopped obsolete controller restores the floor, but the current controller stays
+paused pending further verified cache/duplicate-archive reclaim and a larger,
+faster guard. The pause is not an ENOSPC recovery test and does not satisfy D5.
+Any public subprocess deadline crossed during the pause remains a real timeout.
+Pinned executables, active shared libraries, source/evidence and owner defaults
+remain protected; unrelated filesystems or broad cache pruning are excluded.
+
+The exact obsolete `kedra-utm-podman-storage` volume is retired after a read-only
+content audit and a fresh identity/reference check. Its 18 images are named
+Fedora/Kedra installer build inputs or 14 unnamed layer prefixes of those images;
+it holds no containers, stored volumes, secret payloads or unknown named images.
+Historical installer source identifies it as payload/builder cache and keeps
+ISO/scratch outputs in separate volumes. The retirement receipt records immediate
+free space of 41,134,522,368 to 44,901,539,840 bytes; asynchronous reclaim continues
+afterward. The remaining media-stage estimate is at least 16 GiB, so admission
+requires at least 52 GiB settled free space with the revised 35 GiB / 250 ms guard
+active. The earlier 48 GiB threshold would not cover that estimate above the
+guard trigger. Exact audit, metadata and
+retirement receipts are retained under `target/nix-delivery/d2-runtime/legacy-utm-*`.
+
+The separate `kedra-macos-media-storage` cache is also retired after fresh
+identity/no-reference checks and a read-only audit: 50 known images with matching
+config hashes, all 42 unnamed entries verified as build-layer prefixes, and no
+containers, volumes, secret payloads or media/VM outputs. The QEMU Podman cache
+contains D1 fixture/buildroot references and is preserved. Separate output media,
+VM state and retained canonical/D1/native archives remain intact.
+
+Settled free-space samples reach 66.15, 66.24 and 66.24 GiB. The existing media
+command is 3,246 seconds old with 3,954 seconds remaining on its unchanged
+7,200-second deadline. A new guard is active before unpause: 52 GiB admission,
+35 GiB trigger and 250 ms sampling. The exact controller resumes and the default
+development container remains unchanged. Resumption supplies no ISO/install pass;
+the original floor violation remains a failure. Receipts are
+`macos-media-cache-{content-audit,retirement}.json`, `settled-resume-space.json`
+and `disk-guard-attempt8-resumed.ready.json` under the same evidence root.
+
+The resumed public installer completes both preliminary and labeled media passes
+and exits successfully. Independently read-back `attempt8-evidence/installer-media.json`
+binds A manifest `433fa2fb…` to `kedra-qemu-arm64-44-433fa2fbad3d84d7.iso`,
+3,260,559,360 bytes, SHA-256
+`beccfe3ab8bc8694750e8dfd817b77cf263fb159c7c55b91e790117e15ca8757`.
+It records source `1dc8d2e5`, public fixture authority `3c447d74…`, no upload and
+no installation/smoke claim. The independent authority/retained-candidate records
+keep fixture revision `d4d4c77` separate. Public installer success is also observed
+by the subsequent Secure-Boot-disabled QEMU phase passing the explicit exit guard.
+The exact generated Anaconda environment is retired after builder exit and a
+zero-consumer check; QEMU/default/media resources remain separate. Disabled-Secure-
+Boot refusal is active; fresh encrypted installation and A/B/A remain pending.
+
+The disabled-Secure-Boot installer refuses in 236.853 seconds, with ISO, firmware
+trust and unselected sentinel unchanged; QMP quits only after the actual verifier
+refusal. Receipt: `attempt8-evidence/secureboot-disabled.json`. Fresh encrypted
+installation then starts. The nine exact-A public files have independently
+matching hashes, including native receipt `aa76f708…`. Host OpenSSL independently
+verifies the exported ECDSA signature payload against the generated public key.
+Its identity is the exact producer reference `ghcr.io/reidond/kedra-qemu-arm64:A`
+and manifest `433fa2fb…`; an earlier manual untagged-reference assertion failure
+is retained in the signature-verification receipt and required no consumer change.
+
+The fresh Anaconda installation under Linux ARM TCG fails at its unchanged
+7,200-second phase deadline. The actual exception is `ARM fixture exceeded its
+phase deadline`; neither the completion marker nor an install-result receipt
+exists. The passive pidfd observer captures kernel wait statuses: QEMU 0 during
+host termination cleanup, boot controller 256 (exit 1), and uv 256 (exit 1).
+QEMU's cleanup exit does not establish installation success. QEMU/boot are absent;
+the exact outer shell remains deliberately stopped at the pre-cleanup boundary.
+The existing target is incomplete and must never be admitted as installed A.
+
+Observed progress includes substantial target writes and later active paging;
+the paging sample records 12,846 major faults and about 63 MB swap-in over 30
+seconds. Its share of the delay is unproven. Controller/QEMU cgroups have no
+restrictive memory limit or OOM events, so no resource setting was changed.
+Bounded reversible VT inspection reveals no interactive error and returns to
+the original console. No guest or helper deadline is extended.
+
+An inactive HVF fallback preparation is under review. A fresh native attempt must
+start from a new blank target using the exact already-verified ISO and original
+generated trust/negative registry states. Original and new tool/context revisions
+must remain distinct. The observed same-controller Bash pending-SIGTERM/SIGCONT
+probe reaches existing EXIT cleanup, preserves its foreign sentinel and skips
+the next command, with real parent wait status -15. The trap itself saw prior
+status 0; cleanup status is therefore never used as the fixture/HVF outcome.
+Actual handoff, native installation and updater outcomes remain not-run.
+
+The first Mac transport-readiness probe refuses the draft loopback route:
+ordinary UID 502 cannot bind `127.0.0.1:443` (`EACCES`, errno 13). The socket is
+closed; no sudo, host DNS/CA change, helper execution or VM launch follows.
+An unprivileged per-connection QEMU forwarding revision is being prepared and
+must preserve the guest's exact registry/control endpoints and raw TLS identity.
+The original stopped boundary and generated trust remain retained; there is no
+new signing or media rebuild.
+
+Independent manual cleanup qualification passes for the unmodified source-`1dc`
+and fixture-`d4` cleanup functions. A real same-device descendant bind mount causes
+exit 1 and preserves both private scratch and a foreign sentinel. After exact
+unmount, cleanup removes only owned scratch with exit 0; the foreign sentinel
+remains byte-identical. These are actual ordinary-UID/kernel/filesystem operations,
+not a full fixture rerun. Exact whole-source/function hashes and outcomes are in
+`attempt8-evidence/cleanup-descendant-{manual,current-manual}.json`.
+
+TC-04 passes the unchanged production constructor plus public material comparison
+CLI. Baseline, repeated invocation and final original readback all reproduce
+`185d14f21e05da183b8b9f837cd74566d7e6495fb12a3c9a18f79caa7f9b290b` byte-for-byte.
+Actual recipe, recorded immutable archive-pin and disposable executable-byte
+mutations each produce changed canonical material in the expected section.
+Later invocation with generated caller-side output metadata remains unchanged;
+that metadata is explicitly outside constructor arguments. No production
+skip/publication, compatible package rebuild or native build is claimed. Exact
+decisions/hashes are in `attempt8-evidence/material-constructor-manual.json`.
+The original five-artifact input remains intact; TC-03 supplementation is separate.
+
+The bounded TC-02 subset passes 13 public composer/assembly refusals: wrong
+target, committed source, input/tool/recipe/source-plan material, foundation
+receipt hash/source/target/material, malformed immutable image, preexisting
+output and unsupported assembly mode. Each intended reason is observed before
+build/import/final-result publication, with retained inputs/tools and foreign
+sentinels unchanged; the explicit preexisting-output case preserves its output.
+Evidence: `attempt8-evidence/composer-early-refusals.json`.
+
+The public material CLI accepts exact signed-A raw inputs before and after five
+refusal cases: changed source bytes, resolved material, RPM-content hash,
+config identity label and OCI architecture. Protected inputs remain intact.
+An initial manual setup reserialized signed source JSON and correctly failed
+its byte-hash binding; that failure is preserved separately, followed by the
+unchanged raw-byte success. No product source changed to pass the comparison.
+Evidence: `public-material-refusals.json` and
+`public-material-manual-setup-failure.json` under the same directory.
+
+The remaining native binding refusal passes in 2.279 seconds through public
+retained-candidate admission. A new independently hashed candidate record changes
+only the expected native-receipt hash; one stopped owned observer reads actual
+unchanged receipt `aa76f708…`, is removed and independently absent, then admission
+refuses with `Retained installed material changed: native-receipt.json`.
+Original inputs/images/registry/boundary remain intact, with no build/import/
+signing/key operation or final result. This qualifies changed expected binding,
+not mutated installed-image bytes. Receipt:
+`attempt8-evidence/native-receipt-binding-refusal.json`.
+
+The reviewed four-file native-HVF bridge is adopted after the observed TCG and
+privileged-port failures. It retains the original fixture resources with a bounded
+handoff, admits independently observed old-code boundaries, and separately binds
+original context/source revisions to a normally validated new tools context and
+closed committed transition. Required reflink exports exclude the incomplete disk
+when selecting fresh installation. Exact pidfd finish invokes original EXIT
+cleanup without treating its prior status as the outcome.
+
+Transport uses the retained QEMU fork `29d25d77…` and libslirp 4.9.5 semantics:
+the virtual host moves to `10.0.2.254`, while per-connection forwarding preserves
+guest `10.0.2.2:443/18080` through an independently hash-checked fixed system nc
+connector and owned private Unix sockets. It binds no host TCP port and changes
+no guest trust, signature check, verifier or helper deadline. Source review fixes
+path containment, a Python name-shadowing error and rename-aware transition
+enumeration before adoption. Pinned Ruff/Python/Bash syntax checks pass on the
+prepared bytes; actual transport/adoption/finish/HVF qualification remains not-run.
+
+Before the attempt, four exact old qualification archives were retired after
+full hash, receipt, owner, single-link and inactive-consumer checks. Their
+manifests and evidence were retained, together with the complete canonical
+foundation and D1 context/VM/media. Actual available space rose from45GiB to69GiB;
+the temporary owner-write change on sealed parent directories was restored.
+Receipts are in `target/nix-delivery/d2-runtime/retired-archives*.json`.
+
+Current remaining: owning-source default-media rebuild/fresh installation and
+complete public forward update/rollback with persistent home/data and refusals;
+exact final-fixture container suite, contribution supplementation and new source
+CI. Original-ISO/external-Kickstart installation and partial A observations are
+qualified only to the bounds recorded in the continuation below. Disabled-Secure-Boot installer refusal passes
+as recorded above; the complete trust decision table remains to be reconciled.
+Fresh ARM foundation/composition/native transfer, earlier failed-attempt cleanup,
+retained-candidate admission and the observed storage incident are recorded above.
+Protected-main production signing/publication/no-change repetition remain
+separate from disposable fixture qualification.
+
+D1 [PR33](https://github.com/Reidond/kedra/pull/33) both architecture workspace
+checks pass on exact head712927e in
+[run36941595156](https://github.com/Reidond/kedra/actions/runs/36941595156).
+All six image/runtime workflows on D1 implementation head `8a8796c` also pass:
+container36941403723, desktop36941403745, QEMU36941403765, home36941403758,
+direct-GHCR36941403715 and signed-updates36941403740. They are D1 results and do
+not qualify D2.
+
+## Native host continuation and failed A observation
+
+The isolated host history through `81528db582feee393991c141a84b6a193bf67947`
+is now integrated by exact fast-forward after original keeper cleanup. Original
+product source `1dc8d2e5`, fixture producer `d4d4c77`, held controller `fc77f0e`
+and individual host revisions remain separate; none is relabeled as another.
+
+Transport gates pass eight concurrent manifest requests, all 25 expected
+manifests, unsigned/missing refusal, cancellation and 32+1 admission with zero
+layer downloads. A naturally observed Darwin EPERM during child cleanup is
+accepted only after actual bounded child exit; the corrected transport retires
+all owned children/sockets/markers. Original failures remain retained.
+
+Original-ISO host recovery exposes two separate installer defects. A chrooted
+serial-marker write creates a regular target file, so that installation remains
+failed despite observed account/receipt creation. A reviewed external Kickstart
+uses the existing signed firmware/GRUB/kernel and unchanged ISO/initrd, adds a
+selection token and emits completion outside chroot only through a verified
+character device. Its first corrected installation passes in 400.653 seconds,
+but a cold readback and subsequent A failure show default.target changed from
+graphical to multi-user during installation. All other eleven native artifacts
+match; exact A provides greetd's graphical-login capability, so missing-provider
+causation is not established.
+
+Host 815 additionally requests `xconfig --startxonboot`. Its new blank installation
+passes in 291.553 seconds after a 34.479-second disabled-Secure-Boot refusal.
+External input manifest is `bc70c0394449e8483a5b3cc0193db997602237a9fde8f7bf4c843ec50b163c50`;
+original transfer `2f3ef18faebb39880b72fdd641cb72ae3c9841e2ededc48392e874145cbdd0e5`
+and original ISO/trust remain unchanged. Cold read-only observation matches all
+twelve native artifacts and all three initial seed hashes, modes and UID/GID;
+the regular target serial path is absent. Full before/after disk hashes and
+reverse mount/mapper/observer/NBD cleanup pass. Its retained pre-boot disk hash is
+`940e98eb72ab59d2b456454876527aeccdbf6a45324492e980b4fbee91875d34`.
+
+First A on that disk passes LUKS unlock, Secure Boot/lockdown, enforcing SELinux,
+native artifacts and fresh-install-record checks. All 90 registry HTTP200 blob
+responses match their manifest sizes, totaling 6,425,949,184 bytes. The fixture
+unit nevertheless exits normally with status 120/result exit-code about 38 seconds
+after start. No complete A result or failure marker reaches serial; its failed
+unit is independently visible at the login screen. Controlled graceful poweroff
+produces actual parent exit 1 and healthy guard exit, preserving the failed state.
+
+Restricted read-only diagnosis finds generated enrollment stdout (3073 bytes,
+SHA-256 `68175e11b8a454263cd20a8d5ee71189808cd903a8e09d364b30487e00bc25dd`)
+reporting enrolled:true and exact A for booted/high-water digest. Its stderr has
+the signature-verification and manifest-completion messages; fixed EIO/broken-pipe
+classifiers are empty. CLI exit code and parsed enroll-a.json were not persisted.
+The harness saves subprocess output, then prints before publishing that JSON;
+its failure/finally paths also print before poweroff. Python documents exit 120
+for cleanup/standard-stream flushing errors ([Python documentation](https://docs.python.org/3/library/sys.html#sys.exit)).
+This supports a fixture-output failure, without proving an errno or a product
+failure. The enrolled failed disk cannot be reused as fresh A. All selected
+readonly cleanup and final original/clone/pre-boot hashes pass; no raw home,
+stdout/stderr or journal content is exported.
+
+Resource evidence distinguishes the earlier guard-floor breach, old ps-based
+guard timeouts and later qualified native guards. Source 815 installation uses
+an exact process/owner/inode guard sampled every 250 ms: minimum host free
+71,424,757,760 bytes, maximum allocation 10,136,387,584 bytes under a
+12,204,314,624-byte cap, maximum sample gap 0.282 seconds, healthy through exit.
+A uses the original 67 GiB admission on both filesystems and a +24 GiB target
+allocation cap. A delayed free-space recovery occurred without another cleanup
+or settings change; no cause is inferred. Only the three enumerated superseded
+b4 disks were removed after new cold success and full hash/ownership/no-consumer
+checks, with measured settled host gain about 10.09 GB and all other files kept.
+
+Original keeper finish now passes exact pidfd TERM/CONT ownership, actual original
+parent wait 143, adopted keeper wait 1 and public abort-launcher wait 0 with ABORT
+acknowledgment. Original EXIT cleanup reports cleanup_failed=false, original
+private-root removal and registry/observer/process absence; its prior status 0
+is not a qualification outcome. Bounded replay custody separately retains public
+registry/media/native/store material plus private generated TLS/disk-unlock
+copies; no image-signing private key is copied. Controller-local fixture CA,
+registry configuration and hosts entry were separately inventoried. The subsequent
+bounded reset removes exactly two inode/hash-bound public files and the unique
+hosts suffix, retaining the same hosts inode and exact 175-byte prefix hash.
+Native/foundation images and the running default remain unchanged; no workstation
+configuration, cache, image or volume is modified.
+
+Safe continuation evidence is under
+`target/nix-delivery/d2-runtime/attempt8-evidence/`, especially
+`hvf-graphical-install-source-guard.json`, `hvf-graphical-cold-observation.json`,
+`hvf-graphical-A-diagnosis-enrollment-classification.json`,
+`hvf-graphical-A-diagnosis-host-final-integrity.json`,
+`hvf-actual-parent-waits.json` and `hvf-original-cleanup-readback.json`.
+
+Next owning-source qualification must execute the corrected default-media
+constructor, selected embedded Kickstart, cold native/home checks, complete A/B/A
+and final exact-image container suite. External-input recovery is not evidence
+that newly rebuilt default media passed. Reviewed source corrections keep the
+product helper, signature policy, relay and deadlines unchanged; actual new-source
+runtime results will be recorded separately.
+
+The integrated correction uses a fixture-only journald `TTYPath=/dev/ttyAMA0`
+drop-in, without changing the product's serial-then-graphical console arguments
+or enabling global forwarding. The discarded proposal appended those arguments
+in reverse order, but bootc 1.16.13 deduplicates without reordering; review caught
+that before any runtime. A fixed journal identifier and strictly anchored
+installed-phase parser account for the documented console prefix. Media
+completion remains an exact raw line.
+
+The new explicit HVF branch prepares normal firmware/blank target/sentinel state
+without launching QEMU, writes a private hash-bound preparation receipt and
+requires its independent hash for fresh install handoff. It does not manufacture
+a TCG timeout or accept a warmed target. Full input/source/context hashes are
+rechecked around reflink export; legacy timeout/boundary adoption and ordinary
+TCG execution remain separate. `macos-transfer.py` is pinned through the committed
+fixture revision and transfer helper hash, while run-arm64/boot-arm64 and the
+marker emitter are material recipe inputs. Independent combined source review,
+Ruff and syntax/diff checks pass; these are not runtime preparation/route passes.
+
+Pre-run admission inspection of `668d3f8` identifies a closed-list compatibility
+gap before any observer/key operation: the original resume gate predates the
+three host helpers, changed public-media Containerfile and four development-only
+skill/plugin metadata files. The correction names only those exact paths. Each
+new runtime/media file still must equal its selected committed bytes; all original
+production recipe, executable, source/image/RootFS/native/RPM comparisons remain
+unchanged. Live retained material lists twenty-four production recipe paths and
+does not include the installer media Containerfile. Source inspection/Ruff/syntax
+passes are not retained-admission runtime success; the next frozen invocation
+must establish that independently.
+
+## Owning-source media attempt 9 and controlled cleanup
+
+Fixture `cad6e7a811433924d596cd00dd2b6e93ed225db8` actually passes the
+closed retained-candidate admission against original producer `1dc8d2e5` and
+candidate receipt `20826ea359490373b7d737dfdd3d9edf9437673242d5bcf2d3ed74b67e06e4f9`.
+The native manifest/config/77 RootFS IDs, original production recipes and three
+pinned executables remain unchanged. Twelve fresh variants are generated. A's
+local and registry manifest bytes match at
+`7c3c9210157a22e6655f733495d8ad5b7c3840c6470dccdd4ad605aae1f8dcb4`,
+config `e69de7a0b0bf1154344502bb7bfeebdced4a26c74b3f80335cf0d72c2b210a1a`;
+unsigned U and wrong-key W public-installer refusals pass. Public media completes
+its preliminary pipeline and enters the labelled Skopeo stage, but no final ISO
+or successful public media receipt is produced.
+
+The 35 GiB/250 ms guard pauses only the owned controller. Settled free space is
+35,438,272,512 bytes, so the 30 GiB hard floor is preserved on this attempt.
+Hash/identity/no-consumer checked retirement of the obsolete failed 815 disk pair
+and preliminary unpublished ISO retains the pristine cold disk/firmware and all
+failure evidence. Seventy-seven identical immutable native-base blobs are shared
+by reflink only after reviewed source/destination hash and no-writer checks. Full
+old-backup and new-registry tree hashes remain unchanged; measured settled gains
+are recorded rather than inferred from logical sizes. Variant/config/authority
+files are not changed.
+
+A proposed stage checkpoint is never productively activated: the live guard
+fails closed before the unpause preflight, leaving the controller frozen. The
+historical failure records only AssertionError, so its exact predicate is unknown.
+A separately bounded 33.78-second read-only reproduction fails the conservative
+one-second freshness predicate, with an age interval of approximately
+0.615–1.069 seconds. This proves that reproduction's freshness uncertainty, not
+a product defect or a unique clock/transport cause. Diagnostic observers exit
+and are removed. No bound, source, validation or deadline is relaxed. The original
+7,200-second public-media deadline expires while the controller is held.
+
+Before cleanup, explicit UID502/mode0700 replay custody retains 42 selected
+recipe/context/case/generated-TLS/disk-unlock files (17,141,348 bytes), plus the
+477-file registry tree (6,426,488,299 bytes) with unchanged SHA-256
+`100ea5d84c6cc0629fc6a9938656fd38a398de7fa27150944c55aff3e85ed540`.
+No image-signing private key is copied. Exact installer PID/start/argv/UID and
+caught/unblocked SIGINT are reverified through pidfd; pending SIGINT is observed
+while frozen, then cleanup-only unpause enters the unchanged subprocess/finally
+and original EXIT trap. Actual original fixture parent exit is 130; the separate
+receipt observer exits 1 at its unchanged deadline. `cleanup_failed=false`,
+private input removal and registry/observer removal are actual cleanup results.
+Final readback finds no bound source consumers, private root/descendant mounts,
+inner Podman containers, NBD or scoped mappers, and rechecks all custody hashes.
+The controller is idle/running/unpaused; source freeze is released. Observed final
+free space is 56,944,463,872 controller bytes and 60,863,606,784 host bytes.
+
+Safe receipts are in `target/nix-delivery/d2-runtime/attempt9-evidence/`:
+`admission.json`, `retained-candidate-verification.json`, `fixture-variants.json`,
+`installer-refusal-U.json`, `installer-refusal-W.json`,
+`capacity-stop-settled.json`, `registry-reflink-complete.json`,
+`checkpoint-failure-trace.jsonl`, `replay-custody-before-cleanup.json`,
+`cleanup-pending-sigint.json`, `cleanup-unpause.json`, `cleanup.json`,
+`cleanup-final-readback.json` and `actual-parent-waits-and-final-state.json`.
+These qualify failed-attempt containment and cleanup, not media/install success.
+Fresh default-media replay/admission, HVF preparation/install, cold twelve-artifact/
+three-seed checks, complete A/B/A, exact-A full harness and TC-03 remain pending.
+
+Post-cleanup readback finds one separately identifiable anonymous osbuild cache
+volume from the failed builder: `cde4d20248ff351ed9fb7c8ee8e850f2234e4c631f793262189b0ff38f2479e9`,
+device 41/inode 401639655, created 2026-10-02T09:45:39.074267699Z. It has zero
+container/config/descriptor/mount references, no unreadable processes, empty
+completed objects and no source-cache files; only incomplete stage/tmp remains.
+Following explicit bounded authorization and immediate revalidation, exact Podman
+volume removal returns 0 and independent existence/path checks confirm absence.
+Three settled samples show 70,902,149,120 controller bytes free, an observed gain
+of 14,024,830,976 bytes. Host free space is 75,752,673,280 bytes, an observed gain
+of 14,966,546,432 bytes. No prune or other volume removal occurs. The difference
+between logical stage allocation and measured filesystem gains is preserved.
+Receipts: `orphan-builder-cache-readonly.json`, `orphan-builder-cache-retirement.json`
+and `orphan-cache-retirement-host-after.json` in the same attempt evidence folder.
+This is capacity recovery, not fresh media admission or execution.
+
+The next whole-media plan requires 78 GiB free on both filesystems: the unchanged
+35 GiB pause threshold plus a conservative 43 GiB gross build envelope, without
+credit for anticipated reflinks or deletion timing. Exact read-only investigation
+finds only 1,785,671,680 uniquely allocated bytes in the thirteen-record obsolete
+Anaconda image lineage; no image is removed. Four separately authorized completed
+test artifacts are retired instead: the dedicated D1 base/overlay disks and both
+APFS-clone aliases of the old `9d6eb030` PR31/D1 foundation archive. Current D2
+uses the independently verified `1dc8d2e5`/`12261f43`/`e0fd3f5a`/`185d14f2`
+candidate tuple in separate custody. No current image, default/recovery input,
+815 pristine cold disk or replay custody is retired.
+
+Full hashes/identities and zero selected references precede removal. After the
+first alias is unlinked, the survivor has the same clone ID, clone count one and
+6,411,501,568 private bytes. Initial readiness misses its sealed 0555 parent,
+so the next unlink fails EACCES without another mutation. A bounded amendment
+allows only that held UID502 directory (device 16777230/inode 126358839) to change
+0555→0755 for the exact unlink, restoring 0555 in finally. A further pre-mutation
+comparison incorrectly compares Python tuples to JSON lists; a reviewed standard
+JSON round-trip fixes representation while preserving every field/value check.
+Both failed executions remain evidence. Corrected continuation exits 0; all four
+paths are absent, the same parent is 0555, all 58 adjacent entries and current
+custody/default/recovery snapshots remain unchanged. Metadata/reports/signatures
+are retained, but the old archives and D1 runnable disks are explicitly retired.
+
+Three actual settled readings report 89,620,234,240 host bytes and 71,323,308,032
+controller bytes. Thus retirement succeeds while whole-media admission fails:
+Mac free-space recovery does not establish controller logical free capacity.
+No productive retry starts. Next inspection concerns the actual deficient Linux
+filesystem, not more Mac output deletion. Evidence: `d1-four-path-retirement-proposal.json`
+(SHA `94ca9c1a608fcc55ae776a4a78df0e5e203dcbb696b803756de277f517aa9537`),
+`d1-retirement-permission-stop-readback.json`, and
+`d1-four-path-retirement-continuation2.jsonl` / `-final.json` in attempt9 evidence.
+The fresh standalone fixture checkout is actual clean detached `cad6e7a`; its new
+lifecycle orchestration remains preparation pending independent review and actual
+resource admission. Producer, fixture and final owning-source identities remain
+separate; no historical failure is relabeled.
+
+Later bounded filesystem readback changes the capacity result without another
+deletion or settings change. `/work` and `/var/lib/containers/storage` are separate
+named volumes on the same Btrfs `/dev/vdb1`, device 41; `/repo` is read-only
+virtiofs/mac. Three settled samples report 84,208,209,920 bytes on both Linux
+paths and host minimum 89,623,035,904 bytes, exceeding 83,751,862,272 bytes (78 GiB)
+on both filesystems. Independent requests are bracketed solely by host monotonic
+timestamps, lasting 0.153–0.164 seconds and spaced three seconds apart. The
+earlier immediate failed admission is preserved, and no precise accounting cause
+is inferred. `capacity-filesystem-relationship.json` and
+`d1-retirement-settled-capacity-readback.json` record this later pass. No additional
+retirement or staged-clock alternative is needed on this evidence. Fresh lifecycle
+review and immediate 78 GiB/healthy-original-guard revalidation remain necessary
+before productive public-media replay; no execution is inferred from admission.
+
+## Fresh retained-signed-A replay — public-installer failure
+
+The new target-only lifecycle uses a real clean detached cad6 checkout and fresh
+runner/evidence/private roots. It preserves the original signed variants, cases,
+TLS and generated recipe/unlock bytes; no signing key is copied or created.
+Unchanged fixture.py creates the context and resume-arm64.py readmits the original
+1dc native producer. The public installer and fresh-HVF helpers remain unchanged.
+Independent review covers original cleanup, single-use U/W/A admissions, actual
+host/remote ownership, independent child/mount absence before settlement, and
+identity-verified pause if guard health fails. No stage-clock checkpoint is used.
+
+First actual fresh owner exits 2 before registry/media: ordinary cmp cannot read
+the retained root-owned 0600 controller CA. Candidate observation and cleanup
+pass, with actual Docker-client parent wait 2, private root removed, registry not
+created, retained observer removed and remote absence independently checked twice.
+The two fixed CA/config comparisons are changed only to privileged read-only cmp;
+no permissions, policy or public code changes. Earlier failure remains recorded.
+
+Reviewed wrapper manifest
+`3da297dbe29f8a4bee72b092b64706a67a7581132f56e7c6bcaefd03455e7511`
+and host supervisor
+`538208106df7a47387310b7b5fd0d9f0da355259e9eb0176598cbcc10733770b`
+then launch fresh run `ad57f07f5459d594`. Actual original host client PID is 11242;
+remote Bash PID/start are 123432/24575103 and boot identity is
+`efc8aa1d-8345-48e4-b03f-13a4dae388eb`. Context SHA is
+`0fa74cd4aa332ab2181230a3d3b6cc2b35a7f4ce9535892998269d1b8d26cbaa`.
+Unsigned U and wrong-key W each exit 1 with the exact expected signature refusal.
+A receives its one-use admission at Unix 1790946570.763 after host-monotonic
+capacity requests, independently advancing guard sequences and immediate local
+recheck: Linux 84,166,709,248 bytes, host 89,557,524,480 bytes. Registry ID is
+`6dcf5ac271d6863e090d01df5206216c7399f3185a30437e8ea806a338777b92`.
+These records prove actual public-installer invocation, not successful construction.
+No ISO, install, cold, A/B/A or full-suite pass is implied. Host events are preserved in
+`target/nix-delivery/d2-runtime/signed-replay-ad57f07f5459d594/supervisor.jsonl`;
+original deadlines, 35 GiB guard/30 GiB floor and source/input pins remain intact.
+
+Actual A invocation exits 1 after 4.339 seconds. The original Docker-exec parent
+11242 waits 1; original cleanup reports cleanup_failed=false, registry and retained
+observer removed, private root absent. Two independent remote-absence proofs have
+empty live/unreadable lists and no Podman containers remain. No replay result or
+media/HVF pass exists. The fixed classifier records `public_installer_failed`
+and 9,000 private log bytes, but original cleanup removes that sole constructor
+log. Retained Podman events return no records for the exact interval, and the
+controller has no sudo journal/auth log. These facts do not identify the cause.
+
+The next narrowly reviewed change is diagnostic retention only: bounded original
+constructor log bytes in a new owner-private 0700 directory/0600 files outside
+the original cleanup root, ignored and local-only. Public evidence receives only
+size/hash/role metadata; no raw logs or production/signing keys. Original cleanup,
+constructor, policy and deadlines remain unchanged. A fresh controlled diagnostic
+invocation still requires source/custody/guard and both-filesystem 78 GiB checks;
+the removed historical log is not reconstructed and the failure is not relabeled.
+
+The reviewed diagnostic capture is executed in fresh run `1710f8ceb4110185` with
+wrapper manifest `a1ae12ac7b1ae9bc2e349ca18e2ba521a94be6dd7d6b1600e3d49969ec69d9f2`
+and supervisor `543c801ab77012336bfce5009da91045e90ad7dd30b1d70cf207a6c7b2318315`.
+U/W refuse; A and actual parent 33748 exit 1. Original cleanup and two independent
+remote-absence proofs pass with no remaining Podman containers. Capture succeeds:
+complete 9,000 bytes, SHA `e678553a944550a36d0dfc0fdd31c312bddee0f21fede9ce016ee348fbceff7c`,
+0600 file in a separate 0700 local-only custody directory. Raw bytes are not public
+evidence or committed output.
+
+Safe parsing identifies this new run's error at Containerfile STEP1/FROM: the
+unchanged `--pull=always` path requests the signed payload's selected base
+`quay.io/fedora/fedora-bootc@sha256:9ac02a78e406f2a31659ce2d58d46e2c6548c073ddfcc6efede1a9f0a01e443b`,
+and Podman reports `manifest unknown` while reading it. A separate anonymous
+upstream `skopeo inspect --raw` exits 2 with that fixed error. The retained local
+raw manifest is 19,946 bytes and hashes exactly to 9ac; its 10,780-byte config
+hashes to `6953ae88dbf79fa6c7440bb438a6a7e2280a5b6c07c770df9d1050ddd576baf7`
+with linux/arm64 and 65 rootfs diff IDs. Its 65 gzip layer descriptors total
+977,770,374 bytes. Original base-resolution evidence records the official :44
+index digest `62e0fe047be7b9c00abab3911fc84f8a22b2b2e097a6ca76119ebe395a6da3bf`;
+the unchanged resolver validates the remote selected raw digest/platform before
+returning it. No historical HTTP body is reconstructed and no particular registry
+GC/retention cause is inferred. The earlier ad57 failure remains unknown.
+
+The public constructor already accepts explicit `--base-image`, selecting only
+the Anaconda environment while keeping signed PAYLOAD_IMAGE/admission/native
+checks intact and recording the actual installer base in installer.json. A
+currently retrievable official Fedora 44 ARM base and complete combined allocation
+budget are being reviewed for this existing option. No input substitution, mirror,
+pull-policy change or relabeling of the old native tuple occurs. Safe diagnosis:
+`target/nix-delivery/d2-runtime/signed-replay-1710f8ceb4110185/base-manifest-readonly-diagnosis.json`.
+
+## Exact-base acquisition and conditional warm admission
+
+Official :44 index `5ab8ee5189bb0f3870279723f5343474df002d8d6f46564702b3ad3ba7382d98`
+selects linux/arm64 manifest `ad037f87320981be7e3c13b293a809b3613a5b59205d5a80a35fe79620606c12`,
+config `4611a0c6c85b15375669b3f80e48469eda6efe73d1ac32bcefd14e2ca117a75f`.
+Raw hashes/sizes and Fedora 44.20261002.0/bootc/kernel7.2.8 labels pass. Twenty-one
+changed blobs pass both compressed digest and decompressed diff-ID checks through
+bounded streaming; forty-four descriptors match retained material. Full base TAR
+is 2,056,122,368 bytes, changed TAR 781,060,608 and full compressed input 977,780,668.
+No image is imported during that read-only qualification.
+
+The cold 78 GiB constructor gate then prevents v5 `cb887b3d35bc4afe` before any
+owner/context/registry. Two exact completed isolated compiler-output directories
+are retired after ownership/reference checks, preserving sources, evidence and
+all runtime binaries. Actual private allocation is 384,933,888 bytes, not the
+larger nominal du total. Its immediate failed and later marginal capacity samples
+remain recorded. Bounded controller/D1/attempt8 checks find no useful exclusive
+image allocation and cause no further deletion. Actual two-run preparation costs
+are approximately 23 MB; the earlier approximately 109 MB global-free delta is
+not attributable setup proof and is explicitly withdrawn as a fixed requirement.
+
+A separate 52 GiB acquisition phase uses the original guard with a conservative
+8,311,250,876-byte envelope. In run `5368460882343cfb`, the first exact pull passes
+37.076 seconds, repeated normal pull 2.206 seconds, and actual FROM-only build
+with literal `--pull=always --no-cache` passes 2.432 seconds; all actual wrapper
+waits are 0. No ONBUILD or RUN/COPY code executes. The stage helper subsequently
+exits 1 on an invalid read-only Skopeo ID-reference spelling. Corrected
+`containers-storage:@4611…` yields the exact config; a final read-only helper exits
+0 and proves the full local cache. Successful pulls/build are not repeated and
+the original failure is not rewritten.
+
+Linked completion SHA `437a88ab479aad54ad55fac5be1366bf8109e115dbaf56aed328f23e02d8d0bd`
+binds original command receipts, probe IID/RootFS, corrected config and final
+verification in `target/nix-delivery/d2-runtime/base-stage-5368460882343cfb/`.
+An earlier linkage field mistakenly named Path.exists values as PID absence;
+that file is preserved and fresh absence confirms the corrected interpretation.
+The final proof matches raw manifest/config, all 65 layer IDs/ancestry and 130
+backing entries, with stable metadata. It explicitly does not rehash every
+resident payload file. Repeated-pull controller net free decrease is zero and
+the probe returns the same base image/RootFS. Observed allocated layer bytes
+2,172,284,928 are nonexclusive and are not extra credit.
+
+Independent review accepts only the originally budgeted 2,056,122,368 base bytes
+as already present. Conditional warm admission is therefore 81,695,739,904 bytes
+on both filesystems; all other Anaconda/new-stage/output/transient/headroom
+allowances remain, as do the original 35 GiB trigger/30 GiB floor. Source-reviewed
+packet `7e3836b17569a886cf74ad973b05fb091857b8a63950d267c568539c1a13c4ff`
+requires fresh complete cache proof at prelaunch and each U/W/A call, with shared
+host/controller validation. Missing/drifted proof refuses; the no-proof API keeps
+cold admission. No constructor is admitted merely by source review: live capacity,
+input, TLS and guard gates still apply. No new ISO, fresh installation or full
+update flow passes at this checkpoint.
+
+## Owning-source publication checkpoint — 2026-10-03
+
+Inspected D2 head `0b8bd1bd5e17127ed9c77db4ed645f8fb16ecb0b` is
+above exact D1 `712927e`, with no tracked source modifications. Refreshed pinned
+Rust 1.98.1 formatting and all-target Clippy pass; ordinary public CLI E2E passes
+11 cases with six resource-dependent cases ignored. The real interrupted
+collection workflow passes, including SIGKILL/recovery and preserved live roots.
+Repository-wide Ruff, changed shell syntax and whitespace checks pass.
+Release-material passes both enabled targets and unknown-target, signature, rank,
+no-change, content, scope and architecture refusals in
+`target/d2-publication-release-material`. Workspace release build passes (77 seconds). Independent OpenSSL interoperability
+passes all sixteen signatures, target trust, historical/fresh channel ordering,
+tamper, artifact and installer workflows in `target/d2-publication-release-interop`.
+
+Publication is a reviewable draft boundary, not acceptance of remaining runtime
+gates. Fresh corrected media/install, complete A/B/A, exact-image full harness,
+contribution execution and protected production signing/publication remain
+unpassed. Retained TLS fails the unchanged 36,000-second validity admission.
+Runtime audit `target/nix-delivery/d2-runtime/resume-20261003/audit.json` also
+records insufficient warm capacity and stale Podman boot-runtime state after
+controller restart. A fresh fixture and actual resource admission are required;
+no source, trust, timeout or storage guard is relaxed to publish the draft.
+
+## Hosted failure diagnosis and bounded public metadata — 2026-10-03
+
+At PR34 head `582049b`, run37107489350 native job111158768746 fails on Quay
+CDN blob unexpected EOF while pulling the pinned amd64 builder. The manifest
+resolved, and no fixture keys/registry/VM started. Only that failed job is retried
+without a source change. Native ARM job111158768679 separately fails in the
+candidate's foundation subprocess. Artifact11268807271 omits the referenced
+11-foundation.log and nested logs; its cause is unknown, with cleanup passing
+before registry or installation. It is not classified as the same CDN issue.
+
+The owning D2 fix adds optional `--diagnostic-output` to compose.py. On failure,
+it emits a new bounded JSON record with operation, first failing command or last
+observed step/tool/exit, allowlisted exception type/category, numeric errno,
+source basename/line, bounded log hashes/sizes/completeness and four fixed observed
+log markers. No messages, argv, private paths or raw logs are published. Candidate
+foundation/composer calls select fixed metadata filenames in existing public
+evidence and additionally retain outer invocation exit/log fingerprints. Existing
+outputs refuse replacement; reporting failure cannot mask the original error.
+
+Initial source review catches successful finally cleanup overwriting the failed
+command's record; the revised run wrapper preserves its first propagating failure
+before cleanup. Candidate defaults to the signed fixture evidence folder; the direct QEMU
+caller explicitly selects its existing qemu-arm64-evidence folder. Reporting
+checks the destination only on failure, so unavailable diagnostics cannot become
+a new admission failure. Current Ruff/Bash/YAML/whitespace pass. Actual public host platform
+refusal, existing-output preservation and unavailable-destination failure pass
+(`publication/d2-diagnostic-cli/results.json`); native child-step coverage and
+final review remain pending. These checks do not retroactively identify the lost
+ARM failure or qualify media/install/update.
+
+Final v3 source review is clear after first-failure preservation and both caller
+evidence routes. The actual ordinary-user native ARM public composer check passes
+in 0.307 seconds: a new non-Git repository produces real `source-head`/`git`
+exit128; the public composer retains exit1 and emits only sanitized metadata.
+Only the first command's two log files exist, the store is absent, and no Docker
+command is reached. Source, resolved inputs and all three protected ELF hashes
+match before/after. Actual diagnostic-copy allocation is 33,378,064 bytes.
+Safe receipt `publication/d2-native-diagnostic/receipt.json` has SHA
+`c3712c8e084a4090aa713ed3fa009a660ceb1040e5bfe4ea108f2b1d9ab2f193`;
+public diagnostic SHA is
+`60112a1cc89ab1891a8e0f53fda30cfa3305868b096a521ed3b5b8868ff048ba`.
+Private raw logs are retained only in the owned controller directory. This
+qualifies actual failing child metadata; cleanup-clobber preservation is source
+reviewed, not a newly injected Docker-copy cleanup fault. Both target material
+checks, Ruff, Bash/YAML syntax, help and public host refusal checks pass.
+
+
+## Retained-volume and installer-base fixture options — 2026-10-03
+
+The reviewed two-file patch adds explicit local-retained volume name/CreatedAt,
+read-only backing identity and consumer checks before create, and exact stopped
+container/mount/owner verification against the private before record prior to
+start. `:nocopy` prevents initial registry payload copy-up. Default fresh-volume
+behavior and existing EXIT cleanup are unchanged. An explicit immutable official
+Fedora installer base reaches all U/W/A calls through their common installer
+argument array; this changes only the installer environment, not signed payload.
+
+Both limited Astra reviews clear patch SHA
+`98bf72490249aee521d3f60451cd78508b7a8f10a8794586bcd822aa335ea09e`.
+Ruff/Bash syntax/diff/help and seven real host CLI refusal invocations pass.
+Actual ordinary UID502/Linux ARM64 Podman5.4.2 proof passes with compatible
+fixture-only commit `f6209a68142b5c8c8130ada4de2ff6ab4b2202b9`, original producer1dc,
+retained candidate20826ea3 and three unchanged ELF inputs. Public pre/post
+inspection preserves exact backing identity; stopped `:nocopy` creation preserves
+sentinel bytes/mode/inode. Wrong CreatedAt and unexpected stopped consumer each
+refuse exit1. Host actual wait0; exact new container/volume are removed and
+protected working/backup volume metadata unchanged. Aggregate
+`target/nix-delivery/d2-volume-proof/evidence/result.json` SHA256
+`88e20a725d1efb28ab8b096b150f36a11cdfb90d5a76ef272b2578049df5ebfd`.
+
+The registry was never started, and no TLS/media/signing/VM operation occurred.
+This proves payload preservation under serialized controller ownership; stopped
+container/volume metadata allocation still occurs. Current469 production recipe
+changes correctly prohibit old1dc replay; f6209 differs from cad6 only in the two
+already allowlisted fixture files. No recipe gate is widened. Full replay still
+requires fresh authority and unchanged capacity/deadline admission; actual
+installer-base media execution and signed A/B/A remain unpassed.
+
+## Local admission seam — 2026-10-04 (pending runtime qualification)
+
+Fresh runtime storage observation now exceeds the previous warm gate: host
+595,460,612,096 and Linux564,071,206,912 bytes (`d5-native-oct04/audit-plan-proof.json`,
+SHA `e4ef3d6c489b74f0ebd8afe5d584e6ecb4be2fea22849a2e6a25751af2954738`).
+Old containers were absent at resumption, cause unknown; retained images/volumes
+were not changed by that audit. Fresh TLS/source/custody and media/VM outcomes
+remain unqualified.
+
+The small local fixture patch adds a fixed supervised pre-registry/per-U/W/A
+nonce handshake, immediate local cold capacity/TLS checks, and bounded private
+failed-installer custody. It deliberately takes zero base-cache credit and
+requires83,751,862,272 bytes on both sides; the existing overall deadline,
+35GiB trigger/30GiB floor/250ms monitoring remain external supervisor contracts.
+No production recipe or context schema changes. Retained source1dc must still
+pass every original recipe/binary check from a compatible fixture-only descendant.
+
+Host checks: pass — Bash syntax, pinned Ruff check, public help, missing-context
+admission refusal(exit2), missing-supervisor wrapper refusal(exit1), conflicting
+operation refusal(exit2). These check the actual public argument boundary only;
+Linux success/stale-nonce/EOF/capacity/TLS/capture/cleanup execution remains not-run.
+Revised patchd4537cef received scoped Astra CLEAR after the initial review found
+and the source owner repaired a directory-open identity race. The reviewer matched
+fixture SHA8a596379 and wrapper41756481. Actual runtime qualification remains
+required; this source review does not pass those cases.
+
+## Hosted archive-retention diagnosis — 2026-10-04
+
+Exact7932622 QEMU run37197340534 built the foundation, then public
+`sysroot store add-image` refused78. Uploaded foundation-failure.json SHA
+`1bd36569309eac81d284218b95a8feb13a8714aee5191bede86831f87d2cc113`
+binds98-byte stderr SHA
+`9a037aaab5f16844baabca5cb22420e7abdeffd127471d0dcd346b901f3248bc`,
+which exactly matches the fixed public root-identity/multiple-roots error.
+This is not a CDN failure. Root-count versus selected-root mismatch remains
+undetermined; runner inventory Docker28.0.4 does not establish its live backend.
+
+A reviewed preflight in the existing QEMU workflow now builds a tiny native
+scratch image containing one literal public file, then executes real public
+store init/add-image before full candidate construction. It records only
+allowlisted live backend/version, selected ID, bounded archive root/manifest/
+config digests, actual exit and bounded log hashes/fixed error marker. Archive
+metadata reads never extract files or publish contents. Exact-image unpin and
+private-store GC handle sealed directories; owned tag/work cleanup exits are
+recorded separately while preserving the original failure. No engine/archive
+validation, schema or producer recipe is changed.
+
+Pass: YAML parse, Bash syntax, Ruff on the exact uv heredoc, public CLI help and
+limited revised Astra review (workflowe10dc64c/patchb2d434a3). Hosted execution
+is not-run at this source checkpoint; no backend or compatibility correction
+is justified until the actual preflight distinguishes the failure.
+
+The first hosted tiny preflight failed before metadata/add-image on D2
+37199328971 and D5 37199328839. Both artifacts contain only cleanup receipt
+SHA `f72edcac78a64b30a589a4fad28ddfb0b210db6c1f3785bfb713dbaaab682db1`,
+original exit1; zero cleanup codes did not distinguish skipped operations.
+No backend/root/config conclusion follows. Source review found the generated
+Containerfile lacked an explicit Docker --file selection. Revised workflow
+7b103ed8 adds that selection and bounded stage diagnostics before cleanup, with
+attempted/skipped cleanup flags. YAML/Bash/Ruff and scoped revised review pass;
+corrected hosted execution remains pending. The lost original build log is not
+reconstructed or presented as observed Docker stderr.
+
+## Actual hosted backend distinction — 2026-10-04
+
+Corrected D2 run37199831847/source937d3ce and D5 run37199833274/source69cc325
+both record Docker28.0.4/overlay2 and no containerd driver marker. Each archive
+has exactly one root, whose manifest digest differs from the selected image ID;
+the selected ID equals the manifest's config digest. Public add-image refuses78
+with exact98-byte stderrSHA9a037aaa. This confirms the selected-root mismatch on
+that backend, not a multiple-root archive. D2 metadataSHA53492fa2 and D5a92f5650
+were independently read/hash-checked; cleanup04196b02 records actual attempted
+unpin/GC/image removal0, work removal0 and diagnostic0. Source report:
+`target/nix-delivery/ci-oct04/HOSTED-CONFIRMED.md`, SHAbfc9a58e.
+
+The proposed hosted-only correction enables Docker's containerd-snapshotter
+feature, preserves other daemon settings, refuses existing containers, validates
+configuration before restart and requires the exact containerd DriverStatus.
+The original public retention preflight then remains the behavioral gate; no
+engine validation or archive acceptance is relaxed. Actual configuration/pass is
+pending. [Docker's primary instructions](https://docs.docker.com/engine/storage/containerd/)
+define the feature/restart/readback sequence; previous backend data stays on disk,
+so this correction neither prunes nor migrates images.
+
+## Observed Docker inspect defaults and closed transfer correction — 2026-10-04
+
+Actual D2run37215763783 (compose-failureSHAacb2d9cd) and D5run37215764140
+(SHA71595369) report OS/architecture/diff-ID matches, all77 layers with hash
+8ce5b4e5, zero unknown Config keys, and only twelve inspect-side injected fields.
+The empty strings are Hostname/Domainname/Image; false booleans are AttachStdin,
+AttachStdout, AttachStderr, Tty, OpenStdin, StdinOnce; null fields are Volumes,
+Entrypoint and OnBuild. Actual User/Env/Cmd/WorkingDir/Labels match.
+
+The reviewed source7262cbbd correction permits only those exact typed defaults
+when absent from exported Config. Every other presence/value mismatch remains
+an error, including integer zero in place of false. Platform, complete diff IDs,
+archive hash, full source/target config bytes and loaded config digest checks
+remain unchanged. [Docker's versioned inspection behavior](https://docs.docker.com/engine/deprecated/#non-standard-fields-in-image-inspect)
+explains these presentation fields; no general empty-value normalization is used.
+Ruff/public help/diff checks and scoped review pass; full corrected candidate
+execution is pending.
+
+Public D2 helper qualification also passes on frozen compatible6146d96: real
+context/capacity/request/custody/capture waits0, seven expected refusals1 and
+bounded16MiB private capture with independently checked hash/mode/link count.
+Receipt d2-protocol-oct04/result.json SHAdb1a6c98 preserves the initial missing
+mount failure and final exact-container cleanup. Full wrapper reply/EOF/stale
+nonce, TLS boundaries, registry/media and HVF install/A/B/A remain unqualified.
+
+## Full hosted candidate and Secure Boot workflow passed — 2026-10-04
+
+The reviewed backend/default-field corrections pass the complete existing QEMU
+workflow on owning D2 source332f450 (run37217459554/job111480783634/artifact11309730964)
+and top D5 source8c35755 (run37217459773/job111480784437/artifact11309466550).
+Both runs pass checked Rust tools, containerd selection, public image retention,
+full composition/transfer/lint, observer and disposable disk construction, UEFI
+Secure Boot TCG boot, sanitization and upload. Actual QEMU exits0 in288s/370s.
+Guest markers confirm SecureBoot enabled, lockdown integrity, enforcing SELinux,
+exact booted observer digest and bootc/unit checks. Separate observer derivatives
+are not relabeled as the source candidate. Candidate transfer config digest equals
+the independently inspected Podman image ID on both runs.
+
+Coordinator independently reads/hashes `ci-oct04/QEMU-PASS.md` SHA
+`63aa519c71d9260b71d7fac7328df89d2cf86b83a010257820f56258dd223139`,
+actual VM result/timing receipts and completed Actions state. D2 candidate JSON
+SHA765534c0 binds configedb100ba; D5 SHAab0dcf6f binds config49e81007.
+Both receipts explicitly remain unsigned, not production publication and not
+fresh installation. This is the existing candidate/boot workflow, not the local
+fresh installer or signed A/B/A gate. Earlier failures remain preserved.
+
+Compatible6146d96 local wrapper also passes actual first-gate EOF refusal
+(wrapper1, guard0; receiptc430846e) and previous-lifecycle nonce refusal
+(wrapper1 in46.603s, guard0; receipt1c0863e3), with private inputs removed,
+registry not created, owner absent and no nested containers. Post-refusal full
+working/backup custody passes; idle controller stop137/removal is recorded
+separately from the wrapper's actual exit. Live positive registry/U/W/A admission
+passes fresh owner/context/nonce, cold83,751,862,272-byte checks and TLS36000;
+public U/W installer calls return1 at their required unsigned/wrong-key gates,
+with private bounded capture. Receipt699d6945 explicitly records A media active
+and VM not-run. Full local media/install/A/B/A remains incomplete.
+
+The exact-head CI audit also found direct-GHCR native-arm jobs37217459561 and
+37217459682 still using the classic image store: both foundation-retention
+reports hash821276fa and bind exit78/exact98-byte root-ID error9a037aaa. Their
+x86 jobs passed. The proven QEMU containerd setup is now reused immediately
+before the ARM fixture and conditionally before a changed qemu-arm64 production
+build. It does not touch x86 or isolated signing jobs. Actual direct ARM execution
+is pending; protected production signing remains main-only and unrun.
+
+## Local installation and exact candidate completion — 2026-10-05
+
+The complete public HVF sequence on producer1dc/compatible fixture6146d96 passes
+insecure-boot refusal, fresh installation, A, B, rollback and finish. All actual
+new phase waits, five native guards and the continuation supervisor return0.
+Secure Boot/lockdown/enforcing SELinux, twelve native artifacts, kernel7.2.8 and
+home/var preservation pass. Private inputs, registry and control processes are
+removed; protected backup1170/work477/candidate custody is preserved. The
+original Docker execution also records exit0; its lost original host-parent
+wait remains unavailable. Failed sampler/fixture attempts are preserved, and
+the original22:58:05UTC deadline was not renewed.
+
+Coordinator readback: `target/nix-delivery/d2-runtime-oct04/qualification-final.json`
+SHA `92ad69e969437f64ec68e28c196ac9a61e8d1b37cb4aefac9310f981abc9f8fe`,
+with report `QUALIFICATION-FINAL.md` SHA
+`0ad1261c87e93bc1ce6a32ca05e6ab60f57bb6f85662098ebd43bade8c57f7a5`.
+The aggregate binds the actual phase records and cleanup outcomes.
+
+TC05 full sanctioned container rerun passes13/13 in91.42s on exact candidate
+`e0fd3f5ac864e1cacc66df955c894e46984fdae33e11146cd1814015c8c926f4`,
+frozen57 harness50dca, overlaynone; actual parent/guard0 and no cleanup failures.
+The first12/13 run failed because the compiled archive path lacked Git metadata.
+Only genuine exact-commit metadata was added there, with standard Git comparison
+confirming unchanged tracked bytes/modes. Evidence:
+`target/nix-delivery/d2-acceptance-reconcile-oct04/tc05-final.json` SHA
+`d252cae3210377fb597f5702d4413966f02d1a9cdb3970ee2f57b8778e335fc0`.
+
+## Hosted QMP shutdown correction — 2026-10-05
+
+Diagnostic D2run37227946844 and D3run37227947203 observe the actual insecure-boot
+refusal before a controller timeout. QEMU8.2.2 queues in-band commands and clears
+the queue on monitor close; the old helper flushed quit then closed immediately.
+Owning correction53c0116 keeps the connection open for a matching reply or
+server EOF, then requires actual owned-process exit0. All frames, reads/writes
+and child wait share min(15 seconds, remaining original phase budget), with
+bounded messages and fixed diagnostics. No guest/security/phase limit changes.
+
+Ruff/Python compilation/review pass. One manual real QEMU11 no-guest/no-disk
+process executes the actual helper and exits0 in0.002337s, with exact PID/socket
+absence and unchanged helper/binary hashes. Receipt
+`target/qmp-proof-oct04/result.json` SHA
+`7c58923d24085f7f84efb52a29f610d91bea74b4b11227e35cfff43fb8a2e50e`.
+This is not full hosted8.2 qualification. Hosted retest remains active. Earlier
+D5run37220454933 passed refusal but timed out during installation; that separate
+guest failure is not explained by the shutdown fix. Production signing remains
+not-run. See worklog WL-20261005-01 for primary QEMU sources and exact limits.
+
+## Genuine current package contribution passed — 2026-10-05
+
+Frozen source580078d and actual material2271c5c2 produce foundationb5e4 and a
+genuine public catalog contribution. jq and SQLite are built from the selected
+sources, including SQLite's separate runtime-library node. The untouched authored
+definition is SHA `b16001008faa5137166268c221481dd371eee3592b5b939bf4e68cd1363e4810`;
+its receipt is SHA `8b09a4d0aed0f2b889bdd540975048e70fa02db1db6a90c978e2551f9f1da5d0`.
+
+The complete public composer passes0 in564.444s, producing native image
+`sha256:a28a41d6861cf23d458f3ce49bf341f4ff9d34030416923bff91d0df064d3a3f`
+and complete candidate receipt SHA
+`c29d2d548a65c7969f26d827cc6309e23ad5a5f55a14ea71b2c577b34a4a3292`.
+Actual exact-image executions return jq42 and SQLite `TC03|42`; installed paths
+match selected outputs. Loader readback proves the separately selected SQLite
+library initializes. Runtime containers have actual exit0 and exact removal.
+
+Nine real public-composer refusals pass: wrong pin, wrong author, absent alias,
+other foundation, reserved path, Docker platform spelling, bare object identity,
+dot alias and plus alias. Each exits1 at its expected gate, publishes no candidate
+and preserves the accepted candidate, complete runtime custody and sentinel.
+Final public jq/SQLite output verification returns0. This does not claim that the
+fixed catalog author emits custom underscore/hyphen aliases.
+
+The first attempt remains failed at its32GiB resource trigger. A separately
+admitted retry preserves the same source/material/binaries, with a new60-minute
+deadline and measured aggregate48GiB trigger/56GiB ceiling. Its pre-composer
+path error, later malformed heartbeat read and seven-case fixture TypeError
+remain recorded. The heartbeat reader stays strict; unique exclusive temporary
+publication with flush/fsync/replace passes25s of real cross-mount reads and the
+subsequent composer. Missing fsync is not established as the original cause.
+Only the two unrun alias refusals were continued after the fixture iteration fix.
+
+The new case finishes in2161.39s, peak original-baseline growth44,352,012,288 bytes,
+additional8,609,062,912 bytes and no reclaim. All four runtime containers are
+absent; idle controller/observer stop and wait commands return0 with idle137 and
+no OOM. Source/binaries, work volume and native image remain preserved. Settlement
+`target/nix-delivery/d2-tc03-current-oct04/proof/retry-oct05/settlement.json` SHA
+`aded3a8cbf8eb3447e9a6c15cc2c3bad0d1dfea2bfaf4384cda1a47c2f261a19`
+binds all constituent receipts; coordinator independently reads/hashes it and
+the per-case results. TC05's earlier13/13 pass remains on candidatee0fd, not this
+different contribution candidate. Hosted direct ARM and production signing
+remain separate gates.
+
+Label correction: run37227947203/source3438970d is the package-catalog branch
+(D3), not D4 as previously described in the worklog. Its exact run, source,
+diagnostic contents and failure outcome are unchanged. Fixed sibling runs are
+D3run37234495358/sourceaa713aa5 and D4run37234495136/sourcefd8c700b.
+
+## Generic underscore/hyphen aliases passed — 2026-10-05
+
+A separate fixture-authored typed definition uses `jq_tool` and `sqlite-tool`
+with the same real retained outputs, updates all five input references, marks
+fixture provenance and omits the copied catalog metadata. The original compiled
+catalog definition/receipt, material, foundation and accepted candidate remain
+unchanged. This tests generic composition, not new production-author support.
+
+The independently pinned optimized ARM CLI SHA
+`d4b9ba250fe850aef5dbdcb2a4ac92b809bd95b38a80560449599f5bb7658ecf`
+comes from checked source27df/run37234496254. Ordinary Git comparison finds its
+Rust/Cargo inputs identical to frozen580; its separate provenance is recorded,
+and it never replaces the earlier TC03 material's author executable. Public
+compose0/verify0/static replay0 produce compositiona6a1e940 and static imagead43c0c0.
+Actual `jq_tool` and `sqlite-tool` executions return42 and `TC03|42`, both0.
+
+The case finishes in317.17s within600s, peak additional7,901,130,752 bytes;
+original output/image custody, source, pins and sentinel are unchanged. Both
+fresh controllers are removed after idle stop/wait0; all17 observed ephemeral
+containers are absent. Context/static image remain retained. Initial socket
+permission failure is preserved; only the disposable fixture user's supplemental
+group changed, with no host socket/mode/group change. Result SHA
+`ce6fffc84ec1c41cdee7e22a9f928a5135013b2fb07cc62ca24ea699e49244a6`;
+settlement `target/nix-delivery/d2-generic-alias-oct05/proof/settlement.json` SHA
+`bc4e647cec8748d010c30639b2c4a625eff35b609b533a05ee9daa86962bc74d`.
+
+## Hosted installation boundary and stage diagnostics — 2026-10-05
+
+The QMP-fixed hosted runs D2 37234495769/source53c0116, D3
+37234495358/sourceaa713aa5, D4 37234495136/sourcefd8c700b and D5
+37234496224/source27dfbb6 now complete the expected insecure-boot refusal and
+QMP shutdown in379.50/368.08/377.06/410.65 seconds. All paired x86 jobs pass.
+Every ARM run subsequently fails the fresh-install phase at its7200-second
+deadline; cleanup succeeds. QEMU exit0 after failure cleanup does not establish
+installation success. Public artifacts11319062175/11318459772/11319833181/
+11319309094 are retained under `target/nix-delivery/ci-oct05-final/<run>/`.
+
+The bounded failure records show firmware/GRUB/kernel/systemd startup but cannot
+locate the later guest failure. Anaconda44.30's normal service launches a detached
+tmux session; installer logs are inside the guest. A live wrapper or its default
+zero status is not installer completion. The successful local public HVF serial
+also lacks several earlier broad progress strings, so their absence cannot
+locate the hosted stall. The source/media comparison is recorded in
+`target/nix-delivery/d2-runtime-oct05-readonly/`, with findings SHA
+`a33bd98c5497299af388a98a7e0869cb5c682cb5868d26f24845e7dbeeda01bf`.
+
+The next owning-D2 fixture change adds fixed best-effort Kickstart stage tokens
+and a bounded guest observer of four exact units, tmux main-pane status and three
+literal error patterns in four log tails. Exit status/result tokens require a
+positive actual main-process exit timestamp. Raw logs, argv, account/disk data
+and exception bodies remain private. The observer is part of the exact fixture
+recipe material and generated media, with no restart, a7200-second cap,128 unique
+tokens,2KiB/3-second command observations and64KiB regular-file log tails.
+Host failure metadata records bounded first-observed stage times and the observer
+hash. Mandatory completion, security, disk and phase-deadline checks are unchanged.
+
+Coordinator review, uv/Ruff, Python compilation, public prepare help and compiler
+checks of the actual generated marker snippets pass. No guest snippet was run by
+those syntax checks. Actual observer startup and installation outcome remain
+not-run for the new source until the single owning hosted workflow executes.
+This is a diagnostic change; no specific installer root cause or fix is claimed.
+
+### Exact diagnostic source and x86 result
+
+Owning source `deb442c6f220c570cc7cc804d641b74e0b1454ed` passes both architecture
+source checks in push37283817896 and PR37283824525. Diagnostic
+[run37283817872](https://github.com/Reidond/kedra/actions/runs/37283817872)
+remains active on ARM. Its x86 job111677859263 passes at2026-10-05 08:45:09UTC.
+Artifact11333719783 has1,135,854 ZIP bytes and SHA
+`1b642501fc37497d569c4a5fdbc26f1cc99d845885fa82f5de4858bf4f7efe50`, matching
+GitHub's artifact digest. A/B/ROLLBACK each contain their exact phase-pass and
+Secure Boot markers, no failure marker, and38 public CLI outcomes:23 exit0 and15
+expected exit78 refusals. Exact-source assertions bind image identities,
+ordering, retained data, cache/recovery and resume behavior. Independently read
+summary SHA `aefff72916c8118063537c37705bdfb56e81a8bef8a9513efa84091f99b471f0`
+is retained under `target/nix-delivery/ci-finish-oct05/run37283817872-x86/`.
+
+The x86 fixture's cleanup trap suppresses controller/registry errors and publishes
+no structured cleanup receipt. No cleanup failure is observed, but independent
+cleanup is not established. Deterministic tag race, interrupted helper/bootc,
+legacy-state migration and native OCI-platform mismatch remain explicitly
+not-run in that artifact. Its signed update boots do not qualify ARM Anaconda
+installation or the new observer. D3–D5 carry the diagnostic source locally;
+publishing the cascade waits for the owning ARM result.
+
+## Observed post-verifier installation boundary — 2026-10-05
+
+Exact source `deb442c6f220c570cc7cc804d641b74e0b1454ed`,
+[run37283817872](https://github.com/Reidond/kedra/actions/runs/37283817872),
+ARM job111677859501: **fail** at the unchanged7200-second installation bound
+(observed7201.558s). The observer SHA matches
+`361fbb7edaa4d56c3585c6a93450cd66884f7cf103b23604d4bc238b7f8a0d73`.
+Actual observer startup is observed372.466s; the verifier has a positive exit
+timestamp, success result and status0 at398.532s. Generated Kickstart enters at
+591.029s and validates selected disks/writes its storage include at592.031s.
+The latter is instruction generation, not evidence of actual partitioning,
+encryption or payload installation. No chroot/nochroot post stage or mandatory
+completion is observed. Unit metadata queries become unavailable at3046–3059s;
+timeout/nonzero/read failures are not distinguished and later observer health
+cannot be inferred from deduplicated tokens. No OOM, host pressure, UI wait or
+TCG root cause is established.
+
+The actual Secure-Boot-disabled refusal/QMP shutdown passes364.759s. Cleanup
+preserves original exit1 and reports no cleanup failure: private inputs, registry
+and resolver removed. QEMU is still alive at the phase deadline; its exit0 is
+after owned-process cleanup, not an installation pass. Complete retained serial
+classification does not contain the selected fatal PID1-freeze/no-space markers;
+other kernel errors were not part of that allowlist and cannot be ruled out.
+
+Artifact11341964672 contains936387 ZIP bytes; computed SHA
+`76c31e9771ea78089bca5cd2edbd98fc24ebcc4171e23a93793a240b3cc8dbbc`
+matches the GitHub API digest. Retained under
+`target/nix-delivery/ci-finish-oct05/run37283817872-arm/`:
+install-failure SHA
+`4135a5c8b883ef82f8667572f2f33ed132f3cf25b633ac2cca807bc8654adbdc`,
+cleanup SHA
+`9078eee2eb3b8e4085571c3ab2547d3f98293151994df14ea710e26505fdabec`.
+The initial host sample has14GiB available RAM,3GiB unused swap and105G disk
+free; it is not a failure-time or peak measurement. Private logs remain private.
+
+Exact-source push Check37283817896 and PR Check37283824525 pass both architectures.
+Same-run x86 signed A/B/rollback and38 expected CLI outcomes pass; its older
+cleanup trap suppresses errors and emits no independent cleanup receipt.
+These results do not qualify the failed ARM installation.
+
+The next diagnostic keeps the same guest, resources, deadlines and completion
+criteria. It adds anchored actual Anaconda task-start/completion categories and
+bounded numeric guest/owned-QEMU health. Anaconda44.30 logs an upfront future-task
+summary before execution, so bare task names cannot establish progress. Source
+anchors and the proposed observation limits are retained in
+`target/nix-delivery/d2-runtime-oct05-readonly/after-pre-deb442c.md`, SHA
+`8bfec4d6b43eae9521acb63346c3f560b88edf852df3bfb56f1dccbee7c20ec1`.
+This follow-up is diagnostic preparation; no successful later run is claimed.
+
+The two-module follow-up is implemented locally: fixed actual task records,
+512-byte numeric guest frames, at most 240 health attempts at intervals of at
+least 30 seconds, and first/last/min/max/count summaries. The host samples its
+live owned QEMU process before cleanup. Only a new increasing guest sequence
+refreshes last-seen time; stale serial rereads cannot fabricate liveness.
+Uncertain child cleanup disables future metadata commands while health/log
+observations continue. Partial nonblocking writes can be dropped; a missing
+heartbeat alone does not prove guest death. Sampled extrema are not guaranteed
+instantaneous peaks. No UI source hook or private pane capture was added.
+
+Independent review and parent Ruff/Python compilation/public boot-controller help
+pass. Patch SHA
+`6f7c01510671f109f21f4a958fd1dffd8c4e47b0110f6f6acedea71522a0ddc4`;
+review SHA
+`52a2629169b347c4d4a7797effb4e51b7eda454eb59f078f3e39d7b01c7874b2`.
+New observer SHA
+`80f87c0afd0fc6670328c7623165b9f93e6ea23f51e133b8532e965bb0e8e809`.
+Actual new task/health observations remain not-run until the next hosted result.
+
+### Live guest health and corrected module-log contract
+
+Exact owning source `7c59fd85470e27a781a6fba3e8c20937553ed3ad` passes push
+Check37305788208 and PR Check37305797053 on both architectures. Direct
+[run37305788202](https://github.com/Reidond/kedra/actions/runs/37305788202)
+passes x86 signed A/B/rollback and38 expected public CLI outcomes. Artifact
+11343449866 ZIP SHA
+`4c853f7980082c7032f5b4bf333bf96cc9901b366a14c0a5eaa5d581a3c544e3`
+matches the API; independently read summary SHA
+`ae46438e2fc7600ef9f492161758f9fa314a6bdaf086d70223d3179be7c46db8`.
+The existing independent x86 cleanup limitation and four not-run cases remain.
+
+ARM job111749025691 fails at14:51:32UTC on2026-10-05. Installation reaches
+7201.685s against its7200-second bound. Verifier exit/status0 is observed
+at421.055s; generated storage instructions are validated/written at1116.240s.
+The observer emits157 increasing health frames with zero sequence gaps, the
+last at7186.790s. Guest MemAvailable minimum6,473,544KiB and oom_kill0 provide
+no sampled guest-memory-exhaustion evidence.239 live owned-QEMU/host samples
+show host available memory minimum5,542,920KiB and fixture space minimum
+53,463,064,576bytes. CPU/I/O activity does not establish installation progress;
+sampled extrema cannot exclude a transient between samples.
+
+Insecure-boot refusal/QMP shutdown passes377.802s. Structured cleanup preserves
+original exit1 and reports private inputs/registry/resolver removed with no
+cleanup failure. QEMU exit0 is after failure cleanup, not installation success.
+Parent API/source/job readback and local hashing confirm artifact11352463986,
+938168bytes, ZIP SHA
+`bed7292db8de8e3dbc019d41a7f1d9522f729bda186da8d40ccc8550177996d4`.
+Failure receipt SHA
+`7fc31dd8bd7bc0b1413e1b56a611e1632409aa76f43e43782b60b5c3d756fe9a`;
+cleanup SHA
+`9078eee2eb3b8e4085571c3ab2547d3f98293151994df14ea710e26505fdabec`.
+Bounded report/receipts remain under
+`target/nix-delivery/ci-finish-oct05/run37305788202-arm/`.
+
+Correction to the preceding classifier review: the main Anaconda formatter
+does not govern its D-Bus modules. Their
+[initializer](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/common/__init__.py)
+uses default Python logging. Boss inherits stderr, which the
+[launcher](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/core/startup/dbus_launcher.py)
+routes to `/tmp/dbus.log`; payload/storage modules also write their separate
+packaging/storage logs. Current absent task markers cannot locate the stall.
+The pinned bootc source hash matches the existing adapter input614ac3f3.
+
+The one-file correction routes fixed categories through the matching files and
+formats, retaining actual task-record prefixes and excluding the upfront task
+summary. It adds existing storage-model, StorageSpoke-initialization and TUI
+installation-start log categories. These are observations, not completion.
+The only extra input is fixed private `dbus.log` with the existing64KiB read
+bound. Output remains finite fixed tokens; no pane capture, UI injection,
+resource/deadline change or altered acceptance. Heartbeat behavior is unchanged.
+Proposed patch SHA
+`5cb8cb64d6b88b6fd64fb52dad968729296e9ccb420815d0cbc54f11aa15df7a`;
+applied observer SHA
+`1f8e7ea1dc068fcda1c27eb33e2ac81dbb85777fbeba182cd6745312b4e619e9`.
+Parent source review, Ruff/Python compilation and public controller help pass.
+Independent source/privacy/host-integration review also passes, receipt SHA
+`a737608e55045a44e9ab830c6ff8dee5b4d922b560a4715cb0f3565d191e08d3`.
+Actual corrected classifier execution remains not-run. The installer root
+cause remains unknown; the successful older local HVF result does not validate
+these new observations or the current hosted guest.
+
+Owning correction `c01ee2f7e0a1e5bde5560a4ae71fd73e0046fea0` passes exact
+push Check37330502152 and PR Check37330513592 on both architectures. Direct
+[run37330502213 attempt1](https://github.com/Reidond/kedra/actions/runs/37330502213/attempts/1)
+fails before guest execution: x86 explicitly reports a Quay bearer-token
+HTTP502; ARM resolves its pinned base then fails the pull-always resolver
+creation. The underlying ARM error is unavailable, so the x86 cause is not
+assigned to ARM. ARM cleanup passes with original exit1, private inputs and
+resolver removed, registry/observer not created. Parent API/local ZIP hashes:
+ARM11354312603 `85ab6daa2121ed3eedfaa78a29229c02c139631565e37df2058f0fb11ac2155d`;
+x8611354546110 `dd3eaf93757308bc7bb7c612ff1bf6ebae642f4418ad137637e4bf4ccfe4b608`.
+One same-source failed-jobs retry is requested. No classifier/installer result
+is established by this preparation failure, and attempt1 remains preserved.
+
+## Corrected classifier final retry — 2026-10-05
+
+Exact owning source/fixture `c01ee2f7e0a1e5bde5560a4ae71fd73e0046fea0`,
+[run37330502213 attempt2](https://github.com/Reidond/kedra/actions/runs/37330502213/attempts/2),
+ARM job111835961153: **fail**, completed18:11:52UTC. Attempt1 failed before guest
+execution and remains separately preserved; this retry does not erase it.
+Source push Check37330502152 and PR Check37330513592 pass both architectures.
+
+The applied observer `1f8e7ea1dc068fcda1c27eb33e2ac81dbb85777fbeba182cd6745312b4e619e9`
+now records StorageSpoke initialization, TUI Start return and automatic-partition
+model application at1145.292s. Bootc run/execute log points appear at1362.446s.
+Pinned Anaconda44.30 deployment source614ac3f3 logs the latter after
+`_clean_physroot()` returns and before storage `GetArguments()`, scratch/mount
+setup, child creation/output wait and adapter cleanup. No child-start/exit
+receipt is retained. No bootc-complete, fixture-post or final completion appears.
+The installation reaches7201.573s against its7200-second deadline. This narrows
+the failure to the deployment path; it does not identify an actionable defect.
+
+Verifier actual exit/status0 appears at394.949s.157 increasing guest health
+frames have no gaps, last7158.720s; sampled MemAvailable minimum6,234,744KiB,
+oom_kill0.239 host samples continue through7182.885s, available memory minimum
+5,152,376KiB and fixture space minimum54,374,727,680bytes. These observations
+establish sampled resources/liveness, not installer progress or a root cause.
+TMUX_MAIN_LIVE_PYTHON is first seen395.954s; process-family last-seen/counts are
+not retained. QEMU exit0 is controller settlement after failure.
+
+Insecure-boot refusal/QMP shutdown passes371.662s. Structured cleanup reports
+original exit1, private inputs/registry/resolver removed and no cleanup failure.
+Parent independently read the bounded receipts, actual final API/source/job and
+artifact11363722398 metadata and matching local ZIP:941910bytes, SHA
+`f1ea271a324a8f984fce3d71b624b091651eba3d131de2f4f1a71617f30a3923`.
+Failure receipt SHA
+`44c3d2e1612a8e6eeccce19a0d6462d4443b0de584c66f6e6ac8599c99deefe8`;
+cleanup SHA
+`9078eee2eb3b8e4085571c3ab2547d3f98293151994df14ea710e26505fdabec`;
+refusal SHA
+`b549ee6a096d1162c3db0722d8dc906b2f276ff013c550df94ddf00105286bde`.
+Independent pinned-source boundary report SHA
+`7491ed407069f44af71c4465cc9557a96e5c6935b36c79ba1a8bf24928daca1e`,
+under `target/nix-delivery/d2-runtime-oct05-readonly/attempt2-boundary.md`.
+Parent also read and hashed final CI report
+`d71b4c1189a0add1c9464b3a1c59d8cb78d84b5edb5e0378d065db2baafe46f8`.
+
+Paired x86 job111835961026 passes15:34:29UTC: A/B/ROLLBACK, Secure Boot and38
+CLI outcomes (23 exit0,15 expected exit78). Parent verified artifact11355586450,
+ZIP SHA `08e2e354e97fc71c750988a1a452513d18c758addaeb788ccd54e9d797b98cc2`,
+and summary SHA `032677ff357cceb46d639c6cf1570d358d33e44994d495046b25443cf50999fa`.
+Four not-run cases and independent x86 cleanup's missing receipt remain explicit.
+
+Close this diagnostic iteration with **incomplete hosted ARM qualification**.
+Do not infer a bootc deadlock, raise limits, weaken verification or launch another
+speculative run. Local HVF results retain their own exact source/runtime scope.
+Aligned upper-branch publication may cancel duplicate VM executions; cancelled
+runs are not passes. Native fault/recovery remains blocked by automatic approval
+review; its pending state is preserved. Main-only production remains not-run.

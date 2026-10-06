@@ -2,6 +2,9 @@
 ARG BASE
 FROM ${BASE}
 LABEL dev.kedra.lab.owner=kedra-container-tests dev.kedra.lab.kind=qemu
+COPY native-provenance.json /usr/share/kedra-lab/native-provenance.json
+COPY boot-check.py /usr/libexec/kedra-lab/boot-check
+RUN /usr/bin/python3 -I /usr/libexec/kedra-lab/boot-check snapshot
 RUN rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=C sort > /tmp/base-rpms && \
     dnf -y --best --setopt=install_weak_deps=False --repo=fedora --repo=updates install \
         openssh-server grim wtype glx-utils egl-utils pipewire-utils weston-demo \
@@ -11,8 +14,10 @@ RUN rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | LC_ALL=
     mkdir -p /usr/share/kedra-lab && \
     LC_ALL=C comm -13 /tmp/base-rpms /tmp/lab-rpms > /usr/share/kedra-lab/added-rpms.txt && \
     rm /tmp/base-rpms /tmp/lab-rpms && dnf clean all && rm -rf /var/lib/dnf /var/cache/libdnf5
+RUN /usr/bin/python3 -I /usr/libexec/kedra-lab/boot-check restore
 COPY seed.py /usr/libexec/kedra-lab/seed
 COPY seed.service /usr/lib/systemd/system/kedra-lab-seed.service
+COPY boot-check.service /usr/lib/systemd/system/kedra-lab-boot-check.service
 COPY session-start /usr/libexec/kedra-lab/session-start
 COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
 COPY probes/ /usr/libexec/kedra-lab/probes/
@@ -27,4 +32,7 @@ RUN chmod 0755 /usr/libexec/kedra-lab/seed /usr/libexec/kedra-lab/session-* /usr
     printf '[Unit]\nRequires=kedra-lab-seed.service\nAfter=kedra-lab-seed.service\n' > /usr/lib/systemd/system/sshd.service.d/90-kedra-lab.conf && \
     mkdir -p /usr/lib/systemd/user/niri.service.d && \
     printf '[Service]\nEnvironment=RUST_LOG=niri=debug,smithay=debug\n' > /usr/lib/systemd/user/niri.service.d/90-kedra-lab-diagnostics.conf && \
-    systemctl enable sshd.service kedra-lab-seed.service && bootc container lint
+    systemctl enable sshd.service kedra-lab-seed.service kedra-lab-boot-check.service && \
+    /usr/bin/python3 -I /usr/libexec/kedra-lab/boot-check image && bootc container lint
+ARG FIXTURE_REFERENCE=""
+LABEL dev.kedra.lab.fixture-reference=${FIXTURE_REFERENCE}

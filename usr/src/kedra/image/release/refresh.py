@@ -3,13 +3,12 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Actions-only GHCR image resolution, comparison and stable publication.
+"""Public Fedora base resolution and main-only signed GHCR release operations.
 
 No GitHub Releases, ISO artifacts, metadata signatures or checkpoints are used.
 Only the automatically signed, validated OCI manifest authorizes an update.
 """
 import argparse
-import hashlib
 import io
 import os
 import platform
@@ -159,11 +158,17 @@ def inspect_stored(spec, local, digest, work, label):
         rpm_bytes = copied_file(container, '/usr/share/sysroot/package-material.txt', m.LIMIT)
         m.require(m.packages(rpm_bytes, spec['architecture']) == inputs['packages'],
                   'Actual candidate RPM inventory differs from preflight material')
+        native = None
+        if m.NATIVE_RECIPE in inputs['recipes']:
+            m.require(spec['id'] == 'qemu-arm64', 'Native release composition is ARM-only')
+            native_bytes = copied_file(container, '/usr/share/sysroot/native-receipt.json', m.LIMIT)
+            native = m.verify_native(config, native_bytes, inputs)
+            (work / (label + '-native.json')).write_bytes(native_bytes)
         (work / (label + '-identity.json')).write_bytes(identity_bytes)
         (work / (label + '-inputs.json')).write_bytes(inputs_bytes)
         (work / (label + '-source.json')).write_bytes(source_bytes)
         (work / (label + '-config.json')).write_bytes(m.canonical(config))
-        return {'digest': digest, 'identity': identity, 'inputs': inputs}
+        return {'digest': digest, 'identity': identity, 'inputs': inputs, 'native': native}
     finally:
         run('sudo', 'podman', 'rm', container)
 
@@ -223,20 +228,21 @@ def prepare(spec, args):
               '/bin/bash /context/assemble.sh --resolve-packages', timeout=2400)
     (resolution / 'native.log').write_bytes(log.stdout + log.stderr)
     run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', resolution / 'package-material.txt')
-    recipes = tuple(IMAGE + name for name in (
-        'Containerfile', 'assemble.sh', 'release/Containerfile', 'release/prepare-trust.py', 'release/refresh.py',
-        'release/material.py', 'release/targets.json', 'release/compatibility.json', 'agents/prepare.sh',
-        'agents/package.py', 'agents/fetch.py', 'agents/pins.py', 'agents/inputs.json', 'bitwarden/prepare.py',
-        'bitwarden/inputs.json')) + ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml',
-               '.github/workflows/release.yml', '.github/workflows/release-target.yml', spec['public_key'],
-               spec['key_sha256'])
-    inputs = {'schema_version': 1, 'base': base,
-              'source': {key: value for key, value in plan.items() if key not in ('source_revision', 'input_scope')},
-              'recipes': {name: m.sha((ROOT / name).read_bytes()) for name in recipes},
-              'artifacts': {}, 'packages': m.packages(m.read(resolution / 'package-material.txt'), spec['architecture'])}
-    for name in ('sysroot', 'sysroot-helper', 'agents.tar', 'bitwarden.tar'):
-        with (context / name).open('rb') as stream:
-            inputs['artifacts'][name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+    catalog = None
+    if spec['id'] == 'qemu-arm64':
+        compiler = args.work / 'catalog-resolution'
+        compiler.mkdir()
+        script = ROOT / (IMAGE + 'catalog/builder.sh')
+        log = run('sudo', 'podman', 'run', '--rm', '--pull=always', '--platform=linux/arm64',
+                  '--volume', str(script.resolve()) + ':/tmp/kedra-catalog-builder.sh:ro',
+                  '--volume', str(compiler.resolve()) + ':/resolution', '--entrypoint', '/bin/bash',
+                  base, '/tmp/kedra-catalog-builder.sh', '--resolve', timeout=2400)
+        (compiler / 'resolver.log').write_bytes(log.stdout + log.stderr)
+        run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', compiler / 'catalog-builder-rpms.txt')
+        catalog = {'pins': ROOT / 'output/release-binaries/catalog-pins.json',
+                   'builder_rpms': compiler / 'catalog-builder-rpms.txt'}
+    inputs = m.resolved_inputs(ROOT, plan, base, context, ROOT / 'output/release-binaries',
+                               m.read(resolution / 'package-material.txt'), spec['id'], catalog=catalog)
     material_bytes = m.canonical(inputs)
     (args.work / 'resolved-inputs.json').write_bytes(material_bytes)
     write(args.work / 'preflight-bootc-compatibility.json', m.bootc_compatibility(inputs['packages'], spec['architecture']))
@@ -276,6 +282,13 @@ def inspect_candidate(spec, args):
     state = m.document(m.read(args.work / 'build-state.json', 65536))
     m.require(state['target'] == spec['id'] and observed['identity'] == state['identity']
               and observed['identity']['source_revision'] == source, 'Built image differs from prepared identity')
+    if spec['id'] == 'qemu-arm64':
+        selected = m.document(m.read(args.work / 'native-candidate.json', m.LIMIT))
+        m.require(selected.get('source_revision') == source
+                  and selected.get('source_manifest_sha256') == state['identity']['source_manifest_sha256'],
+                  'Native selection differs from accepted source')
+        config = m.document(m.read(args.work / 'built-config.json'))
+        m.verify_native(config, m.read(args.work / 'built-native.json'), observed['inputs'], selected)
     write(args.work / 'built-bootc-compatibility.json',
           m.bootc_compatibility(observed['inputs']['packages'], spec['architecture']))
     m.require_bootc(observed['inputs']['packages'], spec['architecture'])
@@ -320,10 +333,13 @@ def publish(spec, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=('prepare', 'inspect-candidate', 'publish'))
+    parser.add_argument('operation', choices=('resolve-base', 'prepare', 'inspect-candidate', 'publish'))
     parser.add_argument('--target', choices=sorted(m.TARGETS), required=True)
     parser.add_argument('--work', type=Path, required=True)
     args = parser.parse_args()
     spec = target(args.target)
     args.work.mkdir(parents=True, exist_ok=True)
-    {'prepare': prepare, 'inspect-candidate': inspect_candidate, 'publish': publish}[args.operation](spec, args)
+    if args.operation == 'resolve-base':
+        print(resolve_base(spec, args.work))
+    else:
+        {'prepare': prepare, 'inspect-candidate': inspect_candidate, 'publish': publish}[args.operation](spec, args)

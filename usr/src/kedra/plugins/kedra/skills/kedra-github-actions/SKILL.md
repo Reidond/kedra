@@ -58,3 +58,109 @@ commit ID without a named ref. The corrected private 0700 named-ref bundle prese
 exact image provenance and checkout state under hostile Git settings. Release
 36702944904 passes both full exact-candidate suites, signing and strict publication
 (all eight jobs); validation is observed, not inferred from workflow text.
+
+ARM release-fixture findings (2026-10-02; see
+`.specs/nix-release-composition/verification.md`): preserve OCI manifest bytes with
+Skopeo `--preserve-digests`; a Podman push may change layer representation even
+when config/RootFS match. Public fixture metadata copied into a root image needs
+explicit 0644 under a private 077 producer umask. Scope any 022 umask to the
+public producer/installer subprocess; private keys and parent logs remain private.
+Store archives and transfer exports each have their own receipt/hash, while
+config/RootFS/native/source bindings establish continuity between representations.
+
+Anaconda 44.30 maps `xconfig --startxonboot` to the graphical default target.
+Observed cold install changed only default.target despite greetd providing the
+graphical-login capability; do not infer a missing provider. Explicit graphical
+selection preserves all twelve native artifacts in the external-Kickstart proof.
+Installer completion must run outside target chroot through a verified character
+device without create/truncate: an ordinary chrooted Path.write_text created a
+regular target serial file. The public defaults/embedded-marker source is fixed;
+its newly rebuilt owning-source media remains unqualified until the recorded
+fresh-install gate passes. External-input recovery does not qualify that route.
+
+Candidate failure evidence (2026-10-03, PR34 run37107489350): ARM foundation
+failure logs beneath private candidate work were absent from uploaded evidence,
+so its cause could not be established. Candidate foundation/compose now select
+`compose.py --diagnostic-output` in public evidence. Retain only bounded structured
+step/tool/exit, exception source basename/line, log hashes/sizes and fixed observed
+markers; never upload raw private logs or arbitrary exception messages. Preserve
+the first failed command across finally cleanup, and never mask the original
+exit if diagnostic writing fails. See release-composition verification.md.
+
+
+Retained local registry replay (2026-10-03, Podman5.4.2): select the full existing
+volume name and independently observed CreatedAt; public fixture inspection binds
+local backing device/inode and no consumers before create, then exact stopped
+container/mount identity before start. Use `:nocopy`; even retained NeedsCopyUp
+metadata must not permit payload copy-up. The actual tiny stopped-create proof
+preserves sentinel bytes/modes/inode and refuses wrong creation time/consumers
+(see release-composition verification.md). Dedicated serialized controller
+ownership remains required. Never select backup custody for replay; metadata
+creation is expected, so describe payload preservation precisely. Fixture-only
+compatible descendants still satisfy original recipe/binary admission; newer
+production recipe changes require fresh material. Installer-base overrides do
+not replace signed payload identity or waive TLS, deadline or capacity gates.
+
+Hosted Docker28.0.4/overlay2 image retention (2026-10-04): the real public tiny
+preflight selected a config digest while Docker save emitted a different single
+OCI root manifest. Strict store add-image correctly refused78; this is not a
+multiple-root or CDN failure. Keep the engine's root/graph binding. The QEMU
+workflow explicitly selects containerd-snapshotter and must pass the unchanged
+public preflight before full candidate work; configuration alone is not a pass.
+Preserve other daemon settings, refuse existing containers before switching,
+and retain bounded backend/root/config metadata plus actual cleanup exits.
+Sources: `.specs/nix-release-composition/verification.md`, runs37199831847 and
+37199833274, https://docs.docker.com/engine/storage/containerd/ .
+
+Docker28.0.4 inspect Config also injects three empty strings, six false booleans
+and three null fields absent from the actual exported config (2026-10-04,
+QEMU runs37215763783/37215764140). The producer adjusts only those twelve typed
+inspect-only defaults, refusing nondefault/other mismatches; platform, all diff
+IDs and full transferred config-byte identity remain required. Do not expand
+normalization from assumptions. Source/evidence: release-composition verification
+and https://docs.docker.com/engine/deprecated/#non-standard-fields-in-image-inspect .
+
+Installer-stage evidence (2026-10-05, Anaconda 44.30): the normal
+`anaconda.service` starts detached tmux; a live wrapper is not the foreground
+installer's health. Default ExecMainStatus=0/Result=success before process exit is
+not completion. Observe actual exit timestamps before recording exit-qualified
+results. The successful local HVF serial also lacks several broad progress
+phrases, so absent prose cannot locate the hosted installation stall. Sources:
+[normal service](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda.service),
+[pre service](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda-pre.service)
+and D2 verification, hosted runs37234495769/37234495358/37234495136/37234496224.
+Keep private Kickstart/guest logs private: the research boot-probe's raw journal
+trap is unsuitable for credential-bearing installer fixtures. Use fixed bounded
+stage/state tokens and unchanged acceptance/deadline checks. Owning source
+deb442c adds that diagnostic path. Run37283817872 observes successful verifier
+exit and Kickstart storage-include emission before another installation timeout.
+Writing that include does not prove Anaconda applied it. Unavailable metadata
+commands and deduplicated stage tokens do not establish ongoing guest health.
+
+Anaconda44.30's [installation queue logger](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/boss/installation.py)
+prints the future task list before execution. Match actual task-start/completion
+records with the verified formatter/module prefix; a bare task name is not
+progress. Source7c59fd8 adds those fixed observations and bounded numeric health
+summaries. Only new increasing guest sequences refresh liveness, and host
+samples refer to the live owned QEMU process before cleanup. Drop malformed data;
+stop further metadata subprocesses if child cleanup cannot be established.
+Keep health sampling independent of token saturation. Dropped frames, sampled
+extrema and missing bounded-log messages cannot prove a specific stall cause.
+Run37305788202 verifies157 increasing guest heartbeats near the deadline with
+no sampled OOM, but installation still fails. The previous task-log assumption
+was incomplete: the main UI formatter does not govern D-Bus module processes.
+The [module initializer](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/common/__init__.py)
+uses default Python logging (`INFO:anaconda.modules...`); the
+[launcher](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/core/startup/dbus_launcher.py)
+routes Boss stderr to private `/tmp/dbus.log`. Payload/storage modules also
+write `/tmp/packaging.log` and `/tmp/storage.log` using that module format.
+Sourcec01ee2f corrects fixed per-file matching under the same64KiB bounds.
+Do not infer task non-execution from the old classifier's absent markers.
+Existing UI initialization/task-start observations do not establish physical
+formatting or completion. Corrected sourcec01ee2f/run37330502213 attempt2
+still fails installation at7201.573s. Its bootc EXEC log follows
+`_clean_physroot()` returning but precedes storage `GetArguments()`, adapter
+mounts and child creation (Anaconda44.30 deployment source614ac3f3).
+It cannot prove bootc child launch; a command log before Popen cannot either.
+Preserve that narrower boundary without inventing a cause. Guest heartbeats
+prove observer liveness, not the installer process family or useful progress.

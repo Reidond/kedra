@@ -1,0 +1,107 @@
+{
+  "owner": "O1",
+  "scope": "Research only; Kedra main b224d5711e857f7dbcaabf7ed42870916525800c; focused source analysis, no implementation or runtime qualification",
+  "access_date": "2026-10-01",
+  "findings": [
+    {
+      "source_id": "S-012",
+      "coverage": "Focused, not exhaustive: sections 3.4-3.5, 5.1-5.4, selected 5.5, 5.6-5.7, selected 6.1/6.3/6.4 and 7.1. PDF body page equals printed page plus 8.",
+      "claims": [
+        {"claim": "Historical model: content-addressed source objects, input-addressed ordinary outputs, and fixed-output derivations have distinct identities. Input identity does not establish equal realized bytes; extensional equality is an explicit model assumption.", "evidence": "Supplied phd-thesis.pdf, PDF105-106/printed97-98 section5.3; PDF108-114/printed100-106 section5.4; PDF142/printed134 section5.7. https://nixos.org/~eelco/pubs/phd-thesis.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Historical canonical encoding records regular-file bytes/executability, ordered directory entries and symlink targets, excluding timestamps and most metadata; namespace and symbolic name participate in store identity.", "evidence": "PDF98-102/printed90-94, section5.2 and Figure5.2", "confidence": "high", "importance": "central"},
+        {"claim": "Validity, stored-content hash, closure and reverse-reference integrity are explicit invariants. Per-output locks, a second validity check, successful output validation and transactional registration support concurrent retry. Power-loss recovery additionally depends on filesystem durability.", "evidence": "PDF103-108/printed95-100, Invariants1-4 and Figures5.3-5.4; PDF119-121/printed111-113, realization steps75-82", "confidence": "high", "importance": "central"},
+        {"claim": "Runtime references are found against the full input closure. Encoded, compressed, hidden and outside-store references limit conservative scanning; the author's positive result is empirical for the studied Unix packages.", "evidence": "PDF65-67/printed57-59 section3.4; PDF113-114/printed105-106; PDF121-122/printed113-114, Figure5.12; PDF187-188/printed179-180", "confidence": "high", "importance": "central"},
+        {"claim": "Root registration must be coordinated with GC before unprotected objects can be used; in-flight operations need temporary roots. Interrupted collection must invalidate/delete referrers before their dependencies. The historical proof excludes nontrivial reference cycles and does not automatically protect executing programs through profiles alone.", "evidence": "PDF133-142/printed125-134, sections5.6.1-5.6.4; specifically PDF138/printed130 Figure5.21 and PDF134-135/printed126-127 discussion of running Firefox", "confidence": "high", "importance": "central"},
+        {"claim": "The intensional content-addressed output model is labeled a rough prototype. Self references require hash-modulo-self and rewriting; output content addressing changes realization lookup from one predicted output to potentially multiple content results.", "evidence": "PDF143/printed135 chapter6 opening; PDF151-154/printed143-146 sections6.3.2-6.4", "confidence": "high", "importance": "central"},
+        {"claim": "Bootstrap tools enter as retained atoms, while compiler/libc isolation, platform libraries, dynamic loaders and RPATH policy remain package-system responsibilities. Rust manager portability cannot establish binary portability.", "evidence": "PDF177-179/printed169-171 section7.1; PDF185-188/printed177-180 section7.1.2-7.1.4. Last sentence is design inference.", "confidence": "high", "importance": "central"}
+      ],
+      "provenance": {"status": "verified supplied local PDF", "canonical_url": "https://nixos.org/~eelco/pubs/phd-thesis.pdf", "local_pdf": "sources/papers/phd-thesis.pdf", "local_text": "sources/text/phd-thesis.txt", "verification": "Read relevant full sections in extracted text with PDF-page boundaries; PDF121 directly re-extracted to verify location. Archive checksums remain in sources/archive.json. No remote-byte equivalence claimed."},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-015",
+      "coverage": "PDF1-15, motivation, binary patches, patch chaining, base selection and experience; sections1-6 and conclusion opening. Supplied body has no printed page numbers.",
+      "claims": [
+        {"claim": "Changes to fundamental inputs propagate through build identities and require dependent rebuilds. Binary patches reduce transfer cost while constructing a new output; they do not eliminate rebuilds or justify destructive in-place upgrades.", "evidence": "Supplied eupfcdm-cbse2005-final.pdf PDF5-8, sections2-3. https://nixos.org/~eelco/pubs/eupfcdm-cbse2005-final.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Canonical archive deltas handle directory renames; a weighted graph selects patch/download chains, with full-download fallback and source-archive hash checking. Patch-base selection remains heuristic.", "evidence": "PDF8-12 sections3-4; PDF15 section6", "confidence": "high", "importance": "supporting"},
+        {"claim": "Results cover 50 historical releases and selected comparisons, with CPU/memory costs and separate disk duplication. They do not establish current or Kedra performance. Defer deltas until correct full transfer is qualified.", "evidence": "PDF13-14 section5 and Table1; final recommendation is design inference", "confidence": "high", "importance": "supporting"}
+      ],
+      "provenance": {"status": "verified supplied local PDF", "canonical_url": "https://nixos.org/~eelco/pubs/eupfcdm-cbse2005-final.pdf", "local_pdf": "sources/papers/eupfcdm-cbse2005-final.pdf", "local_text": "sources/text/eupfcdm-cbse2005-final.txt"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-016",
+      "coverage": "PDF3-9/printed81-87 and PDF13/printed91: implementation, frontend separation, substitutes, user environment policy and limitations",
+      "claims": [
+        {"claim": "A simpler store-expression intermediate representation separates evolving frontend languages from realization and deployment policy, allowing alternative frontends.", "evidence": "Supplied nspfssd-lisa2004-final.pdf PDF6-7/printed84-85, Building Components. https://nixos.org/~eelco/pubs/nspfssd-lisa2004-final.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Immutable installation space and user-selected environment views are separate. Substitution realizes the same requested object through another mechanism, and build-only inputs need not be transferred with binary runtime closures.", "evidence": "PDF3-5/printed81-83 and PDF7-9/printed85-87", "confidence": "high", "importance": "central"},
+        {"claim": "A renamed profile pointer and retained generation roots support atomic selection and rollback. This does not establish atomic process restart or mutable-data rollback, and the conclusion's secure multi-user sharing is described as future work.", "evidence": "PDF9/printed87 User Environment Policies; PDF13/printed91 Conclusion. Process/data limitation is design inference from scope of mechanism.", "confidence": "high", "importance": "central"}
+      ],
+      "provenance": {"status": "verified supplied local PDF", "canonical_url": "https://nixos.org/~eelco/pubs/nspfssd-lisa2004-final.pdf", "local_pdf": "sources/papers/nspfssd-lisa2004-final.pdf", "local_text": "sources/text/nspfssd-lisa2004-final.txt"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-017",
+      "coverage": "PDF3-9 sections3-8. Supplied body has no printed page numbers.",
+      "claims": [
+        {"claim": "Build-time consumption, retained references and runtime-supplied composition are distinct dependencies; deployment requires the transitive closure of retained references.", "evidence": "Supplied immdsd-icse2004-final.pdf PDF3-4 sections3-4. https://nixos.org/~eelco/pubs/immdsd-icse2004-final.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Recognizable hash names support conservative scanning, but UTF-16, compressed pointers and non-store dependencies can escape it. The reported 135-component experience and 47-package comparison are bounded empirical evidence, not a completeness theorem.", "evidence": "PDF4-5 section5; PDF9 section8", "confidence": "high", "importance": "central"},
+        {"claim": "Relocation can invalidate embedded pointers and checksums. Stable namespaces help sharing; language-independent implementation is not proof of ABI or filesystem portability.", "evidence": "PDF5-7 sections6-7; final portability distinction is design inference", "confidence": "high", "importance": "supporting"}
+      ],
+      "provenance": {"status": "verified supplied local PDF", "canonical_url": "https://nixos.org/~eelco/pubs/immdsd-icse2004-final.pdf", "local_pdf": "sources/papers/immdsd-icse2004-final.pdf", "local_text": "sources/text/immdsd-icse2004-final.txt", "verification": "PDF5 directly re-extracted to confirm pointer-hiding evidence location"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-018",
+      "coverage": "PDF5-6,10-12,15-16: relevant portions of sections2-5 and7. Supplied body has no printed page numbers.",
+      "claims": [
+        {"claim": "The paper describes Maak, a Haskell prototype, integrating explicit cross-package build graphs, activation and prebuilt-derivate reuse; it is not a modern Nix implementation description.", "evidence": "Supplied iscsd-scm11-final.pdf PDF5-6,10-12 sections2-5. https://nixos.org/~eelco/pubs/iscsd-scm11-final.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Maak's update barriers suppress selected dependency propagation; its collision strategy can overwrite/rebuild derivates. These differ from strict immutable content/recipe contracts and must not be adopted as if equivalent.", "evidence": "PDF11-12, Barriers and section5 Implementation; recommendation is design inference", "confidence": "high", "importance": "supporting"},
+        {"claim": "Sharing security, binary-only support and scalability are stated future work.", "evidence": "PDF15-16 section7 Conclusion", "confidence": "high", "importance": "supporting"}
+      ],
+      "provenance": {"status": "verified supplied local PDF", "canonical_url": "https://nixos.org/~eelco/pubs/iscsd-scm11-final.pdf", "local_pdf": "sources/papers/iscsd-scm11-final.pdf", "local_text": "sources/text/iscsd-scm11-final.txt"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-022",
+      "coverage": "2021 announcement; revision-pinned README, architecture design, workspace/tree and selected actual Rust interfaces. No original-depot equivalence, complete audit, build, runtime or independent CI qualification.",
+      "claims": [
+        {"claim": "The 2021 announcement proposes nixpkgs compatibility and modular evaluator/builder/store design; these are historical goals.", "evidence": "https://tvl.fyi/blog/rewriting-nix , 2021-12-01 by tazjin, high-level goals", "confidence": "high", "importance": "supporting"},
+        {"claim": "The pinned README declares unstable APIs and non-production readiness, lists store/build components, and declares GPL-3.0 code with MIT protocol definitions. Its Nix2.3 statement concerns Nix builds of Tvix, not complete package compatibility.", "evidence": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/README.md , warning, Components, Compatibility and License structure", "confidence": "high", "importance": "central"},
+        {"claim": "Actual pinned tree/workspace omit build/castore/store, despite the README inventory. Architecture prose acknowledges outdated statements. Actual TvixStoreIO delegates language IO to SimulatedStoreIO.", "evidence": "https://api.github.com/repos/tvlfyi/tvix/git/trees/9bed4ce6fc4c308f28df485b286a9aee467af686?recursive=1 ; https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/Cargo.toml members; https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/docs/src/architecture.md Coordinator warning; https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/glue/src/tvix_store_io.rs lines28-68", "confidence": "high", "importance": "central"},
+        {"claim": "The simulated store computes NAR path identities and maps imports to source paths; it can read existing local Nix store paths despite the header's stronger purity description. It provides no realization engine. Independent purity requires an explicit allowed-input adapter.", "evidence": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/simstore/src/lib.rs lines1-16,116-141,254-277; final sentence is design inference", "confidence": "high", "importance": "central"},
+        {"claim": "Inspected nix-compat interfaces implement typed derivations, canonical ATerm serialization and Nix input/fixed-output path calculations. StorePath and fingerprints assume /nix/store. These are potential compatibility components, not a ready generic runtime engine.", "evidence": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/derivation/mod.rs lines28-93,131-148,182-281; https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/utils.rs lines46-168; https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/mod.rs lines15-21,165-205", "confidence": "high", "importance": "central"},
+        {"claim": "EvalIO provides injectable language-level filesystem operations, not a complete realization protocol. Suitability for Kedra reuse remains unqualified without an end-to-end experiment.", "evidence": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/eval/src/io.rs lines65-116; no build/tests run", "confidence": "high", "importance": "central"}
+      ],
+      "provenance": {"status": "verified manifest-authorized mirror and primary announcement; original access remains blocked as reported by planner", "canonical_url": "https://code.tvl.fyi/about/tvix", "mirror": "https://github.com/tvlfyi/tvix", "revision": "9bed4ce6fc4c308f28df485b286a9aee467af686", "revision_committer_date": "2026-09-27T10:41:56Z", "revision_verification": "git ls-remote refs/heads/canon plus https://api.github.com/repos/tvlfyi/tvix/commits/9bed4ce6fc4c308f28df485b286a9aee467af686", "resolution": "needs-more source access resolved for bounded code analysis; production usability not established"},
+      "analysis_outcome": "complete"
+    }
+  ],
+  "handoffs": [
+    {"url": "https://nix.dev/manual/nix/2.34/", "why_relevant": "O3 owns modern semantics. Reconcile historical input/fixed/content addressing, runtime roots, root acquisition, reference-set trust and NAR metadata limits; O1 did not analyze this manual."},
+    {"url": "https://nixos.org/manual/nixos/stable/", "why_relevant": "O2 owns OS activation. Preserve separation of store/profile pointer atomicity from running-service transition and mutable-state rollback; O1 did not analyze this manual."}
+  ],
+  "used_web_urls": [
+    {"url": "https://tvl.fyi/blog/rewriting-nix", "observed_version": "2021-12-01 by tazjin"},
+    {"url": "https://github.com/tvlfyi/tvix", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686; read-only josh mirror"},
+    {"url": "https://api.github.com/repos/tvlfyi/tvix/commits/9bed4ce6fc4c308f28df485b286a9aee467af686", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://api.github.com/repos/tvlfyi/tvix/git/trees/9bed4ce6fc4c308f28df485b286a9aee467af686?recursive=1", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/README.md", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/Cargo.toml", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/docs/src/architecture.md", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/glue/src/tvix_store_io.rs", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/simstore/src/lib.rs", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/derivation/mod.rs", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/utils.rs", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/nix-compat/src/store_path/mod.rs", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"},
+    {"url": "https://raw.githubusercontent.com/tvlfyi/tvix/9bed4ce6fc4c308f28df485b286a9aee467af686/eval/src/io.rs", "observed_revision": "9bed4ce6fc4c308f28df485b286a9aee467af686"}
+  ],
+  "bibliography": [
+    {"source_id": "S-012", "title": "The Purely Functional Software Deployment Model", "authors": ["Eelco Dolstra"], "year": 2006, "venue": "PhD thesis, Faculty of Science, Utrecht University"},
+    {"source_id": "S-015", "title": "Efficient Upgrading in a Purely Functional Component Deployment Model", "authors": ["Eelco Dolstra"], "year": 2005, "venue": "Eighth International SIGSOFT Symposium on Component-based Software Engineering (CBSE 2005)"},
+    {"source_id": "S-016", "title": "Nix: A Safe and Policy-Free System for Software Deployment", "authors": ["Eelco Dolstra", "Merijn de Jonge", "Eelco Visser"], "year": 2004, "venue": "18th Large Installation System Administration Conference (LISA 2004)"},
+    {"source_id": "S-017", "title": "Imposing a Memory Management Discipline on Software Deployment", "authors": ["Eelco Dolstra", "Eelco Visser", "Merijn de Jonge"], "year": 2004, "venue": "26th International Conference on Software Engineering (ICSE 2004)"},
+    {"source_id": "S-018", "title": "Integrating Software Construction and Software Deployment", "authors": ["Eelco Dolstra"], "year": 2003, "venue": "11th International Workshop on Software Configuration Management (SCM-11)"},
+    {"source_id": "S-022", "title": "Tvix Rust implementation and architecture packet", "authors": ["TVL contributors"], "year": 2026, "venue": "TVL depot, manifest-authorized GitHub mirror at 9bed4ce6fc4c308f28df485b286a9aee467af686", "historical_document": {"title": "Tvix: We are rewriting Nix", "authors": ["tazjin"], "year": 2021, "venue": "TVL blog"}}
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "owner": "O4",
+  "date": "2026-10-01",
+  "base": "b224d5711e857f7dbcaabf7ed42870916525800c",
+  "scope": "Research/proposal only: shareable Rust core for Kedra builds and declarative OS configuration. No implementation, migration, benchmarks or runtime qualification.",
+  "findings": [
+    {
+      "source_id": "S-002",
+      "claims": [
+        {"claim": "Shared source still needs platform-specific toolchain, loader, packaging and distribution adapters; historical Evopedia deployment demonstrates concrete portability friction.", "evidence": "Sections 6.1.5-6.1.7, printed 42-45 / PDF 43-46; https://github.com/qknight/Multi-PlatformSoftwarePackageManagement/raw/master/Multi-PlatformSoftwarePackageManagement.pdf", "confidence": "high", "importance": "supporting"},
+        {"claim": "Replacing dependency inputs while retaining prior immutable artifacts differs from mutating an installed store object and preserves rollback choices.", "evidence": "Sections 5.17-5.18, printed 35-36 / PDF 36-37", "confidence": "high", "importance": "supporting"},
+        {"claim": "The author explicitly leaves cross-compilation investigation incomplete; 2011 platform experiments do not establish current support or current Nixpkgs platform semantics.", "evidence": "Chapter 8, printed 59 / PDF 60", "confidence": "high", "importance": "central"}
+      ],
+      "provenance": {"status": "verified", "canonical_url": "https://github.com/qknight/Multi-PlatformSoftwarePackageManagement/raw/master/Multi-PlatformSoftwarePackageManagement.pdf", "method": "Preserved primary PDF and extracted text", "coverage": "Focused, not exhaustive: sections 4.3-4.4, 5.17-5.18, chapter 6, chapter 7 introduction, chapter 8", "local_pdf": "sources/papers/Multi-PlatformSoftwarePackageManagement.pdf"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-003",
+      "claims": [
+        {"claim": "Declarative machines/networks plus an imperative driver instantiate real services and required topology; tests and environments become build artifacts.", "evidence": "Sections III-IV, PDF 4-7; https://nixos.org/~eelco/pubs/decvms-issre2010-final.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Shared immutable software and per-VM mutable storage reduce environment duplication; isolated control sockets avoid fixed-port conflicts.", "evidence": "Section III-B, PDF 5", "confidence": "high", "importance": "supporting"},
+        {"claim": "NixOS guest, noninteractive-tool and single-host small-network limits qualify generality; historical five-run timings are not present-day Kedra benchmarks.", "evidence": "Section V PDF 7-8, VI PDF 9, VII PDF 10", "confidence": "high", "importance": "central"}
+      ],
+      "provenance": {"status": "verified", "canonical_url": "https://nixos.org/~eelco/pubs/decvms-issre2010-final.pdf", "method": "Preserved primary PDF text, all 10 pages", "coverage": "Full paper, including evaluation and limitations", "local_pdf": "sources/papers/decvms-issre2010-final.pdf"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-008",
+      "claims": [
+        {"claim": "Functions describe package/test variants and their environment; platform-specific execution consumes the declared dependencies.", "evidence": "Section 2, PDF 3-7; https://nixos.org/~eelco/pubs/buildfarm-wasdett2008-final.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Building with Nix paths/tools does not prove native distribution builds; separate generated VM builds cover native RPM/Debian environments.", "evidence": "Section 2, PDF 5-7", "confidence": "high", "importance": "supporting"},
+        {"claim": "Automatic configuration-space exploration and failure isolation are future work, not demonstrated scheduler capabilities.", "evidence": "Section 4, PDF 8", "confidence": "high", "importance": "supporting"}
+      ],
+      "provenance": {"status": "verified", "canonical_url": "https://nixos.org/~eelco/pubs/buildfarm-wasdett2008-final.pdf", "method": "Preserved primary PDF text, all 9 pages", "coverage": "Full paper", "local_pdf": "sources/papers/buildfarm-wasdett2008-final.pdf"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-009",
+      "claims": [
+        {"claim": "Language evaluation describes a graph of imperative build actions; it is a separate operation from executing those actions.", "evidence": "Section 2, PDF 3-5; https://nixos.org/~eelco/pubs/laziness-ldta2008-final.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Maximal sharing plus evaluation memoization reuses equal closed terms, but substitution needs closed-term optimization; non-strict arguments and low-sharing programs qualify performance and memory claims.", "evidence": "Sections 3-4 PDF 7-11, section 5 PDF 12-13", "confidence": "high", "importance": "central"},
+        {"claim": "Simplified error treatment and historical evaluator benchmarks do not define current Nix compatibility or predict Rust performance.", "evidence": "Section 2.2 PDF 5-6; section 5 PDF 12-13", "confidence": "high", "importance": "supporting"}
+      ],
+      "provenance": {"status": "verified", "canonical_url": "https://nixos.org/~eelco/pubs/laziness-ldta2008-final.pdf", "method": "Preserved primary PDF text, all 15 pages", "coverage": "Full paper", "local_pdf": "sources/papers/laziness-ldta2008-final.pdf", "date_note": "Preprint dated 16 February 2008; LDTA 2008 event, ENTCS publication 2009; DOI not independently checked here"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-011",
+      "claims": [
+        {"claim": "Generic supervision wraps Nix-driven job scripts; release artifacts are built by derivations while uploading is performed separately.", "evidence": "Section 4, printed 69-73 / PDF 80-84; https://pure.tue.nl/ws/files/2239914/628612.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Recorded release jobs replace moving references with exact source revisions and hashes.", "evidence": "Section 4 Reproducing releases, printed 73 / PDF 84", "confidence": "high", "importance": "central"},
+        {"claim": "The article explicitly limits native-platform claims and reports serialized prototype scheduling; automatic configuration exploration remains future work.", "evidence": "Sections 5-6, printed 74-76 / PDF 85-87", "confidence": "high", "importance": "supporting"}
+      ],
+      "provenance": {"status": "verified", "canonical_url": "https://pure.tue.nl/ws/files/2239914/628612.pdf", "method": "All assigned image-only pages rendered with pdftoppm at 180dpi and visually read; native macOS Vision accurate en-US OCR also produced", "coverage": "Entire assigned article printed 65-77 / PDF 76-88, no unrelated proceedings papers", "local_pdf": "sources/papers/628612.pdf", "ocr_temp_path": "/tmp/kedra-o4-research/vvss-ocr.txt", "ocr_archive_handoff": "Parent reports sources/text/628612-nix-article-ocr.txt plus metadata", "ocr_uncertainty": "Original PDF authoritative; OCR punctuation/code can be wrong. Claims independently checked visually."},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-021",
+      "claims": [
+        {"claim": "Named QEMU nodes and a Python driver support real multi-machine checks and interactive investigation; successful results may be reused from cache.", "evidence": "Introduction; testers.runNixOSTest; Interactive Python shell; Re-running successful tests; Tests with multiple virtual machines. https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines", "confidence": "high", "importance": "central"},
+        {"claim": "The mutable tutorial's old example pin and undocumented macOS footnote are not Kedra runtime qualification.", "evidence": "Minimal example; footnote 1; accessed 2026-10-01", "confidence": "high", "importance": "supporting"}
+      ],
+      "provenance": {"status": "verified", "canonical_url": "https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines", "method": "Live official page read in full", "coverage": "Entire tutorial; linked manuals not analyzed", "observed_version": "Undated mutable documentation, examples use nixos-23.11", "accessed": "2026-10-01"},
+      "analysis_outcome": "complete"
+    },
+    {
+      "source_id": "S-023",
+      "claims": [
+        {"claim": "The proof relates NixLang semantics and interpreter, not the complete package manager; Nix 2.25.0 tests: 182 total, 108 supported, 103 agree.", "evidence": "Section 4.4 PDF 19-20; section 5 PDF 21-22; https://robbertkrebbers.nl/research/articles/nix.pdf", "confidence": "high", "importance": "central"},
+        {"claim": "Call-by-name/sharing differences and omitted filesystem/derivation features limit compatibility.", "evidence": "Limitations PDF 5; section 5 PDF 21-22; future work PDF 27", "confidence": "high", "importance": "central"}
+      ],
+      "provenance": {"status": "verified", "canonical_url": "https://robbertkrebbers.nl/research/articles/nix.pdf", "method": "Author-hosted PDF fetched and pdftotext extraction read", "coverage": "Focused technical reading sections 1-5, 7-8, not independent proof checking", "temporary_pdf": "/tmp/kedra-o4-research/nix.pdf", "observed_version": "August 2025 publication; evaluation reference Nix 2.25.0", "accessed": "2026-10-01"},
+      "analysis_outcome": "complete"
+    }
+  ],
+  "handoffs": [
+    {"url": "https://nix.dev/tutorials/cross-compilation", "why_relevant": "Observed navigation in assigned S021 tutorial; not fetched/analyzed. A current primary source is needed before promising exact modern Nixpkgs build/host/target compatibility."}
+  ],
+  "cross_owner_handoffs": [
+    {"owner": "O3", "source_id": "S-019", "status": "Received through coordinator; not independently analyzed", "summary": "Nix2.34.9 string context carries dependency references; import-from-derivation can pause evaluation for realization; consult O3 exact source ledger."},
+    {"owner": "O2", "source_id": "S-020", "status": "Received through coordinator; not independently analyzed", "summary": "Modern VM/container tests and build-vm restrictions reinforce separate kernel/hardware qualification; simulated hardware does not prove real hardware."}
+  ],
+  "used_web_urls": [
+    "https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines",
+    "https://robbertkrebbers.nl/research/articles/nix.pdf"
+  ],
+  "bibliography": [
+    {"source_id": "S-002", "title": "Multi-Platform Software Package Management", "authors": ["Joachim Schiele"], "year": 2011, "venue": "Diploma thesis, Universität Tübingen", "date": "2011-03-26"},
+    {"source_id": "S-003", "title": "Automating System Tests Using Declarative Virtual Machines", "authors": ["Sander van der Burg", "Eelco Dolstra"], "year": 2010, "venue": "ISSRE 2010"},
+    {"source_id": "S-008", "title": "The Nix Build Farm: A Declarative Approach to Continuous Integration", "authors": ["Eelco Dolstra", "Eelco Visser"], "year": 2008, "venue": "WASDeTT 2008"},
+    {"source_id": "S-009", "title": "Maximal Laziness — An Efficient Interpretation Technique for Purely Functional DSLs", "authors": ["Eelco Dolstra"], "year": 2008, "venue": "LDTA 2008; Electronic Notes in Theoretical Computer Science publication 2009", "date_note": "Archived preprint dated 16 February 2008"},
+    {"source_id": "S-011", "title": "Automated Software Testing and Release with Nix Build Farms", "authors": ["Eelco Dolstra", "Eelco Visser"], "year": 2007, "venue": "Verification and Validation of Software Systems Symposium (VVSS 2007)", "pages": "65-77"},
+    {"source_id": "S-021", "title": "Integration testing with NixOS virtual machines", "authors": ["@olafklingt", "Domen Kožar"], "editor": "Valentin Gagarin", "year": null, "venue": "nix.dev official documentation", "accessed": "2026-10-01"},
+    {"source_id": "S-023", "title": "Verified Interpreters for Dynamic Languages with Applications to the Nix Expression Language", "authors": ["Rutger Broekhoff", "Robbert Krebbers"], "year": 2025, "venue": "Proceedings of the ACM on Programming Languages 9 (ICFP), Article 268", "doi": "10.1145/3747537", "date": "2025-08", "pages": "1-30"}
+  ],
+  "verification": {"research": "complete", "new_runtime_checks": "not-run", "new_benchmarks": "not-run", "builds": "not-run", "implementation": "not-started", "repository_write_scope": [".specs/nix-recreation/findings/O4-evaluation.md", ".specs/nix-recreation/findings/O4-evaluation.json"]}
+}

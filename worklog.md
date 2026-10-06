@@ -2,6 +2,8 @@
 
 Shared continuation record. Historical entries below are preserved; paths they name can refer to earlier revisions.
 
+Task learnings and AI/skill/workflow changes are recorded here alongside their related work; no separate AI ledgers are maintained.
+
 ## Current project status
 
 Last updated: 2026-10-06 (Europe/Kyiv).
@@ -2042,3 +2044,12 @@ Last updated: 2026-10-06 (Europe/Kyiv).
 - Final ARM evidence: artifact11398455573/report1791273582-6190 is not interrupted and records12/13 passes. Its sole failure is the same public home-init refusal of Noctalia5.2.1; all cleanup-failure fields are null. Candidate ghcr.io/reidond/kedra-qemu-arm64-builds@sha256:f3f61f5ae89c4308ec30cc9501e4a92995476bc5c30d86d68d018aac8c53469b. Parent report SHA42766a0d9ddac7c51313a3ae0254eae4a334cad6c30d99c39c565815a76e4b39; desktop report SHAadbdc8a47b27f292f62de33d26d815d9d1f7a58223b53798492b07fc5f4a6c27. Both report actual runtime `noctalia v5.2.1`, matching the explicit unsupported-version failure in home/linux.rs; no underlying apply/merge compatibility is inferred because initialization refuses first.
 - Remaining / blockers: the owner decision on additional5.2.1 qualification is pending. Existing hosted installer/native fault gaps remain separate; no workstation deployment is authorized. Do not retry unchanged candidates to bypass an intentional version gate.
 - Next: if authorized, qualify5.2.1's existing home-review behavior and compatibility with the sanctioned real workflows, then prepare a separately reviewed follow-up fix. Preserve exact-version refusal until the new runtime is qualified.
+
+### WL-20261006-03 — 2026-10-06 — Consolidate project records in the worklog
+- Agent / state: Codex; cleanup completed and published in [PR42](https://github.com/Reidond/kedra/pull/42).
+- Scope / base: owner explicitly requests removal of .ai/learnings.md and .ai/ai-changelog.md because worklog.md serves that purpose; branch codex/worklog-only-records from maindada085df4888ef374b7b37b28f6438bd47de3ff. Other worktrees and pending qualification work remain untouched.
+- Completed: removed both tracked duplicate ledgers. Their historical content remains in Git; current recovery limitations and skill changes remain in the worklog and existing verification documents. AGENTS.md now routes task learnings and AI/skill/workflow changes into ordinary worklog entries and prohibits recreating the two files, including when a bundled skill requests them. The Kedra context skill follows that rule; both plugin manifests are0.3.28 so Codex can refresh cached guidance. No global or third-party plugin configuration changes.
+- Approval handling: the learnings-removal hook initially required a stored approval record. The owner's direct request supplied the exact two-file authorization; it was recorded in the hook's required location and the same git rm command then succeeded. The approval receipt is retained with local task evidence; no extra tracked ledger or standing gate record is introduced.
+- Checks / evidence: pass — inspected both retired files and repository references; no runtime consumer or active link outside the removed files was found. Standard Git whitespace/diff review and both manifest JSON parses pass. GitHub readback confirms the two deletions and only the related guidance/manifests/worklog changes. Workspace checks and the protected merge are tracked on PR42; no runtime qualification is inferred from this documentation/configuration cleanup.
+- Remaining / blockers: existing release and runtime qualification gaps are unchanged; this consolidates records only. Future skills must follow this owner decision instead of recreating the retired files.
+- Next: use this worklog for future learnings and AI tooling changes without recreating parallel ledgers.

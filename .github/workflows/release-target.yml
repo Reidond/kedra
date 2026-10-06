@@ -152,7 +152,8 @@ jobs:
             cp usr/src/kedra/image/catalog/Containerfile usr/src/kedra/image/catalog/builder.sh "$catalog_root/builder/"
             cp output/image-evidence/catalog-resolution/catalog-builder-rpms.txt "$catalog_root/builder/"
             docker build --platform linux/arm64 --pull --no-cache --build-arg "BASE_IMAGE=$BASE_IMAGE" \
-              --iidfile "$catalog_root/builder.iid" --tag "localhost/kedra-catalog-builder:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$catalog_root/builder"
+              --iidfile "$catalog_root/builder.iid" --file "$catalog_root/builder/Containerfile" \
+              --tag "localhost/kedra-catalog-builder:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$catalog_root/builder"
             builder=$(cat "$catalog_root/builder.iid")
             test "$(docker image inspect "$builder" --format '{{.Architecture}} {{.Os}}')" = 'arm64 linux'
             output/release-binaries/sysroot store add-image --store "$RUNNER_TEMP/kedra-release-store" --image "$builder" > "$catalog_root/builder-retention.json"

@@ -40,7 +40,16 @@ The commands default to the private home-review state directory described in
 [home review](HOME-REVIEW.md). Use the same explicit `--state PATH` on each
 command if you already use a custom store. Initialization never replaces an
 existing record. The baseline comes from the installed image's verified source
-manifest. Live text is compared in memory; complete live snapshots are not saved
+manifest. When present, root-owned mode 0644 `/usr/share/sysroot/home-artifacts.json`
+also binds that ordinary baseline to an engine single-file source receipt.
+The loader checks source provenance and baseline bytes first, then requires the
+closed schema1 record, bounded to 4096 bytes, to match that content. Malformed,
+unknown, duplicate, mismatched, linked or unsafe records refuse without fallback.
+A genuinely absent record preserves legacy image behavior; absence alone says
+nothing about image age. Old CLIs retain the same ordinary baseline/source paths.
+No build store, artifact flag or preparation command is used on the desktop.
+Existing schema1 review/history/journal bytes and native apply remain unchanged.
+Live text is compared in memory; complete live snapshots are not saved
 in review state or Git objects.
 
 Managed text paths resolve through a closed application descriptor; only niri is

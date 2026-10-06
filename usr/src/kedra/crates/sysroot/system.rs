@@ -9,7 +9,7 @@ use sysroot_engine::{
     VerifiedComposition, read_system,
 };
 
-use crate::source;
+use crate::{home_artifact, source};
 
 const SOURCE_OWNER: &str = "kedra-source:";
 const SOURCE_NAMESPACE: &str = "/usr/share/sysroot";
@@ -142,6 +142,7 @@ fn definition(inputs: &Inputs) -> Result<SystemDefinition> {
         .iter()
         .map(|file| (file.destination.as_str(), file.source_path.as_str()))
         .collect();
+    let mut artifact = None;
     source::materialize(&inputs.repo, &source, |path, bytes, mode| {
         let owner = ownership.get(path).copied().unwrap_or("generated-manifest");
         // Assembly's fixed wrapper mode is an assertion on the retained foundation.
@@ -155,17 +156,40 @@ fn definition(inputs: &Inputs) -> Result<SystemDefinition> {
         } else {
             mode
         };
+        let bytes = if path == home_artifact::NIRI_DESTINATION {
+            if artifact.is_some() || mode != 0o644 {
+                return Err(source::Error::Invalid(
+                    "niri artifact requires one ordinary non-executable baseline".into(),
+                ));
+            }
+            let (record, stored) = home_artifact::produce(bytes, None)
+                .map_err(|error| source::Error::Invalid(error.to_string()))?;
+            artifact = Some(record);
+            stored
+        } else {
+            bytes.to_vec()
+        };
         definition.files.push(SystemFile {
             path: format!("/{path}"),
             mode,
             provenance: format!("{SOURCE_OWNER}{owner}"),
             priority: 0,
             replaces: None,
-            content: SystemContent::Bytes(bytes.to_vec()),
+            content: SystemContent::Bytes(bytes),
         });
         Ok(())
     })
     .map_err(|error| invalid(error.to_string()))?;
+    if let Some(record) = artifact {
+        definition.files.push(SystemFile {
+            path: home_artifact::RECORD_PATH.into(),
+            mode: 0o644,
+            provenance: format!("{SOURCE_OWNER}generated-home-artifact"),
+            priority: 0,
+            replaces: None,
+            content: SystemContent::Bytes(record),
+        });
+    }
     Ok(definition)
 }
 
@@ -210,8 +234,30 @@ pub fn run(options: Options) -> Result<()> {
             json(&Store::open(&inputs.store)?.plan_system(&definition)?)
         }
         Command::Compose { inputs, output_dir } => {
-            let definition = definition(&inputs)?;
-            json(&Store::open(&inputs.store)?.compose_system(&definition, &output_dir)?)
+            let mut definition = definition(&inputs)?;
+            let store = Store::open(&inputs.store)?;
+            let baseline = definition
+                .files
+                .iter_mut()
+                .find(|file| file.path == format!("/{}", home_artifact::NIRI_DESTINATION));
+            if let Some(file) = baseline {
+                let SystemContent::Bytes(bytes) = &file.content else {
+                    return Err(invalid("niri baseline must be committed bytes"));
+                };
+                let (record, stored) = home_artifact::produce(bytes, Some(&store))?;
+                file.content = SystemContent::Bytes(stored);
+                let expected = definition
+                    .files
+                    .iter()
+                    .find(|file| file.path == home_artifact::RECORD_PATH)
+                    .ok_or_else(|| invalid("niri artifact record is missing"))?;
+                if !matches!(&expected.content, SystemContent::Bytes(bytes) if *bytes == record) {
+                    return Err(invalid(
+                        "admitted niri artifact differs from planned record",
+                    ));
+                }
+            }
+            json(&store.compose_system(&definition, &output_dir)?)
         }
     }
 }

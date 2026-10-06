@@ -60,14 +60,47 @@ pub(crate) fn inspect(path: &Path, dest: Option<&Path>) -> Result<Tree> {
     };
     walker.walk(&fd, "")?;
     validate_links(&walker.entries)?;
-    let bytes = serde_json::to_vec(&walker.entries)?;
+    let digest = digest(&walker.entries)?;
+    Ok(Tree {
+        digest,
+        entries: walker.entries,
+        references: walker.refs,
+    })
+}
+fn digest(entries: &[Entry]) -> Result<String> {
+    let bytes = serde_json::to_vec(entries)?;
     let mut hash = Sha256::new();
     hash.update(b"sysroot-engine-tree-v1\0");
     hash.update(bytes);
+    Ok(crate::plan::encode_hex(&hash.finalize()))
+}
+pub(crate) fn single_file(member: &str, bytes: &[u8]) -> Result<Tree> {
+    relative(member, false)?;
+    if member.contains('/') || bytes.len() as u64 > MAX_FILE {
+        return Err(Error::Invalid(
+            "source member must be one bounded file".into(),
+        ));
+    }
+    let entries = vec![Entry {
+        path: member.into(),
+        kind: Kind::File {
+            executable: false,
+            bytes: bytes.len() as u64,
+            sha256: crate::plan::hash(bytes),
+        },
+    }];
+    let mut references = BTreeSet::new();
+    scan(member.as_bytes(), &mut references)?;
+    scan(bytes, &mut references)?;
+    if !references.is_empty() {
+        return Err(Error::Invalid(
+            "single-file source cannot reference store objects".into(),
+        ));
+    }
     Ok(Tree {
-        digest: crate::plan::encode_hex(&hash.finalize()),
-        entries: walker.entries,
-        references: walker.refs,
+        digest: digest(&entries)?,
+        entries,
+        references,
     })
 }
 impl Walker<'_> {

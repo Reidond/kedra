@@ -14,11 +14,12 @@ import hashlib
 import json
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import time
 import urllib.request
+
+from niri_fixture import incoming as incoming_niri
 
 parser = argparse.ArgumentParser()
 parser.add_argument('phase', choices=['images', 'requests'])
@@ -76,8 +77,10 @@ if args.phase == 'images':
     # Generate the independent incoming gap edit from the current baseline.
     # Native validation and the actual home CLI exercise the resulting inputs;
     # a particular historical desktop spacing is not a fixture prerequisite.
-    incoming = re.sub(r'(?m)^([ \t]*)gaps[ \t]+[0-9]+[ \t]*$', r'\g<1>gaps 18', published, count=1)
-    incoming = incoming.replace('\nbinds {\n', '\ncursor {\n    xcursor-size 28\n}\n\nbinds {\n')
+    incoming = incoming_niri(original)
+    artifact = repo / 'output/home-artifact'
+    if (artifact / 'config.kdl').read_text() != incoming:
+        raise RuntimeError('native composer artifact is not this exact B baseline')
 
     def commit(base, parent, path, text, message):
         git('read-tree', base)
@@ -122,6 +125,9 @@ if args.phase == 'images':
         dump(context / 'policy.json', {'default': [{'type': 'reject'}], 'transports': {'docker': {scope['repository']: [requirement]}, 'containers-storage': {'': [requirement]}}})
         (context / 'release.pub').write_bytes(public)
         (context / 'config.kdl').write_text(text)
+        shutil.copyfile(artifact / 'home-artifacts.json', context / 'home-artifacts.json')
+        shutil.copyfile(root / 'old-cli/sysroot', context / 'sysroot-old')
+        shutil.copyfile(tool, context / 'sysroot-new')
         (context / 'registries.yaml').write_text('docker:\n  registry.kedra.test:5000:\n    use-sigstore-attachments: true\n')
         (context / 'install.toml').write_text('[install]\nenforce-container-sigpolicy = true\n')
         for name in ['Containerfile', 'check.sh', 'check.service', 'home.py']:

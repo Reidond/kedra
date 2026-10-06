@@ -38,6 +38,14 @@ pub struct NativeTest {
 
 pub const TESTS: &[NativeTest] = &[
     NativeTest {
+        source: SourceApplicability::Composition,
+        name: "home_artifact_record",
+        profile: Profile::System,
+        fixtures: &[Fixture::TestUser],
+        targets: &["qemu-arm64"],
+        run: crate::home_artifact_tests::installed_record,
+    },
+    NativeTest {
         source: SourceApplicability::Derivation,
         name: "catalog",
         profile: Profile::System,
@@ -421,6 +429,7 @@ fn home_review_cycle(context: &Context<'_>) -> Result<()> {
         "KEDRA_R04_NATIVE_NIRI_RECOVERY_PASS",
         "KEDRA_R04_NIRI_INSTALLED_BASELINE_PASS",
         "KEDRA_R03_NATIVE_NIRI_LINES_PASS",
+        "KEDRA_HOME_ARTIFACT_PRIVATE_SELECTION_PASS",
     ] {
         ensure(niri.stdout_text().contains(marker), || {
             format!("niri review probe did not report {marker}")

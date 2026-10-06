@@ -38,7 +38,7 @@ pub use snapshot::{
     ManagedSnapshot, SnapshotPurpose, SnapshotRecovery, SnapshotRefusal, recover_snapshots,
 };
 #[cfg(unix)]
-pub use store::Store;
+pub use store::{Store, single_file_source_receipt, verify_single_file_source};
 #[cfg(unix)]
 pub use system::*;
 

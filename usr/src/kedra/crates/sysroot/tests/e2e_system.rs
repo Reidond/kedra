@@ -444,6 +444,197 @@ fn artifact_hashes(context: &Path) -> BTreeMap<String, String> {
 }
 
 #[test]
+#[ignore = "requires native aarch64 Docker and the retained Fedora foundation"]
+fn niri_artifacts_follow_public_composition_and_survive_store_gc() {
+    let f = Fixture::new();
+    f.repository();
+    const SOURCE: &str = "etc/skel/.config/niri/config.kdl";
+    const BASELINE: &str = "usr/share/sysroot/home/default/.config/niri/config.kdl";
+    const RECORD: &str = "usr/share/sysroot/home-artifacts.json";
+    let public = "layout {\n    gaps 12\n}\n";
+    f.write_source(SOURCE, public);
+    let first_revision = f.commit();
+    f.store("init", &[]);
+    f.store("add-image", &["--image", FOUNDATION]);
+    let roots = fs::read(f.path("store/roots/state.json")).unwrap();
+    let plan = json_output(f.system("plan", FOUNDATION, None, None));
+    assert_eq!(fs::read(f.path("store/roots/state.json")).unwrap(), roots);
+    assert_eq!(fs::read_dir(f.path("store/objects")).unwrap().count(), 0);
+    f.write_source(SOURCE, "PRIVATE_DIRTY_CANARY\n");
+    let first = f.path("niri-first");
+    let composed = json_output(f.system("compose", FOUNDATION, None, Some(&first)));
+    assert_eq!(composed["identity"], plan["identity"]);
+    let files = payload(&first);
+    assert_eq!(files[BASELINE], (0o644, public.as_bytes().to_vec()));
+    assert_eq!(files[RECORD].0, 0o644);
+    let record: Value = serde_json::from_slice(&files[RECORD].1).unwrap();
+    let receipt = &record["niri"];
+    let object = receipt["object"].as_str().unwrap();
+    assert!(object.starts_with("src-"));
+    assert_eq!(record["schema"], 1);
+    assert_eq!(receipt["references"], json!([]));
+    assert!(receipt["runtime_image"].is_null());
+    assert!(receipt["derivation"].is_null());
+    assert_eq!(f.store("verify", &["--object", object]), *receipt);
+    let data = f.path("store/objects").join(object).join("data");
+    assert_eq!(fs::read_dir(&data).unwrap().count(), 1);
+    assert_eq!(
+        fs::read(data.join("config.kdl")).unwrap(),
+        public.as_bytes()
+    );
+    assert_eq!(
+        fs::metadata(data.join("config.kdl"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o444
+    );
+    assert!(
+        !files
+            .keys()
+            .any(|path| path.starts_with("usr/lib/sysroot/store/"))
+    );
+    assert!(composed["plan"]["objects"].as_object().unwrap().is_empty());
+    let source: Value = serde_json::from_slice(&files["usr/share/sysroot/source.json"].1).unwrap();
+    assert_eq!(source["source_revision"], first_revision);
+
+    f.write_source(SOURCE, public);
+    f.write_source("etc/new-public-revision.conf", "second revision\n");
+    let second_revision = f.commit();
+    assert_ne!(second_revision, first_revision);
+    let second = f.path("niri-second");
+    let repeated = json_output(f.system("compose", FOUNDATION, None, Some(&second)));
+    assert_ne!(repeated["identity"], composed["identity"]);
+    assert_eq!(payload(&second)[RECORD].1, files[RECORD].1);
+    assert_eq!(fs::read_dir(f.path("store/objects")).unwrap().count(), 1);
+
+    let overlay = format!("{IMAGE}/targets/qemu-arm64/etc/skel/.config/niri/config.kdl");
+    f.write_source(&overlay, public);
+    f.commit();
+    let target_context = f.path("niri-target");
+    json_output(f.system("compose", FOUNDATION, None, Some(&target_context)));
+    let target_files = payload(&target_context);
+    assert_eq!(target_files[RECORD].1, files[RECORD].1);
+    let target_manifest: Value =
+        serde_json::from_slice(&target_files["usr/share/sysroot/source.json"].1).unwrap();
+    assert!(
+        target_manifest["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|file| file["destination"] == BASELINE && file["source_path"] == overlay)
+    );
+    fs::remove_file(f.path("repo").join(&overlay)).unwrap();
+
+    f.write_source(SOURCE, "layout {\n    gaps 18\n}\n");
+    f.commit();
+    let third = f.path("niri-third");
+    json_output(f.system("compose", FOUNDATION, None, Some(&third)));
+    let changed: Value = serde_json::from_slice(&payload(&third)[RECORD].1).unwrap();
+    assert_ne!(changed["niri"]["object"], receipt["object"]);
+
+    f.store("gc", &["--delete"]);
+    assert_eq!(f.store("verify", &["--object", object]), *receipt);
+    f.store("unpin", &["--object", object]);
+    f.store("gc", &["--delete"]);
+    assert!(!f.path("store/objects").join(object).exists());
+    // The immutable context must remain self-contained after genuine collection.
+    let identity = composed["identity"].as_str().unwrap();
+    let work = f.path("verify-work");
+    fs::create_dir(&work).unwrap();
+    let verified = json_output(run(f
+        .cli(&[
+            "system",
+            "verify",
+            "--context",
+            text(&first),
+            "--expected-identity",
+            identity,
+            "--workdir",
+            text(&work),
+        ])
+        .env("DOCKER_HOST", "unix:///unavailable.sock")));
+    assert_eq!(verified["identity"], composed["identity"]);
+    let original = fs::read(first.join("payload.tar")).unwrap();
+    for member in [RECORD, BASELINE] {
+        let mut tampered = original.clone();
+        let offset = tampered
+            .windows(files[member].1.len())
+            .position(|bytes| bytes == files[member].1)
+            .unwrap();
+        tampered[offset] ^= 1;
+        fs::write(first.join("payload.tar"), tampered).unwrap();
+        refused(
+            run(&mut f.cli(&[
+                "system",
+                "verify",
+                "--context",
+                text(&first),
+                "--expected-identity",
+                identity,
+                "--workdir",
+                text(&work),
+            ])),
+            "hash",
+        );
+    }
+    fs::write(first.join("payload.tar"), original).unwrap();
+
+    fs::remove_file(f.path("repo").join(SOURCE)).unwrap();
+    f.commit();
+    let absent = f.path("niri-absent");
+    json_output(f.system("compose", FOUNDATION, None, Some(&absent)));
+    assert!(!payload(&absent).contains_key(RECORD));
+    assert!(!payload(&absent).contains_key(BASELINE));
+    for (name, bytes, reason) in [
+        ("no-newline", "layout {}", "ending with a newline"),
+        (
+            "reference",
+            "/usr/lib/sysroot/store/src-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+            "cannot reference",
+        ),
+    ] {
+        f.write_source(SOURCE, bytes);
+        f.commit();
+        let destination = f.path(name);
+        refused(
+            f.system("compose", FOUNDATION, None, Some(&destination)),
+            reason,
+        );
+        assert!(!destination.exists());
+    }
+    f.write_source(SOURCE, public);
+    for (name, contents) in [
+        ("niri-size", format!("{}\n", "x".repeat(131_072))),
+        ("niri-lines", "// public\n".repeat(8193)),
+        ("niri-crlf", "layout {}\r\n".into()),
+    ] {
+        f.write_source(SOURCE, &contents);
+        f.commit();
+        let destination = f.path(name);
+        refused(
+            f.system("compose", FOUNDATION, None, Some(&destination)),
+            "bounded LF text",
+        );
+        assert!(!destination.exists());
+    }
+    f.write_source(SOURCE, public);
+    fs::set_permissions(
+        f.path("repo").join(SOURCE),
+        fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+    f.commit();
+    let executable = f.path("niri-executable");
+    refused(
+        f.system("compose", FOUNDATION, None, Some(&executable)),
+        "non-executable baseline",
+    );
+    assert!(!executable.exists());
+}
+
+#[test]
 #[ignore = "requires native aarch64 Docker and retained exact images; run --ignored"]
 fn native_system_composition_exports_verified_repeatable_context() {
     let f = Fixture::new();

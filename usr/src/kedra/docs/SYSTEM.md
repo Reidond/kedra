@@ -26,6 +26,24 @@ Commands emit JSON; failures go to stderr. A new output directory is required.
 Planning verifies image/object bytes and uses the existing journaled executor for
 read-only foundation observations. It does not activate configuration.
 
+For a declared niri main-file baseline, the existing qemu-arm64 adapter additionally
+admits one non-executable `config.kdl` source object and reads its verified bytes
+back before export. The build store pins this public input; unchanged content
+reuses its canonical tree identity across source revisions. Planning predicts
+the same receipt without importing or pinning. Source references, executable or
+unsupported text content refuse. A source with no niri baseline emits no record.
+
+`/usr/share/sysroot/home-artifacts.json` carries that receipt as an ordinary
+mode0644 resolved payload file under the reserved source namespace. The normal
+baseline and source manifest remain present. This is a build input, never a
+runtime output or duplicate installed store tree; catalog outputs and composition
+schemas are unchanged. Context hashing and the existing signed-image chain cover
+the record. A receipt establishes content identity, not installed authority.
+Explicit ordinary-store unpin/GC after export cannot affect installed home loading
+or recovery. [Niri review](TEXT-REVIEW.md) describes strict present-record checks
+and legacy absence behavior. Other targets and legacy assembly retain their
+existing baseline transport.
+
 The reusable `VerifiedComposition::open` consumer requires an independently
 retained identity and owns a private snapshot. It verifies the complete foundation,
 canonical plan, exact static Containerfile, config/object trees, references and

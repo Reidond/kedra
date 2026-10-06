@@ -130,6 +130,9 @@ noctalia_recovery_state = pathlib.Path(sys.argv[1])
 # Git bundle of the installed image's recorded source revision, from the harness.
 SOURCE_BUNDLE = sys.argv[2]
 original = native.read_text()
+private_canary = "private-fixture-" + os.urandom(16).hex()
+private_file = pathlib.Path.home() / "unrelated-private-fixture"
+private_file.write_text(private_canary)
 if home_state.exists():
     raise RuntimeError("independent adoption requires the fresh default review store")
 cli("--path", ".config/foot/foot.ini", "init", "--reviewed-safe", success=False)
@@ -158,7 +161,7 @@ finally:
 print("KEDRA_HOME_NIRI_WITHOUT_NOCTALIA_ADOPTION_PASS", flush=True)
 try:
     local_fixture = re.sub(r'(?m)^([ \t]*)gaps[ \t]+[0-9]+[ \t]*$', r'\g<1>gaps 14', original, count=1)
-    native.write_text(local_fixture.replace("width 2", "width 3"))
+    native.write_text(local_fixture.replace("width 2", "width 3") + f'\n// {private_canary}\n')
     subprocess.run(["niri", "validate"], check=True, timeout=20)
     rows = cli("status")["changes"]
     selected = next(row["change"]["id"] for row in rows if row["change"]["after"].strip() == "width 3")
@@ -171,7 +174,7 @@ try:
     cli("keep-local", local)
     cli("stage", local, success=False)
     later_fixture = re.sub(r'(?m)^([ \t]*)gaps[ \t]+[0-9]+[ \t]*$', r'\g<1>gaps 16', original, count=1)
-    native.write_text(later_fixture.replace("width 2", "width 4"))
+    native.write_text(later_fixture.replace("width 2", "width 4") + f'\n// {private_canary}\n')
     subprocess.run(["niri", "validate"], check=True, timeout=20)
     state = cli("status")
     if state["selection"][0]["after"].strip() != "width 3":
@@ -212,7 +215,7 @@ try:
     orphaned_adoption(home_state, "niri-text", "niri-text-activation", ["file", "init", "--reviewed-safe"])
     # A real relative include must resolve from the native configuration directory.
     included = native.parent / "discard-include.kdl"
-    included.write_text('// generated relative include\n')
+    included.write_text(f'// generated relative include {private_canary}\n')
     native.write_text(native.read_text() + '\ninclude "discard-include.kdl"\n')
     gap = next(row["change"]["id"] for row in cli("status")["changes"]
                if row["change"]["after"].strip() == "gaps 16")
@@ -262,6 +265,39 @@ try:
     subprocess.run(["git", "-C", str(repo), "checkout", "--detach", "FETCH_HEAD"], check=True, timeout=20)
     subprocess.run(["git", "-C", str(repo), "remote", "add", "origin",
                     "https://github.com/Reidond/kedra.git"], check=True, timeout=20)
+    # Re-select a public width edit and export it beside actual private/live/include
+    # canaries. Only the selected patch and committed public blob may cross into Git.
+    native.write_text(native.read_text().replace("width 8", "width 3"))
+    selected_row = next(row for row in cli("status")["changes"]
+                        if row["change"]["after"].strip() == "width 3")
+    cli("stage", selected_row["change"]["id"])
+    patch = pathlib.Path.home() / "artifact-selected.patch"
+    staged = repo / "usr/src/kedra/docs/artifact-staged-fixture"
+    dirty = repo / "usr/src/kedra/docs/artifact-dirty-fixture"
+    staged.write_text("unrelated staged fixture\n")
+    dirty.write_text("unrelated dirty fixture\n")
+    subprocess.run(["git", "-C", str(repo), "add", str(staged)], check=True, timeout=20)
+    index_before = subprocess.check_output(["git", "-C", str(repo), "diff", "--cached", "--binary"], timeout=20)
+    cli("export", "--repo", str(repo), "--output", str(patch))
+    if private_canary in patch.read_text() or not private_file.read_text() == private_canary:
+        raise RuntimeError("selected export captured private fixture content or changed its sentinel")
+    if subprocess.check_output(["git", "-C", str(repo), "diff", "--cached", "--binary"], timeout=20) != index_before \
+            or dirty.read_text() != "unrelated dirty fixture\n":
+        raise RuntimeError("source export changed unrelated Git work")
+    subprocess.run(["git", "-C", str(repo), "apply", str(patch)], check=True, timeout=20)
+    source_path = accepted["source_path"]
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                    "-c", "commit.gpgsign=false", "commit", "--only", "-m", "generated selected publication",
+                    "--", source_path], check=True, timeout=20)
+    published = subprocess.check_output(["git", "-C", str(repo), "show", f"HEAD:{source_path}"], timeout=20)
+    if private_canary.encode() in published or b"width 3" not in published:
+        raise RuntimeError("actual source publication captured live/include/private content")
+    for records in logical_records(home_state):
+        if any(private_canary.encode() in row[2] for row in records):
+            raise RuntimeError("review history captured unselected private live contents")
+    subprocess.run(["git", "-C", str(repo), "checkout", "--detach", accepted["source_revision"]], check=True, timeout=20)
+    cli("unstage", selected_row["change"]["id"])
+    print("KEDRA_HOME_ARTIFACT_PRIVATE_SELECTION_PASS", flush=True)
     before_accept = native.read_text()
     plan = cli("activate-plan", "--repo", str(repo))
     if not plan["installed_image_checked"] or plan["installed_baseline_revision"] != accepted["source_revision"]:
@@ -273,5 +309,6 @@ try:
     print("KEDRA_R04_NIRI_INSTALLED_BASELINE_PASS", flush=True)
 finally:
     native.write_text(original)
+    private_file.unlink(missing_ok=True)
     subprocess.run(["niri", "validate"], check=True, timeout=20)
 print("KEDRA_R03_NATIVE_NIRI_LINES_PASS", flush=True)

@@ -22,6 +22,10 @@ home_state = pathlib.Path.home() / '.local/state/sysroot/home'
 
 
 def run(args, success=True, environment=None):
+    # The retained CLI qualifies niri/state compatibility. Capture Noctalia with
+    # the new CLI when fresh Fedora provides a runtime the old CLI cannot adopt.
+    if args[:2] == ['sysroot', 'home'] and args[2] != 'file':
+        args = ['/usr/libexec/kedra-research-cli/sysroot-new', *args[1:]]
     result = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True,
                             timeout=90, check=False, env=environment)
     if (result.returncode == 0) != success:
@@ -32,6 +36,22 @@ def run(args, success=True, environment=None):
 def cli(*args, success=True):
     result = run(['sysroot', 'home', 'file', *args], success)
     return json.loads(result) if success else None
+
+
+def cross_version():
+    before = cli('status')
+    live_before = native.read_bytes()
+    for binary in ('sysroot-old', 'sysroot-new'):
+        tool = '/usr/libexec/kedra-research-cli/' + binary
+        observed = json.loads(run([tool, 'home', 'file', 'status']))
+        if observed != before:
+            raise RuntimeError('old/new CLI changed schema1 review readback')
+        result = json.loads(run([tool, 'update', 'status', '--home']))
+        if result['caller_home']['groups']['niri']['status'] == 'unavailable':
+            raise RuntimeError('old/new installed baseline loading failed')
+    if native.read_bytes() != live_before or cli('status') != before:
+        raise RuntimeError('cross-version inspection changed live/review state')
+    print('KEDRA_R04_HOME_ARTIFACT_CROSS_VERSION_PASS', flush=True)
 
 
 def change(after):
@@ -250,6 +270,7 @@ if phase == 'prepare':
     negative_assessments()
     interrupted_assessment()
     print('KEDRA_R04_CALLER_HOME_A_MATCH_PASS', flush=True)
+    cross_version()
     print('KEDRA_R04_A_USER_STATE_PASS', flush=True)
 elif phase == 'accept-b':
     assessed('reconciliation_required', fixture['a'], fixture['b'],
@@ -273,6 +294,7 @@ elif phase == 'accept-b':
     assessed('accepted_baseline_matches_installed', fixture['b'], fixture['b'],
              noctalia='reconciliation_required', overall='reconciliation_required')
     print('KEDRA_R04_CALLER_HOME_B_RECONCILIATION_PASS', flush=True)
+    cross_version()
     print('KEDRA_R04_B_NATIVE_ACCEPTANCE_PASS', flush=True)
 elif phase == 'accept-a':
     assessed('reconciliation_required', fixture['b'], fixture['a'],
@@ -299,6 +321,7 @@ elif phase == 'accept-a':
     validate()
     assessed('accepted_baseline_matches_installed', fixture['a'], fixture['a'])
     print('KEDRA_R04_CALLER_HOME_ROLLBACK_RECONCILIATION_PASS', flush=True)
+    cross_version()
     print('KEDRA_R04_A_NATIVE_ROLLBACK_ACCEPTANCE_PASS', flush=True)
 else:
     raise RuntimeError('unexpected generated workflow phase')

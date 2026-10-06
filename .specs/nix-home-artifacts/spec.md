@@ -1,9 +1,9 @@
 # Niri baseline artifacts in the existing image pipeline
 
-Status: **planned, unimplemented**; planning only, 2026-10-05. Medium combined
+Status: **implementing**; owner authorized PR39 completion on 2026-10-06. Medium combined
 specification with [tasks](tasks.md) and [test plan](test-plan.md). Implementation
-requires explicit acceptance of the current D1–D5 delivery and separate
-implementation authorization. Outstanding qualification is not waived here.
+uses the owner-merged D1–D5 source as its foundation. Their incomplete runtime
+qualification remains recorded and is not waived or relabeled here.
 Source inspection is pinned to `e908bb281c3dc5189373c48a5ab4958c1b9d2fde`;
 a later checkout switch does not establish an API change.
 
@@ -120,8 +120,8 @@ remain128KiB/8192 lines, UTF-8/LF/final-newline and safe file ownership/type.
 
 No edit to home merge/export/activation algorithms, release authority, native
 steps or composition format is intended. If inspection finds one required,
-revise the plan before broadening implementation. Only these three new plan
-files are authorized to change in this planning task.
+revise the plan before broadening implementation. The original planning task changed only these three plan files. The owner
+authorized the implementation and mapped qualification on 2026-10-06.
 
 | Risk | Likelihood / impact | Control |
 |---|---|---|
@@ -138,3 +138,29 @@ rows remain planned. Outstanding implementation prerequisites are the accepted
 D1–D5 source and exact supported old/new image/CLI pair. The additive-record
 tradeoff above remains an explicit design decision for plan approval, not an
 already shipped capability or authorization to start implementation.
+
+## Execution record (2026-10-06)
+
+H1–H4 are implemented using merged main b60bcb0 and the existing APIs. Engine
+store.rs exports single-file prediction/admission/readback/verification; tree.rs
+uses one shared canonical encoder. The adapter keeps preflight ahead of store
+opening, predicts the record, then admits/readbacks and checks exact agreement.
+Installed loading preserves every Baseline/State/Journal field and activation
+domain. No new dependency, product CLI option, output kind or composition schema.
+
+H5/H6 local evidence is in worklog WL-20261006-04. Actual composition, same-byte
+reuse across shared/target sources, two context-member tamper refusals, genuine
+GC, strict installed loading, retained old CLI readback and native killed-CLI
+recovery pass. An owned APFS sparse image produces real export ENOSPC; releasing
+only its filler permits the same-identity retry. The signed transition fixture
+now consumes a native ARM composer-produced receipt and independently builds
+the retained b60bcb0 old CLI. That hosted signed A/B/A gate remains pending.
+
+Execution adjustments: the signed desktop VM consumes the platform-independent
+receipt produced by its native ARM predecessor job; this adds test coverage, not
+a production desktop producer. Current Fedora Noctalia5.2.1 blocks normal home
+qualification. Its exact candidate native validation/full export pass; a narrow
+exact-version compatibility qualification passes the full13/13 container suite, retaining persisted
+APP_VERSION5.0.1 and unknown-version refusal. The retained old CLI exercises niri
+and schema1 state; Noctalia capture in the VM uses the new qualified CLI where the
+old CLI cannot adopt that newer runtime. No production rollout follows this work.

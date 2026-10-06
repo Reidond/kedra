@@ -20,6 +20,40 @@ const DIRECTORIES: [&str; 6] = [
     "quarantine",
     "roots",
 ];
+/// Predict content identity without importing or pinning an object.
+/// Uses the same canonical non-executable tree encoder as directory admission.
+pub fn single_file_source_receipt(member: &str, bytes: &[u8]) -> Result<ObjectReceipt> {
+    let tree = tree::single_file(member, bytes)?;
+    Ok(ObjectReceipt {
+        schema: 1,
+        object: format!("src-{}", tree.digest),
+        tree_sha256: tree.digest,
+        references: Vec::new(),
+        runtime_image: None,
+        derivation: None,
+    })
+}
+/// Verify a self-contained source receipt without consulting a build store.
+/// This proves content identity only; installed authority belongs to the caller.
+pub fn verify_single_file_source(
+    receipt: &ObjectReceipt,
+    member: &str,
+    bytes: &[u8],
+) -> Result<()> {
+    let expected = single_file_source_receipt(member, bytes)?;
+    if receipt.schema != expected.schema
+        || receipt.object != expected.object
+        || receipt.tree_sha256 != expected.tree_sha256
+        || !receipt.references.is_empty()
+        || receipt.runtime_image.is_some()
+        || receipt.derivation.is_some()
+    {
+        return Err(Error::Corrupt(
+            "single-file source receipt differs from content".into(),
+        ));
+    }
+    Ok(())
+}
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Marker {
@@ -213,6 +247,46 @@ impl Store {
             self.admit_object(&stage, &receipt)?;
             self.pin(&object)?;
             Ok(receipt)
+        })();
+        if stage.exists() {
+            tree::remove(&stage)?;
+        }
+        result
+    }
+    /// Admit and pin one public file, then return verified stored bytes.
+    pub fn import_source_file(
+        &self,
+        member: &str,
+        bytes: &[u8],
+    ) -> Result<(ObjectReceipt, Vec<u8>)> {
+        let expected = single_file_source_receipt(member, bytes)?;
+        let stage = self.staging()?;
+        let result = (|| {
+            fs::create_dir(stage.join("data"))?;
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o644)
+                .open(stage.join("data").join(member))?;
+            file.write_all(bytes)?;
+            file.set_permissions(Permissions::from_mode(0o644))?;
+            file.sync_all()?;
+            self.admit_object(&stage, &expected)?;
+            self.pin(&expected.object)?;
+            let receipt = self.verify(&expected.object)?;
+            let path = self.object_path(&receipt.object).join("data").join(member);
+            owned_node(&path, false)?;
+            let file = OpenOptions::new()
+                .read(true)
+                .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+                .open(path)?;
+            let mut stored = Vec::new();
+            file.take(tree::MAX_FILE + 1).read_to_end(&mut stored)?;
+            verify_single_file_source(&receipt, member, &stored)?;
+            if stored != bytes {
+                return Err(Error::Corrupt("single-file source readback differs".into()));
+            }
+            Ok((receipt, stored))
         })();
         if stage.exists() {
             tree::remove(&stage)?;

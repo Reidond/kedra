@@ -11,6 +11,7 @@
 //! always; local debugging only, refused when CI is set). See README.md.
 
 mod catalog_tests;
+mod home_artifact_tests;
 mod native;
 mod native_artifacts_tests;
 

@@ -2,9 +2,22 @@
 
 ## Active PR39 implementation (2026-10-06)
 
-The owner requests implementation and completion of the niri home-artifact plan.
-Work proceeds on PR39 against dev using merged main b60bcb0; new behavior is
-not yet qualified. Existing D2/D5 and Noctalia5.2.1 gates below remain unresolved.
+The owner requests completion of PR39 against dev. The narrow niri artifact
+producer and strict optional installed consumer are implemented. Actual local
+composition/reuse/transport/GC, installed-loader and retained old CLI controls,
+native privacy/reload/killed-CLI recovery and real context-export ENOSPC/retry
+pass in their recorded scopes (worklog WL-20261006-05). No home state/domain,
+product command, runtime output kind or composition schema is changed.
+
+Current Noctalia5.2.1 is independently qualified for the existing home adapter:
+exact candidatef3f61f5a native validation/export and full13/13 container execution
+1791294686-58725 pass, uninterrupted/no cleanup failures. Only that exact runtime
+is added; persisted projection5.0.1 and unknown-version refusal remain. This is
+an unmerged PR change, not a successful production rerun.
+
+The signed new-record A/B/A fixture is implemented but its hosted execution is
+pending. Nonempty old S/I/P cross-version qualification therefore remains partial.
+Prior D2/D5 and installation/native fault gates are independent and unresolved.
 
 ## Repair verification and remaining qualification (2026-10-06)
 

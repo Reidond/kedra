@@ -81,8 +81,9 @@ def patch(root, resources, item):
                              cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, timeout=120, check=False,
                              env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
-    require(process.returncode == 0 and b'offset' not in process.stdout.lower()
-            and b'fuzz' not in process.stdout.lower())
+    require(process.returncode == 0
+            and re.search(rb'^Hunk #[0-9]+ .*\b(?:offset|fuzz)\b', process.stdout,
+                          re.MULTILINE | re.IGNORECASE) is None)
     for name in touched:
         ordinary(root, name)
 

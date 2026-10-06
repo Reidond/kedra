@@ -283,6 +283,9 @@ pub(crate) fn fmt(paths: Vec<PathBuf>, check: bool) -> Result<()> {
     if paths.is_empty() || paths.len() > language::MAX_MODULES {
         return Err(Error::Invalid("select1..128 files to format".into()));
     }
+    let mut selected = Vec::new();
+    let mut total = 0usize;
+    let mut identities = BTreeSet::new();
     for path in paths {
         let parent = path
             .parent()
@@ -293,27 +296,51 @@ pub(crate) fn fmt(paths: Vec<PathBuf>, check: bool) -> Result<()> {
             .and_then(|n| n.to_str())
             .ok_or_else(|| Error::Invalid("invalid formatter filename".into()))?;
         let directory = root(parent)?;
+        if !identities.insert((parent.canonicalize()?, name.to_ascii_lowercase())) {
+            return Err(Error::Invalid(
+                "duplicate/case-colliding formatter input".into(),
+            ));
+        }
         let bytes = ordinary(&directory, name, language::MAX_INPUT)?;
+        total += bytes.len();
+        if total > language::MAX_TOTAL {
+            return Err(Error::Invalid(
+                "formatter aggregate input limit exceeded".into(),
+            ));
+        }
         let text = std::str::from_utf8(&bytes)
             .map_err(|_| Error::Invalid("module must be UTF-8".into()))?;
         let formatted = language::format(name, text).map_err(|e| Error::Invalid(e.to_string()))?;
+        if formatted.len() > language::MAX_INPUT {
+            return Err(Error::Invalid(
+                "formatted module exceeds input limit".into(),
+            ));
+        }
         if formatted.as_bytes() == bytes {
             continue;
         }
         if check {
             return Err(Error::Invalid("selected module needs formatting".into()));
         }
+        let name = name.to_owned();
+        selected.push((path, directory, name, bytes, formatted));
+    }
+    for (path, directory, name, bytes, formatted) in selected {
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
         // Cooperating formatters serialize on the original inode. Publish only a
         // complete file; interruption before rename preserves the original.
         let file: File = rustix::fs::openat(
             &directory,
-            name,
+            name.as_str(),
             rustix::fs::OFlags::RDWR | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC,
             rustix::fs::Mode::empty(),
         )?
         .into();
         file.lock()?;
-        if ordinary(&directory, name, language::MAX_INPUT)? != bytes {
+        if ordinary(&directory, &name, language::MAX_INPUT)? != bytes {
             return Err(Error::Invalid("formatter source changed".into()));
         }
         let metadata = file.metadata()?;
@@ -341,12 +368,12 @@ pub(crate) fn fmt(paths: Vec<PathBuf>, check: bool) -> Result<()> {
             output.write_all(formatted.as_bytes())?;
             output.set_permissions(fs::Permissions::from_mode(metadata.mode() & 0o777))?;
             output.sync_all()?;
-            if ordinary(&directory, name, language::MAX_INPUT)? != bytes {
+            if ordinary(&directory, &name, language::MAX_INPUT)? != bytes {
                 return Err(Error::Invalid(
                     "formatter source changed before publication".into(),
                 ));
             }
-            rustix::fs::renameat(&staging, temporary, &directory, name)?;
+            rustix::fs::renameat(&staging, temporary, &directory, &name)?;
             directory.sync_all()?;
             Ok(())
         })();

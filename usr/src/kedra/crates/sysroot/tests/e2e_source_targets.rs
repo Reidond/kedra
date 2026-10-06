@@ -189,6 +189,16 @@ fn committed_language_cutover_preserves_legacy_and_refuses_mixed_inputs() {
     let new_revision = new["source_revision"].as_str().unwrap().to_owned();
     f.write(
         &format!("{IMAGE}/packages/catalog.kedra"),
+        &catalog.replace(
+            "target \"desktop\" {",
+            "target \"desktop\" { remove = [\"kernel-core\"];",
+        ),
+    );
+    f.commit("protected kernel removal");
+    f.refused("desktop", "bootc foundation contract");
+    f.git(&["checkout", "--detach", &new_revision]);
+    f.write(
+        &format!("{IMAGE}/packages/catalog.kedra"),
         "uncommitted invalid data",
     );
     assert_eq!(
@@ -208,6 +218,20 @@ fn committed_language_cutover_preserves_legacy_and_refuses_mixed_inputs() {
     f.refused("desktop", "unsupported package format");
     f.git(&["checkout", "--detach", &old_revision]);
     assert_eq!(f.plan("desktop")["packages"], old["packages"]);
+    f.git(&["checkout", "--detach", &new_revision]);
+    assert_eq!(
+        f.plan("desktop")["package_frontend"],
+        new["package_frontend"]
+    );
+    let lock_path = format!("{IMAGE}/packages/packages.lock.json");
+    fs::remove_file(f.repo().join(&lock_path)).unwrap();
+    std::os::unix::fs::symlink(
+        r#"{"schema_version":1,"sources":{}}"#,
+        f.repo().join(&lock_path),
+    )
+    .unwrap();
+    f.commit("symlink-shaped package lock");
+    f.refused("desktop", "ordinary file");
     f.git(&["checkout", "--detach", &new_revision]);
     assert_eq!(
         f.plan("desktop")["package_frontend"],

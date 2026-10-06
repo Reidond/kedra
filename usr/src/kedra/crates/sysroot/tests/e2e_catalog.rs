@@ -464,6 +464,112 @@ fn language_admission_boundaries_preserve_accepted_input() {
 }
 
 #[test]
+fn language_expansion_counts_preparation_nodes_in_the_graph_bound() {
+    let fixture = Fixture::new();
+    let prefix = LANGUAGE_SAMPLE.split_once("package hello").unwrap().0;
+    let body = LANGUAGE_SAMPLE
+        .split_once("package hello")
+        .unwrap()
+        .1
+        .split_once("target \"demo\"")
+        .unwrap()
+        .0;
+    for (count, prepare, accepted, reason) in [
+        (256, false, true, ""),
+        (257, false, false, "package expansion"),
+        (128, true, true, ""),
+        (129, true, false, "lowered graph"),
+    ] {
+        let mut source = prefix.to_owned();
+        let mut selected = Vec::new();
+        let mut names = Vec::new();
+        for i in 0..count {
+            let name = format!("program{i}");
+            let body = body.replace(
+                "export command \"hello\"",
+                &format!("export command \"command{i}\""),
+            );
+            let body = if prepare {
+                body.replace(
+                    "build = shell",
+                    "files = files { \"header.h\" = text \"/* generated */\\n\"; }; build = shell",
+                )
+            } else {
+                body
+            };
+            source.push_str(&format!("package {name}{body}"));
+            selected.push(format!("{name}(builder: compiler, runtime: system)"));
+            names.push(name);
+        }
+        source.push_str(&format!(
+            "target \"demo\" {{ foundation = system; packages = [{}]; }}",
+            selected.join(",")
+        ));
+        let args = fixture.language(&source);
+        let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":names.into_iter().take(256).collect::<Vec<_>>(),"builder_images":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}));
+        let output = fixture.language_run(
+            "plan",
+            &args,
+            &[
+                "--package",
+                "program0",
+                "--builder",
+                BUILDER,
+                "--runtime",
+                RUNTIME,
+                "--policy",
+                text(&policy),
+            ],
+        );
+        if accepted {
+            let graph: Value = serde_json::from_slice(&success(output).stdout).unwrap();
+            assert_eq!(
+                graph["nodes"].as_object().unwrap().len(),
+                if prepare { 2 } else { 1 }
+            );
+        } else {
+            denied(output, reason);
+        }
+    }
+}
+
+#[test]
+fn formatter_admits_the_complete_bounded_selection_before_writing() {
+    let fixture = Fixture::new();
+    fixture.language(LANGUAGE_SAMPLE);
+    let original = fs::read(fixture.path("catalog.kedra")).unwrap();
+    fs::write(fixture.path("invalid.kedra"), "language 2;").unwrap();
+    denied(
+        fixture.run(&[
+            "catalog",
+            "fmt",
+            text(&fixture.path("catalog.kedra")),
+            text(&fixture.path("invalid.kedra")),
+        ]),
+        "version",
+    );
+    assert_eq!(fs::read(fixture.path("catalog.kedra")).unwrap(), original);
+    let large = format!("{LANGUAGE_SAMPLE}\n//{}", "x".repeat(3 * 1024 * 1024));
+    let mut paths = Vec::new();
+    for i in 0..11 {
+        let path = fixture.path(&format!("large{i}.kedra"));
+        fs::write(&path, &large).unwrap();
+        paths.push(path);
+    }
+    let output = Command::new(&fixture.binary)
+        .args(["catalog", "fmt"])
+        .args(&paths)
+        .output()
+        .unwrap();
+    denied(output, "aggregate input");
+    assert!(
+        paths
+            .iter()
+            .all(|path| fs::read(path).unwrap() == large.as_bytes())
+    );
+}
+
+#[test]
 #[ignore = "requires explicitly retained native ARM compiler and runtime images"]
 fn language_real_inline_build_transfer_and_rebuild() {
     let fixture = Fixture::new();
@@ -621,7 +727,7 @@ fn language_real_inline_build_transfer_and_rebuild() {
         b"generated\n"
     );
     let patched = LANGUAGE_SAMPLE.replace("    export command", r##"    patches = [patch { strip = 1; contents = text "--- a/hello.c\n+++ b/hello.c\n@@ -1,2 +1,2 @@\n #include <stdio.h>\n-int main(void) { puts(\"original\"); return 0; }\n+int main(void) { puts(\"patched\"); return 0; }\n"; }];
-    export command"##);
+    export command"##).replace("hello.c", "fuzz-offset.c");
     fixture.language(&patched);
     if std::env::var_os("KEDRA_CATALOG_PATCH_BUILDER").is_some() {
         let patch_builder = std::env::var("KEDRA_CATALOG_PATCH_BUILDER").unwrap();
@@ -634,7 +740,7 @@ fn language_real_inline_build_transfer_and_rebuild() {
             &patch_builder,
         ]));
         let patch_policy = fixture.write("patch-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_images":[patch_builder],"runtime_images":[runtime],"source_objects":[]}));
-        let patched: Value = serde_json::from_slice(
+        let patch_build: Value = serde_json::from_slice(
             &success(fixture.language_run(
                 "build",
                 &args,
@@ -654,7 +760,40 @@ fn language_real_inline_build_transfer_and_rebuild() {
             .stdout,
         )
         .unwrap();
-        let root = patched["result"]["outputs"]["package_0"].as_str().unwrap();
+        let root = patch_build["result"]["outputs"]["package_0"]
+            .as_str()
+            .unwrap();
+        assert_eq!(
+            success(fixture.run(&[
+                "run",
+                "--store",
+                text(&store),
+                "--object",
+                root,
+                "--program",
+                "bin/hello"
+            ]))
+            .stdout,
+            b"patched\n"
+        );
+        fixture.language(&patched.replace("@@ -1,2 +1,2 @@", "@@ -2,2 +2,2 @@"));
+        let refused = fixture.language_run(
+            "build",
+            &args,
+            &[
+                "--package",
+                "hello",
+                "--builder",
+                &patch_builder,
+                "--runtime",
+                &runtime,
+                "--policy",
+                text(&patch_policy),
+                "--store",
+                text(&store),
+            ],
+        );
+        assert!(!refused.status.success());
         assert_eq!(
             success(fixture.run(&[
                 "run",

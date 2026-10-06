@@ -12,8 +12,13 @@ pilot pass real Fedora build/rebuild checks. The installed catalog aliases, PATH
 SQL/jq/library and persistent service workflow pass on exact unsigned native image
 `b44e6c3b55a3bdb82248b94a5c2131def3d75d0b1858946928bc6f53a79575b2`.
 Actual deadline/memory refusals preserve winners and reap the child. Source
-compatibility/request parity pass; final CI and fresh both-target release material
-qualification are pending. See worklog WL-20261006-PKGDSL-06/07/08. Existing
+compatibility and fresh full-RPM parity pass on both native targets in
+[run37511811578](https://github.com/Reidond/kedra/actions/runs/37511811578).
+Both source architectures pass Check37511817585/37511811654 at2d44c7e. The same
+container run passes desktop11/12 and ARM12/13; each remaining failure is the
+existing unqualified Noctalia5.2.1 home review, with no cleanup failure.
+The legacy home fixture now derives its private compatibility requests through
+the public source CLI; local preparation passes, corrected hosted rerun pending. See worklog WL-20261006-PKGDSL-06/07/08. Existing
 release/installer/native gates below remain independent; no production publication.
 
 ## Repair verification and remaining qualification (2026-10-06)

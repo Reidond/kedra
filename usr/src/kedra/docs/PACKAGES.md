@@ -25,7 +25,8 @@ and target list authority. The old schema-1 catalog remains immutable JSON for
 compatibility rather than embedded Rust owner scripts. Fedora C/API/build/rebuild,
 resource preparation, migrated jq/SQLite/library builds and the installed
 catalog/alias/PATH/service workflow pass their recorded local scopes. Final
-both-target fresh release qualification and source CI remain pending; existing
+both-target native request/full-RPM parity and source CI pass at2d44c7e; protected
+main-only release is not run; existing
 Noctalia/installer/native failures are separate. See [status](STATUS.md) and the
 [language verification plan](../../../../.specs/nix-package-dsl/test-plan.md).
 

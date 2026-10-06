@@ -49,6 +49,9 @@ fn read(repo: &Path, tree: &[Entry], path: &str) -> Result<Vec<u8>, Error> {
         .iter()
         .find(|e| e.path == path)
         .ok_or_else(|| invalid("missing committed package input"))?;
+    if !matches!(entry.mode.as_str(), "100644" | "100755") {
+        return Err(invalid("committed package input must be an ordinary file"));
+    }
     let size = git(repo, &["cat-file", "-s", &entry.blob])?;
     let size = std::str::from_utf8(&size)
         .ok()
@@ -206,15 +209,12 @@ pub(crate) fn select(
             }
         }
     }
-    if !intent.remove.is_disjoint(&BTreeSet::from([
-        "bootc".into(),
-        "glibc".into(),
-        "rpm".into(),
-        "dnf5".into(),
-        "kernel".into(),
-        "shim".into(),
-        "grub2".into(),
-    ])) {
+    if intent.remove.iter().any(|name| {
+        ["bootc", "glibc", "rpm", "dnf5", "kernel", "shim", "grub2"].contains(&name.as_str())
+            || ["kernel-core", "kernel-modules", "shim-", "grub2-"]
+                .iter()
+                .any(|prefix| name.starts_with(prefix))
+    }) {
         return Err(invalid(
             "package removal violates the bootc foundation contract",
         ));

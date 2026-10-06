@@ -1,4 +1,4 @@
-# Future verification cases
+# Verification cases
 
 Status: **qualification in progress; broad groups not yet complete**. Conditions cite [requirements](requirements.md) and the
 normative [language contract](language.md). Cases add executable workflow details;

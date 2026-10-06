@@ -1,6 +1,6 @@
 # Kedra package language
 
-Status: **implementation authorized; contract reviewed; implementation in progress**.
+Status: **specification and v1 implementation delivered; verification scopes recorded**.
 Updated: 2026-10-06 (Europe/Kyiv). [PR38](https://github.com/Reidond/kedra/pull/38)
 is reconciled with delivered main `b60bcb081d1f88f616c1f597a3194c64d7c8b6c5`.
 The owner explicitly requests finishing this specification and implementing the

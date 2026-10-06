@@ -178,6 +178,13 @@ pub(crate) fn planning() -> Result<ExitCode> {
     let output = supervised(command, None)?;
     std::io::stderr().lock().write_all(&output.stderr)?;
     if !output.status.success() {
+        if let Some(code) = output
+            .status
+            .code()
+            .and_then(|code| u8::try_from(code).ok())
+        {
+            return Ok(ExitCode::from(code));
+        }
         return Err(Error::Invalid(
             "frontend refused input or exceeded its process limit".into(),
         ));

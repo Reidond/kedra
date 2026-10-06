@@ -432,6 +432,15 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     #[cfg(unix)]
     if cli.frontend_process {
+        let data_only = match &cli.command {
+            Some(Commands::Catalog(options)) => options.planning(),
+            Some(Commands::FrontendInput) => true,
+            _ => false,
+        };
+        if !data_only {
+            eprintln!("sysroot: frontend worker accepts only data-only commands");
+            return ExitCode::from(78);
+        }
         if let Err(error) = catalog_process::worker_limits() {
             eprintln!("sysroot: {error}");
             return ExitCode::FAILURE;
@@ -443,7 +452,7 @@ fn main() -> ExitCode {
             Ok(code) => code,
             Err(error) => {
                 eprintln!("sysroot: {error}");
-                return ExitCode::FAILURE;
+                return engine::failure_code(&error);
             }
         };
     }

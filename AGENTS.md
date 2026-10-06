@@ -127,6 +127,11 @@ Both Codex and Claude must maintain the repository-root `worklog.md` (exact
 lowercase filename). It is the shared human-readable continuation record, not an
 agent-private journal or a replacement for Git history and research evidence.
 
+`worklog.md` is the sole repository ledger for task learnings, AI infrastructure
+changes, and skill/workflow changes. Do not create or recreate
+`.ai/learnings.md` or `.ai/ai-changelog.md`. If a skill asks for either ledger,
+record the relevant finding or change in the normal worklog entry instead.
+
 ### When to update
 
 Read it before planning or resuming work. Reconcile its snapshot with the actual

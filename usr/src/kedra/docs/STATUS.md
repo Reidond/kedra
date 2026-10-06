@@ -1,23 +1,32 @@
 # Verified status
 
-## Active PR39 implementation (2026-10-06)
+## PR39 niri artifact qualification (2026-10-06)
 
-The owner requests completion of PR39 against dev. The narrow niri artifact
-producer and strict optional installed consumer are implemented. Actual local
-composition/reuse/transport/GC, installed-loader and retained old CLI controls,
-native privacy/reload/killed-CLI recovery and real context-export ENOSPC/retry
-pass in their recorded scopes (worklog WL-20261006-05). No home state/domain,
-product command, runtime output kind or composition schema is changed.
+[PR39](https://github.com/Reidond/kedra/pull/39) implements the narrow niri artifact
+producer and strict optional installed consumer. Actual local composition/reuse/
+transport/GC, installed refusals/old CLI, privacy/native reload/killed-CLI recovery
+and owned context-export ENOSPC/retry pass. Home state/domains, public commands,
+runtime output kinds and composition schema remain unchanged.
 
-Current Noctalia5.2.1 is independently qualified for the existing home adapter:
-exact candidatef3f61f5a native validation/export and full13/13 container execution
-1791294686-58725 pass, uninterrupted/no cleanup failures. Only that exact runtime
-is added; persisted projection5.0.1 and unknown-version refusal remain. This is
-an unmerged PR change, not a successful production rerun.
+Exact implementation0a2667d passes source Check37477670402/37477677757 on both
+architectures; container37477670445 passes ARM13/13 and desktop12/12 with verified
+complete reports and no cleanup failures. Current Noctalia5.2.1 is independently
+qualified by native validation/export and full13/13 local1791294686-58725; only
+that exact runtime is added, retaining projection5.0.1 and unknown-version refusal.
 
-The signed new-record A/B/A fixture is implemented but its hosted execution is
-pending. Nonempty old S/I/P cross-version qualification therefore remains partial.
-Prior D2/D5 and installation/native fault gates are independent and unresolved.
+[Signed home37477670375](https://github.com/Reidond/kedra/actions/runs/37477670375)
+passes actual new-record A/B/A under Secure Boot, nonempty S/I/P preservation,
+caller-home/native reconciliation and all old/new niri/state combinations. Its
+record comes from genuine native ARM ordinary composition, independently matched
+by parent source admission after verified transfer. Parent audits ZIP303c1363
+and the three actual secure-boot/cross-version/home completion phases.
+Existing signed-update37477670084 and QEMU ARM boot37477670395 pass separately.
+See worklog WL-20261006-05/06/07 for exact custody and scopes.
+
+This completes the PR39 artifact slice. Earlier D2/D5 installation/native fault
+gaps remain unresolved; no production image rollout, workstation application or
+physical-hardware qualification is claimed. Product and workflow evidence is pinned to0a2667d; the final follow-up changes
+evidence/spec/status only. The PR dashboard reports current-head source checks.
 
 ## Repair verification and remaining qualification (2026-10-06)
 

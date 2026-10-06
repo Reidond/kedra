@@ -1,6 +1,6 @@
 # Niri baseline artifacts in the existing image pipeline
 
-Status: **implementing**; owner authorized PR39 completion on 2026-10-06. Medium combined
+Status: **completed for the niri artifact slice**; owner authorized PR39 completion on 2026-10-06. Medium combined
 specification with [tasks](tasks.md) and [test plan](test-plan.md). Implementation
 uses the owner-merged D1–D5 source as its foundation. Their incomplete runtime
 qualification remains recorded and is not waived or relabeled here.
@@ -133,11 +133,10 @@ authorized the implementation and mapped qualification on 2026-10-06.
 
 Planning review fixed the earlier manual-artifact proposal: user preparation,
 desktop-store flags/cache, new journal pointers and duplicated source metadata
-are removed. Acceptance/task/case coverage is reconciled; all implementation
-rows remain planned. Outstanding implementation prerequisites are the accepted
-D1–D5 source and exact supported old/new image/CLI pair. The additive-record
-tradeoff above remains an explicit design decision for plan approval, not an
-already shipped capability or authorization to start implementation.
+are removed. Acceptance/task/case coverage was reconciled in the original plan.
+The owner merged D1–D5 source and authorized this implementation on 2026-10-06.
+The execution record below distinguishes implemented/local-qualified behavior
+from separately authorized production publication.
 
 ## Execution record (2026-10-06)
 
@@ -154,7 +153,7 @@ GC, strict installed loading, retained old CLI readback and native killed-CLI
 recovery pass. An owned APFS sparse image produces real export ENOSPC; releasing
 only its filler permits the same-identity retry. The signed transition fixture
 now consumes a native ARM composer-produced receipt and independently builds
-the retained b60bcb0 old CLI. That hosted signed A/B/A gate remains pending.
+the retained b60bcb0 old CLI. Hosted signed A/B/A37477670375 passes on exact0a2667d.
 
 Execution adjustments: the signed desktop VM consumes the platform-independent
 receipt produced by its native ARM predecessor job; this adds test coverage, not
@@ -164,3 +163,7 @@ exact-version compatibility qualification passes the full13/13 container suite, 
 APP_VERSION5.0.1 and unknown-version refusal. The retained old CLI exercises niri
 and schema1 state; Noctalia capture in the VM uses the new qualified CLI where the
 old CLI cannot adopt that newer runtime. No production rollout follows this work.
+
+The final signed case and full old/new state readback pass37477670375. H1–H7
+and TC01–TC09 are settled against actual source/runtime evidence; prior D2/D5
+runtime gaps and production deployment remain outside this completion claim.

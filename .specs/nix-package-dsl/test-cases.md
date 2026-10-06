@@ -1,6 +1,6 @@
 # Future verification cases
 
-Status: **all not-run**. Conditions cite [requirements](requirements.md) and the
+Status: **qualification in progress; broad groups not yet complete**. Conditions cite [requirements](requirements.md) and the
 normative [language contract](language.md). Cases add executable workflow details;
 they do not duplicate acceptance prose. All cases use one owning level. No unit,
 model, mock, doctest or repository source/layout scanner is permitted.

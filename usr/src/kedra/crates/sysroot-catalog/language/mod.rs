@@ -29,6 +29,15 @@ pub struct Diagnostic {
     pub line: usize,
     pub column: usize,
     pub message: String,
+    pub related: Vec<Location>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Location {
+    pub file: String,
+    pub line: usize,
+    pub column: usize,
 }
 
 impl std::fmt::Display for Diagnostic {
@@ -37,7 +46,15 @@ impl std::fmt::Display for Diagnostic {
             f,
             "{}:{}:{}: {}: {}",
             self.file, self.line, self.column, self.code, self.message
-        )
+        )?;
+        for origin in &self.related {
+            write!(
+                f,
+                "; related {}:{}:{}",
+                origin.file, origin.line, origin.column
+            )?;
+        }
+        Ok(())
     }
 }
 impl std::error::Error for Diagnostic {}
@@ -50,6 +67,7 @@ pub(crate) fn fail(file: &str, span: Span, code: &str, message: &str) -> Diagnos
         line: span.line,
         column: span.column,
         message: message.into(),
+        related: Vec::new(),
     }
 }
 
@@ -63,6 +81,30 @@ pub fn relative(path: &str) -> bool {
         && path
             .split('/')
             .all(|p| !matches!(p, "" | "." | ".." | ".git"))
+}
+
+pub fn public_input(path: &str, bytes: &[u8]) -> bool {
+    let parts: Vec<_> = path.split('/').collect();
+    !parts.iter().any(|part| {
+        matches!(
+            *part,
+            ".ssh"
+                | ".codex"
+                | ".claude"
+                | ".cache"
+                | "auth.json"
+                | "credentials.json"
+                | ".credentials.json"
+        )
+    }) && ![
+        b"-----BEGIN PRIVATE KEY-----".as_slice(),
+        b"-----BEGIN OPENSSH PRIVATE KEY-----",
+        b"-----BEGIN RSA PRIVATE KEY-----",
+        b"-----BEGIN EC PRIVATE KEY-----",
+        b"-----BEGIN ENCRYPTED PRIVATE KEY-----",
+    ]
+    .iter()
+    .any(|marker| bytes.windows(marker.len()).any(|window| window == *marker))
 }
 
 pub fn import_path(module: &str, path: &str) -> Option<String> {

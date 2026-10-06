@@ -233,14 +233,34 @@ def prepare(spec, args):
         compiler = args.work / 'catalog-resolution'
         compiler.mkdir()
         script = ROOT / (IMAGE + 'catalog/builder.sh')
-        log = run('sudo', 'podman', 'run', '--rm', '--pull=always', '--platform=linux/arm64',
-                  '--volume', str(script.resolve()) + ':/tmp/kedra-catalog-builder.sh:ro',
-                  '--volume', str(compiler.resolve()) + ':/resolution', '--entrypoint', '/bin/bash',
-                  base, '/tmp/kedra-catalog-builder.sh', '--resolve', timeout=2400)
-        (compiler / 'resolver.log').write_bytes(log.stdout + log.stderr)
-        run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', compiler / 'catalog-builder-rpms.txt')
-        catalog = {'pins': ROOT / 'output/release-binaries/catalog-pins.json',
-                   'builder_rpms': compiler / 'catalog-builder-rpms.txt'}
+        pins_path = ROOT / 'output/release-binaries/catalog-pins.json'
+        pins = m.document(m.read(pins_path))
+        if pins.get('schema_version') == 2:
+            m.require(pins['builders'] == plan['package_frontend']['builders'] and pins['builders'],
+                      'Compiler roles differ from committed source')
+            observed = {}
+            for index, (role, requests) in enumerate(sorted(pins['builders'].items())):
+                destination = compiler / str(index)
+                destination.mkdir()
+                write(destination / 'catalog-builder-requests.json', {'schema_version': 1, 'packages': requests,
+                      'foundation_packages': plan['packages'], 'remove': plan['remove_packages']})
+                log = run('sudo', 'podman', 'run', '--rm', '--pull=always', '--platform=linux/arm64',
+                          '--volume', str(script.resolve()) + ':/tmp/kedra-catalog-builder.sh:ro',
+                          '--volume', str(destination.resolve()) + ':/resolution', '--entrypoint', '/bin/bash',
+                          base, '/tmp/kedra-catalog-builder.sh', '--resolve', timeout=2400)
+                (destination / 'resolver.log').write_bytes(log.stdout + log.stderr)
+                run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', destination / 'catalog-builder-rpms.txt')
+                observed[role] = m.packages(m.read(destination / 'catalog-builder-rpms.txt'), 'aarch64')
+            write(compiler / 'catalog-builder-rpms.json', observed)
+            catalog = {'pins': pins_path, 'builder_rpms': compiler / 'catalog-builder-rpms.json'}
+        else:
+            log = run('sudo', 'podman', 'run', '--rm', '--pull=always', '--platform=linux/arm64',
+                      '--volume', str(script.resolve()) + ':/tmp/kedra-catalog-builder.sh:ro',
+                      '--volume', str(compiler.resolve()) + ':/resolution', '--entrypoint', '/bin/bash',
+                      base, '/tmp/kedra-catalog-builder.sh', '--resolve', timeout=2400)
+            (compiler / 'resolver.log').write_bytes(log.stdout + log.stderr)
+            run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', compiler / 'catalog-builder-rpms.txt')
+            catalog = {'pins': pins_path, 'builder_rpms': compiler / 'catalog-builder-rpms.txt'}
     inputs = m.resolved_inputs(ROOT, plan, base, context, ROOT / 'output/release-binaries',
                                m.read(resolution / 'package-material.txt'), spec['id'], catalog=catalog)
     material_bytes = m.canonical(inputs)

@@ -1,6 +1,6 @@
 //! Pure identity for declared ordinary source files; storage uses the same records.
 use crate::{
-    Error, Result,
+    Error, MAX_JSON, Result,
     plan::{hash, relative},
 };
 use serde::{Deserialize, Serialize};
@@ -59,50 +59,47 @@ pub fn source_identity(files: &BTreeMap<String, SourceFile>) -> Result<String> {
             directories.insert(directory.to_owned());
         }
     }
-    let mut entries = Vec::new();
-    visit("", files, &directories, &mut entries)?;
+    if files.len() + directories.len() > 100_000
+        || files
+            .keys()
+            .chain(&directories)
+            .map(String::len)
+            .sum::<usize>()
+            > MAX_JSON as usize
+    {
+        return Err(Error::Invalid(
+            "declared resource tree metadata exceeds bound".into(),
+        ));
+    }
+    let mut case_paths = BTreeMap::new();
+    for path in files.keys().chain(&directories) {
+        if case_paths
+            .insert(path.to_ascii_lowercase(), path)
+            .is_some_and(|previous| previous != path)
+        {
+            return Err(Error::Invalid("resource directory case collision".into()));
+        }
+        if path.split('/').count() > 64 {
+            return Err(Error::Invalid("resource directory depth exceeded".into()));
+        }
+    }
+    let mut entries: Vec<_> = directories
+        .iter()
+        .map(|path| Entry {
+            path: path.clone(),
+            kind: Kind::Directory,
+        })
+        .chain(files.iter().map(|(path, file)| Entry {
+            path: path.clone(),
+            kind: Kind::File {
+                executable: file.executable,
+                bytes: file.bytes.len() as u64,
+                sha256: hash(&file.bytes),
+            },
+        }))
+        .collect();
+    entries.sort_by(|left, right| left.path.split('/').cmp(right.path.split('/')));
     let mut bytes = b"sysroot-engine-tree-v1\0".to_vec();
     bytes.extend(serde_json::to_vec(&entries)?);
     Ok(format!("src-{}", hash(&bytes)))
-}
-
-fn visit(
-    prefix: &str,
-    files: &BTreeMap<String, SourceFile>,
-    directories: &BTreeSet<String>,
-    entries: &mut Vec<Entry>,
-) -> Result<()> {
-    let mut names = BTreeSet::new();
-    for path in files.keys().chain(directories) {
-        if let Some(rest) = path.strip_prefix(prefix)
-            && !rest.is_empty()
-            && !rest.contains('/')
-        {
-            names.insert(rest.to_owned());
-        }
-    }
-    for name in names {
-        let path = format!("{prefix}{name}");
-        if directories.contains(&path) {
-            if path.split('/').count() > 64 {
-                return Err(Error::Invalid("resource directory depth exceeded".into()));
-            }
-            entries.push(Entry {
-                path: path.clone(),
-                kind: Kind::Directory,
-            });
-            visit(&format!("{path}/"), files, directories, entries)?;
-        } else {
-            let file = &files[&path];
-            entries.push(Entry {
-                path,
-                kind: Kind::File {
-                    executable: file.executable,
-                    bytes: file.bytes.len() as u64,
-                    sha256: hash(&file.bytes),
-                },
-            });
-        }
-    }
-    Ok(())
 }

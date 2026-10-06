@@ -14,19 +14,20 @@ macro platform or general parser/plugin service. Revisit a parser dependency onl
 with a concrete diagnostic/maintenance justification. Reuse existing Rust models
 and serde serialization rather than creating a second build executor.
 
-Proposed file ownership:
+Delivered file ownership (v1 intent types live with the checker):
 
 ```text
 usr/src/kedra/crates/sysroot-catalog/
   lib.rs                       existing public catalog/policy API
-  intent.rs                    common versioned typed intent and lowering
-  language/{lexer,parser,check,format,lower}.rs
+  language/{mod,parser,check,format,lower}.rs
+  language/prepare.py          fixed isolated source-preparation driver
+  legacy.json                  retained immutable schema1 compatibility data
 usr/src/kedra/image/packages/
   catalog.kedra                explicit entry and imports
   jq.kedra                     metadata, source pin, inline build and exports
   sqlite.kedra                 library/shell declarations and inline builds
-  sets/desktop.kedra
-  sets/compiler.kedra
+  hello.kedra                  self-contained inline C pilot
+  # target/compiler sets are declared in catalog.kedra
   packages.lock.json           reviewed source/resource pins as data
   resources/                   optional large/independently maintained assets
 ```
@@ -38,8 +39,8 @@ frontend/engine executable hashes unchanged. Rust remains a supported secondary
 programmatic API to the same validated intent, not a runtime escape from `.kedra`.
 
 The owner approval overrides the earlier no-new-language restriction for this
-specific future frontend. T1/T8 must reconcile AGENTS/architecture and affected
-skills narrowly during implementation; do not generalize the exception into a new
+specific frontend. AGENTS/architecture and affected
+skills carry that narrow exception; do not generalize the exception into a new
 configuration language for every subsystem or a new deployment backend.
 
 ## 2. Pure intent before image/source resolution

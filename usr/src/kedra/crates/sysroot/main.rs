@@ -9,6 +9,8 @@ mod agents;
 mod catalog;
 #[cfg(unix)]
 mod catalog_language;
+#[cfg(unix)]
+mod catalog_process;
 mod deployment;
 mod doctor;
 #[cfg(unix)]
@@ -19,6 +21,7 @@ mod release_channel;
 mod release_history;
 mod setup;
 mod source;
+mod source_packages;
 #[cfg(unix)]
 mod system;
 
@@ -28,12 +31,18 @@ mod system;
     about = "Kedra source planning and system management (in development)"
 )]
 struct Cli {
+    #[cfg(unix)]
+    #[arg(long, hide = true)]
+    frontend_process: bool,
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    #[cfg(unix)]
+    #[command(hide = true)]
+    FrontendInput,
     /// Resolve reviewed package catalogs and author installed contributions.
     #[cfg(unix)]
     Catalog(catalog::Options),
@@ -420,7 +429,35 @@ fn run_engine(command: engine::Command) -> ExitCode {
 }
 
 fn main() -> ExitCode {
-    match Cli::parse().command {
+    let cli = Cli::parse();
+    #[cfg(unix)]
+    if cli.frontend_process {
+        if let Err(error) = catalog_process::worker_limits() {
+            eprintln!("sysroot: {error}");
+            return ExitCode::FAILURE;
+        }
+    } else if let Some(Commands::Catalog(options)) = &cli.command
+        && options.planning()
+    {
+        return match catalog_process::planning() {
+            Ok(code) => code,
+            Err(error) => {
+                eprintln!("sysroot: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+    }
+    match cli.command {
+        #[cfg(unix)]
+        Some(Commands::FrontendInput) => {
+            return match catalog_language::worker() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("sysroot: {error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
         #[cfg(unix)]
         Some(Commands::Catalog(options)) => {
             return match catalog::run(options) {

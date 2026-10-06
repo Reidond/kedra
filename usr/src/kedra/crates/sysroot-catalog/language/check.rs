@@ -32,7 +32,7 @@ pub struct TargetPolicy {
     pub required_packages: BTreeSet<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Intent {
     pub schema_version: u32,
     pub namespace: String,
@@ -45,7 +45,7 @@ pub struct Intent {
     pub selected: BTreeSet<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecipeIntent {
     pub module: String,
     pub name: String,
@@ -68,32 +68,32 @@ pub struct RecipeIntent {
     pub timeout: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SourceIntent {
     Archive(SourcePin),
     Files(BTreeMap<String, Content>),
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Content {
     Inline { bytes: String, executable: bool },
     File { path: String, executable: bool },
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PatchIntent {
     pub strip: u64,
     pub content: Content,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExportIntent {
     pub kind: String,
     pub path: String,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TemplateIntent {
     pub body: String,
     pub bindings: BTreeMap<String, Binding>,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Binding {
     Literal(String),
     Path { package: String, path: String },
@@ -135,6 +135,7 @@ struct Checker {
     lock: Lockfile,
     intent: Intent,
     active: BTreeSet<String>,
+    selected_sets: BTreeSet<String>,
     requests: Vec<Request>,
 }
 struct Request {
@@ -164,6 +165,17 @@ fn rpm(value: &str) -> bool {
 }
 
 impl Checker {
+    fn conflict(&self, first: &str, second: &str, code: &str, message: &str) -> Diagnostic {
+        let first = &self.definitions[first];
+        let second = &self.definitions[second];
+        let mut diagnostic = fail(&first.module, first.declaration.span, code, message);
+        diagnostic.related.push(super::Location {
+            file: second.module.clone(),
+            line: second.declaration.span.line,
+            column: second.declaration.span.column,
+        });
+        diagnostic
+    }
     fn cycles(
         &self,
         key: &str,
@@ -376,9 +388,30 @@ impl Checker {
                 self.intent.remove.insert(request.name.clone());
             }
         }
-        if !self.intent.packages.is_disjoint(&self.intent.remove)
-            || !policy.required_packages.is_subset(&self.intent.packages)
+        if let Some(name) = self
+            .intent
+            .packages
+            .intersection(&self.intent.remove)
+            .next()
         {
+            let include = self
+                .requests
+                .iter()
+                .find(|r| r.name == *name && r.include)
+                .ok_or_else(|| fail(entry, root_span(), "selection", "missing include origin"))?;
+            let remove = self
+                .requests
+                .iter()
+                .find(|r| r.name == *name && !r.include)
+                .ok_or_else(|| fail(entry, root_span(), "selection", "missing removal origin"))?;
+            return Err(self.conflict(
+                &include.origin,
+                &remove.origin,
+                "selection",
+                "include/remove conflict",
+            ));
+        }
+        if !policy.required_packages.is_subset(&self.intent.packages) {
             return Err(fail(
                 entry,
                 root_span(),
@@ -386,13 +419,13 @@ impl Checker {
                 "include/remove conflict or required base request missing",
             ));
         }
-        let mut aliases = BTreeSet::new();
+        let mut aliases = BTreeMap::new();
         for key in &self.intent.selected {
             for name in self.intent.recipes[key].exports.keys() {
-                if !aliases.insert(name) {
-                    return Err(fail(
-                        entry,
-                        root_span(),
+                if let Some(previous) = aliases.insert(name, key) {
+                    return Err(self.conflict(
+                        previous,
+                        key,
                         "export",
                         "ambiguous selected export",
                     ));
@@ -420,6 +453,9 @@ impl Checker {
         replacements: &mut Vec<(String, String, String, String)>,
         depth: usize,
     ) -> Result<()> {
+        if self.selected_sets.contains(key) {
+            return Ok(());
+        }
         if depth > MAX_DEPTH || !self.active.insert(key.into()) {
             return Err(fail(
                 "catalog",
@@ -472,6 +508,7 @@ impl Checker {
             }
         }
         self.active.remove(key);
+        self.selected_sets.insert(key.into());
         Ok(())
     }
     fn content(&self, definition: &Definition, value: &Value) -> Result<Content> {
@@ -1227,7 +1264,10 @@ impl Checker {
                         return Err(self.error(module, value, "limit", "resource count exceeded"));
                     }
                     for (path, content) in &block.fields {
-                        if !relative(path) || !names.insert(path.to_ascii_lowercase()) {
+                        if !relative(path)
+                            || !super::public_input(path, &[])
+                            || !names.insert(path.to_ascii_lowercase())
+                        {
                             return Err(self.error(
                                 module,
                                 content,
@@ -1451,6 +1491,15 @@ impl Checker {
                     }
                     let expected = self.typed(definition, item)?;
                     if name == "env" {
+                        if matches!(&item.kind, Kind::String(text) if text.len() > 4096 || text.contains('\0'))
+                        {
+                            return Err(self.error(
+                                module,
+                                item,
+                                "env",
+                                "environment literal exceeds bound",
+                            ));
+                        }
                         if !matches!(expected, Type::String | Type::Path) {
                             return Err(self.error(
                                 module,
@@ -1584,6 +1633,11 @@ pub fn compile(
         || policy.schema_version != 1
         || lock.schema_version != 1
         || policy.namespace.is_empty()
+        || policy.namespace.len() > 128
+        || !policy
+            .namespace
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
         || !policy.targets.contains(target)
         || policy.targets.len() > 256
         || policy.required_packages.len() > 256
@@ -1596,12 +1650,26 @@ pub fn compile(
             "invalid policy or denied target",
         ));
     }
+    let mut pinned_objects = BTreeMap::<&str, &SourcePin>::new();
     for pin in lock.sources.values() {
-        if !pin.url.starts_with("https://")
+        if lock.sources.len() > 256
+            || !pin.url.starts_with("https://")
+            || pin.url.len() > 4096
+            || pin.url.chars().any(char::is_control)
             || !hex(&pin.sha256)
             || !pin.object.strip_prefix("src-").is_some_and(hex)
         {
             return Err(fail(entry, root_span(), "pin", "invalid exact source pin"));
+        }
+        if let Some(previous) = pinned_objects.insert(&pin.object, pin)
+            && (previous.url != pin.url || previous.sha256 != pin.sha256)
+        {
+            return Err(fail(
+                entry,
+                root_span(),
+                "pin",
+                "conflicting archive provenance for one source identity",
+            ));
         }
     }
     let mut checker = Checker {
@@ -1621,13 +1689,44 @@ pub fn compile(
             selected: BTreeSet::new(),
         },
         active: BTreeSet::new(),
+        selected_sets: BTreeSet::new(),
         requests: Vec::new(),
     };
+    fn resources(value: &Value) -> usize {
+        match &value.kind {
+            Kind::Tagged(_, _) => 1,
+            Kind::Call(name, _) if name.as_slice() == ["file"] => 1,
+            Kind::Call(_, args) => args.iter().map(|(_, v)| resources(v)).sum(),
+            Kind::List(values) => values.iter().map(resources).sum(),
+            Kind::Construct(_, block) | Kind::Block(block) => block
+                .fields
+                .values()
+                .chain(block.configs.values())
+                .map(resources)
+                .sum(),
+            _ => 0,
+        }
+    }
+    let mut resource_count = 0;
     for (path, contents) in modules {
         if !relative(path) {
             return Err(fail(entry, root_span(), "path", "unsafe module path"));
         }
         let module = parse(path, contents)?;
+        resource_count += module
+            .declarations
+            .values()
+            .flat_map(|d| d.block.fields.values().chain(d.block.configs.values()))
+            .map(resources)
+            .sum::<usize>();
+        if resource_count > super::MAX_RESOURCES {
+            return Err(fail(
+                path,
+                root_span(),
+                "limit",
+                "declared resource count exceeded",
+            ));
+        }
         if (path == entry && module.namespace.as_deref() != Some(policy.namespace.as_str()))
             || (path != entry && module.namespace.is_some())
         {
@@ -1692,6 +1791,31 @@ pub fn compile(
             .extend(imported);
     }
     for definition in checker.definitions.values() {
+        if definition.declaration.parameters.keys().any(|name| {
+            checker.symbols[&definition.module].contains_key(name)
+                || [
+                    "self",
+                    "deps",
+                    "src",
+                    "out",
+                    "source_revision",
+                    "file",
+                    "path",
+                    "text",
+                    "shell",
+                    "script",
+                    "executable",
+                    "fedora",
+                ]
+                .contains(&name.as_str())
+        }) {
+            return Err(fail(
+                &definition.module,
+                definition.declaration.span,
+                "name",
+                "parameter shadows declaration or reserved binding",
+            ));
+        }
         checker.validate(definition)?;
     }
     let mut visited = BTreeSet::new();

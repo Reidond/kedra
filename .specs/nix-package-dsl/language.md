@@ -307,9 +307,9 @@ Filesystem mtimes never substitute for content identity.
 
 ## 6. Tooling and compatibility
 
-Proposed CLI surface: `sysroot catalog check`, `fmt`, and `plan --entry catalog.kedra
+Implemented CLI surface: `sysroot catalog check`, `fmt`, and `plan --entry catalog.kedra
 --target ... --lock packages.lock.json`, with explicit input-root/policy arguments.
-Names are proposed. `fmt` writes only explicitly selected files; `--check` emits
+The implemented names and evidence are maintained in PACKAGES.md and the worklog. `fmt` writes only explicitly selected files; `--check` emits
 status without writes, and no formatter runs automatically during plan/build.
 Diagnostics contain reason code, catalog-relative file, line/column and related
 locations; default shared diagnostics do not echo arbitrary literal contents.

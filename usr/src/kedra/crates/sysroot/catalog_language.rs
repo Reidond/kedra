@@ -1,5 +1,7 @@
+use base64::{Engine, engine::general_purpose::STANDARD};
 use clap::Args;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
@@ -9,7 +11,8 @@ use std::path::{Path, PathBuf};
 use sysroot_catalog::language::{self, Intent, Lockfile, TargetPolicy};
 use sysroot_engine::{Error, Result};
 
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Inputs {
     /// Explicit admitted catalog root; modules/imports never leave this directory.
     #[arg(long)]
@@ -31,6 +34,41 @@ pub(crate) struct Loaded {
     pub intent: Intent,
     pub inventory: BTreeMap<String, String>,
     pub resources: BTreeMap<String, Vec<u8>>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Wire {
+    intent: Intent,
+    inventory: BTreeMap<String, String>,
+    resources: BTreeMap<String, String>,
+}
+
+pub(crate) fn worker() -> Result<()> {
+    if !crate::catalog_process::is_worker() {
+        return Err(Error::Invalid(
+            "frontend worker requires owned process limits".into(),
+        ));
+    }
+    let mut bytes = Vec::new();
+    std::io::stdin().take(65537).read_to_end(&mut bytes)?;
+    if bytes.len() > 65536 {
+        return Err(Error::Invalid("frontend request limit exceeded".into()));
+    }
+    let loaded = load_admitted(&json::<Inputs>(&bytes)?)?;
+    serde_json::to_writer(
+        std::io::stdout().lock(),
+        &Wire {
+            intent: loaded.intent,
+            inventory: loaded.inventory,
+            resources: loaded
+                .resources
+                .into_iter()
+                .map(|(name, bytes)| (name, STANDARD.encode(bytes)))
+                .collect(),
+        },
+    )?;
+    Ok(())
 }
 
 pub(crate) fn digest(data: &[u8]) -> String {
@@ -100,20 +138,7 @@ pub(crate) fn ordinary(root: &File, path: &str, limit: usize) -> Result<Vec<u8>>
             "catalog input changed while admitted".into(),
         ));
     }
-    if ["auth.json", "credentials.json", ".credentials.json"].contains(&parts[parts.len() - 1])
-        || parts
-            .iter()
-            .any(|part| matches!(*part, ".ssh" | ".codex" | ".claude" | ".cache"))
-        || [
-            b"-----BEGIN PRIVATE KEY-----".as_slice(),
-            b"-----BEGIN OPENSSH PRIVATE KEY-----",
-            b"-----BEGIN RSA PRIVATE KEY-----",
-            b"-----BEGIN EC PRIVATE KEY-----",
-            b"-----BEGIN ENCRYPTED PRIVATE KEY-----",
-        ]
-        .iter()
-        .any(|marker| bytes.windows(marker.len()).any(|w| w == *marker))
-    {
+    if !language::public_input(path, &bytes) {
         return Err(Error::Invalid(
             "private input cannot enter catalog admission".into(),
         ));
@@ -143,6 +168,30 @@ fn json<T: DeserializeOwned>(bytes: &[u8]) -> Result<T> {
 }
 
 pub(crate) fn load(inputs: &Inputs) -> Result<Loaded> {
+    if crate::catalog_process::is_worker() {
+        return load_admitted(inputs);
+    }
+    let bytes = crate::catalog_process::input(&serde_json::to_vec(inputs)?)?;
+    let wire: Wire = json(&bytes)?;
+    Ok(Loaded {
+        intent: wire.intent,
+        inventory: wire.inventory,
+        resources: wire
+            .resources
+            .into_iter()
+            .map(|(name, bytes)| {
+                Ok((
+                    name,
+                    STANDARD.decode(bytes).map_err(|_| {
+                        Error::Invalid("invalid frontend resource transport".into())
+                    })?,
+                ))
+            })
+            .collect::<Result<_>>()?,
+    })
+}
+
+fn load_admitted(inputs: &Inputs) -> Result<Loaded> {
     let directory = root(&inputs.input_root)?;
     let policy_parent = inputs
         .target_policy
@@ -268,17 +317,18 @@ pub(crate) fn fmt(paths: Vec<PathBuf>, check: bool) -> Result<()> {
             return Err(Error::Invalid("formatter source changed".into()));
         }
         let metadata = file.metadata()?;
-        if metadata.mode() & 0o7000 != 0 {
+        if metadata.mode() & 0o7022 != 0 {
             return Err(Error::Invalid("formatter source has unsafe mode".into()));
         }
-        let nonce = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| Error::Invalid("invalid clock".into()))?
-            .as_nanos();
-        let temporary = format!(".kedra-format-{}-{nonce}", std::process::id());
+        let snapshot = sysroot_engine::ManagedSnapshot::create(
+            parent,
+            sysroot_engine::SnapshotPurpose::Formatter,
+        )?;
+        let staging = root(snapshot.path())?;
+        let temporary = "module.kedra";
         let mut output: File = rustix::fs::openat(
-            &directory,
-            temporary.as_str(),
+            &staging,
+            temporary,
             rustix::fs::OFlags::WRONLY
                 | rustix::fs::OFlags::CREATE
                 | rustix::fs::OFlags::EXCL
@@ -296,15 +346,12 @@ pub(crate) fn fmt(paths: Vec<PathBuf>, check: bool) -> Result<()> {
                     "formatter source changed before publication".into(),
                 ));
             }
-            rustix::fs::renameat(&directory, temporary.as_str(), &directory, name)?;
+            rustix::fs::renameat(&staging, temporary, &directory, name)?;
             directory.sync_all()?;
             Ok(())
         })();
-        if result.is_err() {
-            let _ =
-                rustix::fs::unlinkat(&directory, temporary.as_str(), rustix::fs::AtFlags::empty());
-        }
         result?;
+        snapshot.finish()?;
     }
     Ok(())
 }

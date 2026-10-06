@@ -1,8 +1,9 @@
 # Verification management
 
-Status: **planned; all runtime cases not-run**. This documentation revision is
-checked by source/design review, traceability inspection and standard Git diff
-checks. It introduces no parser, recipe executable or package migration.
+Status: **qualification in progress**. Case groups remain not-run or partial until
+every stated outcome has evidence. Current executable subsets and failures are
+recorded in worklog WL-20261006-PKGDSL-03/04/05; source checks do not establish
+installed migration or broad-case completion.
 
 ## Entry conditions and levels
 

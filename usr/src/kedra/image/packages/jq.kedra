@@ -1,0 +1,34 @@
+language 1;
+package jq(builder: Builder, runtime: Foundation) {
+    version = "1.8.2";
+    summary = "JSON transformation with bundled regular-expression support";
+    license = "MIT and bundled notices in COPYING and vendor/oniguruma/COPYING";
+    source = archive {
+        url = "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-1.8.2.tar.gz";
+        pin = "jq-source";
+    };
+    env = {
+        SOURCE_DATE_EPOCH = "0";
+    };
+    build = shell """
+        set -eu
+        scratch="$out/.work"
+        mkdir "$scratch"
+        cp -R "$src"/. "$scratch/"
+        chmod -R u+w "$scratch"
+        # Canonical source identity does not preserve generated-file timestamp ordering.
+        find -P "$scratch" -exec touch -h -d "@$SOURCE_DATE_EPOCH" -- {} +
+        cd "$scratch"
+        ./configure --prefix="$out" --disable-docs --disable-maintainer-mode --disable-shared --enable-static --with-oniguruma=builtin CFLAGS="-O2 -ffile-prefix-map=$scratch=."
+        make -j2
+        test "$(od -An -tx1 -N4 jq | tr -d ' \n')" = 7f454c46
+        mkdir -p "$out/bin" "$out/share/licenses/jq"
+        cp jq "$out/bin/jq"
+        chmod 755 "$out/bin/jq"
+        cp COPYING "$out/share/licenses/jq/COPYING"
+        cp vendor/oniguruma/COPYING "$out/share/licenses/jq/ONIGURUMA"
+        cd "$out"
+        rm -rf "$scratch"
+        """;
+    export command "jq" = "bin/jq";
+}

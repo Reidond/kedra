@@ -145,6 +145,13 @@ pub(super) fn tokens(file: &str, input: &str) -> Result<Vec<Token>> {
             let (body_end, delimiter) =
                 close.ok_or_else(|| error(span, "literal", "unterminated raw literal"))?;
             let prefix = &input[body_end..delimiter];
+            if input[body_start..body_end].contains("\"\"\"") {
+                return Err(error(
+                    span,
+                    "literal",
+                    "delimiter in payload requires an escaped string",
+                ));
+            }
             let mut decoded = String::new();
             for body_line in input[body_start..body_end].split_inclusive('\n') {
                 if body_line == "\n" {

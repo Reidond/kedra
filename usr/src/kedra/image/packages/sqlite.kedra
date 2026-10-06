@@ -1,0 +1,63 @@
+language 1;
+library sqlite_library(builder: Builder, runtime: Foundation) {
+    version = "3.53.4";
+    summary = "SQLite shared library and headers";
+    license = "blessing (public domain)";
+    source = archive {
+        url = "https://www.sqlite.org/2026/sqlite-autoconf-3530400.tar.gz";
+        pin = "sqlite-source";
+    };
+    build = shell """
+        set -eu
+        mkdir -p "$out/lib" "$out/include" "$out/share/licenses/sqlite"
+        /usr/bin/gcc -O2 -fPIC -shared -Wl,-soname,libsqlite3.so -ffile-prefix-map="$src"=. -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE -DSQLITE_ENABLE_MATH_FUNCTIONS -DSQLITE_ENABLE_COLUMN_METADATA "$src/sqlite3.c" -lpthread -ldl -lm -o "$out/lib/libsqlite3.so"
+        cp "$src/sqlite3.h" "$src/sqlite3ext.h" "$out/include/"
+        cp "$src/sqlite3.h" "$out/share/licenses/sqlite/sqlite3.h"
+        """;
+    export library "sqlite3" = "lib/libsqlite3.so";
+    export files "sqlite_headers" = "include";
+}
+package sqlite(builder: Builder, runtime: Foundation) {
+    version = "3.53.4";
+    summary = "SQLite database shell with a separate retained SQLite shared library";
+    license = "blessing (public domain)";
+    source = archive {
+        url = "https://www.sqlite.org/2026/sqlite-autoconf-3530400.tar.gz";
+        pin = "sqlite-source";
+    };
+    runtime_deps = {
+        library = sqlite_library(builder: builder, runtime: runtime);
+    };
+    env = {
+        library_include = path(deps.library, "include");
+        library_lib = path(deps.library, "lib");
+    };
+    build = shell """
+        set -eu
+        mkdir -p "$out/bin"
+        /usr/bin/gcc -O2 -ffile-prefix-map="$src"=. -I"$library_include" "$src/shell.c" -L"$library_lib" -Wl,-rpath,"$library_lib" -lsqlite3 -lpthread -ldl -lm -o "$out/bin/sqlite3"
+        """;
+    export command "sqlite3" = "bin/sqlite3";
+    config "/usr/lib/systemd/system/kedra-catalog-history.service" = template {
+        body = text """
+            [Unit]
+            Description=Record selected catalog versions in persistent history
+
+            [Service]
+            Type=oneshot
+            DynamicUser=yes
+            StateDirectory=kedra-catalog
+            StateDirectoryMode=0700
+            WorkingDirectory=/var/lib/kedra-catalog
+            ProtectSystem=strict
+            ProtectHome=yes
+            PrivateTmp=yes
+            NoNewPrivileges=yes
+            ExecStart={{sqlite}} -batch /var/lib/kedra-catalog/history.sqlite "CREATE TABLE IF NOT EXISTS catalog_runs(id INTEGER PRIMARY KEY, observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, source_revision TEXT NOT NULL, sqlite_version TEXT NOT NULL); INSERT INTO catalog_runs(source_revision,sqlite_version) VALUES('{{revision}}',sqlite_version());"
+            """;
+        bindings = {
+            sqlite = path(self, "bin/sqlite3");
+            revision = source_revision;
+        };
+    };
+}

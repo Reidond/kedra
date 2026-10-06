@@ -62,12 +62,14 @@ pub struct Plan {
     pub target: Target,
     pub packages: Vec<String>,
     pub remove_packages: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) package_frontend: Option<crate::source_packages::Frontend>,
     pub files: Vec<File>,
 }
-struct Entry {
-    mode: String,
-    blob: String,
-    path: String,
+pub(crate) struct Entry {
+    pub(crate) mode: String,
+    pub(crate) blob: String,
+    pub(crate) path: String,
 }
 
 pub(crate) fn git(repo: &Path, args: &[&str]) -> Result<Vec<u8>, Error> {
@@ -156,7 +158,7 @@ fn entries(repo: &Path, revision: &str) -> Result<Vec<Entry>, Error> {
         })
         .collect()
 }
-fn blob(repo: &Path, entry: &Entry) -> Result<Vec<u8>, Error> {
+pub(crate) fn blob(repo: &Path, entry: &Entry) -> Result<Vec<u8>, Error> {
     if !matches!(entry.mode.as_str(), "100644" | "100755") || !safe_path(&entry.path) {
         return Err(invalid(format!(
             "unsupported file mode/path: {} ({})",
@@ -372,9 +374,19 @@ fn plan_committed(
             target.architecture
         )));
     }
-    let mut packages = package_list(repo, &tree, &inputs.packages[0])?;
-    packages.extend(package_list(repo, &tree, &inputs.packages[1])?);
-    let remove = package_list(repo, &tree, &inputs.remove)?;
+    let (packages, remove, package_frontend) =
+        match crate::source_packages::select(repo, &tree, host, inputs.legacy)? {
+            Some(selection) => (
+                selection.packages,
+                selection.remove,
+                Some(selection.frontend),
+            ),
+            None => {
+                let mut packages = package_list(repo, &tree, &inputs.packages[0])?;
+                packages.extend(package_list(repo, &tree, &inputs.packages[1])?);
+                (packages, package_list(repo, &tree, &inputs.remove)?, None)
+            }
+        };
     if let Some(package) = packages.intersection(&remove).next() {
         return Err(invalid(format!(
             "package {package} is both installed and removed"
@@ -467,6 +479,7 @@ fn plan_committed(
         target,
         packages: packages.into_iter().collect(),
         remove_packages: remove.into_iter().collect(),
+        package_frontend,
         files: files.into_values().collect(),
     })
 }

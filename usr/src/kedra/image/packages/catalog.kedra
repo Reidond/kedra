@@ -1,0 +1,28 @@
+language 1;
+namespace "kedra";
+import {
+    jq
+} from "./jq.kedra";
+import {
+    sqlite
+} from "./sqlite.kedra";
+import {
+    hello
+} from "./hello.kedra";
+foundation system {
+    fedora = 44;
+    packages = ["niri", "noctalia", "git", "openssh-clients", "skopeo", "gh", "foot", "fuzzel", "greetd", "tuigreet", "gnome-keyring", "gnome-keyring-pam", "polkit", "xdg-desktop-portal", "xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk", "xwayland-satellite", "xorg-x11-server-Xwayland", "pipewire", "pipewire-pulseaudio", "wireplumber", "NetworkManager", "NetworkManager-wifi", "bluez", "mesa-dri-drivers", "mesa-vulkan-drivers", "google-noto-sans-fonts", "google-noto-sans-mono-fonts", "adwaita-sans-fonts", "adwaita-mono-fonts", "adwaita-icon-theme", "adwaita-cursor-theme", "gsettings-desktop-schemas", "adw-gtk3-theme", "plasma-integration", "plasma-integration-qt5", "plasma-breeze", "plasma-breeze-qt5", "breeze-icon-theme", "kf6-qqc2-desktop-style", "kf5-qqc2-desktop-style", "wl-clipboard", "brightnessctl", "playerctl", "firefox", "nautilus", "seahorse", "libnotify", "libXScrnSaver", "libXtst", "nss", "alsa-lib", "atk", "at-spi2-atk", "cups-libs", "libdrm", "gtk3", "mesa-libgbm"];
+}
+builder c_tools {
+    base = system;
+    packages = ["gcc", "make", "autoconf", "automake", "libtool", "binutils", "diffutils", "findutils", "tar", "gzip", "coreutils", "gawk", "grep", "sed", "pkgconf-pkg-config"];
+}
+target "desktop" {
+    foundation = system;
+    fedora = [];
+}
+target "qemu-arm64" {
+    foundation = system;
+    fedora = ["qemu-guest-agent", "egl-utils"];
+    packages = [jq(builder: c_tools, runtime: system), sqlite(builder: c_tools, runtime: system), hello(builder: c_tools, runtime: system)];
+}

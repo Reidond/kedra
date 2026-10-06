@@ -8,7 +8,7 @@ Installation media is built locally when needed. No ISO, GitHub Release or relea
 
 ## Change the system
 
-The repository root is the image's Linux filesystem. Edit the root `etc/` and `usr/` trees (`etc/skel/` is the home baseline) and the package lists `usr/src/kedra/image/packages.list` and `usr/src/kedra/image/targets/<target>/packages.list` (`desktop` or `qemu-arm64`). Explicit target files under `usr/src/kedra/image/targets/<target>/` override shared files. `usr/src/kedra/` is the development tree and never enters the image. Unknown XPS hardware remains disabled.
+The repository root is the image's Linux filesystem. Edit root `etc/` and `usr/` (`etc/skel/` is the home baseline), and package definitions under `usr/src/kedra/image/packages/`. `package-inputs.json` selects the versioned `.kedra` reader; retained commits keep their explicit package-list reader. Explicit target files under `usr/src/kedra/image/targets/<target>/` override shared files. `usr/src/kedra/` is the development tree and never enters the image. Unknown XPS hardware remains disabled. See [package authoring](usr/src/kedra/docs/PACKAGES.md) for the current language and qualification.
 
 Actions checks packages at **00:00 UTC**, with optional on-demand runs. A changed image passes build validation, isolated automatic OCI signing and strict verification before `stable` advances. No approval or manual signing step is required. No-change does nothing: it creates no image, metadata release or renewal. Runner queues affect delivery time; installed machines never reboot automatically.
 

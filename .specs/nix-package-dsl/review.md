@@ -1,4 +1,10 @@
-# Specification review
+# Specification and implementation review
+
+Current state (2026-10-06): implementation is authorized and present, with local
+frontend, real Fedora build/rebuild, independent API and installed catalog passes.
+The original review below is historical; current qualification is in test-plan.md.
+
+## Original specification review (2026-10-05)
 
 Status: revised following the owner's approval on 2026-10-05. Standalone language
 and inline-first direction are approved; implementation remains unstarted. This
@@ -84,3 +90,41 @@ No remaining design blocker is being hidden behind a claimed implementation pass
 Not inspected by execution: parser behavior, actual new lowering, resource ceilings,
 new Fedora migration and installed outputs, because this PR contains no code for
 those operations. They have explicit future case owners rather than assumed results.
+
+## Implementation review (2026-10-06)
+
+The owner explicitly authorized language and migration implementation. The scope
+now includes the frontend/intent, engine resource admission, source reader, release
+preflight/contribution, authored definitions, public workflows and documentation.
+This replaces the original documentation-only scope recorded above.
+
+Dependency inspection is a floor from concrete references, not proof of every
+dynamic caller. Opened dependents and disposition:
+
+| Changed contract | Dependents checked | Disposition |
+|---|---|---|
+| parse/compile/format and typed intent | catalog_language.rs, catalog.rs, source_packages.rs, direct Rust consumer | updated; public CLI and real API/build checks |
+| source identity and SourceFile | engine tree/store admission, language lowering, packet emitter | checked/updated; exact identity and actual store admission agree |
+| managed snapshot purpose | system recovery, catalog emission and formatter | updated; atomic publication and closed recovery members preserve winners |
+| source format discriminator | source plan/archive, assembly, material/refresh and image workflows | updated; real committed old/new readers and exclusive format refusals |
+| pin/material schema2 | refresh.py, release-target.yml, contribution and composer | updated; generic roles/packages, exact observed RPM checks; signer schema unchanged |
+| legacy catalog API/schema1 | catalog list/resolve/contribute, immutable legacy.json, material.py | updated; explicit historical reader retained |
+| command/config exports | system definition/composer, installed catalog harness | updated; actual alias/PATH/library/service check passes |
+| package-only edits | container/desktop/QEMU/home/GHCR workflow path filters | updated; new input descriptor/policy/definition paths trigger existing workflows |
+
+Review fixes: bounded owned frontend process and aggregate resource limits; conflict
+diagnostics carry related locations; source preparation remains an isolated node;
+formatter scratch uses a recoverable lease; generic lowering contains no Kedra
+target whitelist; contribution checks complete actual foundation/compiler RPM
+material, and archive acquisition helper enters preflight recipe identity.
+
+The specification was checked against actual public behavior by requirement, and
+source/literal identity against the existing engine serializer. Ordinary compiler,
+Ruff and public E2E checks support convention compliance; no unit/mock test or
+repository scanner was added. Operational docs and narrowly revised architecture/
+agent guidance follow the implemented owner decision; both plugin manifests are
+bumped. Durable findings are recorded only in worklog.md.
+
+Remaining qualification is explicitly recorded in test-plan.md. Protected
+production release is main-only and was not run from this branch; existing
+Noctalia/installer/native gates are not waived by these package results.

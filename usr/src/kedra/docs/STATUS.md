@@ -5,9 +5,16 @@
 The owner requests completing [PR38](https://github.com/Reidond/kedra/pull/38)'s
 [specification](../../../../.specs/nix-package-dsl/README.md) and implementing its
 standalone Rust `.kedra` frontend, inline resources and package/release migration.
-Work is in progress against merged main `b60bcb0`, retaining explicit legacy
-readers and independent release authority. No language runtime or migration pass
-is claimed yet. Existing release/installer/native gates below remain independent.
+The branch implements the parser/type checker/formatter, bounded process and
+resource lowering, independent Rust intent API, Fedora compiler-role resolution,
+generic contribution and explicit source cutover. jq/SQLite/library and the C
+pilot pass real Fedora build/rebuild checks. The installed catalog aliases, PATH,
+SQL/jq/library and persistent service workflow pass on exact unsigned native image
+`b44e6c3b55a3bdb82248b94a5c2131def3d75d0b1858946928bc6f53a79575b2`.
+Actual deadline/memory refusals preserve winners and reap the child. Source
+compatibility/request parity pass; final CI and fresh both-target release material
+qualification are pending. See worklog WL-20261006-PKGDSL-06/07/08. Existing
+release/installer/native gates below remain independent; no production publication.
 
 ## Repair verification and remaining qualification (2026-10-06)
 

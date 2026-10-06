@@ -175,13 +175,15 @@ No plugin, general eval, ambient environment lookup or recursive function exists
   phases retain order. Formatting-only source changes affect audit provenance but
   not semantic recipe identity if payloads are unchanged. This does not prove
   bit-for-bit reproducibility of all resulting OS images.
-- **NFR-02 / bounds:** proposed defaults are at most 128 imported modules, 8 MiB per
+- **NFR-02 / bounds:** proposed defaults are at most 128 modules including the entry, 8 MiB per
   admitted input, 32 MiB total admitted frontend input, 4096 declared resources
   and 64 nesting levels. These resource limits exclude the separately bounded
   upstream archive tree, which follows existing engine admission.
   The emitted intent/lowered graph respects existing 8 MiB data and 256-node graph
   limits, with at most 256 selectable package entries. Parse/expand/emit has a
-  60-second deadline, 512 MiB process ceiling and 1 MiB diagnostic cap. No automatic
+  60-second owned-process deadline, 512 MiB address-space ceiling on Linux,
+  a 512 MiB resident-memory ceiling sampled every 100 ms on macOS, and a 1 MiB
+  diagnostic cap. Independent library consumers own their process supervision. No automatic
   retry or silent truncation; generated preparation nodes count toward limits.
   Existing per-build limits remain separate. These are policies to qualify, not
   measured performance claims.
@@ -199,4 +201,4 @@ No plugin, general eval, ambient environment lookup or recursive function exists
 AC-01 through AC-13 and NFR-01 through NFR-04 need actual evidence. Migrate the
 inline-first pilots, add another source package without central-name edits, prove
 both target migrations and independent consumption, and retain explicit production
-publication boundaries. This PR completes the specification revision only.
+publication boundaries. This PR implements the approved scope; completion requires the recorded evidence.

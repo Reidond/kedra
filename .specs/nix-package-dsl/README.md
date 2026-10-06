@@ -9,7 +9,7 @@ language and migration. Prior D1–D5 and Noctalia runtime gaps remain independe
 The owner approved a **standalone `.kedra` language implemented in Rust** and
 prefers most packages to carry their build logic directly in those files. This
 supersedes the first revision's embedded Rust DSL/author-crate choice. The approval
-changes the earlier no-new-language decision for this specific planned package
+changes the earlier no-new-language decision for this specific package
 frontend; it does not authorize a new OS backend or generic scripting platform.
 
 A normal package definition contains its metadata, pinned source reference,
@@ -49,18 +49,19 @@ Read in order:
 2. [Language syntax, examples and precise content semantics](language.md)
 3. [Architecture, lowering and migration](design.md)
 4. [Implementation tasks](tasks.md)
-5. [Future executable/manual cases](test-cases.md) and [verification plan](test-plan.md)
+5. [Executable/manual cases](test-cases.md) and [verification plan](test-plan.md)
 6. [Review and evidence](review.md)
 
-Task and case states are maintained in tasks.md and test-plan.md. Proposed syntax
-is normative for implementation; a task is complete only with its stated evidence.
+Task and case states are maintained in tasks.md and test-plan.md. The language
+contract describes the delivered v1 syntax; qualification is recorded per workflow.
 
 ## Inspected source, not assumptions about main
 
 The delivery checkout was inspected at
 `95c5c6cf9856b9dc5d54bbb076f74aa185ae4c9f`; relevant package/source/release files
 matched published `e908bb281c3dc5189373c48a5ab4958c1b9d2fde` by ordinary Git diff.
-The links pin that snapshot because these components are not yet on this PR's base:
+These links preserve the original design inspection; delivered main b60bcb0 now
+contains that foundation, and PR38 adds the implementation described above:
 
 - [Recipes](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot-catalog/recipes.rs): jq 1.8.2, SQLite 3.53.4, archive/tree pins and shell text.
 - [Catalog API](https://github.com/Reidond/kedra/blob/e908bb281c3dc5189373c48a5ab4958c1b9d2fde/usr/src/kedra/crates/sysroot-catalog/lib.rs): independent policies and engine graph lowering.

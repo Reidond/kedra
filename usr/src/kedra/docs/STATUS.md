@@ -14,7 +14,8 @@ SQL/jq/library and persistent service workflow pass on exact unsigned native ima
 Actual deadline/memory refusals preserve winners and reap the child. Source
 compatibility and fresh full-RPM parity pass on both native targets in
 [run37511811578](https://github.com/Reidond/kedra/actions/runs/37511811578).
-Both source architectures pass Check37511817585/37511811654 at2d44c7e. The same
+Both source architectures pass final-code Check37517872017/37517864795 at
+`6f1269df4210622b87e706a24a8779fa02bd6f67`. The same
 container run passes desktop11/12 and ARM12/13; each remaining failure is the
 existing unqualified Noctalia5.2.1 home review, with no cleanup failure.
 The legacy home fixture now derives its private compatibility requests through

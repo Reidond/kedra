@@ -111,3 +111,8 @@ recorded scopes. Full protected release, native x86 source execution and existin
 installer/native fault gates remain separate. The new legacy home fixture is
 prepared through the real public source CLI with equal A/B requests; its corrected
 hosted VM run is pending. Worklog09 records final-source checks and actual failures.
+
+Final code6f1269d passes both architecture Check37517872017/37517864795,
+workspace/focused E2E, Clippy/Ruff, release compilation and public release
+interoperability/material checks. Corrected hosted home run37517864796 is still
+in progress; the local source-preparation pass is not called a VM boot pass.

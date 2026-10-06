@@ -1,15 +1,21 @@
 # Requirements
 
 Status: owner approved the standalone language and inline-first authoring direction
-on 2026-10-05. This specification revision is reviewable design, not implemented
-functionality or authorization to begin implementation.
+on 2026-10-05; on 2026-10-06 the owner explicitly requests finishing the spec and
+implementing the language and migration. Acceptance remains evidence-based.
 
 ## Problem and actors
 
 Built-in recipe edits currently change compiled Rust and embedded shell strings;
 Fedora selections live in separate lists. Authors need one readable package format
 that can carry most build details without Rust compilation or a collection of
-mandatory sidecar scripts. The generic engine must remain reusable.
+mandatory sidecar scripts. The generic engine must remain reusable. Current
+main has two compiled owner packages (jq and SQLite), three build nodes and three
+compiled configuration templates. This inventory was inspected on 2026-10-06 at
+`b60bcb0`; no authoring-frequency or productivity measurement is available. The
+owner's requested editable authoring flow, rather than an invented incident rate,
+motivates this work. Existing external Catalog JSON already supports independent
+Rust consumers; preserve that capability instead of rebuilding the engine.
 
 Actors: package author, owner selecting policy/targets, language frontend,
 resolver/build processes, release verifier, and independent consumer. Recipe

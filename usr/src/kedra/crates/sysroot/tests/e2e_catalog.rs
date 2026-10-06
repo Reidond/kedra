@@ -13,6 +13,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sysroot_catalog::{JQ_SOURCE, SQLITE_SOURCE};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
+const LANGUAGE_SAMPLE: &str = r##"language 1;
+namespace "example";
+foundation system { fedora = 44; packages = ["coreutils"]; }
+builder compiler { base = system; packages = ["gcc"]; }
+package hello(builder: Builder, runtime: Foundation) {
+    version = "1"; summary = "Inline program"; license = "MIT";
+    source = files {
+        "hello.c" = text "#include <stdio.h>\nint main(void) { puts(\"original\"); return 0; }\n";
+    };
+    build = shell """
+        mkdir -p "$out/bin"
+        /usr/bin/gcc -O2 -ffile-prefix-map="$src"=. "$src/hello.c" -o "$out/bin/hello"
+        """;
+    export command "hello" = "bin/hello";
+}
+target "demo" { foundation = system; packages = [hello(builder: compiler, runtime: system)]; }
+"##;
 const BUILDER: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 const RUNTIME: &str = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
 
@@ -22,6 +39,32 @@ struct Fixture {
 }
 
 impl Fixture {
+    fn language(&self, source: &str) -> Vec<String> {
+        fs::write(self.path("catalog.kedra"), source).unwrap();
+        self.write("pins.json", &json!({"schema_version":1,"sources":{}}));
+        self.write("target-policy.json", &json!({"schema_version":1,"namespace":"example","targets":["demo"],"repositories":["fedora","updates"],"required_packages":["coreutils"]}));
+        vec![
+            "--entry".into(),
+            "catalog.kedra".into(),
+            "--input-root".into(),
+            text(&self.root).into(),
+            "--target".into(),
+            "demo".into(),
+            "--lock".into(),
+            "pins.json".into(),
+            "--target-policy".into(),
+            text(&self.path("target-policy.json")).into(),
+        ]
+    }
+
+    fn language_run(&self, operation: &str, language: &[String], extra: &[&str]) -> Output {
+        Command::new(&self.binary)
+            .args(["catalog", operation])
+            .args(language)
+            .args(extra)
+            .output()
+            .unwrap()
+    }
     fn new() -> Self {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -116,6 +159,202 @@ impl Fixture {
         }
         self.json(&arguments)
     }
+}
+
+#[test]
+fn language_edit_format_plan_and_refusal() {
+    let fixture = Fixture::new();
+    let args = fixture.language(LANGUAGE_SAMPLE);
+    let before: Value =
+        serde_json::from_slice(&success(fixture.language_run("check", &args, &[])).stdout).unwrap();
+    success(fixture.run(&["catalog", "fmt", text(&fixture.path("catalog.kedra"))]));
+    success(fixture.run(&[
+        "catalog",
+        "fmt",
+        "--check",
+        text(&fixture.path("catalog.kedra")),
+    ]));
+    let after: Value =
+        serde_json::from_slice(&success(fixture.language_run("check", &args, &[])).stdout).unwrap();
+    assert_eq!(before["intent"], after["intent"]);
+    assert_ne!(before["inputs"], after["inputs"]);
+    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_images":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}));
+    let selection = [
+        "--package",
+        "hello",
+        "--builder",
+        BUILDER,
+        "--runtime",
+        RUNTIME,
+        "--policy",
+        text(&policy),
+    ];
+    let first: Value =
+        serde_json::from_slice(&success(fixture.language_run("plan", &args, &selection)).stdout)
+            .unwrap();
+    let changed = LANGUAGE_SAMPLE.replace(
+        "mkdir -p",
+        &format!("{}mkdir -p", "# long script data\n        ".repeat(2500)),
+    );
+    fixture.language(&changed);
+    let second: Value =
+        serde_json::from_slice(&success(fixture.language_run("plan", &args, &selection)).stdout)
+            .unwrap();
+    assert_ne!(first, second);
+    assert_eq!(second["nodes"]["package_0"]["argv"][1][0]["value"], "-eu");
+    assert_eq!(
+        second["nodes"]["package_0"]["argv"][2][0]["path"],
+        "build.sh"
+    );
+    assert!(!fixture.path("sentinel").exists());
+    for (source, reason) in [
+        (
+            LANGUAGE_SAMPLE.replace("language 1", "language 2"),
+            "version",
+        ),
+        (
+            LANGUAGE_SAMPLE.replace("fedora = 44", "fedora = \"44\""),
+            "type",
+        ),
+        (
+            LANGUAGE_SAMPLE.replace("namespace \"example\"", "namespace \"denied\""),
+            "namespace",
+        ),
+        (
+            LANGUAGE_SAMPLE.replace(
+                "version = \"1\";",
+                "version = \"1\"; unknown = \"secret not echoed\";",
+            ),
+            "field",
+        ),
+        (LANGUAGE_SAMPLE.replace("hello.c", "../outside"), "path"),
+        (LANGUAGE_SAMPLE.replace("\n", "\r\n"), "input"),
+    ] {
+        fixture.language(&source);
+        let refused = fixture.language_run("check", &args, &[]);
+        assert!(!refused.status.success());
+        assert!(refused.stdout.is_empty());
+        let message = String::from_utf8_lossy(&refused.stderr);
+        assert!(message.contains(reason), "{message}");
+        assert!(!message.contains("secret not echoed"));
+    }
+}
+
+#[test]
+fn language_import_admission_and_no_effects() {
+    let fixture = Fixture::new();
+    let source = LANGUAGE_SAMPLE.replace("mkdir -p", "touch sentinel\n        mkdir -p");
+    let args = fixture.language(&source);
+    success(fixture.language_run("check", &args, &[]));
+    assert!(!fixture.path("sentinel").exists());
+    fixture.language(&LANGUAGE_SAMPLE.replace(
+        "namespace \"example\";",
+        "namespace \"example\"; import { other } from \"./other.kedra\";",
+    ));
+    fs::write(
+        fixture.path("other.kedra"),
+        "language 1; import { hello } from \"./catalog.kedra\"; set other {}",
+    )
+    .unwrap();
+    let cycle = fixture.language_run("check", &args, &[]);
+    assert!(!cycle.status.success());
+    assert!(String::from_utf8_lossy(&cycle.stderr).contains("cycle"));
+    fs::remove_file(fixture.path("other.kedra")).unwrap();
+    std::os::unix::fs::symlink(fixture.path("catalog.kedra"), fixture.path("other.kedra")).unwrap();
+    assert!(!fixture.language_run("check", &args, &[]).status.success());
+}
+
+#[test]
+#[ignore = "requires explicitly retained native ARM compiler and runtime images"]
+fn language_real_inline_build_transfer_and_rebuild() {
+    let fixture = Fixture::new();
+    let builder = std::env::var("KEDRA_CATALOG_BUILDER").expect("set exact retained builder");
+    let runtime = std::env::var("KEDRA_CATALOG_RUNTIME").expect("set exact retained runtime");
+    let args = fixture.language(LANGUAGE_SAMPLE);
+    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_images":[builder],"runtime_images":[runtime],"source_objects":[]}));
+    let store = fixture.path("language-store");
+    success(fixture.run(&["store", "init", "--store", text(&store)]));
+    for image in [&builder, &runtime] {
+        success(fixture.run(&[
+            "store",
+            "add-image",
+            "--store",
+            text(&store),
+            "--image",
+            image,
+        ]));
+    }
+    let build = [
+        "--package",
+        "hello",
+        "--builder",
+        &builder,
+        "--runtime",
+        &runtime,
+        "--policy",
+        text(&policy),
+        "--store",
+        text(&store),
+    ];
+    let first: Value =
+        serde_json::from_slice(&success(fixture.language_run("build", &args, &build)).stdout)
+            .unwrap();
+    let root = first["result"]["outputs"]["package_0"].as_str().unwrap();
+    let output = success(fixture.run(&[
+        "run",
+        "--store",
+        text(&store),
+        "--object",
+        root,
+        "--program",
+        "bin/hello",
+    ]));
+    assert_eq!(output.stdout, b"original\n");
+    let mut rebuild = build.to_vec();
+    rebuild.push("--rebuild");
+    let second: Value =
+        serde_json::from_slice(&success(fixture.language_run("build", &args, &rebuild)).stdout)
+            .unwrap();
+    assert_eq!(first["result"]["outputs"], second["result"]["outputs"]);
+    assert!(
+        !second["result"]["reproduced"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let bundle = fixture.path("language-bundle.tar");
+    success(fixture.run(&[
+        "store",
+        "export",
+        "--store",
+        text(&store),
+        "--object",
+        root,
+        "--output",
+        text(&bundle),
+    ]));
+    let receiver = fixture.path("language-receiver");
+    success(fixture.run(&["store", "init", "--store", text(&receiver)]));
+    success(fixture.run(&[
+        "store",
+        "import",
+        "--store",
+        text(&receiver),
+        "--bundle",
+        text(&bundle),
+        "--expected-sha256",
+        &hash(&fs::read(&bundle).unwrap()),
+    ]));
+    let transferred = success(fixture.run(&[
+        "run",
+        "--store",
+        text(&receiver),
+        "--object",
+        root,
+        "--program",
+        "bin/hello",
+    ]));
+    assert_eq!(output.stdout, transferred.stdout);
 }
 
 impl Drop for Fixture {

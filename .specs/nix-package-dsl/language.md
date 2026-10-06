@@ -1,7 +1,7 @@
 # Kedra language v1
 
-Status: proposed language contract following the owner's approved direction.
-Nothing here is implemented. `.kedra` files are the primary authoring format;
+Status: v1 contract frozen for the owner-authorized implementation (2026-10-06).
+Runtime qualification is recorded separately. `.kedra` files are the primary authoring format;
 Rust implements parsing, checking and lowering. Most normal package definitions
 keep their build logic and small resources in one file.
 
@@ -319,3 +319,69 @@ must match; unknown majors fail with an upgrade diagnostic. Formatter/parser
 versions and resource normalization rules are included in the frontend identity.
 No parser fallback to Rust, shell, legacy JSON or package lists is allowed.
 Unsupported old input formats keep explicit legacy readers at the source boundary.
+
+## 7. Concrete v1 schemas and ownership
+
+These tables close implementation choices left by the illustrative grammar.
+Every block rejects duplicate or unknown fields, wrong value types and declarations
+in an expression block. Declaration names are unique within a module; each import
+names explicit declarations, without transitive re-export. References in an
+imported declaration resolve in its defining module. All declarations are checked,
+including unselected templates; only reachable instances contribute requirements.
+Nonnegative integers have at most 20 digits and must fit u64. Empty import lists
+refuse. Source diagnostics never include literal contents or untrusted names.
+
+| Block | Required fields | Optional fields |
+|---|---|---|
+| foundation | `fedora: UINT` (44), `packages: [STRING]` | `remove: [STRING]` |
+| builder | `base: Foundation`, `packages: [STRING]` | none |
+| set | none | `packages: [Package]`, `fedora/remove: [STRING]`, `use: [Set]`, `replace: [Replacement]` |
+| target | `foundation: Foundation` | the same fields as set |
+| package/library | `version/summary/license: STRING`, `source: Archive or Files`, `build: Shell or Script` | `build_requires/runtime_requires: [Fedora]`, `build_deps/runtime_deps: {name = Package;}`, `env: {name = STRING or Path;}`, `files/replace_files: Files`, `patches: [Patch]`, `timeout: UINT` (1..3600, default600), explicit `builder/runtime: parameter reference`, exports/config |
+| archive | `url: STRING`, `pin: STRING` | none |
+| patch | `strip: UINT`, `contents: Text or File` | none |
+| replacement | `origin/name/action: STRING` | none |
+| template | `body: Text`, `bindings: {name = Path or STRING;}` | none |
+
+Each package/library has exactly one Builder parameter and one Foundation
+parameter; explicit role fields can select those parameters when named differently.
+`deps.<name>` must refer to a declared dependency. A dependency appears once across
+both maps; runtime dependencies are build inputs plus retained runtime references.
+Exports are output-relative safe paths. A package has at least one command export;
+a library has no command exports and at least one library/files export. Repeated
+instantiations under the same declaration identity deduplicate only with identical
+arguments; conflicting image roles refuse. V1 uses one runtime foundation per
+selected target, and each selected builder must derive from that foundation.
+The fixed source-preparation driver requires `patch`, `coreutils` and `findutils`
+in its selected builder when preparing patches/overlays. No host tool fallback.
+
+`path(self, relative)` refers to the current contribution's output; `path(deps.name,
+relative)` refers to a declared dependency. Config may also reference a uniquely
+selected declaration in its defining module. The reserved reference
+`source_revision` is a typed contribution binding to the independently verified
+frozen source commit, available only after building. It cannot enter shell/env or
+source-preparation input. No template syntax performs environment interpolation.
+
+`packages.lock.json` is strict JSON with `schema_version: 1` and `sources`, a map
+from archive pin name to `{url, sha256, object}`. `sha256` is the lowercase 64-digit
+archive digest; `object` is the reviewed `src-` normalized-tree identity. The URL
+must exactly match the declaration. No unknown fields or duplicate keys are
+accepted. Inline/external resources do not need producer-chosen pins: their
+objects are computed from independently admitted path/mode/bytes and bound in
+the intent/resolution receipt. A new source pin requires explicit review rather
+than discovery or automatic lockfile updates during plan/build.
+
+Target policy is a separate strict JSON record: `schema_version: 1`, `namespace`,
+`targets: [STRING]`, `repositories: [STRING]` (only fedora/updates in v1),
+`required_packages: [STRING]`. Pure target selection uses this policy; exact engine
+images/source objects additionally require the existing independently selected
+Catalog Policy. Input data cannot grant itself either policy. The first-party
+policy is checked-in separately from authored catalog declarations.
+
+The committed `image/package-inputs.json` discriminator has `schema_version: 1`,
+`format: "kedra"`, `entry: "packages/catalog.kedra"`,
+`lock: "packages/packages.lock.json"`. Its presence selects the new reader and
+forbids authoritative shared/target package/remove lists. Absence selects the
+retained list reader and refuses new-format `.kedra` author inputs. A source plan
+reads raw committed blobs once, including all requested modules/resources; no
+checkout, Git filter, recipe execution or resolver network access is involved.

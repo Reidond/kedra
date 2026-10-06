@@ -1,8 +1,8 @@
 # Architecture and migration
 
-Status: specification only. The owner approved a standalone language implemented
-in Rust and inline-first package definitions on 2026-10-05. This revision replaces
-the previous Rust author-crate design; it does not implement any new frontend.
+Status: reviewed contract; implementation authorized on2026-10-06. The owner
+approved a standalone language implemented in Rust and inline-first package
+definitions on2026-10-05. This revision replaces the Rust author-crate design.
 The syntax/resource contract is maintained once in [language.md](language.md).
 
 ## 1. Thin language frontend, existing execution engine

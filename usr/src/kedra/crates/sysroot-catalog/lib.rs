@@ -3,6 +3,7 @@
 //! Resolution is pure: authority is checked before callers open or create a store.
 //! An allowlisted source identity authorizes bytes, not an upstream publisher.
 
+pub mod language;
 mod recipes;
 
 use serde::{Deserialize, Serialize};

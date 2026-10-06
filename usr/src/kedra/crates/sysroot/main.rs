@@ -7,6 +7,8 @@ use clap::{CommandFactory, Parser, Subcommand};
 mod agents;
 #[cfg(unix)]
 mod catalog;
+#[cfg(unix)]
+mod catalog_language;
 mod deployment;
 mod doctor;
 #[cfg(unix)]

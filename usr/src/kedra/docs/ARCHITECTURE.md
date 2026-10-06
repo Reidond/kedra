@@ -1,6 +1,6 @@
 # Architecture and safety contracts
 
-Kedra is a personal Fedora 44 bootc OS. `sysroot` is the CLI; a narrow image-installed helper performs authorized deployment operations. Rust edition 2024, one Cargo workspace/lockfile and explicit flat `main.rs`/`lib.rs` paths are required. No Cargo `src/` directories inside crates, BlueBuild, custom Git engine, configuration language, fleet service or permanent AI daemon.
+Kedra is a personal Fedora 44 bootc OS. `sysroot` is the CLI; a narrow image-installed helper performs authorized deployment operations. Rust edition 2024, one Cargo workspace/lockfile and explicit flat `main.rs`/`lib.rs` paths are required. No Cargo `src/` directories inside crates, BlueBuild, custom Git engine, general configuration language, fleet service or permanent AI daemon. The owner-approved versioned `.kedra` package frontend is the narrow language exception (2026-10-06): pure Rust parsing/type checking lowers admitted package data to the existing engine. Author shell executes only in an independently admitted isolated builder; signers/helpers never evaluate it.
 
 ## Source and ownership
 

@@ -20,6 +20,15 @@ pub struct Options {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Check admitted .kedra definitions and emit pure selected intent.
+    Check(crate::catalog_language::Inputs),
+    /// Format only the selected files, preserving decoded literal bytes.
+    Fmt {
+        #[arg(long)]
+        check: bool,
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+    },
     /// Emit deterministic source pins and author recipe metadata for preflight.
     Pins,
     /// List the built-in collection or an independently authored Rust catalog.
@@ -81,8 +90,10 @@ struct ContributionReceipt {
 #[derive(Args)]
 struct Selection {
     /// Serialized Catalog produced by independent Rust authoring; omit for Kedra.
-    #[arg(long, conflicts_with_all = ["builder", "runtime"])]
+    #[arg(long, conflicts_with_all = ["builder", "runtime", "entry"])]
     catalog: Option<PathBuf>,
+    #[command(flatten)]
+    language: LanguageSelection,
     #[arg(long)]
     package: String,
     /// Independently selected exact package/image/source allowlists.
@@ -94,6 +105,55 @@ struct Selection {
     /// Exact admitted runtime image for the built-in collection.
     #[arg(long, requires = "builder")]
     runtime: Option<String>,
+}
+
+#[derive(Args, Default)]
+struct LanguageSelection {
+    #[arg(long, requires_all = ["input_root", "target", "lock", "target_policy"])]
+    entry: Option<String>,
+    #[arg(long, requires = "entry")]
+    input_root: Option<PathBuf>,
+    #[arg(long, requires = "entry")]
+    target: Option<String>,
+    #[arg(long, requires = "entry")]
+    lock: Option<String>,
+    #[arg(long, requires = "entry")]
+    target_policy: Option<PathBuf>,
+    /// Exact independently approved image identities per symbolic builder role.
+    #[arg(long, requires = "entry", conflicts_with_all = ["builder", "runtime"])]
+    resolution: Option<PathBuf>,
+}
+
+impl LanguageSelection {
+    fn inputs(&self) -> Result<Option<crate::catalog_language::Inputs>> {
+        let Some(entry) = &self.entry else {
+            return Ok(None);
+        };
+        Ok(Some(crate::catalog_language::Inputs {
+            entry: entry.clone(),
+            input_root: self
+                .input_root
+                .clone()
+                .ok_or_else(|| Error::Invalid("--input-root required".into()))?,
+            target: self
+                .target
+                .clone()
+                .ok_or_else(|| Error::Invalid("--target required".into()))?,
+            lock: self
+                .lock
+                .clone()
+                .ok_or_else(|| Error::Invalid("--lock required".into()))?,
+            target_policy: self
+                .target_policy
+                .clone()
+                .ok_or_else(|| Error::Invalid("--target-policy required".into()))?,
+        }))
+    }
+}
+
+struct Authorized {
+    package: ResolvedPackage,
+    resources: BTreeMap<String, BTreeMap<String, sysroot_engine::SourceFile>>,
 }
 
 fn read<T: DeserializeOwned>(path: &Path) -> Result<T> {
@@ -121,9 +181,46 @@ fn emit(value: &impl Serialize) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn resolve(selection: Selection) -> Result<ResolvedPackage> {
+fn resolve(selection: Selection) -> Result<Authorized> {
+    let mut policy: Policy = read(&selection.policy)?;
+    let mut resources = BTreeMap::new();
     let catalog = if let Some(path) = selection.catalog {
         read::<Catalog>(&path)?
+    } else if let Some(inputs) = selection.language.inputs()? {
+        let loaded = crate::catalog_language::load(&inputs)?;
+        let images = if let Some(path) = &selection.language.resolution {
+            read::<sysroot_catalog::language::Images>(path)?
+        } else {
+            sysroot_catalog::language::Images {
+                foundation: selection.runtime.clone().ok_or_else(|| {
+                    Error::Invalid(
+                        "language lowering requires exact --runtime or --resolution".into(),
+                    )
+                })?,
+                builders: loaded
+                    .intent
+                    .builders
+                    .keys()
+                    .map(|role| {
+                        Ok((
+                            role.clone(),
+                            selection.builder.clone().ok_or_else(|| {
+                                Error::Invalid(
+                                    "language lowering requires exact --builder or --resolution"
+                                        .into(),
+                                )
+                            })?,
+                        ))
+                    })
+                    .collect::<Result<_>>()?,
+            }
+        };
+        let lowered =
+            sysroot_catalog::language::lower(&loaded.intent, &loaded.resources, &images, &policy)
+                .map_err(|e| Error::Invalid(e.to_string()))?;
+        resources = lowered.resources;
+        policy.source_objects.extend(resources.keys().cloned());
+        lowered.catalog
     } else {
         builtin(
             selection.builder.as_deref().ok_or_else(|| {
@@ -134,17 +231,25 @@ fn resolve(selection: Selection) -> Result<ResolvedPackage> {
             })?,
         )
     };
-    let policy: Policy = read(&selection.policy)?;
-    catalog
+    let package = catalog
         .resolve(&selection.package, &policy)
         .map_err(|error| match error {
             sysroot_catalog::Error::Engine(error) => error,
             other => Error::Invalid(other.to_string()),
-        })
+        })?;
+    Ok(Authorized { package, resources })
 }
 
 pub fn run(options: Options) -> Result<ExitCode> {
     match options.command {
+        Command::Check(inputs) => {
+            let loaded = crate::catalog_language::load(&inputs)?;
+            emit(&serde_json::json!({"intent": loaded.intent, "inputs": loaded.inventory}))
+        }
+        Command::Fmt { check, files } => {
+            crate::catalog_language::fmt(files, check)?;
+            Ok(ExitCode::SUCCESS)
+        }
         Command::Pins => emit(&pins()),
         Command::List { catalog } => {
             let catalog = match catalog {
@@ -164,19 +269,22 @@ pub fn run(options: Options) -> Result<ExitCode> {
                 .collect();
             emit(&serde_json::json!({"namespace": catalog.namespace, "packages": packages}))
         }
-        Command::Plan(selection) => emit(&resolve(selection)?.recipe.graph),
-        Command::Resolve(selection) => emit(&resolve(selection)?),
+        Command::Plan(selection) => emit(&resolve(selection)?.package.recipe.graph),
+        Command::Resolve(selection) => emit(&resolve(selection)?.package),
         Command::Build {
             selection,
             store,
             rebuild,
         } => {
-            let resolved = resolve(selection)?;
-            let result = Store::open(&store)?.build(
-                &resolved.recipe.graph,
-                &resolved.recipe.root,
-                rebuild,
-            )?;
+            let authorized = resolve(selection)?;
+            let resolved = authorized.package;
+            let store = Store::open(&store)?;
+            for (expected, files) in &authorized.resources {
+                if store.import_resources(files)?.object != *expected {
+                    return Err(Error::Invalid("admitted resource identity differs".into()));
+                }
+            }
+            let result = store.build(&resolved.recipe.graph, &resolved.recipe.root, rebuild)?;
             emit(&serde_json::json!({
                 "namespace": resolved.namespace, "package": resolved.package,
                 "version": resolved.version, "root": resolved.recipe.root,

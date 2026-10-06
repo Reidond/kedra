@@ -1,8 +1,8 @@
 # Future implementation tasks
 
-Status: **all not-started**. The owner approved the language/inline-content direction
-and requested this specification update, not implementation. Reconcile with the
-finished delivery baseline before starting; one owner serializes Git and heavy work.
+Status: **implementation authorized on 2026-10-06; in progress**. The language
+contract now defines concrete fields, lock/policy/discriminator schemas against
+delivered mainb60bcb0. One owner serializes Git and heavy work.
 No workers or workloads are dispatched by this spec.
 
 | Task | Files / mechanism and author-visible result | Depends on | Test requirements | State |

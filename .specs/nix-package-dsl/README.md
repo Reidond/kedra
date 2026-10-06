@@ -1,18 +1,16 @@
 # Kedra package language
 
-Status: **owner-approved direction; specification only; no implementation delivered**.
-Updated: 2026-10-05 (Europe/Kyiv). Independent draft
-[PR38](https://github.com/Reidond/kedra/pull/38) targets main
-`b224d5711e857f7dbcaabf7ed42870916525800c`; it does not join or rewrite the active
-delivery stack. Implementation needs separate authorization and must reconcile
-with the delivered engine/catalog/release contracts when drafts33–37 settle.
+Status: **implementation authorized; contract reviewed; implementation in progress**.
+Updated: 2026-10-06 (Europe/Kyiv). [PR38](https://github.com/Reidond/kedra/pull/38)
+is reconciled with delivered main `b60bcb081d1f88f616c1f597a3194c64d7c8b6c5`.
+The owner explicitly requests finishing this specification and implementing the
+language and migration. Prior D1–D5 and Noctalia runtime gaps remain independent.
 
 The owner approved a **standalone `.kedra` language implemented in Rust** and
 prefers most packages to carry their build logic directly in those files. This
 supersedes the first revision's embedded Rust DSL/author-crate choice. The approval
 changes the earlier no-new-language decision for this specific planned package
-frontend; it does not authorize a new OS backend, generic scripting platform or
-implementation work in this PR.
+frontend; it does not authorize a new OS backend or generic scripting platform.
 
 A normal package definition contains its metadata, pinned source reference,
 build/runtime dependencies, shell commands, patches, small source/generated files
@@ -54,8 +52,8 @@ Read in order:
 5. [Future executable/manual cases](test-cases.md) and [verification plan](test-plan.md)
 6. [Review and evidence](review.md)
 
-All future tasks/cases are **not-started/not-run**. Syntax and commands below are
-proposed, not implemented. This PR changes only these documents and status/worklog.
+Task and case states are maintained in tasks.md and test-plan.md. Proposed syntax
+is normative for implementation; a task is complete only with its stated evidence.
 
 ## Inspected source, not assumptions about main
 

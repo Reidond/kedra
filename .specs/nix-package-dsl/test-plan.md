@@ -6,7 +6,7 @@ checks. It introduces no parser, recipe executable or package migration.
 
 ## Entry conditions and levels
 
-Before implementation: separately authorize it, freeze the delivered baseline
+Before implementation: owner authorization was supplied on2026-10-06; freeze the delivered baseline
 and schema/language/resource contracts, admit source/pins/images and obtain an
 owned resource window. Use exact per-invocation binaries, bounded fixtures and
 external sentinels. No owner credentials, production keys or workstation install.

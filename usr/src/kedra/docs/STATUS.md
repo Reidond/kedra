@@ -1,6 +1,28 @@
 # Verified status
 
-## Active delivery checkpoint (2026-10-05)
+## Scheduled release failure (2026-10-06)
+
+PR28/29/31/32 and PR33–37 are merged into main9b25c788.
+[Scheduled run37394465020](https://github.com/Reidond/kedra/actions/runs/37394465020)
+passes the desktop build, exact-candidate validation, signing and stable
+publication. Its publication receipt records verified digest
+`sha256:7505f70fb0b7998d516a256112b0bdbf6502f3b39f65e6298f25a06b9f5aab34`.
+
+ARM build112047024567 fails before candidate validation/signing because the
+catalog builder context contains `Containerfile`, while the Docker invocation
+omits `--file` and looks for `Dockerfile`. The initial post-merge release
+37359496666 has the same failure. The focused fix explicitly selects the
+prepared catalog Containerfile. A real Docker29.4.0 scratch-context probe
+reproduces the failure, then builds successfully with the corrected selection,
+matching payload readback and successful owned cleanup. YAML/Bash/whitespace
+checks pass. Full corrected ARM release remains not-run until the change is on
+main; this probe does not establish Fedora package build or release success.
+
+The separate home-artifact [plan PR39](https://github.com/Reidond/kedra/pull/39)
+targets dev and remains unimplemented. Prior installer/native qualification gaps
+below are unchanged; successful desktop publication is not an installed result.
+
+## Pre-merge delivery checkpoint (2026-10-05)
 
 All five dependent drafts remain open: [D1 PR33](https://github.com/Reidond/kedra/pull/33),
 [D2 PR34](https://github.com/Reidond/kedra/pull/34), [D3 PR35](https://github.com/Reidond/kedra/pull/35),

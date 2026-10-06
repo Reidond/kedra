@@ -2113,3 +2113,11 @@ Last updated: 2026-10-06 (Europe/Kyiv).
 - Final review: completed requirements/authority/privacy/lifecycle and caller/documentation review. The sole ledger is this worklog; original plan assertions are reconciled with code/evidence, obsolete planned/not-run statuses updated, and no unit/model/source-scanner tests or new runner exists. Final edits change evidence/spec/status only; product/workflow bytes remain the exact tested0a2667d implementation.
 - Remaining / limitations: production rollout, physical hardware, every crash/power-loss order and pre-existing D2/D5 installer/native fault gaps remain outside this completion. The artifact format adds one image-owned record and API surface; it does not establish signing authority or guarantee a performance improvement.
 - Next: publish the evidence-only continuation, observe final-head source checks and mark PR39 ready for review. No merge/deployment/workstation home apply is implied.
+
+### WL-20261006-08 — 2026-10-06 — Publish the ready PR39 handoff
+- Agent / state: Codex; completed and ready for review.
+- Scope / base: observed evidence-only head70b79a764cf0c62b22075f63e0a6ff81446e5327; product/workflow source remains exact tested0a2667d.
+- Completed: pushed final task/case/status reconciliation; source Check37484152368 and PR Check37484159774 pass both architectures. GitHub confirms PR39 OPEN, non-draft and MERGEABLE with all four current source checks successful. No merge, deployment or workstation home application is performed.
+- Checks / evidence: pass — final-head remote readback, clean checkout and unchanged product/workflow bytes against0a2667d; signed/container/boot/native/privacy/GC/fault evidence remains pinned in WL-20261006-05/06/07. Disposable pr39/pr39-noctalia lab containers are removed; generated fault image is detached then removed, and raw synthetic Noctalia export is removed. Other labs/VMs, D5 pending native state and user worktrees remain untouched.
+- Remaining / limitations: pre-existing D2/D5 qualification remains separate; exact0a direct-GHCR ARM job is still running while its x86 sibling passes. No overall ARM installer pass is claimed. Production rollout and physical hardware require their own scope.
+- Next: owner review/merge of ready PR39. This final continuation changes only the worklog; current-head checks remain on the PR dashboard.

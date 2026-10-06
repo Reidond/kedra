@@ -1,5 +1,30 @@
 # Verified status
 
+## Repair verification and remaining qualification (2026-10-06)
+
+[PR40](https://github.com/Reidond/kedra/pull/40) is merged at
+`f38f1065d0e42a9c5867675c2b38d538b790cee4`. Both architectures pass the
+post-merge workspace Check37429382725. The actual
+[release37429383144](https://github.com/Reidond/kedra/actions/runs/37429383144)
+passes both image builds, the ARM installed catalog case and image identity
+inspection. This verifies the original Containerfile-selection repair in its
+real release workflow.
+
+The run nevertheless completes failure: refreshed candidates contain Noctalia
+5.2.1, while home review qualifies exact5.0.1/5.1.0/5.2.0 runtimes. Desktop
+passes11/12 and ARM12/13 cases; each fails only `native::home_review_cycle` when
+public home initialization refuses the unqualified version. Both reports are
+uninterrupted and have no recorded cleanup failures. Both signing and stable
+publication jobs are skipped, so neither new candidate is published as stable.
+
+The immutable tested candidates are desktop-builds digest
+`d76b0ab0baa242719e5acf9f14962909e11fc1798f4aa58fa5030b4b2feb3598` and
+qemu-arm64-builds digest
+`f3f61f5ae89c4308ec30cc9501e4a92995476bc5c30d86d68d018aac8c53469b`.
+Worklog WL-20261006-02 records exact artifacts/report hashes. Additional5.2.1
+compatibility qualification is proposed to the owner; the version gate remains
+intact. Earlier installer/native fault gaps remain independent.
+
 ## Scheduled release failure (2026-10-06)
 
 PR28/29/31/32 and PR33–37 are merged into main9b25c788.
@@ -15,8 +40,9 @@ omits `--file` and looks for `Dockerfile`. The initial post-merge release
 explicitly selects the prepared catalog Containerfile. A real Docker29.4.0 scratch-context probe
 reproduces the failure, then builds successfully with the corrected selection,
 matching payload readback and successful owned cleanup. YAML/Bash/whitespace
-checks pass. Full corrected ARM release remains not-run until the change is on
-main; this probe does not establish Fedora package build or release success.
+checks pass. The subsequent main run above verifies actual ARM build recovery
+and records the new runtime-qualification blocker separately; this original
+probe by itself did not establish Fedora package build or release success.
 
 The separate home-artifact [plan PR39](https://github.com/Reidond/kedra/pull/39)
 targets dev and remains unimplemented. Prior installer/native qualification gaps

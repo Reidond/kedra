@@ -565,126 +565,145 @@ impl Scope<'_> {
             self.where_ = format!("{base} step {}", index + 1);
             match step {
                 Step::Exec(command) => self.check_command(command)?,
-                Step::Eventually(eventually) => {
-                    parse_duration(&eventually.timeout)?;
-                    if let Some(interval) = &eventually.interval {
-                        parse_duration(interval)?;
-                    }
-                    self.check_command(&eventually.observe)?;
-                }
-                Step::Assert(comparisons) => {
-                    if comparisons.is_empty() {
-                        return Err(invalid(format!("{}: empty assert", self.where_)));
-                    }
-                    for comparison in comparisons {
-                        let modes = usize::from(comparison.equals.is_some())
-                            + usize::from(comparison.differs.is_some())
-                            + usize::from(comparison.one_of.is_some())
-                            + usize::from(comparison.contains.is_some());
-                        if modes != 1 {
-                            return Err(invalid(format!(
-                                "{}: assert needs exactly one of equals, differs, one_of or contains",
-                                self.where_
-                            )));
-                        }
-                        if let Some(text) = &comparison.contains {
-                            self.check_text(text)?;
-                        }
-                        self.check_value(&comparison.value)?;
-                        for value in comparison
-                            .equals
-                            .iter()
-                            .chain(&comparison.differs)
-                            .chain(comparison.one_of.iter().flatten())
-                        {
-                            self.check_value(value)?;
-                        }
-                    }
-                }
-                Step::Action(call) => {
-                    let spec = actions::spec(&call.name).ok_or_else(|| {
-                        invalid(format!("{}: unknown action {:?}", self.where_, call.name))
-                    })?;
-                    if spec.needs_session && self.profile == Some(Profile::System) {
-                        return Err(invalid(format!(
-                            "{}: action {} needs the desktop profile",
-                            self.where_, call.name
-                        )));
-                    }
-                    actions::validate(spec, &call.inputs)
-                        .map_err(|error| invalid(format!("{}: {error}", self.where_)))?;
-                    for value in call.inputs.values() {
-                        self.check_value(value)?;
-                    }
-                    for (output, local) in &call.capture {
-                        if !spec.outputs.contains(&output.as_str()) {
-                            return Err(invalid(format!(
-                                "{}: action {} has no output {output}",
-                                self.where_, call.name
-                            )));
-                        }
-                        self.declare(local)?;
-                    }
-                }
-                Step::Include(include) => {
-                    let setup = self.setups.get(&include.setup).ok_or_else(|| {
-                        invalid(format!(
-                            "{}: unknown setup {:?}",
-                            self.where_, include.setup
-                        ))
-                    })?;
-                    if stack.contains(&include.setup) {
-                        return Err(invalid(format!(
-                            "{}: recursive include {} -> {}",
-                            self.where_,
-                            stack.join(" -> "),
-                            include.setup
-                        )));
-                    }
-                    let given: BTreeSet<&String> = include.inputs.keys().collect();
-                    let declared: BTreeSet<&String> = setup.inputs.iter().collect();
-                    if given != declared {
-                        return Err(invalid(format!(
-                            "{}: setup {} takes inputs {:?}, got {:?}",
-                            self.where_, include.setup, declared, given
-                        )));
-                    }
-                    for value in include.inputs.values() {
-                        self.check_value(value)?;
-                    }
-                    for (output, local) in &include.capture {
-                        if !setup.outputs.contains_key(output) {
-                            return Err(invalid(format!(
-                                "{}: setup {} has no output {output}",
-                                self.where_, include.setup
-                            )));
-                        }
-                        self.declare(local)?;
-                    }
-                    // Validate the setup body in its own scope with this caller's fixtures.
-                    stack.push(include.setup.clone());
-                    let mut inner = Scope {
-                        where_: format!("{} (setup {})", self.where_, include.setup),
-                        variables: BTreeSet::new(),
-                        fixtures: self.fixtures.clone(),
-                        inputs: setup.inputs.iter().cloned().collect(),
-                        setups: self.setups,
-                        profile: self.profile,
-                    };
-                    inner.check_steps(&setup.steps, stack)?;
-                    for local in setup.outputs.values() {
-                        if !inner.variables.contains(local) {
-                            return Err(invalid(format!(
-                                "{}: setup {} exports {local}, which it never captures",
-                                inner.where_, include.setup
-                            )));
-                        }
-                    }
-                    stack.pop();
-                }
+                Step::Eventually(eventually) => self.check_eventually(eventually)?,
+                Step::Assert(comparisons) => self.check_assert(comparisons)?,
+                Step::Action(call) => self.check_action(call)?,
+                Step::Include(include) => self.check_include(include, stack)?,
             }
         }
         self.where_ = base;
+        Ok(())
+    }
+
+    fn check_eventually(&mut self, eventually: &Eventually) -> Result<()> {
+        parse_duration(&eventually.timeout)?;
+        if let Some(interval) = &eventually.interval {
+            parse_duration(interval)?;
+        }
+        self.check_command(&eventually.observe)
+    }
+
+    fn check_assert(&self, comparisons: &[Comparison]) -> Result<()> {
+        if comparisons.is_empty() {
+            return Err(invalid(format!("{}: empty assert", self.where_)));
+        }
+        for comparison in comparisons {
+            let modes = usize::from(comparison.equals.is_some())
+                + usize::from(comparison.differs.is_some())
+                + usize::from(comparison.one_of.is_some())
+                + usize::from(comparison.contains.is_some());
+            if modes != 1 {
+                return Err(invalid(format!(
+                    "{}: assert needs exactly one of equals, differs, one_of or contains",
+                    self.where_
+                )));
+            }
+            if let Some(text) = &comparison.contains {
+                self.check_text(text)?;
+            }
+            self.check_value(&comparison.value)?;
+            for value in comparison
+                .equals
+                .iter()
+                .chain(&comparison.differs)
+                .chain(comparison.one_of.iter().flatten())
+            {
+                self.check_value(value)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn check_action(&mut self, call: &ActionCall) -> Result<()> {
+        let spec = actions::spec(&call.name)
+            .ok_or_else(|| invalid(format!("{}: unknown action {:?}", self.where_, call.name)))?;
+        if spec.needs_session && self.profile == Some(Profile::System) {
+            return Err(invalid(format!(
+                "{}: action {} needs the desktop profile",
+                self.where_, call.name
+            )));
+        }
+        actions::validate(spec, &call.inputs)
+            .map_err(|error| invalid(format!("{}: {error}", self.where_)))?;
+        for value in call.inputs.values() {
+            self.check_value(value)?;
+        }
+        for (output, local) in &call.capture {
+            if !spec.outputs.contains(&output.as_str()) {
+                return Err(invalid(format!(
+                    "{}: action {} has no output {output}",
+                    self.where_, call.name
+                )));
+            }
+            self.declare(local)?;
+        }
+        Ok(())
+    }
+
+    fn check_include(&mut self, include: &Include, stack: &mut Vec<String>) -> Result<()> {
+        let setup = self.setups.get(&include.setup).ok_or_else(|| {
+            invalid(format!(
+                "{}: unknown setup {:?}",
+                self.where_, include.setup
+            ))
+        })?;
+        if stack.contains(&include.setup) {
+            return Err(invalid(format!(
+                "{}: recursive include {} -> {}",
+                self.where_,
+                stack.join(" -> "),
+                include.setup
+            )));
+        }
+        let given: BTreeSet<&String> = include.inputs.keys().collect();
+        let declared: BTreeSet<&String> = setup.inputs.iter().collect();
+        if given != declared {
+            return Err(invalid(format!(
+                "{}: setup {} takes inputs {:?}, got {:?}",
+                self.where_, include.setup, declared, given
+            )));
+        }
+        for value in include.inputs.values() {
+            self.check_value(value)?;
+        }
+        for (output, local) in &include.capture {
+            if !setup.outputs.contains_key(output) {
+                return Err(invalid(format!(
+                    "{}: setup {} has no output {output}",
+                    self.where_, include.setup
+                )));
+            }
+            self.declare(local)?;
+        }
+        self.check_setup_body(include, setup, stack)
+    }
+
+    /// Validate the setup body in its own scope with this caller's fixtures.
+    fn check_setup_body(
+        &self,
+        include: &Include,
+        setup: &Setup,
+        stack: &mut Vec<String>,
+    ) -> Result<()> {
+        stack.push(include.setup.clone());
+        let mut inner = Scope {
+            where_: format!("{} (setup {})", self.where_, include.setup),
+            variables: BTreeSet::new(),
+            fixtures: self.fixtures.clone(),
+            inputs: setup.inputs.iter().cloned().collect(),
+            setups: self.setups,
+            profile: self.profile,
+        };
+        inner.check_steps(&setup.steps, stack)?;
+        for local in setup.outputs.values() {
+            if !inner.variables.contains(local) {
+                return Err(invalid(format!(
+                    "{}: setup {} exports {local}, which it never captures",
+                    inner.where_, include.setup
+                )));
+            }
+        }
+        stack.pop();
         Ok(())
     }
 }
@@ -723,29 +742,7 @@ pub fn load(root: &Path, known_targets: &[String]) -> Result<Suite> {
     let mut setups = BTreeMap::new();
     for (path, mut setup) in setups_list {
         setup.path = path.clone();
-        if setup.version != 1 {
-            errors.push(format!(
-                "{}: unsupported version {}",
-                path.display(),
-                setup.version
-            ));
-        }
-        if !is_identifier(&setup.name) {
-            errors.push(format!(
-                "{}: invalid setup name {:?}",
-                path.display(),
-                setup.name
-            ));
-        }
-        let mut seen = BTreeSet::new();
-        for input in &setup.inputs {
-            if !is_identifier(input) || !seen.insert(input) {
-                errors.push(format!(
-                    "{}: invalid or duplicate input {input:?}",
-                    path.display()
-                ));
-            }
-        }
+        check_setup_header(&path, &setup, &mut errors);
         if let Some(previous) = setups.insert(setup.name.clone(), setup) {
             errors.push(format!(
                 "{}: duplicate setup name {}",
@@ -759,45 +756,7 @@ pub fn load(root: &Path, known_targets: &[String]) -> Result<Suite> {
     for (path, mut scenario) in scenario_list {
         scenario.path = path.clone();
         let display = path.display().to_string();
-        if scenario.version != 1 {
-            errors.push(format!(
-                "{display}: unsupported version {}",
-                scenario.version
-            ));
-        }
-        if !is_identifier(&scenario.name) {
-            errors.push(format!(
-                "{display}: invalid scenario name {:?}",
-                scenario.name
-            ));
-        }
-        if !names.insert(scenario.name.clone()) {
-            errors.push(format!(
-                "{display}: duplicate scenario name {}",
-                scenario.name
-            ));
-        }
-        for target in &scenario.targets {
-            if !known_targets.contains(target) {
-                errors.push(format!("{display}: unknown target {target:?}"));
-            }
-        }
-        if let Some(timeout) = &scenario.timeout
-            && let Err(error) = parse_duration(timeout)
-        {
-            errors.push(format!("{display}: {error}"));
-        }
-        let mut seen = BTreeSet::new();
-        for fixture in &scenario.fixtures {
-            if !seen.insert(*fixture) {
-                errors.push(format!("{display}: duplicate fixture {}", fixture.key()));
-            }
-        }
-        if scenario.profile == Profile::System
-            && scenario.fixtures.contains(&Fixture::DesktopSession)
-        {
-            errors.push(format!("{display}: desktop_session needs profile: desktop"));
-        }
+        check_scenario_header(&display, &scenario, known_targets, &mut names, &mut errors);
         let mut scope = Scope {
             where_: display.clone(),
             variables: BTreeSet::new(),
@@ -831,6 +790,80 @@ pub fn load(root: &Path, known_targets: &[String]) -> Result<Suite> {
         Ok(Suite { scenarios, setups })
     } else {
         Err(invalid(errors.join("\n")))
+    }
+}
+
+/// A setup's version, name and input names; its steps are checked separately.
+fn check_setup_header(path: &Path, setup: &Setup, errors: &mut Vec<String>) {
+    if setup.version != 1 {
+        errors.push(format!(
+            "{}: unsupported version {}",
+            path.display(),
+            setup.version
+        ));
+    }
+    if !is_identifier(&setup.name) {
+        errors.push(format!(
+            "{}: invalid setup name {:?}",
+            path.display(),
+            setup.name
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    for input in &setup.inputs {
+        if !is_identifier(input) || !seen.insert(input) {
+            errors.push(format!(
+                "{}: invalid or duplicate input {input:?}",
+                path.display()
+            ));
+        }
+    }
+}
+
+/// Everything in a scenario except its steps; `names` collects the names seen so far.
+fn check_scenario_header(
+    display: &str,
+    scenario: &Scenario,
+    known_targets: &[String],
+    names: &mut BTreeSet<String>,
+    errors: &mut Vec<String>,
+) {
+    if scenario.version != 1 {
+        errors.push(format!(
+            "{display}: unsupported version {}",
+            scenario.version
+        ));
+    }
+    if !is_identifier(&scenario.name) {
+        errors.push(format!(
+            "{display}: invalid scenario name {:?}",
+            scenario.name
+        ));
+    }
+    if !names.insert(scenario.name.clone()) {
+        errors.push(format!(
+            "{display}: duplicate scenario name {}",
+            scenario.name
+        ));
+    }
+    for target in &scenario.targets {
+        if !known_targets.contains(target) {
+            errors.push(format!("{display}: unknown target {target:?}"));
+        }
+    }
+    if let Some(timeout) = &scenario.timeout
+        && let Err(error) = parse_duration(timeout)
+    {
+        errors.push(format!("{display}: {error}"));
+    }
+    let mut seen = BTreeSet::new();
+    for fixture in &scenario.fixtures {
+        if !seen.insert(*fixture) {
+            errors.push(format!("{display}: duplicate fixture {}", fixture.key()));
+        }
+    }
+    if scenario.profile == Profile::System && scenario.fixtures.contains(&Fixture::DesktopSession) {
+        errors.push(format!("{display}: desktop_session needs profile: desktop"));
     }
 }
 
@@ -925,6 +958,16 @@ impl std::fmt::Display for StepFailure {
 struct Frame {
     variables: BTreeMap<String, Value>,
     inputs: BTreeMap<String, Value>,
+}
+
+/// One attempt of an `eventually` observation.
+enum Observation {
+    /// The expectation held before the deadline.
+    Passed(Output),
+    /// Not satisfied yet; the last observed result.
+    Pending(String),
+    /// A permanent error or a completion after the deadline.
+    Failed(String),
 }
 
 pub struct Runner<'a, 'b> {
@@ -1092,9 +1135,8 @@ impl Runner<'_, '_> {
         }
         let stdout = output.stdout_text();
         let stderr = output.stderr_text();
-        let resolve = |text: &String| self.text(frame, text).map_err(|error| error.to_string());
         if let Some(exact) = &expect.stdout {
-            let exact = resolve(exact)?;
+            let exact = self.text(frame, exact).map_err(|error| error.to_string())?;
             let actual = stdout.strip_suffix('\n').unwrap_or(&stdout);
             if actual != exact {
                 return Err(format!(
@@ -1109,81 +1151,114 @@ impl Runner<'_, '_> {
             let wanted = if nonempty { "non-empty" } else { "empty" };
             return Err(format!("expected {wanted} stdout; {}", describe(output)));
         }
-        for needle in &expect.stdout_contains {
-            let needle = resolve(needle)?;
-            if !stdout.contains(&needle) {
-                return Err(format!("stdout lacks {needle:?}; {}", describe(output)));
-            }
-        }
-        for needle in &expect.stdout_lacks {
-            let needle = resolve(needle)?;
-            if stdout.contains(&needle) {
-                return Err(format!(
-                    "stdout unexpectedly contains {needle:?}; {}",
-                    describe(output)
-                ));
-            }
-        }
-        for needle in &expect.stderr_contains {
-            let needle = resolve(needle)?;
-            if !stderr.contains(&needle) {
-                return Err(format!("stderr lacks {needle:?}; {}", describe(output)));
-            }
-        }
-        for needle in &expect.stderr_lacks {
-            let needle = resolve(needle)?;
-            if stderr.contains(&needle) {
-                return Err(format!(
-                    "stderr unexpectedly contains {needle:?}; {}",
-                    describe(output)
-                ));
-            }
-        }
+        self.check_contains(frame, "stdout", &stdout, &expect.stdout_contains, output)?;
+        self.check_lacks(frame, "stdout", &stdout, &expect.stdout_lacks, output)?;
+        self.check_contains(frame, "stderr", &stderr, &expect.stderr_contains, output)?;
+        self.check_lacks(frame, "stderr", &stderr, &expect.stderr_lacks, output)?;
         if !expect.json.is_empty() {
-            let document: Value = serde_json::from_str(&stdout).map_err(|error| {
-                format!(
-                    "stdout is not JSON ({error}): {}",
-                    clip(stdout.trim(), 1500)
-                )
-            })?;
-            for check in &expect.json {
-                let segments = parse_selector(&check.select).map_err(|error| error.to_string())?;
-                let found = select(&document, &segments);
-                if check.absent {
-                    if let Some(found) = found {
-                        return Err(format!("{} should be absent, found {found}", check.select));
-                    }
-                    continue;
-                }
-                let found = found.ok_or_else(|| {
-                    format!(
-                        "{} is missing in {}",
-                        check.select,
-                        clip(&document.to_string(), 1500)
-                    )
-                })?;
-                if let Some(expected) = &check.equals {
-                    let expected = self
-                        .value(frame, expected)
-                        .map_err(|error| error.to_string())?;
-                    if &expected != found {
-                        return Err(format!(
-                            "{}: expected {expected}, got {found}",
-                            check.select
-                        ));
-                    }
-                }
-                if let Some(expected) = &check.subset {
-                    let expected = self
-                        .value(frame, expected)
-                        .map_err(|error| error.to_string())?;
-                    if !is_subset(&expected, found) {
-                        return Err(format!(
-                            "{}: {found} does not contain {expected}",
-                            check.select
-                        ));
-                    }
-                }
+            self.check_json(frame, &expect.json, &stdout)?;
+        }
+        Ok(())
+    }
+
+    /// Every needle must occur in `text`, the named output stream.
+    fn check_contains(
+        &self,
+        frame: &Frame,
+        stream: &str,
+        text: &str,
+        needles: &[String],
+        output: &Output,
+    ) -> Result<(), String> {
+        for needle in needles {
+            let needle = self
+                .text(frame, needle)
+                .map_err(|error| error.to_string())?;
+            if !text.contains(&needle) {
+                return Err(format!("{stream} lacks {needle:?}; {}", describe(output)));
+            }
+        }
+        Ok(())
+    }
+
+    /// No needle may occur in `text`, the named output stream.
+    fn check_lacks(
+        &self,
+        frame: &Frame,
+        stream: &str,
+        text: &str,
+        needles: &[String],
+        output: &Output,
+    ) -> Result<(), String> {
+        for needle in needles {
+            let needle = self
+                .text(frame, needle)
+                .map_err(|error| error.to_string())?;
+            if text.contains(&needle) {
+                return Err(format!(
+                    "{stream} unexpectedly contains {needle:?}; {}",
+                    describe(output)
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Parse stdout as JSON and check every selected value against `checks`.
+    fn check_json(&self, frame: &Frame, checks: &[JsonCheck], stdout: &str) -> Result<(), String> {
+        let document: Value = serde_json::from_str(stdout).map_err(|error| {
+            format!(
+                "stdout is not JSON ({error}): {}",
+                clip(stdout.trim(), 1500)
+            )
+        })?;
+        for check in checks {
+            self.check_json_selection(frame, check, &document)?;
+        }
+        Ok(())
+    }
+
+    fn check_json_selection(
+        &self,
+        frame: &Frame,
+        check: &JsonCheck,
+        document: &Value,
+    ) -> Result<(), String> {
+        let segments = parse_selector(&check.select).map_err(|error| error.to_string())?;
+        let found = select(document, &segments);
+        if check.absent {
+            if let Some(found) = found {
+                return Err(format!("{} should be absent, found {found}", check.select));
+            }
+            return Ok(());
+        }
+        let found = found.ok_or_else(|| {
+            format!(
+                "{} is missing in {}",
+                check.select,
+                clip(&document.to_string(), 1500)
+            )
+        })?;
+        if let Some(expected) = &check.equals {
+            let expected = self
+                .value(frame, expected)
+                .map_err(|error| error.to_string())?;
+            if &expected != found {
+                return Err(format!(
+                    "{}: expected {expected}, got {found}",
+                    check.select
+                ));
+            }
+        }
+        if let Some(expected) = &check.subset {
+            let expected = self
+                .value(frame, expected)
+                .map_err(|error| error.to_string())?;
+            if !is_subset(&expected, found) {
+                return Err(format!(
+                    "{}: {found} does not contain {expected}",
+                    check.select
+                ));
             }
         }
         Ok(())
@@ -1250,17 +1325,7 @@ impl Runner<'_, '_> {
                 Result<String, String>,
             ) = match step {
                 Step::Exec(command) => {
-                    let outcome = match self.run_command(frame, command, None) {
-                        Ok(output) => match self.check(frame, &command.expect, &output) {
-                            Ok(()) => self
-                                .capture(frame, command, &output)
-                                .map(|_| describe(&output))
-                                .map_err(|error| error.to_string()),
-                            Err(message) => Err(message),
-                        },
-                        Err(error) => Err(error.to_string()),
-                    };
-                    ("exec", command.name.as_ref(), outcome)
+                    ("exec", command.name.as_ref(), self.run_exec(frame, command))
                 }
                 Step::Eventually(eventually) => {
                     let limit =
@@ -1272,160 +1337,14 @@ impl Runner<'_, '_> {
                         .transpose()
                         .map_err(|e| fail(e.to_string()))?
                         .unwrap_or(Duration::from_secs(1));
-                    let until = Instant::now() + limit;
-                    let mut attempts = 0;
-                    let outcome = loop {
-                        attempts += 1;
-                        let left = until.saturating_duration_since(Instant::now());
-                        let last = match self.run_command(frame, &eventually.observe, Some(left)) {
-                            Ok(output) => {
-                                match self.check(frame, &eventually.observe.expect, &output) {
-                                    Ok(()) => {
-                                        if Instant::now() >= until {
-                                            break Err(format!(
-                                                "observation completed after {limit:?} deadline; {}",
-                                                describe(&output)
-                                            ));
-                                        }
-                                        break self
-                                            .capture(frame, &eventually.observe, &output)
-                                            .map(|_| {
-                                                format!(
-                                                    "passed after {attempts} attempts; {}",
-                                                    describe(&output)
-                                                )
-                                            })
-                                            .map_err(|error| error.to_string());
-                                    }
-                                    Err(message) => message,
-                                }
-                            }
-                            // Permanent errors (bad identity, engine failure) fail immediately.
-                            Err(
-                                error @ (Error::Invalid(_) | Error::Docker(_) | Error::Interrupted),
-                            ) => {
-                                break Err(error.to_string());
-                            }
-                            Err(error) => error.to_string(),
-                        };
-                        if Instant::now() + interval >= until {
-                            break Err(format!(
-                                "not satisfied within {limit:?} ({attempts} attempts); last observation: {last}"
-                            ));
-                        }
-                        std::thread::sleep(interval);
-                    };
+                    let outcome = self.run_eventually(frame, &eventually.observe, limit, interval);
                     ("eventually", eventually.name.as_ref(), outcome)
                 }
-                Step::Assert(comparisons) => {
-                    let mut outcome = Ok(format!("{} comparisons", comparisons.len()));
-                    for comparison in comparisons {
-                        let result = (|| -> Result<(), String> {
-                            let value = self
-                                .value(frame, &comparison.value)
-                                .map_err(|e| e.to_string())?;
-                            if let Some(expected) = &comparison.equals {
-                                let expected =
-                                    self.value(frame, expected).map_err(|e| e.to_string())?;
-                                if value != expected {
-                                    return Err(format!("expected {expected}, got {value}"));
-                                }
-                            }
-                            if let Some(other) = &comparison.differs {
-                                let other = self.value(frame, other).map_err(|e| e.to_string())?;
-                                if value == other {
-                                    return Err(format!("expected a value other than {other}"));
-                                }
-                            }
-                            if let Some(needle) = &comparison.contains {
-                                let needle = self.text(frame, needle).map_err(|e| e.to_string())?;
-                                match &value {
-                                    Value::String(text) if text.contains(&needle) => {}
-                                    Value::String(text) => {
-                                        return Err(format!(
-                                            "{:?} does not contain {needle:?}",
-                                            clip(text, 1500)
-                                        ));
-                                    }
-                                    other => return Err(format!("{other} is not text")),
-                                }
-                            }
-                            if let Some(choices) = &comparison.one_of {
-                                let choices = choices
-                                    .iter()
-                                    .map(|choice| self.value(frame, choice))
-                                    .collect::<Result<Vec<_>>>()
-                                    .map_err(|e| e.to_string())?;
-                                if !choices.contains(&value) {
-                                    return Err(format!("{value} is not one of {choices:?}"));
-                                }
-                            }
-                            Ok(())
-                        })();
-                        if let Err(message) = result {
-                            outcome = Err(message);
-                            break;
-                        }
-                    }
-                    ("assert", None, outcome)
-                }
-                Step::Action(call) => {
-                    let outcome = (|| -> Result<String, String> {
-                        let inputs = call
-                            .inputs
-                            .iter()
-                            .map(|(key, value)| Ok((key.clone(), self.value(frame, value)?)))
-                            .collect::<Result<BTreeMap<_, _>>>()
-                            .map_err(|e| e.to_string())?;
-                        let outputs = actions::run(
-                            self.context,
-                            &call.name,
-                            &inputs,
-                            self.remaining().map_err(|e| e.to_string())?,
-                        )
-                        .map_err(|e| e.to_string())?;
-                        for (output, local) in &call.capture {
-                            let value = outputs.get(output).cloned().ok_or_else(|| {
-                                format!("action {} did not produce {output}", call.name)
-                            })?;
-                            frame.variables.insert(local.clone(), value);
-                        }
-                        Ok(serde_json::to_string(&outputs).unwrap_or_default())
-                    })();
-                    ("action", Some(&call.name), outcome)
-                }
+                Step::Assert(comparisons) => ("assert", None, self.run_assert(frame, comparisons)),
+                Step::Action(call) => ("action", Some(&call.name), self.run_action(frame, call)),
                 Step::Include(include) => {
-                    let setups = self.setups;
-                    let setup = setups
-                        .get(&include.setup)
-                        .ok_or_else(|| fail(format!("unknown setup {}", include.setup)))?;
-                    let inputs = include
-                        .inputs
-                        .iter()
-                        .map(|(key, value)| Ok((key.clone(), self.value(frame, value)?)))
-                        .collect::<Result<BTreeMap<_, _>>>()
-                        .map_err(|e| fail(e.to_string()))?;
-                    let mut inner = Frame {
-                        variables: BTreeMap::new(),
-                        inputs,
-                    };
-                    self.steps(
-                        &mut inner,
-                        &setup.steps,
-                        &format!("{here} (setup {})", setup.name),
-                    )?;
-                    for (output, local) in &include.capture {
-                        let variable = &setup.outputs[output];
-                        let value = inner.variables.get(variable).cloned().ok_or_else(|| {
-                            fail(format!("setup {} did not capture {variable}", setup.name))
-                        })?;
-                        frame.variables.insert(local.clone(), value);
-                    }
-                    (
-                        "include",
-                        Some(&include.setup),
-                        Ok(format!("setup {}", setup.name)),
-                    )
+                    let detail = self.run_include(frame, include, &here)?;
+                    ("include", Some(&include.setup), Ok(detail))
                 }
             };
             self.record(&here, operation, label, started, &outcome);
@@ -1434,6 +1353,195 @@ impl Runner<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    fn run_exec(&self, frame: &mut Frame, command: &Command) -> Result<String, String> {
+        let output = self
+            .run_command(frame, command, None)
+            .map_err(|error| error.to_string())?;
+        self.check(frame, &command.expect, &output)?;
+        self.capture(frame, command, &output)
+            .map(|_| describe(&output))
+            .map_err(|error| error.to_string())
+    }
+
+    /// Repeat `observe` until it passes, fails permanently or `limit` expires.
+    fn run_eventually(
+        &self,
+        frame: &mut Frame,
+        observe: &Command,
+        limit: Duration,
+        interval: Duration,
+    ) -> Result<String, String> {
+        let until = Instant::now() + limit;
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let last = match self.observe_once(frame, observe, until, limit) {
+                Observation::Passed(output) => {
+                    return self
+                        .capture(frame, observe, &output)
+                        .map(|_| format!("passed after {attempts} attempts; {}", describe(&output)))
+                        .map_err(|error| error.to_string());
+                }
+                Observation::Failed(message) => return Err(message),
+                Observation::Pending(last) => last,
+            };
+            if Instant::now() + interval >= until {
+                return Err(format!(
+                    "not satisfied within {limit:?} ({attempts} attempts); last observation: {last}"
+                ));
+            }
+            std::thread::sleep(interval);
+        }
+    }
+
+    fn observe_once(
+        &self,
+        frame: &Frame,
+        observe: &Command,
+        until: Instant,
+        limit: Duration,
+    ) -> Observation {
+        let left = until.saturating_duration_since(Instant::now());
+        let output = match self.run_command(frame, observe, Some(left)) {
+            Ok(output) => output,
+            // Permanent errors (bad identity, engine failure) fail immediately.
+            Err(error @ (Error::Invalid(_) | Error::Docker(_) | Error::Interrupted)) => {
+                return Observation::Failed(error.to_string());
+            }
+            Err(error) => return Observation::Pending(error.to_string()),
+        };
+        if let Err(message) = self.check(frame, &observe.expect, &output) {
+            return Observation::Pending(message);
+        }
+        if Instant::now() >= until {
+            return Observation::Failed(format!(
+                "observation completed after {limit:?} deadline; {}",
+                describe(&output)
+            ));
+        }
+        Observation::Passed(output)
+    }
+
+    fn run_assert(&self, frame: &Frame, comparisons: &[Comparison]) -> Result<String, String> {
+        for comparison in comparisons {
+            self.compare(frame, comparison)?;
+        }
+        Ok(format!("{} comparisons", comparisons.len()))
+    }
+
+    fn compare(&self, frame: &Frame, comparison: &Comparison) -> Result<(), String> {
+        let value = self
+            .value(frame, &comparison.value)
+            .map_err(|e| e.to_string())?;
+        if let Some(expected) = &comparison.equals {
+            let expected = self.value(frame, expected).map_err(|e| e.to_string())?;
+            if value != expected {
+                return Err(format!("expected {expected}, got {value}"));
+            }
+        }
+        if let Some(other) = &comparison.differs {
+            let other = self.value(frame, other).map_err(|e| e.to_string())?;
+            if value == other {
+                return Err(format!("expected a value other than {other}"));
+            }
+        }
+        if let Some(needle) = &comparison.contains {
+            let needle = self.text(frame, needle).map_err(|e| e.to_string())?;
+            match &value {
+                Value::String(text) if text.contains(&needle) => {}
+                Value::String(text) => {
+                    return Err(format!(
+                        "{:?} does not contain {needle:?}",
+                        clip(text, 1500)
+                    ));
+                }
+                other => return Err(format!("{other} is not text")),
+            }
+        }
+        if let Some(choices) = &comparison.one_of {
+            let choices = choices
+                .iter()
+                .map(|choice| self.value(frame, choice))
+                .collect::<Result<Vec<_>>>()
+                .map_err(|e| e.to_string())?;
+            if !choices.contains(&value) {
+                return Err(format!("{value} is not one of {choices:?}"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Resolve `with` inputs of an action or include.
+    fn resolve_inputs(
+        &self,
+        frame: &Frame,
+        inputs: &BTreeMap<String, Value>,
+    ) -> Result<BTreeMap<String, Value>> {
+        inputs
+            .iter()
+            .map(|(key, value)| Ok((key.clone(), self.value(frame, value)?)))
+            .collect()
+    }
+
+    fn run_action(&self, frame: &mut Frame, call: &ActionCall) -> Result<String, String> {
+        let inputs = self
+            .resolve_inputs(frame, &call.inputs)
+            .map_err(|e| e.to_string())?;
+        let outputs = actions::run(
+            self.context,
+            &call.name,
+            &inputs,
+            self.remaining().map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        for (output, local) in &call.capture {
+            let value = outputs
+                .get(output)
+                .cloned()
+                .ok_or_else(|| format!("action {} did not produce {output}", call.name))?;
+            frame.variables.insert(local.clone(), value);
+        }
+        Ok(serde_json::to_string(&outputs).unwrap_or_default())
+    }
+
+    /// Run a setup's steps in a fresh frame and copy its captured outputs back.
+    fn run_include(
+        &mut self,
+        frame: &mut Frame,
+        include: &Include,
+        here: &str,
+    ) -> Result<String, StepFailure> {
+        let fail = |message: String| StepFailure {
+            location: here.to_owned(),
+            message,
+        };
+        let setups = self.setups;
+        let setup = setups
+            .get(&include.setup)
+            .ok_or_else(|| fail(format!("unknown setup {}", include.setup)))?;
+        let inputs = self
+            .resolve_inputs(frame, &include.inputs)
+            .map_err(|e| fail(e.to_string()))?;
+        let mut inner = Frame {
+            variables: BTreeMap::new(),
+            inputs,
+        };
+        self.steps(
+            &mut inner,
+            &setup.steps,
+            &format!("{here} (setup {})", setup.name),
+        )?;
+        for (output, local) in &include.capture {
+            let variable = &setup.outputs[output];
+            let value =
+                inner.variables.get(variable).cloned().ok_or_else(|| {
+                    fail(format!("setup {} did not capture {variable}", setup.name))
+                })?;
+            frame.variables.insert(local.clone(), value);
+        }
+        Ok(format!("setup {}", setup.name))
     }
 
     /// Run a scenario's steps within its deadline.

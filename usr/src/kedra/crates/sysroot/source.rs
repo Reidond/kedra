@@ -339,18 +339,16 @@ impl Inputs {
     }
 }
 
-fn plan_committed(
+/// The committed target declaration, refused unless Kedra policy enables it.
+fn committed_target(
     repo: &Path,
+    tree: &[Entry],
     host: &str,
-    revision: String,
-    input_scope: &'static str,
-) -> Result<Plan, Error> {
-    let tree = entries(repo, &revision)?;
-    let inputs = Inputs::new(&tree, host)?;
-    let target_path = &inputs.target;
+    target_path: &str,
+) -> Result<Target, Error> {
     let entry = tree
         .iter()
-        .find(|e| &e.path == target_path)
+        .find(|e| e.path == target_path)
         .ok_or_else(|| invalid(format!("missing committed {target_path}")))?;
     let bytes = blob(repo, entry)?;
     let target: Target =
@@ -374,27 +372,122 @@ fn plan_committed(
             target.architecture
         )));
     }
-    let (packages, remove, package_frontend) =
-        match crate::source_packages::select(repo, &tree, host, inputs.legacy)? {
-            Some(selection) => (
-                selection.packages,
-                selection.remove,
-                Some(selection.frontend),
-            ),
-            None => {
-                let mut packages = package_list(repo, &tree, &inputs.packages[0])?;
-                packages.extend(package_list(repo, &tree, &inputs.packages[1])?);
-                (packages, package_list(repo, &tree, &inputs.remove)?, None)
+    Ok(target)
+}
+
+/// Package names one target installs and removes, and the package-language
+/// frontend record when the commit selects that language.
+struct PackageSets {
+    install: BTreeSet<String>,
+    remove: BTreeSet<String>,
+    frontend: Option<crate::source_packages::Frontend>,
+}
+
+/// Package sets from the package language when the commit declares it and from
+/// the package lists otherwise. No package may be both installed and removed.
+fn package_sets(
+    repo: &Path,
+    tree: &[Entry],
+    host: &str,
+    inputs: &Inputs,
+) -> Result<PackageSets, Error> {
+    let packages = match crate::source_packages::select(repo, tree, host, inputs.legacy)? {
+        Some(selection) => PackageSets {
+            install: selection.packages,
+            remove: selection.remove,
+            frontend: Some(selection.frontend),
+        },
+        None => {
+            let mut install = package_list(repo, tree, &inputs.packages[0])?;
+            install.extend(package_list(repo, tree, &inputs.packages[1])?);
+            PackageSets {
+                install,
+                remove: package_list(repo, tree, &inputs.remove)?,
+                frontend: None,
             }
-        };
-    if let Some(package) = packages.intersection(&remove).next() {
+        }
+    };
+    if let Some(package) = packages.install.intersection(&packages.remove).next() {
         return Err(invalid(format!(
             "package {package} is both installed and removed"
         )));
     }
+    Ok(packages)
+}
+
+fn contains_private_key(bytes: &[u8]) -> bool {
+    [
+        b"-----BEGIN PRIVATE KEY-----".as_slice(),
+        b"-----BEGIN OPENSSH PRIVATE KEY-----",
+        b"-----BEGIN RSA PRIVATE KEY-----",
+        b"-----BEGIN EC PRIVATE KEY-----",
+        b"-----BEGIN ENCRYPTED PRIVATE KEY-----",
+    ]
+    .iter()
+    .any(|marker| bytes.windows(marker.len()).any(|window| window == *marker))
+}
+
+/// The image file one payload entry contributes, or `None` for a `.gitkeep`
+/// placeholder. Paths and contents that must not enter an image are refused.
+fn payload_file(repo: &Path, entry: &Entry, root: &str, rest: &str) -> Result<Option<File>, Error> {
+    if private_payload(root, rest) {
+        return Err(invalid(format!(
+            "credential/runtime path cannot enter image payload: {}",
+            entry.path
+        )));
+    }
+    if rest.split('/').any(|p| p == ".gitkeep") {
+        return Ok(None);
+    }
+    if root == "usr" && (rest == "etc" || rest.starts_with("etc/")) {
+        return Err(invalid(
+            "usr/etc is bootc-owned; use etc/ or application defaults",
+        ));
+    }
+    if root == "usr" && (rest == "share/sysroot" || rest.starts_with("share/sysroot/")) {
+        return Err(invalid(
+            "usr/share/sysroot is reserved for generated manifests and baselines",
+        ));
+    }
+    let bytes = blob(repo, entry)?;
+    if contains_private_key(&bytes) {
+        return Err(invalid(format!(
+            "private-key material cannot enter image payload: {}",
+            entry.path
+        )));
+    }
+    let destination = if root == "home" {
+        format!("usr/share/sysroot/home/default/{rest}")
+    } else {
+        format!("{root}/{rest}")
+    };
+    if !safe_path(&destination) {
+        return Err(invalid("unsafe payload path"));
+    }
+    Ok(Some(File {
+        source_path: entry.path.clone(),
+        destination,
+        git_blob: entry.blob.clone(),
+        sha256: Sha256::digest(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect(),
+        mode: entry.mode.clone(),
+        replaces: None,
+        home_baseline: root == "home",
+    }))
+}
+
+/// Payload files by destination: the shared root first, then the target overlay,
+/// whose files record the shared file they replace.
+fn payload_files(
+    repo: &Path,
+    tree: &[Entry],
+    inputs: &Inputs,
+) -> Result<BTreeMap<String, File>, Error> {
     let mut files: BTreeMap<String, File> = BTreeMap::new();
     for prefix in ["", inputs.overlay.as_str()] {
-        for entry in &tree {
+        for entry in tree {
             let Some(relative) = entry.path.strip_prefix(prefix) else {
                 continue;
             };
@@ -402,69 +495,20 @@ fn plan_committed(
             else {
                 continue;
             };
-            if private_payload(root, rest) {
-                return Err(invalid(format!(
-                    "credential/runtime path cannot enter image payload: {}",
-                    entry.path
-                )));
-            }
-            if rest.split('/').any(|p| p == ".gitkeep") {
+            let Some(mut file) = payload_file(repo, entry, root, rest)? else {
                 continue;
-            }
-            if root == "usr" && (rest == "etc" || rest.starts_with("etc/")) {
-                return Err(invalid(
-                    "usr/etc is bootc-owned; use etc/ or application defaults",
-                ));
-            }
-            if root == "usr" && (rest == "share/sysroot" || rest.starts_with("share/sysroot/")) {
-                return Err(invalid(
-                    "usr/share/sysroot is reserved for generated manifests and baselines",
-                ));
-            }
-            let bytes = blob(repo, entry)?;
-            if [
-                b"-----BEGIN PRIVATE KEY-----".as_slice(),
-                b"-----BEGIN OPENSSH PRIVATE KEY-----",
-                b"-----BEGIN RSA PRIVATE KEY-----",
-                b"-----BEGIN EC PRIVATE KEY-----",
-                b"-----BEGIN ENCRYPTED PRIVATE KEY-----",
-            ]
-            .iter()
-            .any(|marker| bytes.windows(marker.len()).any(|window| window == *marker))
-            {
-                return Err(invalid(format!(
-                    "private-key material cannot enter image payload: {}",
-                    entry.path
-                )));
-            }
-            let destination = if root == "home" {
-                format!("usr/share/sysroot/home/default/{rest}")
-            } else {
-                format!("{root}/{rest}")
             };
-            if !safe_path(&destination) {
-                return Err(invalid("unsafe payload path"));
-            }
-            let replaces = files
-                .get(&destination)
+            file.replaces = files
+                .get(&file.destination)
                 .map(|previous| previous.source_path.clone());
-            files.insert(
-                destination.clone(),
-                File {
-                    source_path: entry.path.clone(),
-                    destination,
-                    git_blob: entry.blob.clone(),
-                    sha256: Sha256::digest(&bytes)
-                        .iter()
-                        .map(|b| format!("{b:02x}"))
-                        .collect(),
-                    mode: entry.mode.clone(),
-                    replaces,
-                    home_baseline: root == "home",
-                },
-            );
+            files.insert(file.destination.clone(), file);
         }
     }
+    refuse_file_directory_collisions(&files)?;
+    Ok(files)
+}
+
+fn refuse_file_directory_collisions(files: &BTreeMap<String, File>) -> Result<(), Error> {
     for path in files.keys() {
         for (position, _) in path.match_indices('/') {
             if files.contains_key(&path[..position]) {
@@ -472,14 +516,28 @@ fn plan_committed(
             }
         }
     }
+    Ok(())
+}
+
+fn plan_committed(
+    repo: &Path,
+    host: &str,
+    revision: String,
+    input_scope: &'static str,
+) -> Result<Plan, Error> {
+    let tree = entries(repo, &revision)?;
+    let inputs = Inputs::new(&tree, host)?;
+    let target = committed_target(repo, &tree, host, &inputs.target)?;
+    let packages = package_sets(repo, &tree, host, &inputs)?;
+    let files = payload_files(repo, &tree, &inputs)?;
     Ok(Plan {
         schema_version: 1,
         source_revision: revision,
         input_scope,
         target,
-        packages: packages.into_iter().collect(),
-        remove_packages: remove.into_iter().collect(),
-        package_frontend,
+        packages: packages.install.into_iter().collect(),
+        remove_packages: packages.remove.into_iter().collect(),
+        package_frontend: packages.frontend,
         files: files.into_values().collect(),
     })
 }

@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 import installer_stages
 from fixture import add_context_argument, load_context
@@ -219,35 +220,29 @@ def publish_phase_failure(fixture, root, phase, error, progress):
         print('ARM public phase diagnostic unavailable', file=sys.stderr)
 
 
-def phase_main(progress=None):
-    if progress is None:
-        progress = {}
+def parse_phase_arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--phase', choices=('prepare-hvf', 'refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
     parser.add_argument('--iso', type=Path)
     add_context_argument(parser)
-    args = parser.parse_args()
-    fixture = load_context(args.fixture_context)
-    root = args.root.resolve()
-    require(root == Path(fixture['runner_temp']) / 'kedra-ghcr',
-            'Unexpected fixture directory')
-    private = root.parent / 'kedra-ghcr-private'
-    require(root.is_dir() and private.is_dir(), 'Fixture preparation is absent')
-    preparing = args.phase == 'prepare-hvf'
-    if preparing:
-        require(fixture['mode'] == 'local' and args.fixture_context is not None,
-                'Fresh HVF preparation requires an explicit local fixture')
-        os.umask(0o077)
-        require(not any(path.exists() or path.is_symlink() for path in (
-            root / 'insecure-installer',
-            *(root / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
-              for suffix in ('-result.json', '-timeout.json', '.serial.log', '.qmp.sock')),
-            *(private / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
-              for suffix in ('.serial.log', '.qemu.log')),
-        )), 'Fresh HVF preparation refuses previous boot evidence')
-    insecure = args.phase == 'refuse-insecure'
-    media_boot = preparing or args.phase in ('refuse-insecure', 'install')
+    return parser.parse_args()
+
+
+def require_fresh_hvf_preparation(fixture, args, root, private):
+    require(fixture['mode'] == 'local' and args.fixture_context is not None,
+            'Fresh HVF preparation requires an explicit local fixture')
+    os.umask(0o077)
+    require(not any(path.exists() or path.is_symlink() for path in (
+        root / 'insecure-installer',
+        *(root / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
+          for suffix in ('-result.json', '-timeout.json', '.serial.log', '.qmp.sock')),
+        *(private / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
+          for suffix in ('.serial.log', '.qemu.log')),
+    )), 'Fresh HVF preparation refuses previous boot evidence')
+
+
+def verified_firmware_trust():
     original_trust = firmware.trust(TEMPLATE)
     require({'PK', 'KEK', 'db', 'SecureBootEnable'} <= original_trust.keys()
             and original_trust['SecureBootEnable'][1] == b'\x01'
@@ -260,6 +255,10 @@ def phase_main(progress=None):
             and {'enrolled-keys', 'secure-boot'} <= set(descriptor['features'])
             and any(target.get('architecture') == 'aarch64' for target in descriptor['targets']),
             'Unexpected ARM firmware descriptor')
+    return original_trust
+
+
+def write_firmware_provenance(root, original_trust):
     provenance = {'schema_version': 1, 'code_sha256': sha(CODE), 'vars_sha256': sha(TEMPLATE),
                   'descriptor_sha256': sha(DESCRIPTOR),
                   'db_certificate_sha256': sorted(firmware.certificates(original_trust['db'][1]))}
@@ -270,69 +269,76 @@ def phase_main(progress=None):
         provenance['firmware_packages'] = command('dpkg-query', '-W', '-f=${Package} ${Version}\n',
             'qemu-efi-aarch64', 'python3-virt-firmware', capture_output=True, text=True).stdout
     (root / 'firmware-provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
+
+
+class PhaseDisks(NamedTuple):
+    variables: Path
+    disk: Path
+    sentinel: Path
+    manifest: Path
+
+
+def prepare_phase_disks(root, iso, insecure, media_boot):
     state_root = root / 'insecure-installer' if insecure else root
     if insecure:
         state_root.mkdir(mode=0o700)
-    variables = state_root / 'AAVMF_VARS.fd'
-    disk = state_root / 'installed.qcow2'
-    sentinel = state_root / 'sentinel.raw'
-    manifest = state_root / 'disks.json'
+    disks = PhaseDisks(state_root / 'AAVMF_VARS.fd', state_root / 'installed.qcow2',
+                       state_root / 'sentinel.raw', state_root / 'disks.json')
     if media_boot:
-        require(args.iso is not None and args.iso.is_file() and not args.iso.is_symlink(), 'Expected private fixture ISO')
-        require(not any(path.exists() or path.is_symlink() for path in (variables, disk, sentinel, manifest)),
-                'Install disks must be new')
-        shutil.copyfile(TEMPLATE, variables)
-        if insecure:
-            command('virt-fw-vars', '--inplace', variables, '--set-false', 'SecureBootEnable',
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        command('qemu-img', 'create', '-f', 'qcow2', disk, '96G', stdout=subprocess.DEVNULL)
-        with sentinel.open('xb') as stream:
-            stream.write(os.urandom(16 * 1024**2))
-        manifest.write_text(json.dumps({'schema_version': 1, 'blank_target_sha256': sha(disk),
-            'sentinel_sha256': sha(sentinel), 'iso_sha256': sha(args.iso),
-            'iso': str(args.iso.resolve())}, sort_keys=True) + '\n')
+        create_install_disks(disks, iso, insecure)
     else:
-        require(args.iso is None and manifest.is_file() and disk.is_file(), 'Installed phase must not attach an ISO')
-    selected = json.loads(manifest.read_text())
-    require(sha(sentinel) == selected['sentinel_sha256'], 'Sentinel changed before boot')
-    expected_trust = dict(original_trust)
+        require(iso is None and disks.manifest.is_file() and disks.disk.is_file(), 'Installed phase must not attach an ISO')
+    return disks
+
+
+def create_install_disks(disks, iso, insecure):
+    require(iso is not None and iso.is_file() and not iso.is_symlink(), 'Expected private fixture ISO')
+    require(not any(path.exists() or path.is_symlink() for path in disks),
+            'Install disks must be new')
+    shutil.copyfile(TEMPLATE, disks.variables)
     if insecure:
-        expected_trust['SecureBootEnable'] = (original_trust['SecureBootEnable'][0], b'\x00')
-    require(firmware.trust(variables) == expected_trust, 'ARM firmware trust changed')
-    if preparing:
-        command('qemu-img', 'check', disk, stdout=subprocess.DEVNULL)
-        files = {
-            'disks.json': manifest, 'installed.qcow2': disk, 'sentinel.raw': sentinel,
-            'AAVMF_VARS.fd': variables, 'cases.raw': root / 'cases.raw',
-            'installation-plan.json': root / 'installation-plan.json',
-            'firmware-provenance.json': root / 'firmware-provenance.json',
-            'installer.iso': args.iso, 'code.fd': CODE, 'template.fd': TEMPLATE,
-            'firmware.json': DESCRIPTOR,
-        }
-        receipt = {'schema_version': 1, 'kind': 'kedra-fresh-hvf-preparation',
-                   'source_revision': fixture['source_revision'],
-                   'fixture_revision': fixture['fixture_revision'],
-                   'context_sha256': sha(args.fixture_context), 'qemu_started': False,
-                   'files': {name: {'sha256': sha(path), 'bytes': path.stat().st_size}
-                             for name, path in files.items()}}
-        output = root / 'hvf-preparation.json'
-        with output.open('x') as stream:
-            json.dump(receipt, stream, sort_keys=True)
-            stream.write('\n')
-            stream.flush()
-            os.fsync(stream.fileno())
-        print(sha(output))
-        return
-    log = private / (args.phase + '.serial.log') if media_boot else root / (args.phase + '.serial.log')
-    qmp = root / (args.phase + '.qmp.sock')
-    require(not qmp.exists() and not log.exists(), 'Phase output already exists')
+        command('virt-fw-vars', '--inplace', disks.variables, '--set-false', 'SecureBootEnable',
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    command('qemu-img', 'create', '-f', 'qcow2', disks.disk, '96G', stdout=subprocess.DEVNULL)
+    with disks.sentinel.open('xb') as stream:
+        stream.write(os.urandom(16 * 1024**2))
+    disks.manifest.write_text(json.dumps({'schema_version': 1, 'blank_target_sha256': sha(disks.disk),
+        'sentinel_sha256': sha(disks.sentinel), 'iso_sha256': sha(iso),
+        'iso': str(iso.resolve())}, sort_keys=True) + '\n')
+
+
+def write_hvf_preparation_receipt(fixture, args, root, disks):
+    files = {
+        'disks.json': disks.manifest, 'installed.qcow2': disks.disk, 'sentinel.raw': disks.sentinel,
+        'AAVMF_VARS.fd': disks.variables, 'cases.raw': root / 'cases.raw',
+        'installation-plan.json': root / 'installation-plan.json',
+        'firmware-provenance.json': root / 'firmware-provenance.json',
+        'installer.iso': args.iso, 'code.fd': CODE, 'template.fd': TEMPLATE,
+        'firmware.json': DESCRIPTOR,
+    }
+    receipt = {'schema_version': 1, 'kind': 'kedra-fresh-hvf-preparation',
+               'source_revision': fixture['source_revision'],
+               'fixture_revision': fixture['fixture_revision'],
+               'context_sha256': sha(args.fixture_context), 'qemu_started': False,
+               'files': {name: {'sha256': sha(path), 'bytes': path.stat().st_size}
+                         for name, path in files.items()}}
+    output = root / 'hvf-preparation.json'
+    with output.open('x') as stream:
+        json.dump(receipt, stream, sort_keys=True)
+        stream.write('\n')
+        stream.flush()
+        os.fsync(stream.fileno())
+    return output
+
+
+def qemu_argv(disks, root, qmp, log, iso):
     argv = ['qemu-system-aarch64', '-machine', 'virt', '-cpu', 'max,pauth-impdef=on',
             '-accel', 'tcg,thread=multi', '-smp', '4', '-m', '8192',
             '-drive', f'if=pflash,format=raw,unit=0,readonly=on,file={CODE}',
-            '-drive', f'if=pflash,format=raw,unit=1,file={variables}',
-            '-drive', f'if=none,id=target,format=qcow2,file={disk}',
+            '-drive', f'if=pflash,format=raw,unit=1,file={disks.variables}',
+            '-drive', f'if=none,id=target,format=qcow2,file={disks.disk}',
             '-device', 'virtio-blk-pci,drive=target,serial=KEDRA_INSTALL_ONLY',
-            '-drive', f'if=none,id=sentinel,format=raw,file={sentinel}',
+            '-drive', f'if=none,id=sentinel,format=raw,file={disks.sentinel}',
             '-device', 'virtio-blk-pci,drive=sentinel,serial=KEDRA_KEEP_DATA',
             '-drive', f'if=none,id=cases,format=raw,readonly=on,file={root / "cases.raw"}',
             '-device', 'virtio-blk-pci,drive=cases,serial=KEDRA_CASES',
@@ -340,10 +346,34 @@ def phase_main(progress=None):
             '-netdev', 'user,id=net0', '-device', 'virtio-net-pci,netdev=net0,romfile=',
             '-display', 'none', '-monitor', 'none', '-no-reboot',
             '-qmp', f'unix:{qmp},server=on,wait=off', '-serial', f'file:{log}']
-    if media_boot:
+    if iso is not None:
         argv.extend(['-device', 'virtio-scsi-pci,id=scsi0', '-drive',
-                     f'if=none,id=cdrom,format=raw,media=cdrom,readonly=on,file={args.iso.resolve()}',
+                     f'if=none,id=cdrom,format=raw,media=cdrom,readonly=on,file={iso.resolve()}',
                      '-device', 'scsi-cd,drive=cdrom,bus=scsi0.0', '-boot', 'order=d'])
+    return argv
+
+
+def record_installer_progress(text, phase, progress, started):
+    if phase == 'install':
+        installer_stages.observe_health(text, progress, int((time.monotonic() - started) * 1000))
+    stages = progress.setdefault('installer_stages', {})
+    for token in re.findall(r'(?:^|\n)KEDRA_INSTALL_STAGE_([A-Z0-9_]{1,64})\r?(?=\n|$)', text):
+        if token in installer_stages.TOKENS and len(stages) < 256:
+            stages.setdefault(token, time.monotonic() - started)
+
+
+def quit_after_refusal(text, qmp, process, deadline, progress, started):
+    require('KEDRA_FIXTURE_INSTALL_COMPLETE' not in text, 'Insecure installation unexpectedly completed')
+    progress['refusal_seen_elapsed_seconds'] = time.monotonic() - started
+    progress['quit_attempted'] = True
+    qmp_quit(qmp, process, deadline)
+    progress.update(quit_completed=True, quit_completed_elapsed_seconds=time.monotonic() - started)
+
+
+def boot_phase(args, root, private, disks, log, insecure, media_boot, progress):
+    qmp = root / (args.phase + '.qmp.sock')
+    require(not qmp.exists() and not log.exists(), 'Phase output already exists')
+    argv = qemu_argv(disks, root, qmp, log, args.iso if media_boot else None)
     password = (private / 'disk-passphrase').read_text().strip()
     require(len(password) == 48 and all(c in '0123456789abcdef' for c in password), 'Invalid private fixture passphrase')
     entered = False
@@ -362,19 +392,10 @@ def phase_main(progress=None):
                 if log.exists():
                     require(log.stat().st_size <= LIMIT, 'ARM serial output exceeded its bound')
                     text = log.read_text(errors='replace')
-                    if args.phase == 'install':
-                        installer_stages.observe_health(text, progress, int((time.monotonic() - started) * 1000))
-                    stages = progress.setdefault('installer_stages', {})
-                    for token in re.findall(r'(?:^|\n)KEDRA_INSTALL_STAGE_([A-Z0-9_]{1,64})\r?(?=\n|$)', text):
-                        if token in installer_stages.TOKENS and len(stages) < 256:
-                            stages.setdefault(token, time.monotonic() - started)
+                    record_installer_progress(text, args.phase, progress, started)
                     require('systemd[1]: Freezing execution.' not in text, 'Guest PID 1 froze')
                     if insecure and not refused and 'installation requires UEFI Secure Boot and must not start' in text:
-                        require('KEDRA_FIXTURE_INSTALL_COMPLETE' not in text, 'Insecure installation unexpectedly completed')
-                        progress['refusal_seen_elapsed_seconds'] = time.monotonic() - started
-                        progress['quit_attempted'] = True
-                        qmp_quit(qmp, process, deadline)
-                        progress.update(quit_completed=True, quit_completed_elapsed_seconds=time.monotonic() - started)
+                        quit_after_refusal(text, qmp, process, deadline, progress, started)
                         refused = True
                     if not media_boot and not entered and 'Please enter passphrase for disk' in text:
                         qmp_key(qmp, password)
@@ -383,26 +404,67 @@ def phase_main(progress=None):
             require(process.returncode == 0, 'QEMU failed')
         finally:
             stop(process)
+    return started, entered, refused
+
+
+def require_fixture_intact(disks, selected, expected_trust):
+    require(sha(disks.sentinel) == selected['sentinel_sha256'], 'Unselected sentinel disk changed')
+    require(sha(Path(selected['iso'])) == selected['iso_sha256'], 'Original installer media changed')
+    require(firmware.trust(disks.variables) == expected_trust, 'Firmware authority changed during boot')
+    command('qemu-img', 'check', disks.disk, stdout=subprocess.DEVNULL)
+
+
+def write_phase_report(root, phase, started, insecure, media_boot, entered):
+    report = {'schema_version': 1, 'phase': phase, 'outcome': 'refused' if insecure else 'pass',
+              'elapsed_seconds': time.monotonic() - started, 'sentinel_unchanged': True,
+              'iso_unchanged': True, 'firmware_trust_unchanged': True,
+              'iso_attached': media_boot, 'luks_unlock_observed': entered,
+              'stop': 'qmp-quit-after-verifier-refusal' if insecure else 'guest-poweroff'}
+    (root / (phase + '-result.json')).write_text(json.dumps(report, indent=2) + '\n')
+    print(json.dumps(report, sort_keys=True))
+
+
+def phase_main(progress=None):
+    if progress is None:
+        progress = {}
+    args = parse_phase_arguments()
+    fixture = load_context(args.fixture_context)
+    root = args.root.resolve()
+    require(root == Path(fixture['runner_temp']) / 'kedra-ghcr',
+            'Unexpected fixture directory')
+    private = root.parent / 'kedra-ghcr-private'
+    require(root.is_dir() and private.is_dir(), 'Fixture preparation is absent')
+    preparing = args.phase == 'prepare-hvf'
+    if preparing:
+        require_fresh_hvf_preparation(fixture, args, root, private)
+    insecure = args.phase == 'refuse-insecure'
+    media_boot = preparing or args.phase in ('refuse-insecure', 'install')
+    original_trust = verified_firmware_trust()
+    write_firmware_provenance(root, original_trust)
+    disks = prepare_phase_disks(root, args.iso, insecure, media_boot)
+    selected = json.loads(disks.manifest.read_text())
+    require(sha(disks.sentinel) == selected['sentinel_sha256'], 'Sentinel changed before boot')
+    expected_trust = dict(original_trust)
+    if insecure:
+        expected_trust['SecureBootEnable'] = (original_trust['SecureBootEnable'][0], b'\x00')
+    require(firmware.trust(disks.variables) == expected_trust, 'ARM firmware trust changed')
+    if preparing:
+        command('qemu-img', 'check', disks.disk, stdout=subprocess.DEVNULL)
+        print(sha(write_hvf_preparation_receipt(fixture, args, root, disks)))
+        return
+    log = private / (args.phase + '.serial.log') if media_boot else root / (args.phase + '.serial.log')
+    started, entered, refused = boot_phase(args, root, private, disks, log, insecure, media_boot, progress)
     text = log.read_text(errors='replace')
     marker = 'KEDRA_FIXTURE_INSTALL_COMPLETE' if media_boot else 'KEDRA_GHCR_' + args.phase + '_PASS'
     if insecure:
-        require(refused and marker not in text and sha(disk) == selected['blank_target_sha256'],
+        require(refused and marker not in text and sha(disks.disk) == selected['blank_target_sha256'],
                 'Secure-Boot-disabled refusal or untouched target evidence is absent')
     else:
         require(marker in text and 'KEDRA_GHCR_FAIL' not in text, 'Expected phase result is absent or failed')
     if not media_boot:
         require('KEDRA_SECUREBOOT_PASS' in text and entered, 'Installed boot lacks security/unlock evidence')
-    require(sha(sentinel) == selected['sentinel_sha256'], 'Unselected sentinel disk changed')
-    require(sha(Path(selected['iso'])) == selected['iso_sha256'], 'Original installer media changed')
-    require(firmware.trust(variables) == expected_trust, 'Firmware authority changed during boot')
-    command('qemu-img', 'check', disk, stdout=subprocess.DEVNULL)
-    report = {'schema_version': 1, 'phase': args.phase, 'outcome': 'refused' if insecure else 'pass',
-              'elapsed_seconds': time.monotonic() - started, 'sentinel_unchanged': True,
-              'iso_unchanged': True, 'firmware_trust_unchanged': True,
-              'iso_attached': media_boot, 'luks_unlock_observed': entered,
-              'stop': 'qmp-quit-after-verifier-refusal' if insecure else 'guest-poweroff'}
-    (root / (args.phase + '-result.json')).write_text(json.dumps(report, indent=2) + '\n')
-    print(json.dumps(report, sort_keys=True))
+    require_fixture_intact(disks, selected, expected_trust)
+    write_phase_report(root, args.phase, started, insecure, media_boot, entered)
 
 
 def main():

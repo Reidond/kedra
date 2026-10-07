@@ -242,57 +242,67 @@ fn normalize(definition: &mut NativeDefinition) -> Result<()> {
                 disable,
                 mask,
                 default_target,
-            } => {
-                let mut units = BTreeSet::new();
-                for names in [enable, disable, mask] {
-                    if names.len() > 64 {
-                        return Err(invalid("too many units"));
-                    }
-                    for name in names.iter() {
-                        unit(name)?;
-                        if !units.insert(name.clone()) {
-                            return Err(invalid("duplicate or conflicting unit operation"));
-                        }
-                    }
-                    names.sort();
-                }
-                if let Some(target) = default_target {
-                    unit(target)?;
-                    if !target.ends_with(".target") || units.contains(target) {
-                        return Err(invalid("invalid or conflicting default target"));
-                    }
-                }
-                if units.is_empty() && default_target.is_none() {
-                    return Err(invalid("empty systemd step"));
-                }
-            }
-            NativeStep::QemuInitramfs { required_modules } => {
-                if required_modules.is_empty() || required_modules.len() > 32 {
-                    return Err(invalid("invalid module count"));
-                }
-                let mut modules = BTreeSet::new();
-                for module in required_modules.iter() {
-                    if module.is_empty()
-                        || module.len() > 128
-                        || !module
-                            .bytes()
-                            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
-                        || !modules.insert(module.clone())
-                    {
-                        return Err(invalid("invalid or duplicate module"));
-                    }
-                }
-                for required in default_native_modules() {
-                    if !modules.contains(&required) {
-                        return Err(invalid("required QEMU graphics/input module omitted"));
-                    }
-                }
-                required_modules.sort();
-            }
+            } => normalize_systemd(enable, disable, mask, default_target.as_deref())?,
+            NativeStep::QemuInitramfs { required_modules } => normalize_modules(required_modules)?,
             NativeStep::GlibSchemas | NativeStep::InitialSkel => {}
         }
     }
     definition.steps.sort_by_key(order);
+    Ok(())
+}
+/// Each unit takes at most one operation; every list is sorted once it is checked.
+fn normalize_systemd(
+    enable: &mut [String],
+    disable: &mut [String],
+    mask: &mut [String],
+    default_target: Option<&str>,
+) -> Result<()> {
+    let mut units = BTreeSet::new();
+    for names in [enable, disable, mask] {
+        if names.len() > 64 {
+            return Err(invalid("too many units"));
+        }
+        for name in names.iter() {
+            unit(name)?;
+            if !units.insert(name.clone()) {
+                return Err(invalid("duplicate or conflicting unit operation"));
+            }
+        }
+        names.sort();
+    }
+    if let Some(target) = default_target {
+        unit(target)?;
+        if !target.ends_with(".target") || units.contains(target) {
+            return Err(invalid("invalid or conflicting default target"));
+        }
+    }
+    if units.is_empty() && default_target.is_none() {
+        return Err(invalid("empty systemd step"));
+    }
+    Ok(())
+}
+fn normalize_modules(required_modules: &mut [String]) -> Result<()> {
+    if required_modules.is_empty() || required_modules.len() > 32 {
+        return Err(invalid("invalid module count"));
+    }
+    let mut modules = BTreeSet::new();
+    for module in required_modules.iter() {
+        if module.is_empty()
+            || module.len() > 128
+            || !module
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+            || !modules.insert(module.clone())
+        {
+            return Err(invalid("invalid or duplicate module"));
+        }
+    }
+    for required in default_native_modules() {
+        if !modules.contains(&required) {
+            return Err(invalid("required QEMU graphics/input module omitted"));
+        }
+    }
+    required_modules.sort();
     Ok(())
 }
 fn order(step: &NativeStep) -> u8 {
@@ -345,6 +355,41 @@ pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -
     {
         return Err(invalid("native material identity or bounds differ"));
     }
+    validate_tools(expected, receipt)?;
+    let artifacts = declared_artifacts(expected, receipt)?;
+    for step in &expected.definition.steps {
+        match step {
+            NativeStep::GlibSchemas => validate_schemas(&artifacts)?,
+            NativeStep::InitialSkel => validate_skeleton(&expected.inputs, &artifacts)?,
+            NativeStep::Systemd {
+                enable,
+                mask,
+                default_target,
+                ..
+            } => validate_systemd_links(
+                enable,
+                mask,
+                default_target.as_deref(),
+                receipt,
+                &artifacts,
+            )?,
+            NativeStep::QemuInitramfs { required_modules } => {
+                validate_kernels(required_modules, receipt, &artifacts)?
+            }
+        }
+    }
+    if !expected
+        .definition
+        .steps
+        .iter()
+        .any(|s| matches!(s, NativeStep::QemuInitramfs { .. }))
+        && !receipt.kernels.is_empty()
+    {
+        return Err(invalid("unrequested kernel evidence"));
+    }
+    Ok(())
+}
+fn validate_tools(expected: &NativePlan, receipt: &NativeReceipt) -> Result<()> {
     let tools = native_tools(expected);
     if receipt
         .tools
@@ -356,6 +401,13 @@ pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -
     {
         return Err(invalid("unexpected or invalid installed tool inventory"));
     }
+    Ok(())
+}
+/// Checks each output in receipt order and indexes the declared ones by path.
+fn declared_artifacts<'a>(
+    expected: &NativePlan,
+    receipt: &'a NativeReceipt,
+) -> Result<BTreeMap<&'a str, &'a NativeArtifactKind>> {
     let mut artifacts = BTreeMap::new();
     for artifact in &receipt.artifacts {
         absolute(&artifact.path)?;
@@ -384,72 +436,63 @@ pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -
             )));
         }
     }
-    for step in &expected.definition.steps {
-        match step {
-            NativeStep::GlibSchemas => {
-                if !matches!(artifacts.get("/usr/share/glib-2.0/schemas/gschemas.compiled"),
-                    Some(NativeArtifactKind::Regular {bytes,mode:0o644,..}) if *bytes > 0)
-                {
-                    return Err(invalid("missing compiled GLib schemas"));
-                }
-            }
-            NativeStep::InitialSkel => {
-                for input in &expected.inputs {
-                    if let Some(relative) = input.path.strip_prefix(HOME) {
-                        let destination = format!("/etc/skel/{relative}");
-                        if !matches!(artifacts.get(destination.as_str()),
-                            Some(NativeArtifactKind::Regular {sha256,bytes,mode})
-                            if *sha256 == input.sha256 && *bytes == input.bytes && *mode == input.mode)
-                        {
-                            return Err(invalid("initial skeleton differs from committed input"));
-                        }
-                    }
-                }
-            }
-            NativeStep::Systemd {
-                enable,
-                mask,
-                default_target,
-                ..
-            } => {
-                for name in enable {
-                    if !receipt.artifacts.iter().any(|a| {
-                        a.path != format!("{SYSTEMD}default.target")
-                            && matches!(&a.entry, NativeArtifactKind::Symlink { target }
-                                if link_unit(&a.path, target).is_ok_and(|unit| unit == *name))
-                    }) {
-                        return Err(invalid("enabled unit has no recorded link"));
-                    }
-                }
-                for name in mask {
-                    if !matches!(artifacts.get(format!("{SYSTEMD}{name}").as_str()),
-                        Some(NativeArtifactKind::Symlink {target}) if target == "/dev/null")
-                    {
-                        return Err(invalid("missing unit mask"));
-                    }
-                }
-                if let Some(target) = default_target {
-                    let path = format!("{SYSTEMD}default.target");
-                    if !matches!(artifacts.get(path.as_str()), Some(NativeArtifactKind::Symlink{target:actual})
-                        if link_unit(&path,actual).is_ok_and(|actual| actual == *target))
-                    {
-                        return Err(invalid("default target link differs"));
-                    }
-                }
-            }
-            NativeStep::QemuInitramfs { required_modules } => {
-                validate_kernels(required_modules, receipt, &artifacts)?
+    Ok(artifacts)
+}
+fn validate_schemas(artifacts: &BTreeMap<&str, &NativeArtifactKind>) -> Result<()> {
+    if !matches!(artifacts.get("/usr/share/glib-2.0/schemas/gschemas.compiled"),
+        Some(NativeArtifactKind::Regular {bytes,mode:0o644,..}) if *bytes > 0)
+    {
+        return Err(invalid("missing compiled GLib schemas"));
+    }
+    Ok(())
+}
+fn validate_skeleton(
+    inputs: &[NativeInput],
+    artifacts: &BTreeMap<&str, &NativeArtifactKind>,
+) -> Result<()> {
+    for input in inputs {
+        if let Some(relative) = input.path.strip_prefix(HOME) {
+            let destination = format!("/etc/skel/{relative}");
+            if !matches!(artifacts.get(destination.as_str()),
+                Some(NativeArtifactKind::Regular {sha256,bytes,mode})
+                if *sha256 == input.sha256 && *bytes == input.bytes && *mode == input.mode)
+            {
+                return Err(invalid("initial skeleton differs from committed input"));
             }
         }
     }
-    if !expected
-        .definition
-        .steps
-        .iter()
-        .any(|s| matches!(s, NativeStep::QemuInitramfs { .. }))
-        && !receipt.kernels.is_empty()
-    {
-        return Err(invalid("unrequested kernel evidence"));
+    Ok(())
+}
+fn validate_systemd_links(
+    enable: &[String],
+    mask: &[String],
+    default_target: Option<&str>,
+    receipt: &NativeReceipt,
+    artifacts: &BTreeMap<&str, &NativeArtifactKind>,
+) -> Result<()> {
+    for name in enable {
+        if !receipt.artifacts.iter().any(|a| {
+            a.path != format!("{SYSTEMD}default.target")
+                && matches!(&a.entry, NativeArtifactKind::Symlink { target }
+                    if link_unit(&a.path, target).is_ok_and(|unit| unit == *name))
+        }) {
+            return Err(invalid("enabled unit has no recorded link"));
+        }
+    }
+    for name in mask {
+        if !matches!(artifacts.get(format!("{SYSTEMD}{name}").as_str()),
+            Some(NativeArtifactKind::Symlink {target}) if target == "/dev/null")
+        {
+            return Err(invalid("missing unit mask"));
+        }
+    }
+    if let Some(target) = default_target {
+        let path = format!("{SYSTEMD}default.target");
+        if !matches!(artifacts.get(path.as_str()), Some(NativeArtifactKind::Symlink{target:actual})
+            if link_unit(&path,actual).is_ok_and(|actual| actual == target))
+        {
+            return Err(invalid("default target link differs"));
+        }
     }
     Ok(())
 }

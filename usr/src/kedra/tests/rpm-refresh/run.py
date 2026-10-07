@@ -79,6 +79,100 @@ def build(label, containerfile, argument, snapshot, evidence, tag):
     ], checked=False)
 
 
+def refusal_cause_matches(case, receipt, diagnostic):
+    if case == "required-repo-unavailable":
+        return ("Curl error (37)" in diagnostic
+                and "file:///fixture/repo/repodata/repomd.xml" in diagnostic)
+    if case == "unsatisfiable-newest":
+        return ("nothing provides kedra-refresh-dependency >= 99 needed by kedra-refresh-requested-3-1.noarch" in diagnostic)
+    rejected = receipt.get("rejected_rpm", {})
+    return (rejected.get("recognized_dnf_signature_failure", False)
+            and rejected.get("named_archive_retained", False)
+            and rejected.get("matches_snapshot", False)
+            and rejected.get("rpm_checksig_exit", 0) != 0
+            and rejected.get("native_bad_payload_digest", False))
+
+
+def evaluate_refusal(result, case, exit_code, evidence, receipt, commands):
+    required_step = "check-upgrade" if case == "required-repo-unavailable" else "install"
+    before = evidence / "before.tsv"
+    after = evidence / "after-failure.tsv"
+    unchanged = before.is_file() and after.is_file() and before.read_bytes() == after.read_bytes()
+    failure = next((item for item in commands if item["step"] == required_step), None)
+    diagnostic = (evidence / failure["log"]).read_text(encoding="utf-8", errors="replace") if failure else ""
+    cause_matches = refusal_cause_matches(case, receipt, diagnostic)
+    refused = (exit_code != 0 and receipt["state"] == "failed"
+               and receipt.get("failure_step") == required_step
+               and receipt.get("native_exit_code", 0) != 0
+               and not receipt["rpm_fixture_equivalence_evaluable"] and unchanged and cause_matches)
+    result.update(status="pass" if refused else "fail", classification="refused" if refused else "unexpected",
+                  installed_inventory_unchanged=unchanged, native_failure_cause_matches=cause_matches)
+    if not refused:
+        result["reason"] = "native refusal lacks the specific expected cause, boundary or unchanged inventory"
+    return result
+
+
+def incomplete_materialization(case, exit_code, receipt, commands):
+    if exit_code != 0 or receipt["state"] != "succeeded" or not receipt["rpm_fixture_equivalence_evaluable"]:
+        return "required native materialization/evidence did not complete"
+    successful = {item["step"] for item in commands if item["exit_code"] == 0}
+    if not {"upgrade", "install", "dnf-check", "download-selected", "clean-cache"}.issubset(successful):
+        return "fresh DNF transaction and evidence are incomplete"
+    expected_probe = 100 if case == "inherited-update" else 0
+    if receipt.get("check_upgrade_exit") != expected_probe:
+        return "native check-upgrade did not return the expected 0/100 distinction"
+    return None
+
+
+def record_fixture_comparison(evidence, seed_id, intent_sha256, selected):
+    # Source/base and complete installed inventory matter. Retained RPM bytes
+    # distinguish republishing even when every name/epoch/version/arch matches.
+    # Only this generated fixture is compared; this is not an OS equivalence key.
+    comparison = {
+        "schema_version": 1, "scope": "RPM fixture only", "seed_image_id": seed_id,
+        "source_intent_sha256": intent_sha256,
+        "native_inventory_sha256": digest(evidence / "after.tsv"),
+        "selected_packages": sorted(selected, key=lambda item: item["name"]),
+    }
+    write(evidence / "rpm-fixture-comparison.json", comparison)
+    encoded = json.dumps(comparison, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def expected_fixture_versions(case):
+    expected_versions = {"kedra-refresh-inherited": "1", "kedra-refresh-dependency": "1",
+                         "kedra-refresh-requested": "1"}
+    changed_package = {"requested-update": "kedra-refresh-requested",
+                       "transitive-update": "kedra-refresh-dependency",
+                       "inherited-update": "kedra-refresh-inherited"}.get(case)
+    if changed_package:
+        expected_versions[changed_package] = "2"
+    return expected_versions
+
+
+def metadata_identity_failure(case, metadata, baseline):
+    if case == "metadata-only" and metadata == baseline["repomd_sha256"]:
+        return "metadata identity did not change"
+    if case == "repeat-fixed-inputs" and metadata != baseline["repomd_sha256"]:
+        return "repeated snapshot metadata identity changed"
+    return None
+
+
+def check_same_nevra_republish(result, selected, classification):
+    baseline_packages = read(OUTPUT / "cases/baseline/selected-packages.json")
+    fields = ("name", "epoch", "version", "release", "architecture")
+    old_nevra = sorted(tuple(item[field] for field in fields) for item in baseline_packages)
+    new_nevra = sorted(tuple(item[field] for field in fields) for item in selected)
+    result["nevra_unchanged"] = old_nevra == new_nevra
+    old_requested = next(item for item in baseline_packages if item["name"] == "kedra-refresh-requested")
+    new_requested = next(item for item in selected if item["name"] == "kedra-refresh-requested")
+    result["rpm_bytes_changed"] = old_requested["rpm_sha256"] != new_requested["rpm_sha256"]
+    result["installed_payload_changed"] = old_requested["installed_file_sha256"] != new_requested["installed_file_sha256"]
+    if (old_nevra != new_nevra or classification != "changed"
+            or not result["rpm_bytes_changed"] or not result["installed_payload_changed"]):
+        result.update(status="fail", reason="same-NEVRA byte republish was not detected")
+
+
 def evaluate(case, expected, exit_code, evidence, seed_id, intent_sha256, baseline, seen):
     result = {"case": case, "expected": expected, "status": "fail",
               "container_build_exit": exit_code, "scope": "RPM fixture only",
@@ -96,90 +190,27 @@ def evaluate(case, expected, exit_code, evidence, seed_id, intent_sha256, baseli
     seen.add(execution)
     commands = read(evidence / "commands.json")
     if expected == "refused":
-        required_step = "check-upgrade" if case == "required-repo-unavailable" else "install"
-        before = evidence / "before.tsv"
-        after = evidence / "after-failure.tsv"
-        unchanged = before.is_file() and after.is_file() and before.read_bytes() == after.read_bytes()
-        failure = next((item for item in commands if item["step"] == required_step), None)
-        diagnostic = (evidence / failure["log"]).read_text(encoding="utf-8", errors="replace") if failure else ""
-        if case == "required-repo-unavailable":
-            cause_matches = ("Curl error (37)" in diagnostic
-                             and "file:///fixture/repo/repodata/repomd.xml" in diagnostic)
-        elif case == "unsatisfiable-newest":
-            cause_matches = ("nothing provides kedra-refresh-dependency >= 99 needed by kedra-refresh-requested-3-1.noarch" in diagnostic)
-        else:
-            rejected = receipt.get("rejected_rpm", {})
-            cause_matches = (rejected.get("recognized_dnf_signature_failure", False)
-                             and rejected.get("named_archive_retained", False)
-                             and rejected.get("matches_snapshot", False)
-                             and rejected.get("rpm_checksig_exit", 0) != 0
-                             and rejected.get("native_bad_payload_digest", False))
-        refused = (exit_code != 0 and receipt["state"] == "failed"
-                   and receipt.get("failure_step") == required_step
-                   and receipt.get("native_exit_code", 0) != 0
-                   and not receipt["rpm_fixture_equivalence_evaluable"] and unchanged and cause_matches)
-        result.update(status="pass" if refused else "fail", classification="refused" if refused else "unexpected",
-                      installed_inventory_unchanged=unchanged, native_failure_cause_matches=cause_matches)
-        if not refused:
-            result["reason"] = "native refusal lacks the specific expected cause, boundary or unchanged inventory"
-        return result
-    if exit_code != 0 or receipt["state"] != "succeeded" or not receipt["rpm_fixture_equivalence_evaluable"]:
-        result["reason"] = "required native materialization/evidence did not complete"
-        return result
-    successful = {item["step"] for item in commands if item["exit_code"] == 0}
-    if not {"upgrade", "install", "dnf-check", "download-selected", "clean-cache"}.issubset(successful):
-        result["reason"] = "fresh DNF transaction and evidence are incomplete"
-        return result
-    expected_probe = 100 if case == "inherited-update" else 0
-    if receipt.get("check_upgrade_exit") != expected_probe:
-        result["reason"] = "native check-upgrade did not return the expected 0/100 distinction"
+        return evaluate_refusal(result, case, exit_code, evidence, receipt, commands)
+    incomplete = incomplete_materialization(case, exit_code, receipt, commands)
+    if incomplete:
+        result["reason"] = incomplete
         return result
     selected = read(evidence / "selected-packages.json")
-    # Source/base and complete installed inventory matter. Retained RPM bytes
-    # distinguish republishing even when every name/epoch/version/arch matches.
-    # Only this generated fixture is compared; this is not an OS equivalence key.
-    comparison = {
-        "schema_version": 1, "scope": "RPM fixture only", "seed_image_id": seed_id,
-        "source_intent_sha256": intent_sha256,
-        "native_inventory_sha256": digest(evidence / "after.tsv"),
-        "selected_packages": sorted(selected, key=lambda item: item["name"]),
-    }
-    write(evidence / "rpm-fixture-comparison.json", comparison)
-    encoded = json.dumps(comparison, sort_keys=True, separators=(",", ":")).encode()
-    key = hashlib.sha256(encoded).hexdigest()
+    key = record_fixture_comparison(evidence, seed_id, intent_sha256, selected)
     metadata = read(evidence / "snapshot.json")["repomd_sha256"]
     result.update(comparison_sha256=key, repomd_sha256=metadata)
     versions = {item["name"]: item["version"] for item in selected}
-    expected_versions = {"kedra-refresh-inherited": "1", "kedra-refresh-dependency": "1",
-                         "kedra-refresh-requested": "1"}
-    changed_package = {"requested-update": "kedra-refresh-requested",
-                       "transitive-update": "kedra-refresh-dependency",
-                       "inherited-update": "kedra-refresh-inherited"}.get(case)
-    if changed_package:
-        expected_versions[changed_package] = "2"
-    if versions != expected_versions:
+    if versions != expected_fixture_versions(case):
         result["reason"] = "actual installed RPM versions differ from the intended native workflow"
         return result
     classification = "baseline" if baseline is None else ("equivalent" if key == baseline["comparison_sha256"] else "changed")
     result["classification"] = classification
     result["status"] = "pass" if classification == expected else "fail"
-    if case == "metadata-only" and metadata == baseline["repomd_sha256"]:
-        result.update(status="fail", reason="metadata identity did not change")
-    if case == "repeat-fixed-inputs" and metadata != baseline["repomd_sha256"]:
-        result.update(status="fail", reason="repeated snapshot metadata identity changed")
+    metadata_failure = metadata_identity_failure(case, metadata, baseline)
+    if metadata_failure:
+        result.update(status="fail", reason=metadata_failure)
     if case == "same-nevra-new-bytes":
-        baseline_packages = read(OUTPUT / "cases/baseline/selected-packages.json")
-        fields = ("name", "epoch", "version", "release", "architecture")
-        old_nevra = sorted(tuple(item[field] for field in fields) for item in baseline_packages)
-        new_nevra = sorted(tuple(item[field] for field in fields) for item in selected)
-        result["nevra_unchanged"] = old_nevra == new_nevra
-        old_requested = next(item for item in baseline_packages if item["name"] == "kedra-refresh-requested")
-        new_requested = next(item for item in selected if item["name"] == "kedra-refresh-requested")
-        result["rpm_bytes_changed"] = old_requested["rpm_sha256"] != new_requested["rpm_sha256"]
-        result["installed_payload_changed"] = old_requested["installed_file_sha256"] != new_requested["installed_file_sha256"]
-        if (old_nevra != new_nevra or classification != "changed"
-                or not result["rpm_bytes_changed"] or not result["installed_payload_changed"]):
-            result.update(status="fail", reason="same-NEVRA byte republish was not detected")
+        check_same_nevra_republish(result, selected, classification)
     return result
 
 

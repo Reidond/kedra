@@ -203,3 +203,10 @@ niri review all pass. The report is uninterrupted and has no cleanup failure.
 Persisted `APP_VERSION` stays5.0.1, preserving existing records and rollback;
 unknown runtime versions continue to refuse before capture. Full fresh target and
 signed A/B/A VM qualification are recorded separately in STATUS/worklog.
+
+Fresh native desktop12/12 and ARM13/13 suites pass in
+[37588829710](https://github.com/Reidond/kedra/actions/runs/37588829710) atd5e34e1.
+The actual signed A/B/A home transition passes under UEFI Secure Boot in
+[37588829765](https://github.com/Reidond/kedra/actions/runs/37588829765),
+including new-baseline acceptance and retained-image rollback. This qualifies
+those home workflows, not physical hardware or unrelated installer recovery.

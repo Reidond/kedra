@@ -41,3 +41,10 @@ and unknown-version refusal. Both earlier container and signed home VM failures
 37517864833/37517864796 originate at this gate. VM A/B/A completion is separate.
 Source: worklog WL-20261007-HOMEQUAL-01/02, docs/HOME-REVIEW.md, Linux
 home/live and core/noctalia.rs. Raw effective exports must remain private/transient.
+
+Hosted follow-up atd5e34e1 (2026-10-07): full native desktop12/12 and ARM13/13
+run37588829710 pass with exact5.2.1 output and no cleanup failures. Signed
+UEFI Secure Boot A/B/A home run37588829765 passes stage-B, accept-B/rollback-staged
+and rollback-A-home plus independent-group/baseline/recovery assessment. Preserve
+persisted5.0.1 identity; production publication and unrelated installer gates are
+separate. Sources: worklog HOMEQUAL-04 and Actions37588829710/37588829765.

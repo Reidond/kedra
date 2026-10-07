@@ -1,6 +1,6 @@
 # Niri baseline artifacts in the existing image pipeline
 
-Status: **completed for the niri artifact slice**; owner authorized PR39 completion on 2026-10-06. Medium combined
+Status: **main integration in verification**; owner authorized PR39 completion on 2026-10-06. Medium combined
 specification with [tasks](tasks.md) and [test plan](test-plan.md). Implementation
 uses the owner-merged D1–D5 source as its foundation. Their incomplete runtime
 qualification remains recorded and is not waived or relabeled here.
@@ -167,3 +167,18 @@ old CLI cannot adopt that newer runtime. No production rollout follows this work
 The final signed case and full old/new state readback pass37477670375. H1–H7
 and TC01–TC09 are settled against actual source/runtime evidence; prior D2/D5
 runtime gaps and production deployment remain outside this completion claim.
+
+## Main-only reconciliation (2026-10-07)
+
+The owner retires dev; PR39 targets main and incorporates46b4fe2 with merged
+package frontend38 and Noctalia43. The duplicated Noctalia product delta drops
+from the PR's net main diff. Niri source prediction/admission delegates to the
+shared SourceFile/source_identity/import_resources surface while retaining strict
+receipt shape, zero references, ordinary non-executable content and verified
+readback. One resources tree encoder serves filesystem and pure identity.
+Declared-resource limits apply (32MiB); niri's existing128KiB/8192-line limits
+remain stricter. The sidecar, source authority, state/journal and CLI contracts
+remain unchanged. The signed fixture pins authentic pre-artifact main46b4, which
+understands the new package source format; b60 cannot preview new B source.
+Prior case passes are pinned historical evidence. Updated integration gates are
+not-run until their actual new source/fixture execution completes.

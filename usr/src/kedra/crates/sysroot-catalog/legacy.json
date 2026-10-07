@@ -1,0 +1,243 @@
+{
+  "namespace": "kedra",
+  "packages": {
+    "jq": {
+      "version": "1.8.2",
+      "summary": "JSON transformation with bundled regular-expression support",
+      "license": "MIT and bundled notices in COPYING and vendor/oniguruma/COPYING",
+      "sources": [
+        {
+          "object": "src-5d3f1f89c8b6b206fc3c133f24d90d6225d73cd4c6274ec610c4cacf9f44e2d2",
+          "origin": {
+            "kind": "archive",
+            "sha256": "71b8d6e8f5fe81f6c6d0d110e3892251f6ce76ed095abd315e26e6e1193af3af",
+            "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-1.8.2.tar.gz"
+          }
+        }
+      ],
+      "recipe": {
+        "graph": {
+          "schema": 1,
+          "nodes": {
+            "jq": {
+              "builder_image": "",
+              "runtime_image": "",
+              "inputs": {
+                "source": {
+                  "kind": "object",
+                  "value": "src-5d3f1f89c8b6b206fc3c133f24d90d6225d73cd4c6274ec610c4cacf9f44e2d2"
+                }
+              },
+              "argv": [
+                [
+                  {
+                    "kind": "literal",
+                    "value": "/bin/sh"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "-c"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "set -eu\nscratch=\"$2/.work\"\nmkdir \"$scratch\"\ncp -R \"$1\"/. \"$scratch/\"\nchmod -R u+w \"$scratch\"\n# Canonical source identity does not preserve generated-file timestamp ordering.\nfind -P \"$scratch\" -exec touch -h -d \"@$SOURCE_DATE_EPOCH\" -- {} +\ncd \"$scratch\"\n./configure --prefix=\"$2\" --disable-docs --disable-maintainer-mode --disable-shared --enable-static --with-oniguruma=builtin CFLAGS=\"-O2 -ffile-prefix-map=$scratch=.\"\nmake -j2\ntest \"$(od -An -tx1 -N4 jq | tr -d ' \\n')\" = 7f454c46\nmkdir -p \"$2/bin\" \"$2/share/licenses/jq\"\ncp jq \"$2/bin/jq\"\nchmod 755 \"$2/bin/jq\"\ncp COPYING \"$2/share/licenses/jq/COPYING\"\ncp vendor/oniguruma/COPYING \"$2/share/licenses/jq/ONIGURUMA\"\ncd \"$2\"\nrm -rf \"$scratch\"\n"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "catalog-build"
+                  }
+                ],
+                [
+                  {
+                    "kind": "input",
+                    "name": "source",
+                    "path": ""
+                  }
+                ],
+                [
+                  {
+                    "kind": "output",
+                    "path": ""
+                  }
+                ]
+              ],
+              "env": {
+                "SOURCE_DATE_EPOCH": [
+                  {
+                    "kind": "literal",
+                    "value": "0"
+                  }
+                ]
+              },
+              "runtime_inputs": [],
+              "timeout_seconds": 600
+            }
+          }
+        },
+        "root": "jq",
+        "program": "bin/jq"
+      }
+    },
+    "sqlite": {
+      "version": "3.53.4",
+      "summary": "SQLite database shell with a separate retained SQLite shared library",
+      "license": "blessing (public domain)",
+      "sources": [
+        {
+          "object": "src-f4837e042b248ee63fd02e3f51fd6c9b9e2ffdf34bfb57450dd22a10c67f4d65",
+          "origin": {
+            "kind": "archive",
+            "sha256": "0e9483900e92cd5de8fd48d16bf9200145a61f7fd5be542a5ac81d8a9516eb9c",
+            "url": "https://www.sqlite.org/2026/sqlite-autoconf-3530400.tar.gz"
+          }
+        }
+      ],
+      "recipe": {
+        "graph": {
+          "schema": 1,
+          "nodes": {
+            "sqlite": {
+              "builder_image": "",
+              "runtime_image": "",
+              "inputs": {
+                "library": {
+                  "kind": "node",
+                  "value": "sqlite-library"
+                },
+                "source": {
+                  "kind": "object",
+                  "value": "src-f4837e042b248ee63fd02e3f51fd6c9b9e2ffdf34bfb57450dd22a10c67f4d65"
+                }
+              },
+              "argv": [
+                [
+                  {
+                    "kind": "literal",
+                    "value": "/bin/sh"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "-c"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "set -eu\nmkdir -p \"$3/bin\"\n/usr/bin/gcc -O2 -ffile-prefix-map=\"$1\"=. -I\"$2/include\" \"$1/shell.c\" -L\"$2/lib\" -Wl,-rpath,\"$2/lib\" -lsqlite3 -lpthread -ldl -lm -o \"$3/bin/sqlite3\"\n"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "sqlite-build"
+                  }
+                ],
+                [
+                  {
+                    "kind": "input",
+                    "name": "source",
+                    "path": ""
+                  }
+                ],
+                [
+                  {
+                    "kind": "input",
+                    "name": "library",
+                    "path": ""
+                  }
+                ],
+                [
+                  {
+                    "kind": "output",
+                    "path": ""
+                  }
+                ]
+              ],
+              "env": {
+                "SOURCE_DATE_EPOCH": [
+                  {
+                    "kind": "literal",
+                    "value": "0"
+                  }
+                ]
+              },
+              "runtime_inputs": [
+                "library"
+              ],
+              "timeout_seconds": 300
+            },
+            "sqlite-library": {
+              "builder_image": "",
+              "runtime_image": "",
+              "inputs": {
+                "source": {
+                  "kind": "object",
+                  "value": "src-f4837e042b248ee63fd02e3f51fd6c9b9e2ffdf34bfb57450dd22a10c67f4d65"
+                }
+              },
+              "argv": [
+                [
+                  {
+                    "kind": "literal",
+                    "value": "/bin/sh"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "-c"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "set -eu\nmkdir -p \"$2/lib\" \"$2/include\" \"$2/share/licenses/sqlite\"\n/usr/bin/gcc -O2 -fPIC -shared -Wl,-soname,libsqlite3.so -ffile-prefix-map=\"$1\"=. -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE -DSQLITE_ENABLE_MATH_FUNCTIONS -DSQLITE_ENABLE_COLUMN_METADATA \"$1/sqlite3.c\" -lpthread -ldl -lm -o \"$2/lib/libsqlite3.so\"\ncp \"$1/sqlite3.h\" \"$1/sqlite3ext.h\" \"$2/include/\"\ncp \"$1/sqlite3.h\" \"$2/share/licenses/sqlite/sqlite3.h\"\n"
+                  }
+                ],
+                [
+                  {
+                    "kind": "literal",
+                    "value": "catalog-build"
+                  }
+                ],
+                [
+                  {
+                    "kind": "input",
+                    "name": "source",
+                    "path": ""
+                  }
+                ],
+                [
+                  {
+                    "kind": "output",
+                    "path": ""
+                  }
+                ]
+              ],
+              "env": {
+                "SOURCE_DATE_EPOCH": [
+                  {
+                    "kind": "literal",
+                    "value": "0"
+                  }
+                ]
+              },
+              "runtime_inputs": [],
+              "timeout_seconds": 600
+            }
+          }
+        },
+        "root": "sqlite",
+        "program": "bin/sqlite3"
+      }
+    }
+  }
+}

@@ -6,10 +6,10 @@ description: Add or change Kedra host targets, shared/host overlays, home source
 # One repository, separate target releases
 
 The repository root is the image filesystem. Shared packages
-(usr/src/kedra/image/packages.list) and root etc/ and usr/ are assembled first;
+(usr/src/kedra/image/packages/catalog.kedra, selected by package-inputs.json) and root etc/ and usr/ are assembled first;
 etc/skel/ is the home baseline and the usr/src/kedra/ development tree never
 enters the image. The target's usr/src/kedra/image/targets/<target>/ inputs
-(target.toml, packages.list and the etc/ and usr/ overlay) follow with explicit
+(target.toml and the etc/ and usr/ overlay; package sets/targets are declared in catalog.kedra) follow with explicit
 same-path replacement. Report replaced paths. Use native app includes for content
 composition, not an arbitrary deep merge. Start with two levels; add shared laptop
 profiles only when actual repeated hardware policy warrants them. No
@@ -82,3 +82,10 @@ machine offline; then reconcile and roll back separately without scope leakage.
 Sources: usr/src/kedra/PLAN.md and usr/src/kedra/docs/ARCHITECTURE.md (user
 decisions), plus bootc-switch and bootc-kargs in usr/src/kedra/docs/ARCHITECTURE.md.
 Hardware qualification is R07, not a matrix build.
+
+Package-input cutover (2026-10-06, PR38): source plan selects one committed
+package-inputs.json format, reads raw admitted modules/resources and binds intent
+plus input hashes. New format/list authority cannot coexist or fall back. Old
+committed lists/layouts remain readable. Namespace/targets/required base policy
+are independent; native x86 source realization refuses, while desktop Fedora
+requests are resolved. Evidence: .specs/nix-package-dsl and worklog PKGDSL entries.

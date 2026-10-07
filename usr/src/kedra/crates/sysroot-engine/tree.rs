@@ -1,10 +1,9 @@
+pub(crate) use crate::resources::{Entry, Kind};
 use crate::{
     Error, LOGICAL_PREFIX, Result,
     plan::{object_id, relative},
 };
 use rustix::fs::{Mode, OFlags, openat};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, File, Permissions},
@@ -14,25 +13,6 @@ use std::{
 };
 pub(crate) const MAX_TREE: u64 = 1024 * 1024 * 1024;
 pub(crate) const MAX_FILE: u64 = 256 * 1024 * 1024;
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Entry {
-    pub path: String,
-    pub kind: Kind,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub(crate) enum Kind {
-    Directory,
-    File {
-        executable: bool,
-        bytes: u64,
-        sha256: String,
-    },
-    Symlink {
-        target: String,
-    },
-}
 pub(crate) struct Tree {
     pub digest: String,
     pub entries: Vec<Entry>,
@@ -60,47 +40,11 @@ pub(crate) fn inspect(path: &Path, dest: Option<&Path>) -> Result<Tree> {
     };
     walker.walk(&fd, "")?;
     validate_links(&walker.entries)?;
-    let digest = digest(&walker.entries)?;
+
     Ok(Tree {
-        digest,
+        digest: crate::resources::tree_digest(&walker.entries)?,
         entries: walker.entries,
         references: walker.refs,
-    })
-}
-fn digest(entries: &[Entry]) -> Result<String> {
-    let bytes = serde_json::to_vec(entries)?;
-    let mut hash = Sha256::new();
-    hash.update(b"sysroot-engine-tree-v1\0");
-    hash.update(bytes);
-    Ok(crate::plan::encode_hex(&hash.finalize()))
-}
-pub(crate) fn single_file(member: &str, bytes: &[u8]) -> Result<Tree> {
-    relative(member, false)?;
-    if member.contains('/') || bytes.len() as u64 > MAX_FILE {
-        return Err(Error::Invalid(
-            "source member must be one bounded file".into(),
-        ));
-    }
-    let entries = vec![Entry {
-        path: member.into(),
-        kind: Kind::File {
-            executable: false,
-            bytes: bytes.len() as u64,
-            sha256: crate::plan::hash(bytes),
-        },
-    }];
-    let mut references = BTreeSet::new();
-    scan(member.as_bytes(), &mut references)?;
-    scan(bytes, &mut references)?;
-    if !references.is_empty() {
-        return Err(Error::Invalid(
-            "single-file source cannot reference store objects".into(),
-        ));
-    }
-    Ok(Tree {
-        digest: digest(&entries)?,
-        entries,
-        references,
     })
 }
 impl Walker<'_> {

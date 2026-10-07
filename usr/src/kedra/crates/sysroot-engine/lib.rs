@@ -13,6 +13,8 @@ mod model;
 #[cfg(unix)]
 mod native;
 mod plan;
+mod resources;
+pub use resources::{SourceFile, source_identity};
 #[cfg(unix)]
 mod profile;
 #[cfg(unix)]
@@ -29,6 +31,7 @@ pub use cache::{
 };
 #[cfg(unix)]
 pub use context::VerifiedComposition;
+pub use model::unique_map as deserialize_unique_map;
 pub use model::*;
 #[cfg(unix)]
 pub use native::*;

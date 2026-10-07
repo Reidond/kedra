@@ -137,6 +137,109 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn committed_language_cutover_preserves_legacy_and_refuses_mixed_inputs() {
+    let f = Fixture::new();
+    f.git(&["init", "-q", "--template=", "-b", "fixture"]);
+    let required = [
+        "niri",
+        "noctalia",
+        "greetd",
+        "tuigreet",
+        "NetworkManager",
+        "pipewire",
+        "wireplumber",
+        "polkit",
+        "gnome-keyring",
+        "gnome-keyring-pam",
+    ];
+    f.host("desktop", "x86_64", true);
+    f.write(&format!("{IMAGE}/packages.list"), &required.join("\n"));
+    f.write(&format!("{IMAGE}/remove.list"), "# empty\n");
+    f.write(
+        &format!("{IMAGE}/targets/desktop/packages.list"),
+        "# empty\n",
+    );
+    f.commit("legacy package requests");
+    let old = f.plan("desktop");
+    let old_revision = old["source_revision"].as_str().unwrap().to_owned();
+    f.git(&[
+        "rm",
+        &format!("{IMAGE}/packages.list"),
+        &format!("{IMAGE}/remove.list"),
+        &format!("{IMAGE}/targets/desktop/packages.list"),
+    ]);
+    let descriptor = r#"{"schema_version":1,"format":"kedra","entry":"packages/catalog.kedra","lock":"packages/packages.lock.json"}"#;
+    f.write(&format!("{IMAGE}/package-inputs.json"), descriptor);
+    let policy = serde_json::json!({"schema_version":1,"namespace":"kedra","targets":["desktop","qemu-arm64"],"repositories":["fedora","updates"],"required_packages":required});
+    f.write(&format!("{IMAGE}/package-policy.json"), &policy.to_string());
+    f.write(
+        &format!("{IMAGE}/packages/packages.lock.json"),
+        r#"{"schema_version":1,"sources":{}}"#,
+    );
+    let catalog = format!(
+        "language 1; namespace \"kedra\"; foundation system {{ fedora = 44; packages = {}; }} target \"desktop\" {{ foundation = system; }}",
+        serde_json::to_string(&required).unwrap()
+    );
+    f.write(&format!("{IMAGE}/packages/catalog.kedra"), &catalog);
+    f.commit("language package requests");
+    let new = f.plan("desktop");
+    assert_eq!(old["packages"], new["packages"]);
+    assert_eq!(old["remove_packages"], new["remove_packages"]);
+    assert_eq!(new["package_frontend"]["format"], "kedra");
+    let new_revision = new["source_revision"].as_str().unwrap().to_owned();
+    f.write(
+        &format!("{IMAGE}/packages/catalog.kedra"),
+        &catalog.replace(
+            "target \"desktop\" {",
+            "target \"desktop\" { remove = [\"kernel-core\"];",
+        ),
+    );
+    f.commit("protected kernel removal");
+    f.refused("desktop", "bootc foundation contract");
+    f.git(&["checkout", "--detach", &new_revision]);
+    f.write(
+        &format!("{IMAGE}/packages/catalog.kedra"),
+        "uncommitted invalid data",
+    );
+    assert_eq!(
+        f.plan("desktop")["package_frontend"],
+        new["package_frontend"]
+    );
+    f.git(&["restore", &format!("{IMAGE}/packages/catalog.kedra")]);
+    f.write(&format!("{IMAGE}/packages.list"), "niri\n");
+    f.commit("mixed authority");
+    f.refused("desktop", "mixes authoritative");
+    f.git(&["rm", &format!("{IMAGE}/packages.list")]);
+    f.write(
+        &format!("{IMAGE}/package-inputs.json"),
+        &descriptor.replace("\"schema_version\":1", "\"schema_version\":2"),
+    );
+    f.commit("unknown format version");
+    f.refused("desktop", "unsupported package format");
+    f.git(&["checkout", "--detach", &old_revision]);
+    assert_eq!(f.plan("desktop")["packages"], old["packages"]);
+    f.git(&["checkout", "--detach", &new_revision]);
+    assert_eq!(
+        f.plan("desktop")["package_frontend"],
+        new["package_frontend"]
+    );
+    let lock_path = format!("{IMAGE}/packages/packages.lock.json");
+    fs::remove_file(f.repo().join(&lock_path)).unwrap();
+    std::os::unix::fs::symlink(
+        r#"{"schema_version":1,"sources":{}}"#,
+        f.repo().join(&lock_path),
+    )
+    .unwrap();
+    f.commit("symlink-shaped package lock");
+    f.refused("desktop", "ordinary file");
+    f.git(&["checkout", "--detach", &new_revision]);
+    assert_eq!(
+        f.plan("desktop")["package_frontend"],
+        new["package_frontend"]
+    );
+}
+
+#[test]
 fn source_cli_accepts_only_enabled_target_architectures() {
     let f = Fixture::new();
     f.git(&["init", "-q", "--template=", "-b", "fixture"]);

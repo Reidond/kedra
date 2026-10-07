@@ -1,6 +1,6 @@
 # Planned tasks — composition-owned niri artifact
 
-Implementation authorized on 2026-10-06. **H1–H7 are completed for this slice.** Requirements/design are in
+Implementation authorized on 2026-10-06. **H1–H7 retain their prior exact-source passes; main integration is in verification.** Requirements/design are in
 [spec.md](spec.md), cases in [test-plan.md](test-plan.md). The owner merged D1–D5
 source; unresolved prerequisite runtime qualification remains explicit.
 

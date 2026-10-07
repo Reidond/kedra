@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import time
 from pathlib import Path
 
@@ -81,6 +82,40 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
 
 
+def language_material(root, source, pins, pins_data, binaries, target):
+    frontend = source.get('package_frontend')
+    require(isinstance(frontend, dict) and frontend.get('schema_version') == 1
+            and frontend.get('format') == 'kedra' and pins.get('schema_version') == 2
+            and set(pins) == {'schema_version', 'format', 'frontend_version', 'namespace',
+                              'target', 'intent_sha256', 'inputs', 'packages', 'archives',
+                              'builders', 'templates'}
+            and pins['format'] == 'kedra' and pins['frontend_version'] == 1
+            and pins['namespace'] == 'kedra' and pins['target'] == target
+            and pins['intent_sha256'] == frontend.get('intent_sha256')
+            and pins['builders'] == frontend.get('builders')
+            and isinstance(pins['packages'], dict) and 0 < len(pins['packages']) <= 256
+            and sorted(pins['packages']) == frontend.get('selected_packages'),
+            'Language material differs from the independently selected committed intent')
+    inputs = frontend.get('inputs')
+    require(isinstance(inputs, dict) and 0 < len(inputs) <= 4227,
+            'Missing bounded committed frontend inventory')
+    for path, expected in inputs.items():
+        require(isinstance(path, str) and path.startswith(IMAGE)
+                and all(part not in ('', '.', '..') for part in path.split('/'))
+                and sha(read(root / path, 8 * 1024**2)) == expected,
+                'Frontend input differs from committed admission')
+    # This is trusted public preflight, before signing. Rederive the entire pin
+    # envelope through the selected frontend rather than trusting claimed hashes.
+    process = subprocess.run([str(binaries / 'sysroot'), 'catalog', 'pins',
+                              '--input-root', str(root / (IMAGE + 'packages')),
+                              '--entry', 'catalog.kedra', '--lock', 'packages.lock.json',
+                              '--target', target, '--target-policy', str(root / (IMAGE + 'package-policy.json'))],
+                             stdin=subprocess.DEVNULL, capture_output=True, timeout=60, check=False)
+    require(process.returncode == 0 and len(process.stdout) <= 8 * 1024**2
+            and process.stdout == pins_data, 'Frontend pin envelope differs from independent preflight')
+    return sorted(inputs)
+
+
 def resolved_inputs(root, source, base, context, binaries, package_material, target, catalog=None):
     """Record deterministic build inputs for a caller's frozen committed source.
 
@@ -116,26 +151,13 @@ def resolved_inputs(root, source, base, context, binaries, package_material, tar
                 and set(catalog) == {'pins', 'builder_rpms'}, 'Unsupported catalog material inputs')
         pins_data = read(catalog['pins'])
         pins = document(pins_data)
-        require(isinstance(pins, dict) and pins.get('schema_version') == 1
-                and pins.get('namespace') == 'kedra' and set(pins.get('packages', {})) == {'jq', 'sqlite'},
-                'Unsupported catalog pin inventory')
-        templates = pins.get('templates')
-        require(isinstance(templates, dict) and 0 < len(templates) <= 16
-                and isinstance(pins.get('bindings'), dict) and pins['bindings'],
-                'Missing catalog template or binding inventory')
-        template_root = IMAGE + 'catalog/templates/'
-        for name, destination in templates.items():
-            require(isinstance(name, str) and name.startswith(template_root),
-                    'Catalog template is outside the development image tree')
-            relative = name.removeprefix(template_root)
-            require(relative and all(part not in ('', '.', '..') for part in relative.split('/'))
-                    and destination == '/' + relative, 'Catalog template destination differs from its path')
-        expected_recipes = ('usr/src/kedra/crates/sysroot-catalog/lib.rs',
-                            'usr/src/kedra/crates/sysroot-catalog/recipes.rs',
-                            'usr/src/kedra/crates/sysroot/catalog.rs', *sorted(templates))
-        require(set(pins.get('recipes', {})) == set(expected_recipes), 'Catalog recipe inventory differs')
-        for name in expected_recipes:
-            require(pins['recipes'][name] == sha(read(root / name)), 'Compiled catalog recipe differs: ' + name)
+        require(isinstance(pins, dict), 'Invalid catalog material')
+        if pins.get('schema_version') == 2:
+            expected_recipes = language_material(root, source, pins, pins_data, binaries, target)
+            expected_recipes.append(IMAGE + 'catalog/prepare-sources.py')
+        else:
+            require('package_frontend' not in source, 'New-format source cannot use legacy catalog material')
+            expected_recipes = legacy_catalog_material(root, pins)
         recipes.extend((*expected_recipes, IMAGE + 'catalog/Containerfile', IMAGE + 'catalog/builder.sh'))
         artifacts['catalog-pins'] = catalog['pins']
         artifacts['catalog-author'] = binaries / 'sysroot'
@@ -152,7 +174,15 @@ def resolved_inputs(root, source, base, context, binaries, package_material, tar
         with path.open('rb') as stream:
             artifact_hashes[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
     if catalog is not None:
-        builder_rows = packages(read(catalog['builder_rpms']), 'aarch64')
+        if pins.get('schema_version') == 2:
+            builder_rows = document(read(catalog['builder_rpms']))
+            require(isinstance(builder_rows, dict) and set(builder_rows) == set(pins['builders']),
+                    'Compiler role material differs from selected intent')
+            for rows in builder_rows.values():
+                require(isinstance(rows, list) and rows and packages(('\n'.join('\t'.join(row) for row in rows) + '\n').encode(), 'aarch64') == rows,
+                        'Noncanonical compiler role RPM material')
+        else:
+            builder_rows = packages(read(catalog['builder_rpms']), 'aarch64')
         artifact_hashes['catalog-builder-rpms'] = sha(canonical(builder_rows))
         require(artifact_hashes['catalog-author'] == artifact_hashes['sysroot'], 'Catalog author differs from sysroot artifact')
     rows = packages(package_material, spec['architecture'])
@@ -160,6 +190,34 @@ def resolved_inputs(root, source, base, context, binaries, package_material, tar
     return {'schema_version': 1, 'base': base,
             'source': {key: value for key, value in source.items() if key not in ('source_revision', 'input_scope')},
             'recipes': recipe_hashes, 'artifacts': artifact_hashes, 'packages': rows}
+
+
+def legacy_catalog_material(root, pins):
+    require(pins.get('schema_version') == 1 and pins.get('namespace') == 'kedra'
+            and set(pins.get('packages', {})) == {'jq', 'sqlite'},
+            'Unsupported legacy catalog pin inventory')
+    templates = pins.get('templates')
+    require(isinstance(templates, dict) and 0 < len(templates) <= 16
+            and isinstance(pins.get('bindings'), dict) and pins['bindings'],
+            'Missing catalog template or binding inventory')
+    template_root = IMAGE + 'catalog/templates/'
+    for name, destination in templates.items():
+        require(isinstance(name, str) and name.startswith(template_root),
+                'Catalog template is outside the development image tree')
+        relative = name.removeprefix(template_root)
+        require(relative and all(part not in ('', '.', '..') for part in relative.split('/'))
+                and destination == '/' + relative, 'Catalog template destination differs from its path')
+    expected_recipes = ('usr/src/kedra/crates/sysroot-catalog/lib.rs',
+                        'usr/src/kedra/crates/sysroot-catalog/recipes.rs',
+                        'usr/src/kedra/crates/sysroot/catalog.rs', *sorted(templates))
+    if 'legacy_data' in pins:
+        require(pins['legacy_data'] == 'usr/src/kedra/crates/sysroot-catalog/legacy.json',
+                'Unknown legacy catalog data boundary')
+        expected_recipes += (pins['legacy_data'],)
+    require(set(pins.get('recipes', {})) == set(expected_recipes), 'Catalog recipe inventory differs')
+    for name in expected_recipes:
+        require(pins['recipes'][name] == sha(read(root / name)), 'Compiled catalog recipe differs: ' + name)
+    return expected_recipes
 
 
 def verify_native(config, receipt_bytes, inputs, selected=None):

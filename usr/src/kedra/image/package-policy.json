@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "namespace": "kedra",
+  "targets": [
+    "desktop",
+    "qemu-arm64"
+  ],
+  "repositories": [
+    "fedora",
+    "updates"
+  ],
+  "required_packages": [
+    "niri",
+    "noctalia",
+    "greetd",
+    "tuigreet",
+    "NetworkManager",
+    "pipewire",
+    "wireplumber",
+    "polkit",
+    "gnome-keyring",
+    "gnome-keyring-pam"
+  ]
+}

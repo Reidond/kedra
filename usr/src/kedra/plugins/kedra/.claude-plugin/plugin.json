@@ -1,8 +1,14 @@
 {
   "name": "kedra",
-  "version": "0.3.29",
+  "version": "0.3.32",
   "description": "Repository development knowledge for the Kedra OS and sysroot CLI.",
-  "author": { "name": "Kedra contributors" },
+  "author": {
+    "name": "Kedra contributors"
+  },
   "repository": "https://github.com/Reidond/kedra",
-  "keywords": ["kedra", "rust", "bootc"]
+  "keywords": [
+    "kedra",
+    "rust",
+    "bootc"
+  ]
 }

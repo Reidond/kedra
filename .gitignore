@@ -1,6 +1,7 @@
 /target/
 .DS_Store
 __pycache__/
+.sysroot-snapshots-v1/
 *.pyc
 /dist/
 /output/

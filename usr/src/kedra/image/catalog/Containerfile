@@ -1,8 +1,9 @@
-# Unsigned native package builder; BASE_IMAGE is the reviewed preflight digest.
+# Unsigned native package builder; BASE_IMAGE is the exact retained foundation alias.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 COPY builder.sh /tmp/kedra-catalog-builder.sh
 COPY catalog-builder-rpms.txt /tmp/catalog-builder-rpms.txt
+COPY catalog-builder-requests.json /usr/share/kedra/catalog-builder-requests.json
 RUN /bin/bash /tmp/kedra-catalog-builder.sh --build \
     && cmp /tmp/catalog-builder-rpms.txt /usr/share/kedra/catalog-builder-rpms.txt \
     && rm /tmp/catalog-builder-rpms.txt /tmp/kedra-catalog-builder.sh

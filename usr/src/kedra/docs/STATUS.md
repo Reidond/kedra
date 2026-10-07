@@ -1,5 +1,11 @@
 # Verified status
 
+## Main-only integration (2026-10-07)
+
+The owner requests main as the sole integration branch and removal of dev.
+PR39 incorporates merged main46b4fe2/PR38/PR43, preserving the package frontend
+and existing Noctalia qualification. Updated integration checks remain not-run.
+
 ## PR39 niri artifact qualification (2026-10-06)
 
 [PR39](https://github.com/Reidond/kedra/pull/39) implements the narrow niri artifact
@@ -27,6 +33,48 @@ This completes the PR39 artifact slice. Earlier D2/D5 installation/native fault
 gaps remain unresolved; no production image rollout, workstation application or
 physical-hardware qualification is claimed. Product and workflow evidence is pinned to0a2667d; the final follow-up changes
 evidence/spec/status only. The PR dashboard reports current-head source checks.
+
+
+
+## Noctalia5.2.1 follow-up (2026-10-07)
+
+PR38 is merged at `caa87aca7d1fe88a94cbf9e57e5237dc68bd3ae3`. The owner
+requests a follow-up for the Noctalia compatibility and corrected home VM gates.
+The exact native5.2.1 output and unchanged three-field types pass prequalification
+on retained Fedora44 package5.2.1-1.fc44. The two closed gates now admit only this
+additional runtime, retaining persisted projection identity5.0.1 and unknown
+version refusal. The full actual home-review cycle passes in21.96s with no
+interruption or cleanup failure. All13 local container cases pass in151.87s (report1791358789-29962), with
+no interruption or cleanup failure. [PR43](https://github.com/Reidond/kedra/pull/43)
+is verified atd5e34e1: both architecture Check37588836592/37588829702,
+fresh desktop12/12 and ARM13/13 container suites37588829710, and actual
+UEFI Secure Boot signed A/B/A home transition37588829765 all pass. Reports
+are uninterrupted with no cleanup failures. Both originally annotated blockers
+are fixed in this unmerged follow-up; protected production publication remains
+separate. Direct-update x86 failure37588829723 is an interrupted Quay builder
+download, not the Noctalia gate. See worklog HOMEQUAL-01 through04.
+
+## Package language delivery (2026-10-06)
+
+The owner requests completing [PR38](https://github.com/Reidond/kedra/pull/38)'s
+[specification](../../../../.specs/nix-package-dsl/README.md) and implementing its
+standalone Rust `.kedra` frontend, inline resources and package/release migration.
+The branch implements the parser/type checker/formatter, bounded process and
+resource lowering, independent Rust intent API, Fedora compiler-role resolution,
+generic contribution and explicit source cutover. jq/SQLite/library and the C
+pilot pass real Fedora build/rebuild checks. The installed catalog aliases, PATH,
+SQL/jq/library and persistent service workflow pass on exact unsigned native image
+`b44e6c3b55a3bdb82248b94a5c2131def3d75d0b1858946928bc6f53a79575b2`.
+Actual deadline/memory refusals preserve winners and reap the child. Source
+compatibility and fresh full-RPM parity pass on both native targets in
+[run37511811578](https://github.com/Reidond/kedra/actions/runs/37511811578).
+Both source architectures pass final-code Check37517872017/37517864795 at
+`6f1269df4210622b87e706a24a8779fa02bd6f67`. The same
+container run passes desktop11/12 and ARM12/13; each remaining failure is the
+existing unqualified Noctalia5.2.1 home review, with no cleanup failure.
+The legacy home fixture now derives its private compatibility requests through
+the public source CLI; local preparation passes, corrected hosted rerun pending. See worklog WL-20261006-PKGDSL-06/07/08. Existing
+release/installer/native gates below remain independent; no production publication.
 
 ## Repair verification and remaining qualification (2026-10-06)
 
@@ -75,17 +123,6 @@ probe by itself did not establish Fedora package build or release success.
 The separate home-artifact [plan PR39](https://github.com/Reidond/kedra/pull/39)
 targets dev and remains unimplemented. Prior installer/native qualification gaps
 below are unchanged; successful desktop publication is not an installed result.
-
-## Merge checkpoint (2026-10-05)
-
-The owner-authorized PR28/29/31/32 and PR33–37 are merged into main at
-`9b25c7885f6aa0a2e02a1829d231031e9a8bae72`. The protected atomic stack merge
-and all nine merged states are verified. New `dev` starts at that exact commit;
-[plan-only PR39](https://github.com/Reidond/kedra/pull/39) targets dev and stays
-a draft. Its three planning documents remain unchanged and unimplemented.
-Main release [run37359496666](https://github.com/Reidond/kedra/actions/runs/37359496666)
-is in progress at readback. Existing hosted ARM/native qualification gaps below
-remain incomplete; merge does not establish production publication or installation.
 
 ## Pre-merge delivery checkpoint (2026-10-05)
 

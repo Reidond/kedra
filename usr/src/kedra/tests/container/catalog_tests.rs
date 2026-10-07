@@ -55,6 +55,49 @@ pub fn installed_catalog(context: &Context<'_>) -> Result<()> {
         "{LOGICAL_PREFIX}/{}/bin/sqlite3",
         output(&inventory, "sqlite")?
     );
+    if inventory["format"] == "kedra" {
+        let commands = inventory["commands"]
+            .as_object()
+            .ok_or_else(|| Error::Invalid("language command inventory is missing".into()))?;
+        ensure(!commands.is_empty(), "empty language command inventory")?;
+        for (alias, command) in commands {
+            let package = command["package"]
+                .as_str()
+                .ok_or_else(|| Error::Invalid("command package missing".into()))?;
+            let path = command["path"]
+                .as_str()
+                .ok_or_else(|| Error::Invalid("command path missing".into()))?;
+            let selected = match command["launcher"].as_str() {
+                Some(path) => path.to_owned(),
+                None => format!("{LOGICAL_PREFIX}/{}/{path}", output(&inventory, package)?),
+            };
+            context.environment.run(
+                docker,
+                &user.exec(["/usr/bin/test", "-x", selected.as_str()]),
+            )?;
+            let located = context.environment.run(
+                docker,
+                &user.exec([
+                    "/bin/bash",
+                    "-lc",
+                    "command -v -- \"$1\"",
+                    "catalog-path",
+                    alias.as_str(),
+                ]),
+            )?;
+            ensure(
+                located.stdout_text() == format!("{selected}\n"),
+                "exported command alias does not select exact catalog output",
+            )?;
+        }
+        let hello = context
+            .environment
+            .run(docker, &user.exec(["/bin/bash", "-lc", "kedra-hello"]))?;
+        ensure(
+            hello.stdout == b"Hello from Kedra!\n",
+            "inline source pilot did not run through its exported alias",
+        )?;
+    }
     let version = context
         .environment
         .run(docker, &user.exec([jq.as_str(), "--version"]))?;

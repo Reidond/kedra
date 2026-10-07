@@ -1,16 +1,33 @@
 # Typed system composition
 
 `sysroot-engine` supplies typed Rust `SystemDefinition`, `SystemFile` and
-`SystemContent` contributions. Files have explicit provenance/priority/replacement;
-templates use `Argument` input segments to refer to verified package outputs.
-Serialized JSON transports those types. Native configuration remains ordinary
-systemd/niri/bootc files; there is no new configuration language.
+`SystemContent` contributions. Files have explicit provenance, priority and
+replacement; templates use typed `Argument` segments to refer to verified package
+outputs. Serialized JSON transports the same types. Native configuration remains
+ordinary systemd, niri and bootc files.
+
+The `.kedra` package frontend is the narrow language exception. It does not replace
+the system composition model. A checked package `config` template lowers after
+build into `SystemFile` values, with named literal, package-path and frozen-source
+bindings. The contribution adapter also generates the selected command PATH and
+`/usr/share/kedra/catalog.json`. It refuses duplicate configuration paths,
+references to unselected outputs, incompatible foundations, unrealized graph
+objects and input material that differs from independently hashed release
+preflight.
+
+Legacy Rust/JSON catalog contributions retain an explicit reader.
+`package-inputs.json` now selects language definitions for current source/release
+preflight, with no fallback to retired lists. Contribution compares actual full
+foundation/compiler RPM material with preflight before accepting realized outputs.
+Local installed catalog checks pass; hosted release qualification and production
+publication are separate gates.
+
+## Plan and compose
 
 The Kedra adapter resolves one committed source revision, including target overlay
 and home baselines, then observes an exact retained native ARM Fedora 44 image.
 All desired RPM names must already be present and removed names absent. Engine
-outputs must use that same foundation. This first slice does no RPM acquisition
-or mutation after selecting the foundation.
+outputs must share that foundation. Composition itself performs no DNF transaction.
 
 ```sh
 sysroot system plan --repo . --target qemu-arm64 --store /private/engine-store \
@@ -21,10 +38,29 @@ sysroot system compose --repo . --target qemu-arm64 --store /private/engine-stor
 ```
 
 `--definition` is optional. Initialize the private store and retain the exact
-image with existing `sysroot store init` / `store add-image` commands first.
-Commands emit JSON; failures go to stderr. A new output directory is required.
-Planning verifies image/object bytes and uses the existing journaled executor for
-read-only foundation observations. It does not activate configuration.
+image with `sysroot store init` and `store add-image` first. Commands emit JSON;
+failures go to stderr. A new output directory is required. Planning verifies
+image/object bytes and uses the journaled executor for read-only foundation
+observations. It does not activate configuration.
+
+Language contributions add another independently bound layer before these calls.
+`sysroot catalog contribute` requires an explicit language root/entry/target/lock,
+target policy, exact image-role resolution, private store, foundation image,
+catalog policy, exact lowercase source commit, canonical release input material
+and its expected SHA-256. It writes a new mode-0700 directory containing:
+
+- `system.json`: the typed `SystemDefinition`;
+- `contribution.json`: source, foundation, preflight, author, pins, definition and
+  output identities;
+- `catalog-pins.json`: the complete frontend pin/material envelope;
+- `catalog-results.json`: verified realized object receipts.
+
+The adapter verifies every selected graph node against the expected derivation and
+foundation, verifies each runtime closure, includes runtime-library outputs, and
+binds the exact frontend binary to the same `sysroot` artifact used by preflight.
+This is public build authority only; it does not sign or publish an image.
+
+## Verify and consume
 
 For a declared niri main-file baseline, the existing qemu-arm64 adapter additionally
 admits one non-executable `config.kdl` source object and reads its verified bytes
@@ -46,9 +82,9 @@ existing baseline transport.
 
 The reusable `VerifiedComposition::open` consumer requires an independently
 retained identity and owns a private snapshot. It verifies the complete foundation,
-canonical plan, exact static Containerfile, config/object trees, references and
+canonical plan, static Containerfile, configuration/object trees, references and
 actual artifact bytes. It never extracts an untrusted root filesystem on the host.
-The manifest is limited to64MiB; payload/foundation limits remain explicit. Use:
+The manifest is limited to 64 MiB; payload and foundation limits remain explicit.
 
 ```sh
 sysroot system verify --context /private/context --expected-identity <identity> \
@@ -58,38 +94,38 @@ kedra-lab replay --image composition:/private/context \
   --output <typed-alias> --program bin/program -- argument
 ```
 
-`kedra-lab replay` is part of the existing sanctioned harness. It loads the retained
-archive, checks native ID/observations/paths and inherited ONBUILD/volumes, then
-builds only the verified static context with pulls/network disabled. It runs the
-selected typed output directly in that image. Cache bindings tie image ID,
+`kedra-lab replay` is part of the sanctioned harness. It loads the retained
+archive, checks native ID, observations, paths and inherited ONBUILD/volumes, then
+builds only the verified static context with pulls and network disabled. It runs
+the selected typed output directly in that image. Cache bindings tie image ID,
 identity, payload, foundation and daemon together; owned interrupted work resumes
-under a per-context lock. Foreign tags/unknown state refuse.
+under a per-context lock. Foreign tags and unknown state refuse.
 
-Composition requests default to no source overlay and require the separate identity.
-Working-tree/binary overrides and VM composition are refused. Ordinary lab-tools
-adaptation is separate and networked; the system-profile composition unit case
-uses the static image directly. This does not confer installed signing authority.
+Composition requests default to no source overlay and require the separate
+identity. Working-tree/binary overrides and VM composition are refused. Ordinary
+lab-tools adaptation is separate and networked; the system-profile composition
+case uses the static image directly. None of these consumers gains installed or
+signing authority.
 
-The context contains a deterministic config/runtime `payload.tar`, verified
-`foundation.tar`, static `Containerfile` and `composition.json`. The manifest
-binds source/target, exact foundation/archive, observed RPM content material,
-typed file provenance, runtime object receipts and artifact hashes. Export checks
-foundation symlink ancestors. Engine paths and generated provenance are reserved.
-An executable/library file outside config overlays can only assert independently
-verified existing foundation bytes/mode; explicit passthrough does not replace it.
+The context contains deterministic `payload.tar`, verified `foundation.tar`, a
+static `Containerfile` and `composition.json`. The manifest binds source/target,
+exact foundation/archive, observed seven-column RPM content, typed file provenance,
+runtime object receipts and artifact hashes. Export checks foundation symlink
+ancestors. Engine paths and generated provenance are reserved. An executable or
+library file outside configuration overlays can only assert independently verified
+existing foundation bytes and mode; passthrough does not replace it.
 
-The Containerfile uses a digest-derived local foundation tag. A consumer must
-verify artifact hashes, load the retained archive, verify the resulting exact
-image ID, and assign that tag before building with pulls/network disabled. Local
-Kedra image construction and installed behavior use the existing container
-harness; exported files carry no signing or installed-system authority.
+The Containerfile uses a digest-derived local foundation tag. A consumer verifies
+artifact hashes, loads the retained archive, verifies its exact image ID and
+assigns that tag before building with pulls/network disabled. Exported files carry
+no signing or installed-system authority.
 
-This is static composition over an already assembled foundation. The separate
-[native stage](NATIVE.md) compiles GLib schemas, changes declared service links,
-seeds initial account defaults and generates generic QEMU initramfs images.
-Changing the foundation RPM lists requires a matching rebuilt foundation;
-[PACKAGES](PACKAGES.md) describes declarations and delivery. Native generation
-and installed container workflows do not qualify boot/update/install/SELinux
-or production signing integration.
-See [actual evidence](../../../../.specs/nix-system-composition/verification.md)
-and [engine operations](ENGINE.md).
+The separate [native stage](NATIVE.md) compiles GLib schemas, changes declared
+service links, seeds initial account defaults and generates generic QEMU initramfs
+images. The release workflow may feed a verified catalog contribution to that
+stage, but final installed behavior, boot/update/install/SELinux and protected
+signing remain independent gates.
+
+See [package declarations](PACKAGES.md), [engine operations](ENGINE.md),
+[architecture](ARCHITECTURE.md), [actual status](STATUS.md), and the
+[composition evidence](../../../../.specs/nix-system-composition/verification.md).

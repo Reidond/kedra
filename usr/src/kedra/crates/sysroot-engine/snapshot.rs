@@ -16,12 +16,14 @@ const MARKER: &str = "marker.json";
 const LOCK: &str = "lock";
 const RECORD_LIMIT: u64 = 4096;
 
-/// The two concrete temporary input formats accepted by recovery.
+/// Concrete temporary input formats accepted by recovery.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SnapshotPurpose {
     Composition,
     Native,
+    Catalog,
+    Formatter,
 }
 
 impl SnapshotPurpose {
@@ -34,6 +36,8 @@ impl SnapshotPurpose {
                 "payload.tar",
             ],
             Self::Native => &["Containerfile", "native-driver.py", "native-plan.json"],
+            Self::Catalog => &["plan.tar"],
+            Self::Formatter => &["module.kedra"],
         }
     }
 }
@@ -361,7 +365,25 @@ fn retire(
         if !lease.purpose.members().contains(&member.as_str()) {
             return Err(invalid("snapshot has an unexpected member"));
         }
-        existing_file(directory, member)?;
+        if matches!(lease.purpose, SnapshotPurpose::Formatter) {
+            let file: File = openat(
+                directory,
+                member,
+                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+                Mode::empty(),
+            )?
+            .into();
+            let metadata = file.metadata()?;
+            if !metadata.is_file()
+                || metadata.uid() != rustix::process::geteuid().as_raw()
+                || metadata.nlink() != 1
+                || metadata.mode() & 0o7022 != 0
+            {
+                return Err(invalid("unsafe formatter snapshot member"));
+            }
+        } else {
+            existing_file(directory, member)?;
+        }
     }
     // Validate every member before the first removal. Partial copies are owned
     // too: size/content are deliberately not deletion-authority inputs.

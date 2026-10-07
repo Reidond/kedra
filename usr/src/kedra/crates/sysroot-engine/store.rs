@@ -23,11 +23,33 @@ const DIRECTORIES: [&str; 6] = [
 /// Predict content identity without importing or pinning an object.
 /// Uses the same canonical non-executable tree encoder as directory admission.
 pub fn single_file_source_receipt(member: &str, bytes: &[u8]) -> Result<ObjectReceipt> {
-    let tree = tree::single_file(member, bytes)?;
+    if member.contains('/') {
+        return Err(Error::Invalid(
+            "source member must be one bounded file".into(),
+        ));
+    }
+    let mut references = BTreeSet::new();
+    tree::scan(member.as_bytes(), &mut references)?;
+    tree::scan(bytes, &mut references)?;
+    if !references.is_empty() {
+        return Err(Error::Invalid(
+            "single-file source cannot reference store objects".into(),
+        ));
+    }
+    let object = crate::source_identity(&BTreeMap::from([(
+        member.into(),
+        crate::SourceFile {
+            executable: false,
+            bytes: bytes.to_vec(),
+        },
+    )]))?;
     Ok(ObjectReceipt {
         schema: 1,
-        object: format!("src-{}", tree.digest),
-        tree_sha256: tree.digest,
+        tree_sha256: object
+            .strip_prefix("src-")
+            .ok_or_else(|| Error::Corrupt("source identity kind differs".into()))?
+            .into(),
+        object,
         references: Vec::new(),
         runtime_image: None,
         derivation: None,
@@ -253,45 +275,85 @@ impl Store {
         }
         result
     }
-    /// Admit and pin one public file, then return verified stored bytes.
-    pub fn import_source_file(
+
+    /// Admit independently selected, bounded ordinary resource bytes. The pure
+    /// identity and the filesystem collector must agree before publication.
+    pub fn import_resources(
         &self,
-        member: &str,
-        bytes: &[u8],
-    ) -> Result<(ObjectReceipt, Vec<u8>)> {
-        let expected = single_file_source_receipt(member, bytes)?;
+        files: &BTreeMap<String, crate::SourceFile>,
+    ) -> Result<ObjectReceipt> {
+        let expected = crate::source_identity(files)?;
         let stage = self.staging()?;
         let result = (|| {
-            fs::create_dir(stage.join("data"))?;
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o644)
-                .open(stage.join("data").join(member))?;
-            file.write_all(bytes)?;
-            file.set_permissions(Permissions::from_mode(0o644))?;
-            file.sync_all()?;
-            self.admit_object(&stage, &expected)?;
-            self.pin(&expected.object)?;
-            let receipt = self.verify(&expected.object)?;
-            let path = self.object_path(&receipt.object).join("data").join(member);
-            owned_node(&path, false)?;
-            let file = OpenOptions::new()
-                .read(true)
-                .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
-                .open(path)?;
-            let mut stored = Vec::new();
-            file.take(tree::MAX_FILE + 1).read_to_end(&mut stored)?;
-            verify_single_file_source(&receipt, member, &stored)?;
-            if stored != bytes {
-                return Err(Error::Corrupt("single-file source readback differs".into()));
+            let data = stage.join("data");
+            fs::create_dir(&data)?;
+            for (name, source) in files {
+                let path = data.join(name);
+                let parent = path
+                    .parent()
+                    .ok_or_else(|| Error::Invalid("resource has no parent".into()))?;
+                fs::create_dir_all(parent)?;
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(if source.executable { 0o755 } else { 0o644 })
+                    .open(path)?;
+                file.write_all(&source.bytes)?;
+                file.sync_all()?;
             }
-            Ok((receipt, stored))
+            let inspected = tree::inspect(&data, None)?;
+            if format!("src-{}", inspected.digest) != expected {
+                return Err(Error::Corrupt("resource normalization differs".into()));
+            }
+            for id in &inspected.references {
+                self.verify(id)?;
+            }
+            let receipt = ObjectReceipt {
+                schema: 1,
+                object: expected,
+                tree_sha256: inspected.digest,
+                references: inspected.references.into_iter().collect(),
+                runtime_image: None,
+                derivation: None,
+            };
+            self.admit_object(&stage, &receipt)?;
+            self.pin(&receipt.object)?;
+            Ok(receipt)
         })();
         if stage.exists() {
             tree::remove(&stage)?;
         }
         result
+    }
+    /// Admit and pin one public file through the shared resource importer, then
+    /// return verified stored bytes. References and executable content remain excluded.
+    pub fn import_source_file(
+        &self,
+        member: &str,
+        bytes: &[u8],
+    ) -> Result<(ObjectReceipt, Vec<u8>)> {
+        single_file_source_receipt(member, bytes)?;
+        let admitted = self.import_resources(&BTreeMap::from([(
+            member.into(),
+            crate::SourceFile {
+                executable: false,
+                bytes: bytes.to_vec(),
+            },
+        )]))?;
+        let receipt = self.verify(&admitted.object)?;
+        let path = self.object_path(&receipt.object).join("data").join(member);
+        owned_node(&path, false)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .open(path)?;
+        let mut stored = Vec::new();
+        file.take(bytes.len() as u64 + 1).read_to_end(&mut stored)?;
+        verify_single_file_source(&receipt, member, &stored)?;
+        if stored != bytes {
+            return Err(Error::Corrupt("single-file source readback differs".into()));
+        }
+        Ok((receipt, stored))
     }
     pub(crate) fn admit_object(&self, stage: &Path, receipt: &ObjectReceipt) -> Result<()> {
         object_id(&receipt.object)?;

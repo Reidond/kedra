@@ -29,11 +29,17 @@ is bound into signed image identity; never rename it.
 ## Settled choices
 
 - Kedra is the OS/project; `sysroot` is the command. Repo: `Reidond/kedra`.
+- `main` is the sole integration/default branch. Feature PRs target `main`;
+  do not recreate a separate `dev` integration branch.
 - Fedora 44 bootc, plain Containerfile, Actions signed OCI builds and local on-demand ISO construction; unsigned local lab builds only for testing. No BlueBuild or GitHub Release/ISO publication.
 - Rust edition 2024, Cargo workspace, one lockfile, pinned toolchain,
   rustfmt/Clippy. No Cargo `src/` directories: crates keep explicit flat
   `main.rs`/`lib.rs` under `usr/src/kedra/crates/`.
   The TypeScript/Effect/Vite Plus/Oxlint/Oxfmt proposal was superseded.
+- Owner decision (2026-10-06): the versioned `.kedra` package frontend in
+  `.specs/nix-package-dsl/` is the narrow approved language exception. Rust parses
+  and checks data; inline author shell runs only in admitted engine builders.
+  This grants no general configuration interpreter or deployment authority.
 - Python runs through uv; see below. Development tools are pinned in `mise.toml`
   (Rust 1.98.1, uv, ruff) at the same versions as CI; mise's `RUSTUP_TOOLCHAIN`
   overrides a global `rust = "stable"` for shells and editors in this checkout.

@@ -47,7 +47,7 @@ openssl req -x509 -newkey rsa:3072 -nodes -days 1 -subj /CN=registry.kedra.test 
     -addext subjectAltName=DNS:registry.kedra.test -keyout "$private/tls.key" -out "$root/tls.crt" 2> "$evidence/tls-generation.log"
 # Authentic pre-artifact CLI; keep its source and checksum alongside the generated fixture.
 mkdir "$root/old-cli"
-git archive b60bcb081d1f88f616c1f597a3194c64d7c8b6c5 | tar -x -C "$root/old-cli"
+git archive 46b4fe2c0d25e3129fc0297ff40d5a43baabed1b | tar -x -C "$root/old-cli"
 cargo build --release --locked -p sysroot --manifest-path "$root/old-cli/Cargo.toml" \
     --target-dir "$root/old-cli/target" > "$evidence/old-cli-build.log" 2>&1
 cp "$root/old-cli/target/release/sysroot" "$root/old-cli/sysroot"

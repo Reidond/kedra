@@ -1,0 +1,14 @@
+language 1;
+package hello(builder: Builder, runtime: Foundation) {
+    version = "1.0";
+    summary = "Inline-source package workflow";
+    license = "MIT";
+    source = files {
+        "hello.c" = text "#include <stdio.h>\nint main(void) { puts(\"Hello from Kedra!\"); return 0; }\n";
+    };
+    build = shell """
+        mkdir -p "$out/bin"
+        /usr/bin/gcc -O2 -ffile-prefix-map="$src"=. "$src/hello.c" -o "$out/bin/hello"
+        """;
+    export command "kedra-hello" = "bin/hello";
+}

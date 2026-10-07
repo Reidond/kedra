@@ -83,7 +83,10 @@ jobs:
           mkdir -p output/image-evidence "$context" output/release-context output/release-binaries
           cp target/release/sysroot target/release/sysroot-helper target/release/kedra-lab output/release-binaries/
           if test "$KEDRA_TARGET" = qemu-arm64; then
-            output/release-binaries/sysroot catalog pins > output/release-binaries/catalog-pins.json
+            output/release-binaries/sysroot catalog pins \
+              --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
+              --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
+              > output/release-binaries/catalog-pins.json
           fi
           target/release/sysroot source plan --host "$KEDRA_TARGET" --json > output/image-evidence/source-plan.json
           target/release/sysroot source archive --host "$KEDRA_TARGET" --output "$context/payload.tar"
@@ -148,35 +151,41 @@ jobs:
             # Build tools only after changed preflight; compare the complete signed RPM material.
             catalog_root="$RUNNER_TEMP/kedra-catalog"
             mkdir -m 700 "$catalog_root"
-            mkdir "$catalog_root/builder"
-            cp usr/src/kedra/image/catalog/Containerfile usr/src/kedra/image/catalog/builder.sh "$catalog_root/builder/"
-            cp output/image-evidence/catalog-resolution/catalog-builder-rpms.txt "$catalog_root/builder/"
-            docker build --platform linux/arm64 --pull --no-cache --build-arg "BASE_IMAGE=$BASE_IMAGE" \
-              --iidfile "$catalog_root/builder.iid" --file "$catalog_root/builder/Containerfile" \
-              --tag "localhost/kedra-catalog-builder:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$catalog_root/builder"
-            builder=$(cat "$catalog_root/builder.iid")
-            test "$(docker image inspect "$builder" --format '{{.Architecture}} {{.Os}}')" = 'arm64 linux'
-            output/release-binaries/sysroot store add-image --store "$RUNNER_TEMP/kedra-release-store" --image "$builder" > "$catalog_root/builder-retention.json"
-            observer=$(docker create --network none --read-only --cap-drop ALL --user 65534:65534 --entrypoint /usr/bin/false "$builder")
-            trap 'docker rm "$observer" >/dev/null' EXIT
-            docker cp "$observer:/usr/share/kedra/catalog-builder-rpms.txt" "$catalog_root/builder-rpms.txt"
-            docker cp "$observer:/usr/share/kedra/catalog-builder-tools.txt" "$catalog_root/builder-tools.txt"
-            docker rm "$observer" >/dev/null
-            trap - EXIT
-            cmp output/image-evidence/catalog-resolution/catalog-builder-rpms.txt "$catalog_root/builder-rpms.txt"
             foundation=$(jq -er .foundation_image "$RUNNER_TEMP/kedra-release-foundation/foundation.json")
-            jq --arg builder "$builder" --arg runtime "$foundation" \
-              '{namespace:.namespace,packages:(.packages|keys),builder_images:[$builder],runtime_images:[$runtime],source_objects:([.packages[].sources[].object]|unique)}' \
-              output/release-binaries/catalog-pins.json > "$catalog_root/policy.json"
-            mkdir "$catalog_root/sources"
-            curl --fail --location --proto '=https' --max-time 120 --max-filesize 33554432 \
-              https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-1.8.2.tar.gz -o "$catalog_root/sources/jq.tar.gz"
-            curl --fail --location --proto '=https' --max-time 120 --max-filesize 33554432 \
-              https://www.sqlite.org/2026/sqlite-autoconf-3530400.tar.gz -o "$catalog_root/sources/sqlite.tar.gz"
+            foundation_alias="localhost/kedra-catalog-foundation:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            docker tag "$foundation" "$foundation_alias"
+            test "$(docker image inspect "$foundation_alias" --format '{{.Id}}')" = "$foundation"
+            printf '{"foundation":"%s","builders":{}}\n' "$foundation" > "$catalog_root/resolution.json"
+            printf '{}\n' > "$catalog_root/builder-material.json"
+            mapfile -t roles < <(jq -r '.builders | keys[]' output/release-binaries/catalog-pins.json)
+            test "${#roles[@]}" -gt 0
+            index=0
+            for role in "${roles[@]}"; do
+              builder_context="$catalog_root/builder-$index"
+              mkdir "$builder_context"
+              cp usr/src/kedra/image/catalog/Containerfile usr/src/kedra/image/catalog/builder.sh "$builder_context/"
+              cp "output/image-evidence/catalog-resolution/$index/catalog-builder-rpms.txt" "$builder_context/"
+              cp "output/image-evidence/catalog-resolution/$index/catalog-builder-requests.json" "$builder_context/"
+              docker build --platform linux/arm64 --pull=false --no-cache --build-arg "BASE_IMAGE=$foundation_alias" \
+                --iidfile "$builder_context/builder.iid" --file "$builder_context/Containerfile" \
+                --tag "localhost/kedra-catalog-builder:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$index" "$builder_context"
+              builder=$(cat "$builder_context/builder.iid")
+              test "$(docker image inspect "$foundation_alias" --format '{{.Id}}')" = "$foundation"
+              test "$(docker image inspect "$builder" --format '{{.Architecture}} {{.Os}}')" = 'arm64 linux'
+              output/release-binaries/sysroot store add-image --store "$RUNNER_TEMP/kedra-release-store" --image "$builder" > "$builder_context/retention.json"
+              observer=$(docker create --network none --read-only --cap-drop ALL --user 65534:65534 --entrypoint /usr/bin/false "$builder")
+              trap 'docker rm "$observer" >/dev/null' EXIT
+              docker cp "$observer:/usr/share/kedra/catalog-builder-rpms.txt" "$builder_context/observed-rpms.txt"
+              docker cp "$observer:/usr/share/kedra/catalog-builder-tools.txt" "$builder_context/observed-tools.txt"
+              docker rm "$observer" >/dev/null
+              trap - EXIT
+              cmp "$builder_context/catalog-builder-rpms.txt" "$builder_context/observed-rpms.txt"
+              jq --arg role "$role" --arg image "$builder" '.builders[$role]=$image' "$catalog_root/resolution.json" > "$catalog_root/resolution.next.json"
+              mv "$catalog_root/resolution.next.json" "$catalog_root/resolution.json"
+              index=$((index+1))
+            done
             uv run python - "$catalog_root" output/release-binaries/catalog-pins.json output/image-evidence/resolved-inputs.json <<'PY_CATALOG'
-          import hashlib
           import sys
-          import tarfile
           from pathlib import Path
 
           sys.path.insert(0, 'usr/src/kedra/image/release')
@@ -184,64 +193,43 @@ jobs:
 
           work = Path(sys.argv[1])
           pins = m.document(m.read(Path(sys.argv[2])))
-          inputs_data = m.read(Path(sys.argv[3]))
-          inputs = m.document(inputs_data)
-          for package in ('jq', 'sqlite'):
-              archive = work / 'sources' / (package + '.tar.gz')
-              with archive.open('rb') as stream:
-                  actual = hashlib.file_digest(stream, 'sha256').hexdigest()
-              m.require(actual == pins['packages'][package]['sources'][0]['origin']['sha256'], 'Catalog archive checksum differs')
-              destination = work / 'sources' / package
-              destination.mkdir()
-              with tarfile.open(archive, 'r:gz') as source:
-                  members = source.getmembers()
-                  m.require(len(members) <= 100000 and sum(member.size for member in members) <= 128 * 1024**2,
-                            'Catalog archive exceeds extraction bound')
-                  m.require(all(member.isfile() or member.isdir() or member.issym() or member.islnk() for member in members),
-                            'Unsupported catalog source member')
-                  m.require(len({member.name.rstrip('/') for member in members}) == len(members), 'Duplicate source member')
-                  source.extractall(destination, filter='data')
-              roots = list(destination.iterdir())
-              m.require(len(roots) == 1 and roots[0].is_dir() and not roots[0].is_symlink(), 'Expected single source root')
-              for path in roots[0].rglob('*'):
-                  if path.is_symlink():
-                      continue
-                  info = path.stat()
-                  mode = 0o755 if path.is_dir() or info.st_mode & 0o111 else 0o644
-                  if path.is_file() and info.st_nlink != 1:
-                      data = path.read_bytes()
-                      path.unlink()
-                      path.write_bytes(data)
-                  path.chmod(mode)
-              (work / (package + '-source-path')).write_text(str(roots[0]))
-          rows = m.packages(m.read(work / 'builder-rpms.txt'), 'aarch64')
-          rpm_hash = m.sha(m.canonical(rows))
-          m.require(rpm_hash == inputs['artifacts']['catalog-builder-rpms'], 'Builder compiler RPMs differ from preflight')
-          retention = m.document(m.read(work / 'builder-retention.json'))
-          m.require(retention['image'] == (work / 'builder.iid').read_text().strip()
-                    and retention['platform'] == 'aarch64-linux', 'Retained builder differs')
-          receipt = {'schema_version': 1, 'builder_image': retention['image'], 'base': inputs['base'],
-                     'input_material_sha256': m.sha(inputs_data), 'builder_rpms_sha256': rpm_hash,
-                     'builder_tools_sha256': m.sha(m.read(work / 'builder-tools.txt')),
-                     'retention_receipt_sha256': m.sha(m.read(work / 'builder-retention.json'))}
-          (work / 'builder-receipt.json').write_bytes(m.canonical(receipt))
+          inputs = m.document(m.read(Path(sys.argv[3])))
+          observed = {}
+          for index, role in enumerate(sorted(pins['builders'])):
+              observed[role] = m.packages(m.read(work / ('builder-' + str(index)) / 'observed-rpms.txt'), 'aarch64')
+          m.require(m.sha(m.canonical(observed)) == inputs['artifacts']['catalog-builder-rpms'], 'Compiler role material differs from preflight')
+          (work / 'builder-material.json').write_bytes(m.canonical(observed))
           PY_CATALOG
-            for package in jq sqlite; do
-              source=$(cat "$catalog_root/$package-source-path")
-              output/release-binaries/sysroot store add-source --store "$RUNNER_TEMP/kedra-release-store" --source "$source" > "$catalog_root/$package-source.json"
-              expected=$(jq -er --arg package "$package" '.packages[$package].sources[0].object' output/release-binaries/catalog-pins.json)
-              test "$(jq -er .object "$catalog_root/$package-source.json")" = "$expected"
+            jq --slurpfile resolution "$catalog_root/resolution.json" \
+              '{namespace:.namespace,packages:(.packages|keys),builder_images:($resolution[0].builders|[.[]]|unique),runtime_images:[$resolution[0].foundation],source_objects:(.archives|keys)}' \
+              output/release-binaries/catalog-pins.json > "$catalog_root/policy.json"
+            uv run usr/src/kedra/image/catalog/prepare-sources.py \
+              --pins output/release-binaries/catalog-pins.json --output "$catalog_root/sources"
+            mapfile -t source_objects < <(jq -r 'keys[]' "$catalog_root/sources/sources.json")
+            for expected in "${source_objects[@]}"; do
+              source=$(jq -er --arg object "$expected" '.[$object]' "$catalog_root/sources/sources.json")
+              output/release-binaries/sysroot store add-source --store "$RUNNER_TEMP/kedra-release-store" --source "$source" > "$catalog_root/$expected-source.json"
+              test "$(jq -er .object "$catalog_root/$expected-source.json")" = "$expected"
+            done
+            mapfile -t packages < <(jq -r '.packages | keys[]' output/release-binaries/catalog-pins.json)
+            for package in "${packages[@]}"; do
               output/release-binaries/sysroot catalog build --store "$RUNNER_TEMP/kedra-release-store" --package "$package" \
-                --policy "$catalog_root/policy.json" --builder "$builder" --runtime "$foundation" > "$catalog_root/$package-build.json"
+                --input-root usr/src/kedra/image/packages --entry catalog.kedra --target qemu-arm64 \
+                --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
+                --policy "$catalog_root/policy.json" --resolution "$catalog_root/resolution.json" > "$catalog_root/$package-build.json"
             done
             output/release-binaries/sysroot catalog contribute --store "$RUNNER_TEMP/kedra-release-store" \
-              --builder "$builder" --foundation "$foundation" --policy "$catalog_root/policy.json" --source-revision "$GITHUB_SHA" \
+              --input-root usr/src/kedra/image/packages --entry catalog.kedra --target qemu-arm64 \
+              --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
+              --resolution "$catalog_root/resolution.json" --foundation "$foundation" \
+              --policy "$catalog_root/policy.json" --source-revision "$GITHUB_SHA" \
               --input-material output/image-evidence/resolved-inputs.json --expected-input-material-sha256 "$input_hash" \
               --output-dir "$catalog_root/contribution" > "$catalog_root/contribution-result.json"
             definition_hash=$(jq -er .definition_sha256 "$catalog_root/contribution-result.json")
             contribution_hash=$(jq -er .contribution_receipt_sha256 "$catalog_root/contribution-result.json")
             mkdir output/image-evidence/catalog
-            cp "$catalog_root/"*.json "$catalog_root/builder-rpms.txt" "$catalog_root/builder-tools.txt" output/image-evidence/catalog/
+            cp "$catalog_root/"*.json output/image-evidence/catalog/
+            cp -R "$catalog_root/"builder-* output/image-evidence/catalog/
             cp "$catalog_root/contribution/"*.json output/image-evidence/catalog/
             uv run usr/src/kedra/image/release/compose.py compose \
               --target qemu-arm64 --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \

@@ -69,6 +69,10 @@ if args.phase == 'images':
     head = git('rev-parse', 'HEAD').decode().strip()
     if head != os.environ['GITHUB_SHA']:
         raise RuntimeError('source differs from the dispatched revision')
+    reviewed = json.loads(subprocess.check_output([str(tool), 'source', 'plan', '--host', scope['target'],
+                                                  '--repo', str(repo), '--json']))
+    if reviewed['source_revision'] != head:
+        raise RuntimeError('fixture requests differ from the frozen source')
     legacy_path = 'home/.config/niri/config.kdl'
     source_path = 'etc/skel/.config/niri/config.kdl'
     original = git('show', f'{head}:{source_path}').decode()
@@ -95,6 +99,15 @@ if args.phase == 'images':
             mode, _, blob = metadata.split(' ')
             if (moved := legacy(path)) is not None:
                 git('update-index', '--add', '--cacheinfo', mode, blob, moved)
+    if 'package_frontend' in reviewed:
+        # Private fixture compatibility data, never another owner package list.
+        # A exercises the actual legacy reader; B retains the language authority.
+        for path, names in [('packages/common.list', reviewed['packages']),
+                            ('packages/remove.list', reviewed['remove_packages']),
+                            ('hosts/desktop/packages.list', [])]:
+            text = '\n'.join(names) + '\n' if names else '# No additional requests\n'
+            blob = git('hash-object', '-w', '--stdin', data=text.encode()).decode().strip()
+            git('update-index', '--add', '--cacheinfo', '100644', blob, path)
     tree = git('write-tree').decode().strip()
     a = git('commit-tree', tree, '-p', head, '-m', 'R04 generated legacy-layout baseline').decode().strip()
     publication = commit(a, a, legacy_path, published, 'R04 generated selected-line publication')

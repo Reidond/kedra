@@ -1,9 +1,9 @@
+pub(crate) use crate::resources::{Entry, Kind};
 use crate::{
     Error, LOGICAL_PREFIX, Result,
     plan::{object_id, relative},
 };
 use rustix::fs::{Mode, OFlags, openat};
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -14,25 +14,6 @@ use std::{
 };
 pub(crate) const MAX_TREE: u64 = 1024 * 1024 * 1024;
 pub(crate) const MAX_FILE: u64 = 256 * 1024 * 1024;
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Entry {
-    pub path: String,
-    pub kind: Kind,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub(crate) enum Kind {
-    Directory,
-    File {
-        executable: bool,
-        bytes: u64,
-        sha256: String,
-    },
-    Symlink {
-        target: String,
-    },
-}
 pub(crate) struct Tree {
     pub digest: String,
     pub entries: Vec<Entry>,

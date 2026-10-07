@@ -1,5 +1,27 @@
 # Verified status
 
+## Package language delivery (2026-10-06)
+
+The owner requests completing [PR38](https://github.com/Reidond/kedra/pull/38)'s
+[specification](../../../../.specs/nix-package-dsl/README.md) and implementing its
+standalone Rust `.kedra` frontend, inline resources and package/release migration.
+The branch implements the parser/type checker/formatter, bounded process and
+resource lowering, independent Rust intent API, Fedora compiler-role resolution,
+generic contribution and explicit source cutover. jq/SQLite/library and the C
+pilot pass real Fedora build/rebuild checks. The installed catalog aliases, PATH,
+SQL/jq/library and persistent service workflow pass on exact unsigned native image
+`b44e6c3b55a3bdb82248b94a5c2131def3d75d0b1858946928bc6f53a79575b2`.
+Actual deadline/memory refusals preserve winners and reap the child. Source
+compatibility and fresh full-RPM parity pass on both native targets in
+[run37511811578](https://github.com/Reidond/kedra/actions/runs/37511811578).
+Both source architectures pass final-code Check37517872017/37517864795 at
+`6f1269df4210622b87e706a24a8779fa02bd6f67`. The same
+container run passes desktop11/12 and ARM12/13; each remaining failure is the
+existing unqualified Noctalia5.2.1 home review, with no cleanup failure.
+The legacy home fixture now derives its private compatibility requests through
+the public source CLI; local preparation passes, corrected hosted rerun pending. See worklog WL-20261006-PKGDSL-06/07/08. Existing
+release/installer/native gates below remain independent; no production publication.
+
 ## Repair verification and remaining qualification (2026-10-06)
 
 [PR40](https://github.com/Reidond/kedra/pull/40) is merged at

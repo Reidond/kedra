@@ -139,3 +139,26 @@ guard the vendor rule. Normalize only the recipe's disposable copied tree to its
 declared SOURCE_DATE_EPOCH before configure, including link inodes without target
 traversal (`find -P`, `touch -h`). Do not fake old tool names or alter readonly
 inputs. Source: catalog verification and d3-catalog-e2e-fixed timestamp receipt.
+
+Package frontend (owner decision/implementation, 2026-10-06): sysroot-catalog
+parses versioned .kedra data into common typed Intent; direct Rust consumers use
+the same lowering. Module loading/check/format/plan executes no author shell or
+Cargo. Inline scripts are ordinary resource file inputs to /bin/sh -eu; patches
+and overlays create separate owned preparation outputs and never mutate admitted
+source. Pure resource identity uses the engine's existing canonical tree records.
+Actual build checks observed Fedora44 RPM requests on retained exact images.
+Command aliases differing from output filenames get typed launchers under
+/usr/share/kedra/catalog-bin, preserving global RPM paths. Atomic plan packets
+use the closed Catalog managed-snapshot purpose and system recover. Local actual
+C/API/rebuild/transfer/preparation and installed catalog workflows pass their
+recorded scopes; production/migration release gates remain separate. Evidence:
+.specs/nix-package-dsl, worklog WL-20261006-PKGDSL-04 through07.
+
+Package frontend process limits (2026-10-06): public CLI planning runs in an
+owned child with a60-second deadline,512MiB Linux address-space ceiling and
+macOS resident-memory observation every100ms. Input loading for builds/contribution
+uses that child too. Refusal discards stdout and kills/reaps the child; owner death
+stops it. Direct typed Rust consumers own supervision. Formatter and plan emission
+stage only closed members in leased snapshots, recoverable via system recover.
+Real suspended-child deadline and large-input memory refusals preserve winners;
+see worklog WL-20261006-PKGDSL-08 and catalog_process.rs.

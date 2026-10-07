@@ -11,6 +11,9 @@ on:
       - usr/src/kedra/image/assemble.sh
       - usr/src/kedra/image/inputs.json
       - usr/src/kedra/image/packages.list
+      - usr/src/kedra/image/package-inputs.json
+      - usr/src/kedra/image/package-policy.json
+      - usr/src/kedra/image/packages/**
       - usr/src/kedra/image/remove.list
       - usr/src/kedra/image/agents/**
       - usr/src/kedra/image/bitwarden/**

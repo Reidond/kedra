@@ -1,5 +1,23 @@
 # Verified status
 
+## Noctalia5.2.1 follow-up (2026-10-07)
+
+PR38 is merged at `caa87aca7d1fe88a94cbf9e57e5237dc68bd3ae3`. The owner
+requests a follow-up for the Noctalia compatibility and corrected home VM gates.
+The exact native5.2.1 output and unchanged three-field types pass prequalification
+on retained Fedora44 package5.2.1-1.fc44. The two closed gates now admit only this
+additional runtime, retaining persisted projection identity5.0.1 and unknown
+version refusal. The full actual home-review cycle passes in21.96s with no
+interruption or cleanup failure. All13 local container cases pass in151.87s (report1791358789-29962), with
+no interruption or cleanup failure. [PR43](https://github.com/Reidond/kedra/pull/43)
+is verified atd5e34e1: both architecture Check37588836592/37588829702,
+fresh desktop12/12 and ARM13/13 container suites37588829710, and actual
+UEFI Secure Boot signed A/B/A home transition37588829765 all pass. Reports
+are uninterrupted with no cleanup failures. Both originally annotated blockers
+are fixed in this unmerged follow-up; protected production publication remains
+separate. Direct-update x86 failure37588829723 is an interrupted Quay builder
+download, not the Noctalia gate. See worklog HOMEQUAL-01 through04.
+
 ## Package language delivery (2026-10-06)
 
 The owner requests completing [PR38](https://github.com/Reidond/kedra/pull/38)'s

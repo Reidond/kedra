@@ -102,7 +102,12 @@ the root `cccc.toml`. Closures are measured as their own units, so a parent's
 score excludes them; split long functions into cohesive named helpers instead of
 wrapping logic in closures or macros. The initial adoption (2026-10-07) found 31
 functions over the limit, led by the `.kedra` checker's `typed` (cognitive 118)
-and `validate` (cyclomatic 68); see worklog CCCC-01 for their refactor.
+and `validate` (cyclomatic 68); all were refactored with unchanged behavior
+(worklog CCCC-02). `--min 41` still lists every file, offenders under theirs.
+Before refactoring a file, compare HEAD and new binaries on the same inputs;
+editing `sysroot/catalog.rs` changes the legacy catalog pins, which hash that
+file's own source. Running E2E as root fails seven cases by design (owner-private
+stores and home review refuse root); CI's unprivileged run is authoritative.
 
 Only E2E/manual tests: no unit/model/mock/doctests or repository source scanners. Build Fedora-compatible binaries for image ABI compatibility. Compiler success is separate from installed/desktop qualification.
 

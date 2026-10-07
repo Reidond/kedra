@@ -1,6 +1,6 @@
 # Niri baseline artifacts in the existing image pipeline
 
-Status: **main integration in verification**; owner authorized PR39 completion on 2026-10-06. Medium combined
+Status: **main integration qualified**; owner authorized PR39 completion on 2026-10-06. Medium combined
 specification with [tasks](tasks.md) and [test plan](test-plan.md). Implementation
 uses the owner-merged D1–D5 source as its foundation. Their incomplete runtime
 qualification remains recorded and is not waived or relabeled here.
@@ -181,4 +181,5 @@ remain stricter. The sidecar, source authority, state/journal and CLI contracts
 remain unchanged. The signed fixture pins authentic pre-artifact main46b4, which
 understands the new package source format; b60 cannot preview new B source.
 Prior case passes are pinned historical evidence. Updated integration gates are
-not-run until their actual new source/fixture execution completes.
+pass on actual05b8 source in37597450368 (signed home),37597450332 (both
+target containers) and37597454834/37597450387 (both source architectures).

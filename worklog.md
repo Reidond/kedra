@@ -21,6 +21,8 @@ Last updated: 2026-10-07 (Europe/Kyiv).
 - **PR39:** the niri artifact producer/installed consumer and qualification are complete on the main-based feature branch. Integrated05b8c6c containers37597450332 pass ARM13/13 and desktop12/12; signed home37597450368 passes A/B/A and old/new readback. The owner now authorizes merging PR39. A new review finding about automatic retained-CLI provisioning is being fixed and verified before the protected merge.
 - **Latest source gates:** PR39 headf6cc492 passes push Check37603566800 and PR Check37603572786 on both architectures. The new harness review fix needs its own current-head source gates; prior product/signed qualification retains its exact pins.
 
+- **Complexity gate (in progress):** cccc1.7.0 now gates Rust/Python functions at cognitive/cyclomatic40 (`cccc.toml`, AGENTS.md, mise.toml, check.yml). Baseline at main2add9e5 has31 functions over the limit in21 files; the behavior-preserving refactor is underway, so the new check.yml Complexity step fails until it lands. See CCCC-01.
+
 - **Main-only transition:** complete. Main is the sole integration/default branch, dev is absent locally/remotely, and PR39 incorporates main46b4fe2 with both merged PR38/43. Feature branches continue to target main.
 
 ## Work entries
@@ -2276,3 +2278,11 @@ Last updated: 2026-10-07 (Europe/Kyiv).
 - Checks / evidence: pass — formatting, workspace all-target Clippy, full public E2E and release build; independent release interoperability16-signature checks and both-target material workflows. Pass — runtime1791374626-33835 records old source46b4fe2 and SHA6c96ae8ddf513545064b6f42f78876e0008786646984b92e8347e5879aaf80d3, with1/1 passed and null cleanup failure. PR Check37618624576 ARM job112782970443 passes; its x86 and push jobs remain pending at this readback.
 - Remaining / blockers: current-head required GitHub source checks and settled review-thread resolution must precede merge. Existing signed/product evidence remains pinned to05b8. This change does not authorize workstation application.
 - Next: merge the verified current PR39 head into main under normal protection, then record the observed merge result and release state.
+
+### WL-20261007-CCCC-01 — 2026-10-07 — Adopt the cccc complexity gate
+- Agent / state: Claude Code (cloud session); in-progress.
+- Scope / base: branch claude/nifty-ride-4asy1c at main2add9e5 (PR39 merge). Owner requests the cccc tool with max-cognitive/max-cyclomatic40, an AGENTS.md instruction to validate it, and a refactor until it passes. All Rust and Python sources; no image payload, target or deployment change.
+- Completed: installed moznion/cccc v1.7.0 x86_64 musl release (SHA75d2fb54…e45a matches the published checksum). Added root `cccc.toml` (limits40/40), a pinned `github:moznion/cccc` mise tool, a SHA-verified check.yml Complexity step on both architectures (aarch64 SHAf775a19e…75b8), the AGENTS.md complexity-gate rule and root-file entry, and the kedra-rust-workspace skill check (manifests0.3.34). Source planning treats shared root files as non-payload, so the new root file is admitted. Probe: cccc scores a Rust closure as its own unit and excludes it from the parent.
+- Checks / evidence: pass — baseline fmt and workspace all-target Clippy at2add9e5. Baseline E2E as root: 17 pass, 7 fail and 14 ignored; all 7 failures are the by-design root refusals (owner-private engine stores, home review). Running them as an unprivileged local user was denied by the session's permission policy, so CI is authoritative for those cases. Pass — container harness `--list` validates all 14 cases without Docker; no Docker daemon runs here. Fail (expected) — `cccc .` reports 31 functions over 40, max cognitive118 (`typed`, sysroot-catalog check.rs) and cyclomatic68 (`validate`).
+- Remaining / blockers: refactor of the 31 functions is in progress. Container scenario execution, VM drivers and the seven root-refused E2E cases cannot run in this session.
+- Next: land the reviewed refactors, re-run cccc and the full check list, then record results and the resulting CI here.

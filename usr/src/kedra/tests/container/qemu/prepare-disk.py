@@ -121,6 +121,170 @@ def validate_signing(output, reference, native_observation, imported_digest):
     return receipt
 
 
+def read_native_provenance(parser, args):
+    if args.native_provenance:
+        data = sys.stdin.buffer.read(8 * 1024 * 1024 + 1)
+        if len(data) > 8 * 1024 * 1024:
+            parser.error('native provenance exceeds 8 MiB')
+        native = json.loads(data)
+        if not isinstance(native, dict) or set(native) != {'image', 'engine', 'parent_image', 'material'}:
+            parser.error('invalid native provenance tuple')
+        if not args.fixture_reference or not re.fullmatch(r'localhost/kedra-qemu-fixture/[a-f0-9]{32}:boot', args.fixture_reference):
+            parser.error('native disk requires an independently selected fixture reference')
+        return native
+    if args.fixture_reference:
+        parser.error('fixture reference requires native provenance')
+    return None
+
+
+def select_local_engine(parser, expected_id):
+    endpoint = os.environ.get('DOCKER_HOST', 'unix:///var/run/docker.sock')
+    if not endpoint.startswith('unix://'):
+        parser.error('native disk preparation requires a local Unix Docker socket')
+    os.environ['DOCKER_HOST'] = endpoint
+    os.environ.pop('DOCKER_CONTEXT', None)
+    engine_id = run(['docker', 'info', '--format', '{{.ID}}'], capture_output=True, text=True).stdout.strip()
+    if engine_id != expected_id:
+        parser.error('Docker CLI context differs from the Testcontainers engine; select the same local engine')
+    return engine_id
+
+
+def inspect_fixture_image(parser, args):
+    identity = json.loads(run(['docker', 'image', 'inspect', args.image], capture_output=True).stdout)[0]
+    if identity['Id'] != args.image_id or (identity['Os'], identity['Architecture']) != ('linux', 'arm64'):
+        parser.error('native VM needs a linux/arm64 fixture image')
+    if identity['Config'].get('Labels', {}).get('dev.kedra.lab.owner') != 'kedra-container-tests':
+        parser.error('image must be prepared by kedra-lab')
+    if identity['Config'].get('Labels', {}).get('dev.kedra.lab.kind') != 'qemu':
+        parser.error('image must be the native QEMU fixture, without container adaptations')
+    return identity
+
+
+def observe_native_fixture(parser, args, identity, native, engine_id, observer):
+    if identity['Config']['Labels'].get('dev.kedra.lab.fixture-reference') != args.fixture_reference:
+        parser.error('fixture reference differs from immutable image label')
+    if native['engine'] != engine_id or not re.fullmatch(r'sha256:[a-f0-9]{64}', native['image']):
+        parser.error('native provenance names a different engine or invalid image')
+    parent = json.loads(run(['docker', 'image', 'inspect', native['image']], capture_output=True).stdout)[0]
+    layers = parent['RootFS']['Layers']
+    if (parent['Id'] != native['image'] or len(identity['RootFS']['Layers']) <= len(layers)
+            or identity['RootFS']['Layers'][:len(layers)] != layers):
+        parser.error('fixture does not extend the selected native image')
+    native_observation = json.loads(run([
+        'docker', 'run', '--rm', '--network', 'none', '--read-only', '--cap-drop=ALL',
+        '--security-opt', 'no-new-privileges', '--tmpfs', '/tmp:rw,nosuid,nodev,noexec,size=64m',
+        '--entrypoint', '/usr/bin/python3', args.image_id, '-I', '-c', observer, 'image',
+    ], capture_output=True).stdout)
+    if native_observation.get('provenance') != native or native_observation.get('passed') is not True:
+        parser.error('fixture native-material readback differs from independent selection')
+    return native_observation
+
+
+def disk_inputs(identity):
+    builder = json.loads((ROOT / 'usr/src/kedra/image/inputs.json').read_text())['platforms']['arm64']['builder']
+    metadata = {'Architecture': identity['Architecture'], 'Os': identity['Os'], 'RootFS': identity['RootFS']['Layers'],
+                'Config': {name: identity['Config'].get(name) for name in ['Labels', 'Env', 'Cmd', 'Entrypoint', 'User', 'WorkingDir']}}
+    metadata_sha = hashlib.sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+    return {'image_id': identity['Id'], 'builder': builder, 'recipe': digest(Path(__file__)),
+            'metadata_sha256': metadata_sha,
+            'containerfile': digest(HERE / 'disk-builder.Containerfile'),
+            'script': digest(HERE / 'build-disk.sh'), 'signing_script': digest(HERE / 'sign-fixture.sh'),
+            'build_ignore': digest(HERE / '.dockerignore')}
+
+
+def cached_disk_matches(output, disk, receipt, inputs, fixture_reference, native, native_observation):
+    saved = json.loads(receipt.read_text())
+    signing = None if native is None else validate_signing(
+        output, fixture_reference, native_observation, saved.get('imported_manifest_digest', ''))
+    return (saved.get('inputs') == inputs and saved.get('disk_sha256') == digest(disk)
+            and saved.get('native_observation') == native_observation
+            and saved.get('signing') == signing
+            and re.fullmatch(r'sha256:[a-f0-9]{64}', saved.get('imported_manifest_digest', '')))
+
+
+def build_builder_image(inputs):
+    tag = 'kedra-qemu-builder:' + hashlib.sha256(''.join(
+        inputs[name] for name in ('containerfile', 'script', 'signing_script', 'build_ignore')).encode()).hexdigest()[:32]
+    run(['docker', 'build', '--platform', 'linux/arm64', '-f', str(HERE / 'disk-builder.Containerfile'),
+         '-t', tag, str(HERE)], timeout=1800)
+    return tag
+
+
+def stream_fixture_build(output, container, image_id, build_command, native):
+    # Stream the exact local fixture into the private builder; no registry publication.
+    with (output / 'build.log').open('wb') as log:
+        producer = subprocess.Popen(['docker', 'save', image_id], stdout=subprocess.PIPE, stderr=log)
+        try:
+            result = subprocess.run(['docker', 'exec', '-i', container, *build_command],
+                                    stdin=producer.stdout, stdout=log, stderr=log, timeout=7200, check=False)
+            producer.stdout.close()
+            if result.returncode or producer.wait(timeout=30):
+                if native is not None:
+                    capture_public(container, output)
+                raise ValueError(f'disk build failed; see {output / "build.log"}')
+        finally:
+            if producer.poll() is None:
+                producer.terminate()
+                producer.wait(timeout=30)
+
+
+def copy_built_disk(container, output):
+    pending = output / 'base.pending.qcow2'
+    run(['docker', 'cp', container + ':/output/base.qcow2', str(pending)], timeout=1800)
+    run(['docker', 'cp', container + ':/output/imported-image.json', str(output / 'imported-image.json')])
+    run(['docker', 'cp', container + ':/output/imported-manifest-digest', str(output / 'imported-manifest-digest')])
+    imported_digest = (output / 'imported-manifest-digest').read_text().strip()
+    if not re.fullmatch(r'sha256:[a-f0-9]{64}', imported_digest):
+        raise ValueError('builder did not retain the imported manifest digest')
+    return pending, imported_digest
+
+
+def verify_native_import(container, output, fixture_reference, native_observation, imported_digest):
+    capture_public(container, output)
+    if json.loads((output / 'imported-native.json').read_text()) != native_observation:
+        raise ValueError('imported image changed verified native material')
+    return validate_signing(output, fixture_reference, native_observation, imported_digest)
+
+
+def build_disk(output, disk, receipt, inputs, observer_sha, fixture_reference, native, native_observation):
+    tag = build_builder_image(inputs)
+    token = secrets.token_hex(8)
+    container = 'kedra-qemu-builder-' + token
+    volume = 'kedra-qemu-output-' + token
+    run(['docker', 'volume', 'create', '--label', OWNER, volume], stdout=subprocess.DEVNULL)
+    started = time.monotonic()
+    try:
+        run(['docker', 'run', '-d', '--name', container, '--label', OWNER, '--privileged',
+             '--cgroupns', 'private', '--platform', 'linux/arm64',
+             '--tmpfs', '/run/kedra-signing:rw,nosuid,nodev,noexec,size=16m,mode=0700',
+             '--mount', 'type=volume,source=kedra-qemu-podman-cache,target=/var/lib/containers',
+             '--mount', f'type=volume,source={volume},target=/output', tag], stdout=subprocess.DEVNULL)
+        if native is not None:
+            run(['docker', 'cp', str(HERE / 'boot-check.py'), container + ':/tmp/kedra-native-boot-check.py'])
+        reference = fixture_reference or 'localhost/kedra-qemu-fixture:' + inputs['image_id'].removeprefix('sha256:')
+        stream_fixture_build(output, container, inputs['image_id'], [
+            'kedra-build-disk', reference, inputs['builder'], inputs['metadata_sha256'],
+            'native' if native is not None else 'ordinary', observer_sha], native)
+        pending, imported_digest = copy_built_disk(container, output)
+        signing = None if native is None else verify_native_import(
+            container, output, fixture_reference, native_observation, imported_digest)
+        saved = {'schema_version': 1, 'target': 'qemu-arm64', 'inputs': inputs, 'disk': str(disk),
+                 'disk_sha256': digest(pending), 'preparation_seconds': time.monotonic() - started,
+                 'imported_image': json.loads((output / 'imported-image.json').read_text()),
+                 'imported_manifest_digest': imported_digest,
+                 'fixture_reference': reference if signing is None else signing['boot_reference'],
+                 'deployment_manifest_digest': imported_digest if signing is None else signing['signed_manifest_digest'],
+                 'native_observation': native_observation, 'signing': signing}
+        os.replace(pending, disk)
+        temporary = output / 'image.pending.json'
+        temporary.write_text(json.dumps(saved, indent=2) + '\n')
+        os.replace(temporary, receipt)
+        print(receipt)
+    finally:
+        subprocess.run(['docker', 'rm', '-f', container], timeout=60, check=False, stdout=subprocess.DEVNULL)
+        subprocess.run(['docker', 'volume', 'rm', volume], timeout=60, check=False, stdout=subprocess.DEVNULL)
+
+
 def main():
     signal.signal(signal.SIGTERM, lambda _signal, _frame: sys.exit(130))
     signal.signal(signal.SIGINT, lambda _signal, _frame: sys.exit(130))
@@ -132,63 +296,16 @@ def main():
     parser.add_argument('--native-provenance', action='store_true', help='Read verified native provenance from stdin')
     parser.add_argument('--fixture-reference')
     args = parser.parse_args()
-    native = None
-    if args.native_provenance:
-        data = sys.stdin.buffer.read(8 * 1024 * 1024 + 1)
-        if len(data) > 8 * 1024 * 1024:
-            parser.error('native provenance exceeds 8 MiB')
-        native = json.loads(data)
-        if not isinstance(native, dict) or set(native) != {'image', 'engine', 'parent_image', 'material'}:
-            parser.error('invalid native provenance tuple')
-        if not args.fixture_reference or not re.fullmatch(r'localhost/kedra-qemu-fixture/[a-f0-9]{32}:boot', args.fixture_reference):
-            parser.error('native disk requires an independently selected fixture reference')
-    elif args.fixture_reference:
-        parser.error('fixture reference requires native provenance')
-    endpoint = os.environ.get('DOCKER_HOST', 'unix:///var/run/docker.sock')
-    if not endpoint.startswith('unix://'):
-        parser.error('native disk preparation requires a local Unix Docker socket')
-    os.environ['DOCKER_HOST'] = endpoint
-    os.environ.pop('DOCKER_CONTEXT', None)
-    engine_id = run(['docker', 'info', '--format', '{{.ID}}'], capture_output=True, text=True).stdout.strip()
-    if engine_id != args.engine_id:
-        parser.error('Docker CLI context differs from the Testcontainers engine; select the same local engine')
+    native = read_native_provenance(parser, args)
+    engine_id = select_local_engine(parser, args.engine_id)
     args.cache.mkdir(parents=True, exist_ok=True)
-    identity = json.loads(run(['docker', 'image', 'inspect', args.image], capture_output=True).stdout)[0]
-    if identity['Id'] != args.image_id or (identity['Os'], identity['Architecture']) != ('linux', 'arm64'):
-        parser.error('native VM needs a linux/arm64 fixture image')
-    if identity['Config'].get('Labels', {}).get('dev.kedra.lab.owner') != 'kedra-container-tests':
-        parser.error('image must be prepared by kedra-lab')
-    if identity['Config'].get('Labels', {}).get('dev.kedra.lab.kind') != 'qemu':
-        parser.error('image must be the native QEMU fixture, without container adaptations')
+    identity = inspect_fixture_image(parser, args)
     native_observation = None
     observer = (HERE / 'boot-check.py').read_text()
     observer_sha = hashlib.sha256(observer.encode()).hexdigest()
     if native is not None:
-        if identity['Config']['Labels'].get('dev.kedra.lab.fixture-reference') != args.fixture_reference:
-            parser.error('fixture reference differs from immutable image label')
-        if native['engine'] != engine_id or not re.fullmatch(r'sha256:[a-f0-9]{64}', native['image']):
-            parser.error('native provenance names a different engine or invalid image')
-        parent = json.loads(run(['docker', 'image', 'inspect', native['image']], capture_output=True).stdout)[0]
-        layers = parent['RootFS']['Layers']
-        if (parent['Id'] != native['image'] or len(identity['RootFS']['Layers']) <= len(layers)
-                or identity['RootFS']['Layers'][:len(layers)] != layers):
-            parser.error('fixture does not extend the selected native image')
-        native_observation = json.loads(run([
-            'docker', 'run', '--rm', '--network', 'none', '--read-only', '--cap-drop=ALL',
-            '--security-opt', 'no-new-privileges', '--tmpfs', '/tmp:rw,nosuid,nodev,noexec,size=64m',
-            '--entrypoint', '/usr/bin/python3', args.image_id, '-I', '-c', observer, 'image',
-        ], capture_output=True).stdout)
-        if native_observation.get('provenance') != native or native_observation.get('passed') is not True:
-            parser.error('fixture native-material readback differs from independent selection')
-    builder = json.loads((ROOT / 'usr/src/kedra/image/inputs.json').read_text())['platforms']['arm64']['builder']
-    metadata = {'Architecture': identity['Architecture'], 'Os': identity['Os'], 'RootFS': identity['RootFS']['Layers'],
-                'Config': {name: identity['Config'].get(name) for name in ['Labels', 'Env', 'Cmd', 'Entrypoint', 'User', 'WorkingDir']}}
-    metadata_sha = hashlib.sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
-    inputs = {'image_id': identity['Id'], 'builder': builder, 'recipe': digest(Path(__file__)),
-              'metadata_sha256': metadata_sha,
-              'containerfile': digest(HERE / 'disk-builder.Containerfile'),
-              'script': digest(HERE / 'build-disk.sh'), 'signing_script': digest(HERE / 'sign-fixture.sh'),
-              'build_ignore': digest(HERE / '.dockerignore')}
+        native_observation = observe_native_fixture(parser, args, identity, native, engine_id, observer)
+    inputs = disk_inputs(identity)
     if native is not None:
         inputs['native'] = native
         inputs['native_receipt_sha256'] = native_observation['native_receipt_sha256']
@@ -202,78 +319,11 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX)
         disk, receipt = output / 'base.qcow2', output / 'image.json'
         if disk.is_file() and receipt.is_file():
-            saved = json.loads(receipt.read_text())
-            signing = None if native is None else validate_signing(
-                output, args.fixture_reference, native_observation, saved.get('imported_manifest_digest', ''))
-            if (saved.get('inputs') == inputs and saved.get('disk_sha256') == digest(disk)
-                    and saved.get('native_observation') == native_observation
-                    and saved.get('signing') == signing
-                    and re.fullmatch(r'sha256:[a-f0-9]{64}', saved.get('imported_manifest_digest', ''))):
+            if cached_disk_matches(output, disk, receipt, inputs, args.fixture_reference, native, native_observation):
                 print(receipt)
                 return
             raise ValueError(f'cached image changed; inspect {output} before removing it')
-        tag = 'kedra-qemu-builder:' + hashlib.sha256(''.join(
-            inputs[name] for name in ('containerfile', 'script', 'signing_script', 'build_ignore')).encode()).hexdigest()[:32]
-        run(['docker', 'build', '--platform', 'linux/arm64', '-f', str(HERE / 'disk-builder.Containerfile'),
-             '-t', tag, str(HERE)], timeout=1800)
-        token = secrets.token_hex(8)
-        container = 'kedra-qemu-builder-' + token
-        volume = 'kedra-qemu-output-' + token
-        run(['docker', 'volume', 'create', '--label', OWNER, volume], stdout=subprocess.DEVNULL)
-        started = time.monotonic()
-        try:
-            run(['docker', 'run', '-d', '--name', container, '--label', OWNER, '--privileged',
-                 '--cgroupns', 'private', '--platform', 'linux/arm64',
-                 '--tmpfs', '/run/kedra-signing:rw,nosuid,nodev,noexec,size=16m,mode=0700',
-                 '--mount', 'type=volume,source=kedra-qemu-podman-cache,target=/var/lib/containers',
-                 '--mount', f'type=volume,source={volume},target=/output', tag], stdout=subprocess.DEVNULL)
-            if native is not None:
-                run(['docker', 'cp', str(HERE / 'boot-check.py'), container + ':/tmp/kedra-native-boot-check.py'])
-            # Stream the exact local fixture into the private builder; no registry publication.
-            with (output / 'build.log').open('wb') as log:
-                producer = subprocess.Popen(['docker', 'save', identity['Id']], stdout=subprocess.PIPE, stderr=log)
-                try:
-                    reference = args.fixture_reference or 'localhost/kedra-qemu-fixture:' + identity['Id'].removeprefix('sha256:')
-                    result = subprocess.run(['docker', 'exec', '-i', container, 'kedra-build-disk', reference, builder, metadata_sha,
-                                             'native' if native is not None else 'ordinary', observer_sha],
-                                            stdin=producer.stdout, stdout=log, stderr=log, timeout=7200, check=False)
-                    producer.stdout.close()
-                    if result.returncode or producer.wait(timeout=30):
-                        if native is not None:
-                            capture_public(container, output)
-                        raise ValueError(f'disk build failed; see {output / "build.log"}')
-                finally:
-                    if producer.poll() is None:
-                        producer.terminate()
-                        producer.wait(timeout=30)
-            pending = output / 'base.pending.qcow2'
-            run(['docker', 'cp', container + ':/output/base.qcow2', str(pending)], timeout=1800)
-            run(['docker', 'cp', container + ':/output/imported-image.json', str(output / 'imported-image.json')])
-            run(['docker', 'cp', container + ':/output/imported-manifest-digest', str(output / 'imported-manifest-digest')])
-            imported_digest = (output / 'imported-manifest-digest').read_text().strip()
-            if not re.fullmatch(r'sha256:[a-f0-9]{64}', imported_digest):
-                raise ValueError('builder did not retain the imported manifest digest')
-            if native is not None:
-                capture_public(container, output)
-                if json.loads((output / 'imported-native.json').read_text()) != native_observation:
-                    raise ValueError('imported image changed verified native material')
-            signing = None if native is None else validate_signing(
-                output, args.fixture_reference, native_observation, imported_digest)
-            saved = {'schema_version': 1, 'target': 'qemu-arm64', 'inputs': inputs, 'disk': str(disk),
-                     'disk_sha256': digest(pending), 'preparation_seconds': time.monotonic() - started,
-                     'imported_image': json.loads((output / 'imported-image.json').read_text()),
-                     'imported_manifest_digest': imported_digest,
-                     'fixture_reference': reference if signing is None else signing['boot_reference'],
-                     'deployment_manifest_digest': imported_digest if signing is None else signing['signed_manifest_digest'],
-                     'native_observation': native_observation, 'signing': signing}
-            os.replace(pending, disk)
-            temporary = output / 'image.pending.json'
-            temporary.write_text(json.dumps(saved, indent=2) + '\n')
-            os.replace(temporary, receipt)
-            print(receipt)
-        finally:
-            subprocess.run(['docker', 'rm', '-f', container], timeout=60, check=False, stdout=subprocess.DEVNULL)
-            subprocess.run(['docker', 'volume', 'rm', volume], timeout=60, check=False, stdout=subprocess.DEVNULL)
+        build_disk(output, disk, receipt, inputs, observer_sha, args.fixture_reference, native, native_observation)
 
 
 if __name__ == '__main__':

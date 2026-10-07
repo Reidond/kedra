@@ -51,6 +51,12 @@ Live files remain ordinary writable files. Baseline, live content, selected chan
 
 Noctalia uses a narrow safe-field projection; niri uses explicitly adopted text paths. Plans bind reviewed content. Application writers are coordinated, files are rechecked, changes are journaled and native reload/start is verified. No conflict markers enter live configuration. Stale plans and unknown/corrupt state refuse safely; recovery can abort, resume or preserve newer current content. Source publication and accepting an installed baseline are separate operations.
 
+The qemu-arm64 composition adapter materializes the public niri main baseline from
+a verified engine single-file source object. An additive image-owned receipt is
+checked only after existing installed source/baseline authority. It adds no desktop
+store or state migration; genuine absence retains old-image loading and unsafe
+present records refuse. The ordinary baseline remains writable after adoption.
+
 ## Agents and credentials
 
 Bundled agents are private executables reached through `sysroot`; personal runtimes and profiles remain independent. A profile directory is not a security sandbox. Repository development skills live in the `usr/src/kedra/plugins/kedra` and `usr/src/kedra/plugins/rust-skills` plugins, registered for this repository only; they are never copied into the OS, installer, home baseline or launcher profiles.

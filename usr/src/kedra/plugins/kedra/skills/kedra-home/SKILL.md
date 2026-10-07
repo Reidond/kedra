@@ -19,6 +19,27 @@ Noctalia 5.0.1 writes GUI overrides separately from curated TOML. Project only t
 
 Use real CLI/Git and desktop/home-transition E2E. Include selected/local/later edits, deletes, ambiguous upstream context, symlink/hardlink refusal, metadata, source drift and rollback. No immutable-home symlinks, blanket rsync, source scanners or synthetic model tests.
 
+Noctalia 5.2.1 qualification (2026-10-06): exact ARM candidate f3f61f5a carries
+noctalia-5.2.1-1.fc44.aarch64 and prints exactly `noctalia v5.2.1`. Native config
+validation and full export retain the three approved field types. The new exact
+allowlist entry passes the full13/13 container suite1791294686-58725 with actual
+Noctalia selection/discard/recovery, niri privacy/recovery and no cleanup failures.
+Persisted APP_VERSION remains5.0.1; unknown outputs still refuse. This qualifies
+the existing adapter, not Noctalia artifact production or a production release.
+Source: home/linux.rs, core/noctalia.rs and worklog PR39 entry.
+
+Niri artifact integration (2026-10-06): qemu-arm64 ordinary composition imports a
+public single-file source object using the engine's canonical tree encoder and
+verified admission/readback. Its root-owned0644 home-artifacts.json is at most
+4096 bytes and is checked against the already trusted ordinary baseline without
+opening a desktop build store. ENOENT alone selects legacy loading; malformed,
+linked, unsupported or mismatched present records refuse. Keep schema1 home
+records/journals and native activation domains unchanged. Actual composition/GC,
+installed-loader refusals and retained old CLI readback pass locally; native home
+reload/killed-CLI recovery passes on the composed fixture. Signed A/B/A remains a
+separate exact-run gate. Source: home_artifact.rs, engine store/tree.rs,
+tests/e2e_system.rs, tests/container/home_artifact_tests.rs and worklog PR39 entry.
+
 Qualified 2026-09-30, Fedora 44 `noctalia-5.2.0-1.fc44`: native output is exactly
 `noctalia v5.2.0`. Shipped TOML passes native validation; the full export retains
 `theme.mode`, `shell.button_borders` and `shell.input_borders` with the same types.
@@ -48,3 +69,14 @@ UEFI Secure Boot A/B/A home run37588829765 passes stage-B, accept-B/rollback-sta
 and rollback-A-home plus independent-group/baseline/recovery assessment. Preserve
 persisted5.0.1 identity; production publication and unrelated installer gates are
 separate. Sources: worklog HOMEQUAL-04 and Actions37588829710/37588829765.
+
+Main integration (2026-10-07): PR38 introduces SourceFile/source_identity and
+Store::import_resources. The niri helper delegates to that admission and shared
+canonical tree encoder, preserving zero references, non-executable content and
+verified readback. Generic resource32MiB limits do not change niri128KiB limits.
+Use a pre-artifact CLI that supports the selected package format for source
+preview: b60 refuses the authoritative .kedra source after packages.list retirement.
+The signed home fixture pins pre-artifact main46b4; do not treat old schema1 state
+readback as proof that an older CLI understands a newer source language.
+Source: resources/store/tree.rs, source_packages.rs and the public source-plan
+refusal recorded in WL-20261007-MAINONLY-01. New signed execution is still required.

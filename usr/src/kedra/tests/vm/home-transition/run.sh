@@ -45,6 +45,13 @@ chmod 0600 "$private/passphrase"
 skopeo generate-sigstore-key --output-prefix "$private/allowed" --passphrase-file "$private/passphrase"
 openssl req -x509 -newkey rsa:3072 -nodes -days 1 -subj /CN=registry.kedra.test \
     -addext subjectAltName=DNS:registry.kedra.test -keyout "$private/tls.key" -out "$root/tls.crt" 2> "$evidence/tls-generation.log"
+# Authentic pre-artifact CLI; keep its source and checksum alongside the generated fixture.
+mkdir "$root/old-cli"
+git archive 46b4fe2c0d25e3129fc0297ff40d5a43baabed1b | tar -x -C "$root/old-cli"
+cargo build --release --locked -p sysroot --manifest-path "$root/old-cli/Cargo.toml" \
+    --target-dir "$root/old-cli/target" > "$evidence/old-cli-build.log" 2>&1
+cp "$root/old-cli/target/release/sysroot" "$root/old-cli/sysroot"
+sha256sum "$root/old-cli/sysroot" target/release/sysroot > "$evidence/cli-checksums.txt"
 uv run usr/src/kedra/tests/vm/home-transition/prepare.py images
 cp "$root/fixture.json" "$evidence/"
 sudo mkdir -p /etc/containers/registries.d /etc/containers/certs.d/registry.kedra.test:5000

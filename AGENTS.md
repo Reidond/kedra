@@ -29,6 +29,8 @@ is bound into signed image identity; never rename it.
 ## Settled choices
 
 - Kedra is the OS/project; `sysroot` is the command. Repo: `Reidond/kedra`.
+- `main` is the sole integration/default branch. Feature PRs target `main`;
+  do not recreate a separate `dev` integration branch.
 - Fedora 44 bootc, plain Containerfile, Actions signed OCI builds and local on-demand ISO construction; unsigned local lab builds only for testing. No BlueBuild or GitHub Release/ISO publication.
 - Rust edition 2024, Cargo workspace, one lockfile, pinned toolchain,
   rustfmt/Clippy. No Cargo `src/` directories: crates keep explicit flat

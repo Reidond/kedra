@@ -99,7 +99,11 @@ pub fn source_identity(files: &BTreeMap<String, SourceFile>) -> Result<String> {
         }))
         .collect();
     entries.sort_by(|left, right| left.path.split('/').cmp(right.path.split('/')));
+    Ok(format!("src-{}", tree_digest(&entries)?))
+}
+
+pub(crate) fn tree_digest(entries: &[Entry]) -> Result<String> {
     let mut bytes = b"sysroot-engine-tree-v1\0".to_vec();
-    bytes.extend(serde_json::to_vec(&entries)?);
-    Ok(format!("src-{}", hash(&bytes)))
+    bytes.extend(serde_json::to_vec(entries)?);
+    Ok(hash(&bytes))
 }

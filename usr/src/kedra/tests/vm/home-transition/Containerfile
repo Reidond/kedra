@@ -15,7 +15,17 @@ COPY check.service /usr/lib/systemd/system/kedra-research-r04.service
 COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-research-console.toml
 COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
 COPY source.bundle fixture.json /usr/share/kedra-research/
+COPY sysroot-old sysroot-new /usr/libexec/kedra-research-cli/
+COPY home-artifacts.json /usr/share/kedra-research/home-artifacts.json
 RUN printf '%s\n' "$VARIANT" > /usr/share/kedra-research/variant && \
+    chmod 0755 /usr/libexec/kedra-research-cli/sysroot-* && \
+    if test "$VARIANT" = B; then \
+        install -m 0644 /usr/share/kedra-research/home-artifacts.json /usr/share/sysroot/home-artifacts.json && \
+        install -m 0755 /usr/libexec/kedra-research-cli/sysroot-new /usr/bin/sysroot; \
+    else \
+        rm -f /usr/share/sysroot/home-artifacts.json && \
+        install -m 0755 /usr/libexec/kedra-research-cli/sysroot-old /usr/bin/sysroot; \
+    fi && \
     printf 'Disposable R04 authority and source fixtures.\n' > /usr/share/sysroot/research-only && \
     printf '\noutput "Virtual-1" {\n mode "1280x768"\n scale 1\n}\n' >> /etc/skel/.config/niri/config.kdl && \
     chmod 0755 /usr/libexec/kedra-research-r04 && \

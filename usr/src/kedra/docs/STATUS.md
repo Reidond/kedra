@@ -1,5 +1,50 @@
 # Verified status
 
+## Main-only integration (2026-10-07)
+
+The owner requests main as the sole integration branch and removal of dev.
+PR39 incorporates merged main46b4fe2/PR38/PR43, preserving the package frontend
+and existing Noctalia qualification. Integrated05b8c6c source checks pass both architectures; containers37597450332
+pass ARM13/13 and desktop12/12. Updated signed home37597450368 passes actual
+A/B/A and old/new state/CLI readback with the46b4 pre-artifact CLI. Parent
+verifies producer/container/signed artifact digests and complete clean reports.
+Dev is absent locally/remotely; main is the sole integration/default branch.
+See worklog MAINONLY-01/02/03. The owner now authorizes merging PR39. Its
+final automated review finding is being addressed: the composition home-artifact
+case must provision its pinned pre-feature CLI through the existing lab builder.
+New runtime/source verification precedes conversation resolution and merge;
+PR39 has not yet merged. No workstation rollout is performed.
+
+## PR39 niri artifact qualification (2026-10-06)
+
+[PR39](https://github.com/Reidond/kedra/pull/39) implements the narrow niri artifact
+producer and strict optional installed consumer. Actual local composition/reuse/
+transport/GC, installed refusals/old CLI, privacy/native reload/killed-CLI recovery
+and owned context-export ENOSPC/retry pass. Home state/domains, public commands,
+runtime output kinds and composition schema remain unchanged.
+
+Exact implementation0a2667d passes source Check37477670402/37477677757 on both
+architectures; container37477670445 passes ARM13/13 and desktop12/12 with verified
+complete reports and no cleanup failures. Current Noctalia5.2.1 is independently
+qualified by native validation/export and full13/13 local1791294686-58725; only
+that exact runtime is added, retaining projection5.0.1 and unknown-version refusal.
+
+[Signed home37477670375](https://github.com/Reidond/kedra/actions/runs/37477670375)
+passes actual new-record A/B/A under Secure Boot, nonempty S/I/P preservation,
+caller-home/native reconciliation and all old/new niri/state combinations. Its
+record comes from genuine native ARM ordinary composition, independently matched
+by parent source admission after verified transfer. Parent audits ZIP303c1363
+and the three actual secure-boot/cross-version/home completion phases.
+Existing signed-update37477670084 and QEMU ARM boot37477670395 pass separately.
+See worklog WL-20261006-05/06/07 for exact custody and scopes.
+
+This completes the PR39 artifact slice. Earlier D2/D5 installation/native fault
+gaps remain unresolved; no production image rollout, workstation application or
+physical-hardware qualification is claimed. Product and workflow evidence is pinned to0a2667d; the final follow-up changes
+evidence/spec/status only. The PR dashboard reports current-head source checks.
+
+
+
 ## Noctalia5.2.1 follow-up (2026-10-07)
 
 PR38 is merged at `caa87aca7d1fe88a94cbf9e57e5237dc68bd3ae3`. The owner

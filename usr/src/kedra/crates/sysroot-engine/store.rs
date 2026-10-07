@@ -20,6 +20,62 @@ const DIRECTORIES: [&str; 6] = [
     "quarantine",
     "roots",
 ];
+/// Predict content identity without importing or pinning an object.
+/// Uses the same canonical non-executable tree encoder as directory admission.
+pub fn single_file_source_receipt(member: &str, bytes: &[u8]) -> Result<ObjectReceipt> {
+    if member.contains('/') {
+        return Err(Error::Invalid(
+            "source member must be one bounded file".into(),
+        ));
+    }
+    let mut references = BTreeSet::new();
+    tree::scan(member.as_bytes(), &mut references)?;
+    tree::scan(bytes, &mut references)?;
+    if !references.is_empty() {
+        return Err(Error::Invalid(
+            "single-file source cannot reference store objects".into(),
+        ));
+    }
+    let object = crate::source_identity(&BTreeMap::from([(
+        member.into(),
+        crate::SourceFile {
+            executable: false,
+            bytes: bytes.to_vec(),
+        },
+    )]))?;
+    Ok(ObjectReceipt {
+        schema: 1,
+        tree_sha256: object
+            .strip_prefix("src-")
+            .ok_or_else(|| Error::Corrupt("source identity kind differs".into()))?
+            .into(),
+        object,
+        references: Vec::new(),
+        runtime_image: None,
+        derivation: None,
+    })
+}
+/// Verify a self-contained source receipt without consulting a build store.
+/// This proves content identity only; installed authority belongs to the caller.
+pub fn verify_single_file_source(
+    receipt: &ObjectReceipt,
+    member: &str,
+    bytes: &[u8],
+) -> Result<()> {
+    let expected = single_file_source_receipt(member, bytes)?;
+    if receipt.schema != expected.schema
+        || receipt.object != expected.object
+        || receipt.tree_sha256 != expected.tree_sha256
+        || !receipt.references.is_empty()
+        || receipt.runtime_image.is_some()
+        || receipt.derivation.is_some()
+    {
+        return Err(Error::Corrupt(
+            "single-file source receipt differs from content".into(),
+        ));
+    }
+    Ok(())
+}
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Marker {
@@ -268,6 +324,36 @@ impl Store {
             tree::remove(&stage)?;
         }
         result
+    }
+    /// Admit and pin one public file through the shared resource importer, then
+    /// return verified stored bytes. References and executable content remain excluded.
+    pub fn import_source_file(
+        &self,
+        member: &str,
+        bytes: &[u8],
+    ) -> Result<(ObjectReceipt, Vec<u8>)> {
+        single_file_source_receipt(member, bytes)?;
+        let admitted = self.import_resources(&BTreeMap::from([(
+            member.into(),
+            crate::SourceFile {
+                executable: false,
+                bytes: bytes.to_vec(),
+            },
+        )]))?;
+        let receipt = self.verify(&admitted.object)?;
+        let path = self.object_path(&receipt.object).join("data").join(member);
+        owned_node(&path, false)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .open(path)?;
+        let mut stored = Vec::new();
+        file.take(bytes.len() as u64 + 1).read_to_end(&mut stored)?;
+        verify_single_file_source(&receipt, member, &stored)?;
+        if stored != bytes {
+            return Err(Error::Corrupt("single-file source readback differs".into()));
+        }
+        Ok((receipt, stored))
     }
     pub(crate) fn admit_object(&self, stage: &Path, receipt: &ObjectReceipt) -> Result<()> {
         object_id(&receipt.object)?;

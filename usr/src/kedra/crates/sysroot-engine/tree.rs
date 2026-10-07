@@ -4,7 +4,6 @@ use crate::{
     plan::{object_id, relative},
 };
 use rustix::fs::{Mode, OFlags, openat};
-use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, File, Permissions},
@@ -41,12 +40,9 @@ pub(crate) fn inspect(path: &Path, dest: Option<&Path>) -> Result<Tree> {
     };
     walker.walk(&fd, "")?;
     validate_links(&walker.entries)?;
-    let bytes = serde_json::to_vec(&walker.entries)?;
-    let mut hash = Sha256::new();
-    hash.update(b"sysroot-engine-tree-v1\0");
-    hash.update(bytes);
+
     Ok(Tree {
-        digest: crate::plan::encode_hex(&hash.finalize()),
+        digest: crate::resources::tree_digest(&walker.entries)?,
         entries: walker.entries,
         references: walker.refs,
     })

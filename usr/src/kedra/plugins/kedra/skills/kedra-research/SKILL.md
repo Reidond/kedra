@@ -25,6 +25,16 @@ and independent-daemon results are recorded separately in native qualification.
 Boot/signature deployment remains a separate gate.
 Evidence: `.specs/nix-context-replay/verification.md`. No new runner/root authority.
 
+The composition home-artifact case provisions its own retained Linux CLI through
+the existing disposable builder (2026-10-07, Rust1.98.1), pinned to pre-artifact
+main46b4fe2 so it also understands the current package source language. Do not
+require an undocumented caller executable or silently skip old/new readback.
+The source commit must exist locally and normal builder network prerequisites
+apply; missing source/build failures fail the case. The image under test remains
+the verified static composition without a worktree overlay. Record the retained
+source and binary hash in the case artifacts. Source: container/README.md,
+home_artifact_tests.rs and worklog WL-20261007-MERGE39-01.
+
 Fresh empty mutual-TLS Docker29.8.1 replay and same-binding cache repeat pass
 (2026-10-01). Four actual static publication SIGKILL windows also pass: temporary
 image/pre-ID rebuild, then exact-ID resume after journal ID, binding and final

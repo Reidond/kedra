@@ -1,7 +1,7 @@
 //! Explicit niri text adoption, Git-backed selection and source-only publication.
 //! Live file writes and baseline activation are deliberately separate operations.
 use super::{TextCommand, export, linux};
-use crate::source;
+use crate::{home_artifact, source};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::Write;
@@ -14,7 +14,7 @@ mod activation;
 mod transition;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-const LIMIT: usize = 131_072;
+const LIMIT: usize = home_artifact::NIRI_LIMIT;
 
 /// Closed application selection; a caller path never becomes a storage key or
 /// an arbitrary home/installed path. Existing niri identities stay byte-stable.
@@ -43,7 +43,7 @@ impl ManagedText {
     }
     const fn destination(self) -> &'static str {
         match self {
-            Self::Niri => "usr/share/sysroot/home/default/.config/niri/config.kdl",
+            Self::Niri => home_artifact::NIRI_DESTINATION,
         }
     }
     const fn journal(self) -> &'static str {
@@ -75,15 +75,7 @@ fn hash(bytes: &[u8]) -> String {
         .collect()
 }
 fn content(bytes: &[u8]) -> Result<String> {
-    let text = std::str::from_utf8(bytes).map_err(|_| "managed text must be UTF-8")?;
-    if bytes.len() > LIMIT
-        || text.lines().count() > 8192
-        || text.contains(['\0', '\r'])
-        || (!text.is_empty() && !text.ends_with('\n'))
-    {
-        return Err("managed text must be bounded LF text ending with a newline".into());
-    }
-    Ok(text.to_owned())
+    Ok(home_artifact::niri_content(bytes)?.to_owned())
 }
 fn hex(value: &str, length: usize) -> bool {
     value.len() == length
@@ -608,6 +600,19 @@ fn installed(managed: ManagedText) -> Result<Baseline> {
     let bytes = linux::read_regular(&Path::new("/").join(managed.destination()), 0, LIMIT)?;
     if hash(&bytes) != files[0].sha256 {
         return Err("installed niri baseline hash differs".into());
+    }
+    let record_path = Path::new(home_artifact::RECORD_PATH);
+    match std::fs::symlink_metadata(record_path) {
+        Ok(metadata) => {
+            use std::os::unix::fs::MetadataExt;
+            if metadata.mode() & 0o7777 != 0o644 {
+                return Err("installed home artifact record must have mode 0644".into());
+            }
+            let record = linux::read_regular(record_path, 0, home_artifact::RECORD_LIMIT)?;
+            home_artifact::verify(&record, &bytes)?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error.into()),
     }
     Ok(Baseline {
         target: manifest.target.id,

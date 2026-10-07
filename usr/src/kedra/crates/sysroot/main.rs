@@ -16,6 +16,8 @@ mod doctor;
 #[cfg(unix)]
 mod engine;
 mod home;
+#[cfg(unix)]
+mod home_artifact;
 mod installer_artifact;
 mod release_channel;
 mod release_history;

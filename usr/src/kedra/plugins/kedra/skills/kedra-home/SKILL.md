@@ -30,3 +30,14 @@ projection allowlist. Keep persisted `APP_VERSION = 5.0.1`, so previously captur
 records and image rollback remain readable. Unknown runtime outputs still refuse
 before capture. See worklog WL-20260930-01 and docs/HOME-REVIEW.md; raw exports are
 private fixture evidence and do not belong in Git.
+
+Qualified native home workflow2026-10-07, Fedora44
+`noctalia-5.2.1-1.fc44.aarch64`: native output exactly `noctalia v5.2.1`,
+curated validation and safe three-field types remain compatible. The real
+home-review cycle1791358601-5762 passes in21.96s with no cleanup failure, including
+writer coordination, discard and killed-CLI recovery. Add only this exact runtime
+to native matching and the projection allowlist; retain persisted APP_VERSION5.0.1
+and unknown-version refusal. Both earlier container and signed home VM failures
+37517864833/37517864796 originate at this gate. VM A/B/A completion is separate.
+Source: worklog WL-20261007-HOMEQUAL-01/02, docs/HOME-REVIEW.md, Linux
+home/live and core/noctalia.rs. Raw effective exports must remain private/transient.

@@ -11,7 +11,7 @@ use std::fmt;
 /// Persisted projection identity, not the running binary version. Keep existing
 /// records readable across qualified runtime upgrades and image rollback.
 pub const APP_VERSION: &str = "5.0.1";
-const QUALIFIED_RUNTIME_VERSIONS: [&str; 3] = ["5.0.1", "5.1.0", "5.2.0"];
+const QUALIFIED_RUNTIME_VERSIONS: [&str; 4] = ["5.0.1", "5.1.0", "5.2.0", "5.2.1"];
 pub const MAX_EXPORT: usize = 1024 * 1024;
 const MAX_STATE: usize = 65_536;
 const KEYS: [Key; 3] = [Key::ThemeMode, Key::ButtonBorders, Key::InputBorders];

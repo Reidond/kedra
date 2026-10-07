@@ -2,7 +2,7 @@
 
 For the separate niri line-selection workflow, see [ordinary text review](TEXT-REVIEW.md).
 
-The current Linux commands review three effective Noctalia settings (runtime 5.0.1, 5.1.0 or 5.2.0 exactly):
+The current Linux commands review three effective Noctalia settings (runtime 5.0.1, 5.1.0, 5.2.0 or 5.2.1 exactly):
 `theme.mode`, `shell.button_borders` and `shell.input_borders`. They store only
 these projected values in a private SQLite directory. Other exported settings,
 credentials and raw application exports do not enter that store.
@@ -187,3 +187,19 @@ Its generated guest has a root-owned,
 `visudo`-checked grant limited to the installed helper with no arguments; that
 unattended fixture is not evidence of interactive password authentication and
 the grant is never part of the production or shared image.
+
+## Fedora5.2.1 runtime qualification (2026-10-07)
+
+The exact Fedora44 `noctalia-5.2.1-1.fc44.aarch64` package reports
+`noctalia v5.2.1`. Its native validator accepts the curated image config and the
+full export retains the three supported fields with the same types. The full
+export remains transient; only the safe projection enters review records.
+
+The real `native::home_review_cycle` passes on the retained candidate
+`f3f61f5ae89c4308ec30cc9501e4a92995476bc5c30d86d68d018aac8c53469b`
+with the current working-tree binaries: selection/local policy, writer stop/start,
+stale-plan refusal, native discard/metadata preservation, killed-CLI recovery and
+niri review all pass. The report is uninterrupted and has no cleanup failure.
+Persisted `APP_VERSION` stays5.0.1, preserving existing records and rollback;
+unknown runtime versions continue to refuse before capture. Full fresh target and
+signed A/B/A VM qualification are recorded separately in STATUS/worklog.

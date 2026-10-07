@@ -1,8 +1,9 @@
 //! Offline content verification. Caller-selected identity is not release authority.
 use crate::{
     Argument, BuildGraph, BuildNode, Error, Input, LOGICAL_PREFIX, MAX_JSON, ManagedSnapshot,
-    ObjectReceipt, PLATFORM, Result, Segment, SnapshotPurpose, SystemComposition, SystemContent,
-    SystemFile, SystemFileDisposition, SystemPlan, image_archive, plan, system,
+    ObjectReceipt, PLATFORM, ResolvedSystemFile, Result, Segment, SnapshotPurpose,
+    SystemComposition, SystemContent, SystemFile, SystemFileDisposition, SystemPlan, image_archive,
+    plan, system,
     tree::{self, Entry, Kind},
 };
 use rustix::fs::{Mode, OFlags, openat};
@@ -499,130 +500,15 @@ fn verify_payload(
         .collect();
     let mut expected_order: Vec<String> = files.keys().map(|p| (*p).to_owned()).collect();
     expected_order.push(RECEIPT.into());
-    let mut names = BTreeSet::new();
-    let mut trees = BTreeMap::new();
-    let mut metadata_bytes = 0usize;
     let mut input = tar::Archive::new(File::open(path)?);
     input.set_ignore_zeros(true);
-    let mut canonical = tar::Builder::new(HashWriter(Sha256::new()));
+    let mut scan = PayloadScan::new(&files, &receipt, &plan.objects);
     // Re-encoding every logical member with the exporter's exact headers also
     // checks GNU extension bytes, padding, metadata and the complete TAR ending.
     for entry in input.entries()? {
-        let mut entry = entry?;
-        let name = std::str::from_utf8(&entry.path_bytes())
-            .map_err(|_| invalid("non-UTF8 payload path"))?
-            .to_owned();
-        plan::relative(&name, false)?;
-        metadata_bytes = metadata_bytes.saturating_add(name.len() + 256);
-        if metadata_bytes > MAX_METADATA {
-            return Err(invalid("payload metadata exceeds 64 MiB"));
-        }
-        if names.len() >= 1_000_000 || !names.insert(name.clone()) {
-            return Err(invalid("duplicate or excessive payload members"));
-        }
-        let mode = entry.header().mode()?;
-        let kind = entry.header().entry_type();
-        let size = entry.size();
-        if entry.header().uid()? != 0 || entry.header().gid()? != 0 || entry.header().mtime()? != 0
-        {
-            return Err(invalid("noncanonical payload ownership/time"));
-        }
-        if let Some(file) = files.get(name.as_str()) {
-            verify_regular(&mut entry, &mut canonical, &name, file.mode, &file.bytes)?;
-        } else if name == RECEIPT {
-            verify_regular(&mut entry, &mut canonical, &name, 0o644, &receipt)?;
-        } else {
-            let suffix = name
-                .strip_prefix(&format!("{}/", &LOGICAL_PREFIX[1..]))
-                .ok_or_else(|| invalid("unexpected payload path"))?;
-            let (id, relative) = suffix.split_once('/').unwrap_or((suffix, ""));
-            if !plan.objects.contains_key(id) {
-                return Err(invalid("undeclared payload object"));
-            }
-            if relative.is_empty() {
-                if !kind.is_dir() || size != 0 || mode != 0o555 || trees.contains_key(id) {
-                    return Err(invalid("invalid object root"));
-                }
-                trees.insert(id.to_owned(), ObjectTree::default());
-                canonical.append_data(
-                    &mut system::header(0o555, 0, tar::EntryType::Directory),
-                    &name,
-                    std::io::empty(),
-                )?;
-                continue;
-            }
-            plan::relative(relative, false)?;
-            let tree = trees
-                .get_mut(id)
-                .ok_or_else(|| invalid("object entry precedes root"))?;
-            if tree.entries.len() >= 100_000 {
-                return Err(invalid("object exceeds 100000 entries"));
-            }
-            tree::scan(relative.as_bytes(), &mut tree.references)?;
-            let value = if kind.is_file() && matches!(mode, 0o444 | 0o555) {
-                tree.bytes = tree
-                    .bytes
-                    .checked_add(size)
-                    .ok_or_else(|| invalid("object size overflow"))?;
-                if size > tree::MAX_FILE || tree.bytes > tree::MAX_TREE {
-                    return Err(invalid("object exceeds file/tree size limit"));
-                }
-                let mut reader = ScannedReader::new(&mut entry);
-                canonical.append_data(
-                    &mut system::header(mode, size, tar::EntryType::Regular),
-                    &name,
-                    &mut reader,
-                )?;
-                let (sha256, references, bytes) = reader.finish()?;
-                if bytes != size {
-                    return Err(invalid("truncated object file"));
-                }
-                tree.references.extend(references);
-                if tree.references.len() > 100_000 {
-                    return Err(invalid("object reference limit exceeded"));
-                }
-                Kind::File {
-                    executable: mode == 0o555,
-                    bytes: size,
-                    sha256,
-                }
-            } else if kind.is_dir() && mode == 0o555 && size == 0 {
-                canonical.append_data(
-                    &mut system::header(mode, 0, tar::EntryType::Directory),
-                    &name,
-                    std::io::empty(),
-                )?;
-                Kind::Directory
-            } else if kind.is_symlink() && mode == 0o777 && size == 0 {
-                let target = entry
-                    .link_name_bytes()
-                    .ok_or_else(|| invalid("symlink target missing"))?;
-                let target = std::str::from_utf8(&target)
-                    .map_err(|_| invalid("non-UTF8 link target"))?
-                    .to_owned();
-                metadata_bytes = metadata_bytes.saturating_add(target.len());
-                if metadata_bytes > MAX_METADATA {
-                    return Err(invalid("payload metadata exceeds 64 MiB"));
-                }
-                tree::link_target(relative, &target)?;
-                tree::scan(target.as_bytes(), &mut tree.references)?;
-                canonical.append_link(
-                    &mut system::header(mode, 0, tar::EntryType::Symlink),
-                    &name,
-                    &target,
-                )?;
-                Kind::Symlink { target }
-            } else {
-                return Err(invalid("unsupported payload entry type/mode"));
-            };
-            tree.entries.push(Entry {
-                path: relative.to_owned(),
-                kind: value,
-            });
-        }
+        scan.member(entry?)?;
     }
-    canonical.finish()?;
-    let hash = plan::encode_hex(&canonical.into_inner()?.0.finalize());
+    let (trees, hash) = scan.finish()?;
     if hash != composition.artifacts["payload.tar"].sha256 {
         return Err(invalid("payload is not the canonical exported TAR"));
     }
@@ -640,6 +526,224 @@ fn verify_payload(
     }
     // A separate bounded header-only read compares export order without retaining
     // large member contents; object trees themselves retain only entry metadata.
+    verify_member_order(path, expected_order)?;
+    Ok(trees)
+}
+
+#[derive(Clone, Copy)]
+struct MemberHeader {
+    mode: u32,
+    kind: tar::EntryType,
+    size: u64,
+}
+#[derive(Default)]
+struct MetadataBudget(usize);
+impl MetadataBudget {
+    fn charge(&mut self, bytes: usize) -> Result<()> {
+        self.0 = self.0.saturating_add(bytes);
+        if self.0 > MAX_METADATA {
+            return Err(invalid("payload metadata exceeds 64 MiB"));
+        }
+        Ok(())
+    }
+}
+/// Verifies payload members in archive order while re-encoding them canonically
+/// and collecting each declared object's tree.
+struct PayloadScan<'a> {
+    files: &'a BTreeMap<&'a str, &'a ResolvedSystemFile>,
+    receipt: &'a [u8],
+    objects: &'a BTreeMap<String, ObjectReceipt>,
+    names: BTreeSet<String>,
+    trees: BTreeMap<String, ObjectTree>,
+    metadata: MetadataBudget,
+    canonical: tar::Builder<HashWriter>,
+}
+impl<'a> PayloadScan<'a> {
+    fn new(
+        files: &'a BTreeMap<&'a str, &'a ResolvedSystemFile>,
+        receipt: &'a [u8],
+        objects: &'a BTreeMap<String, ObjectReceipt>,
+    ) -> Self {
+        Self {
+            files,
+            receipt,
+            objects,
+            names: BTreeSet::new(),
+            trees: BTreeMap::new(),
+            metadata: MetadataBudget::default(),
+            canonical: tar::Builder::new(HashWriter(Sha256::new())),
+        }
+    }
+    fn member(&mut self, mut entry: tar::Entry<'_, File>) -> Result<()> {
+        let name = std::str::from_utf8(&entry.path_bytes())
+            .map_err(|_| invalid("non-UTF8 payload path"))?
+            .to_owned();
+        plan::relative(&name, false)?;
+        self.metadata.charge(name.len() + 256)?;
+        if self.names.len() >= 1_000_000 || !self.names.insert(name.clone()) {
+            return Err(invalid("duplicate or excessive payload members"));
+        }
+        let header = MemberHeader {
+            mode: entry.header().mode()?,
+            kind: entry.header().entry_type(),
+            size: entry.size(),
+        };
+        if entry.header().uid()? != 0 || entry.header().gid()? != 0 || entry.header().mtime()? != 0
+        {
+            return Err(invalid("noncanonical payload ownership/time"));
+        }
+        if let Some(file) = self.files.get(name.as_str()) {
+            verify_regular(
+                &mut entry,
+                &mut self.canonical,
+                &name,
+                file.mode,
+                &file.bytes,
+            )
+        } else if name == RECEIPT {
+            verify_regular(&mut entry, &mut self.canonical, &name, 0o644, self.receipt)
+        } else {
+            self.object_member(&mut entry, &name, header)
+        }
+    }
+    fn object_member(
+        &mut self,
+        entry: &mut tar::Entry<'_, File>,
+        name: &str,
+        header: MemberHeader,
+    ) -> Result<()> {
+        let suffix = name
+            .strip_prefix(&format!("{}/", &LOGICAL_PREFIX[1..]))
+            .ok_or_else(|| invalid("unexpected payload path"))?;
+        let (id, relative) = suffix.split_once('/').unwrap_or((suffix, ""));
+        if !self.objects.contains_key(id) {
+            return Err(invalid("undeclared payload object"));
+        }
+        if relative.is_empty() {
+            self.object_root(id, name, header)
+        } else {
+            self.object_entry(entry, name, id, relative, header)
+        }
+    }
+    fn object_root(&mut self, id: &str, name: &str, header: MemberHeader) -> Result<()> {
+        if !header.kind.is_dir()
+            || header.size != 0
+            || header.mode != 0o555
+            || self.trees.contains_key(id)
+        {
+            return Err(invalid("invalid object root"));
+        }
+        self.trees.insert(id.to_owned(), ObjectTree::default());
+        self.canonical.append_data(
+            &mut system::header(0o555, 0, tar::EntryType::Directory),
+            name,
+            std::io::empty(),
+        )?;
+        Ok(())
+    }
+    fn object_entry(
+        &mut self,
+        entry: &mut tar::Entry<'_, File>,
+        name: &str,
+        id: &str,
+        relative: &str,
+        header: MemberHeader,
+    ) -> Result<()> {
+        plan::relative(relative, false)?;
+        let tree = self
+            .trees
+            .get_mut(id)
+            .ok_or_else(|| invalid("object entry precedes root"))?;
+        if tree.entries.len() >= 100_000 {
+            return Err(invalid("object exceeds 100000 entries"));
+        }
+        tree::scan(relative.as_bytes(), &mut tree.references)?;
+        let MemberHeader { mode, kind, size } = header;
+        let value = if kind.is_file() && matches!(mode, 0o444 | 0o555) {
+            reencode_object_file(entry, &mut self.canonical, tree, name, header)?
+        } else if kind.is_dir() && mode == 0o555 && size == 0 {
+            self.canonical.append_data(
+                &mut system::header(mode, 0, tar::EntryType::Directory),
+                name,
+                std::io::empty(),
+            )?;
+            Kind::Directory
+        } else if kind.is_symlink() && mode == 0o777 && size == 0 {
+            let target = read_link_target(entry, &mut self.metadata, relative)?;
+            tree::scan(target.as_bytes(), &mut tree.references)?;
+            self.canonical.append_link(
+                &mut system::header(mode, 0, tar::EntryType::Symlink),
+                name,
+                &target,
+            )?;
+            Kind::Symlink { target }
+        } else {
+            return Err(invalid("unsupported payload entry type/mode"));
+        };
+        tree.entries.push(Entry {
+            path: relative.to_owned(),
+            kind: value,
+        });
+        Ok(())
+    }
+    fn finish(self) -> Result<(BTreeMap<String, ObjectTree>, String)> {
+        let mut canonical = self.canonical;
+        canonical.finish()?;
+        let hash = plan::encode_hex(&canonical.into_inner()?.0.finalize());
+        Ok((self.trees, hash))
+    }
+}
+fn reencode_object_file(
+    entry: &mut tar::Entry<'_, File>,
+    canonical: &mut tar::Builder<HashWriter>,
+    tree: &mut ObjectTree,
+    name: &str,
+    header: MemberHeader,
+) -> Result<Kind> {
+    let MemberHeader { mode, size, .. } = header;
+    tree.bytes = tree
+        .bytes
+        .checked_add(size)
+        .ok_or_else(|| invalid("object size overflow"))?;
+    if size > tree::MAX_FILE || tree.bytes > tree::MAX_TREE {
+        return Err(invalid("object exceeds file/tree size limit"));
+    }
+    let mut reader = ScannedReader::new(entry);
+    canonical.append_data(
+        &mut system::header(mode, size, tar::EntryType::Regular),
+        name,
+        &mut reader,
+    )?;
+    let (sha256, references, bytes) = reader.finish()?;
+    if bytes != size {
+        return Err(invalid("truncated object file"));
+    }
+    tree.references.extend(references);
+    if tree.references.len() > 100_000 {
+        return Err(invalid("object reference limit exceeded"));
+    }
+    Ok(Kind::File {
+        executable: mode == 0o555,
+        bytes: size,
+        sha256,
+    })
+}
+fn read_link_target(
+    entry: &tar::Entry<'_, File>,
+    metadata: &mut MetadataBudget,
+    relative: &str,
+) -> Result<String> {
+    let target = entry
+        .link_name_bytes()
+        .ok_or_else(|| invalid("symlink target missing"))?;
+    let target = std::str::from_utf8(&target)
+        .map_err(|_| invalid("non-UTF8 link target"))?
+        .to_owned();
+    metadata.charge(target.len())?;
+    tree::link_target(relative, &target)?;
+    Ok(target)
+}
+fn verify_member_order(path: &Path, expected_order: Vec<String>) -> Result<()> {
     let mut archive = tar::Archive::new(File::open(path)?);
     let mut entries = archive.entries_with_seek()?;
     for expected in expected_order {
@@ -653,7 +757,7 @@ fn verify_payload(
     if entries.next().is_some() {
         return Err(invalid("extra payload member"));
     }
-    Ok(trees)
+    Ok(())
 }
 
 fn validate_tar_envelope(path: &Path) -> Result<()> {

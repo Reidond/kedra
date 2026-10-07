@@ -106,7 +106,7 @@ It builds the pre-artifact Linux CLI from pinned source
 `46b4fe2c0d25e3129fc0297ff40d5a43baabed1b` through the existing disposable lab
 builder, then checks old/new state readback in the static System-profile image.
 No caller-supplied old executable is required. The source commit must be available
-locally (`git fetch origin` in a shallow checkout); the builder needs the normal
+locally (`git fetch origin 46b4fe2c0d25e3129fc0297ff40d5a43baabed1b` if absent); the builder needs the normal
 image/dependency network access. The test records the retained source commit and
 binary SHA256 in its `old-cli.json` artifact. It does not rebuild or overlay the
 image under test.

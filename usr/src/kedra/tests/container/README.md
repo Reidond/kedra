@@ -100,6 +100,23 @@ omits it. Lab desktop adaptation still runs its normal networked tools layer, an
 is separate from the offline static replay. See [system composition](../../docs/SYSTEM.md)
 and [actual replay evidence](../../../../../.specs/nix-context-replay/verification.md).
 
+The composition-only `native::home_artifact_record` case requires a context
+produced by the current composer with the niri baseline and its artifact record.
+It builds the pre-artifact Linux CLI from pinned source
+`46b4fe2c0d25e3129fc0297ff40d5a43baabed1b` through the existing disposable lab
+builder, then checks old/new state readback in the static System-profile image.
+No caller-supplied old executable is required. The source commit must be available
+locally (`git fetch origin` in a shallow checkout); the builder needs the normal
+image/dependency network access. The test records the retained source commit and
+binary SHA256 in its `old-cli.json` artifact. It does not rebuild or overlay the
+image under test.
+
+```sh
+KEDRA_LAB_IMAGE=composition:/absolute/context \
+KEDRA_LAB_COMPOSITION_IDENTITY=<independently-retained-identity> \
+cargo test -p kedra-container-tests --test container --locked -- home_artifact_record
+```
+
 For an already cached `ref:` image, BuildKit receives a harness-owned
 `kedra-lab-base:<image-id>` tag because a bare local `sha256:...` in FROM is parsed
 as a Docker Hub image name. The report retains the actual immutable local image ID.

@@ -1,6 +1,5 @@
 //! Public installed-home commands over an actual exported composition.
-use std::path::PathBuf;
-
+use kedra_container_tests::builder::{self, Stage};
 use kedra_container_tests::docker::Exec;
 use kedra_container_tests::scenario::Context;
 use kedra_container_tests::{Error, Result};
@@ -9,6 +8,7 @@ use serde_json::{Value, json};
 const RECORD: &str = "/usr/share/sysroot/home-artifacts.json";
 const BASELINE: &str = "/usr/share/sysroot/home/default/.config/niri/config.kdl";
 const OLD: &str = "/usr/libexec/kedra-lab/sysroot-old";
+const OLD_SOURCE: &str = "46b4fe2c0d25e3129fc0297ff40d5a43baabed1b";
 
 fn require(condition: bool, message: &str) -> Result<()> {
     if condition {
@@ -20,6 +20,25 @@ fn require(condition: bool, message: &str) -> Result<()> {
 
 pub fn installed_record(context: &Context<'_>) -> Result<()> {
     let docker = context.docker;
+    let target = kedra_container_tests::image::target(docker, Some(&context.target))?;
+    let retained = builder::prepare(
+        docker,
+        &target.id,
+        &target.architecture,
+        &Stage::Revision(OLD_SOURCE.into()),
+        None,
+        &kedra_container_tests::artifact_root().join("cache"),
+    )?;
+    let old = std::fs::read(&retained.sysroot)?;
+    std::fs::create_dir_all(&context.artifacts)?;
+    std::fs::write(
+        context.artifacts.join("old-cli.json"),
+        serde_json::to_vec_pretty(&json!({
+            "source_commit": retained.source_commit,
+            "sha256": builder::file_sha256(&retained.sysroot)?,
+        }))
+        .map_err(|error| Error::Invalid(error.to_string()))?,
+    )?;
     let id = &context.environment.id;
     let record = docker.read_file(id, RECORD)?;
     let baseline = docker.read_file(id, BASELINE)?;
@@ -199,13 +218,6 @@ pub fn installed_record(context: &Context<'_>) -> Result<()> {
             "record refusals changed existing review state",
         )?;
 
-        // Require an independently retained pre-feature executable for cross-version coverage.
-        let old_path = std::env::var_os("KEDRA_LAB_OLD_SYSROOT")
-            .map(PathBuf::from)
-            .ok_or_else(|| {
-                Error::Invalid("KEDRA_LAB_OLD_SYSROOT must pin a retained old Linux CLI".into())
-            })?;
-        let old = std::fs::read(&old_path)?;
         docker.write_file(id, OLD, &old, "root", "0755")?;
         let old_state = adopt(OLD, None)?;
         for (binary, state) in [("sysroot", old_state.as_str()), (OLD, current.as_str())] {

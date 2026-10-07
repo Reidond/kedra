@@ -9,7 +9,11 @@ pass ARM13/13 and desktop12/12. Updated signed home37597450368 passes actual
 A/B/A and old/new state/CLI readback with the46b4 pre-artifact CLI. Parent
 verifies producer/container/signed artifact digests and complete clean reports.
 Dev is absent locally/remotely; main is the sole integration/default branch.
-See worklog MAINONLY-01/02/03. No main merge or production rollout is performed.
+See worklog MAINONLY-01/02/03. The owner now authorizes merging PR39. Its
+final automated review finding is being addressed: the composition home-artifact
+case must provision its pinned pre-feature CLI through the existing lab builder.
+New runtime/source verification precedes conversation resolution and merge;
+PR39 has not yet merged. No workstation rollout is performed.
 
 ## PR39 niri artifact qualification (2026-10-06)
 

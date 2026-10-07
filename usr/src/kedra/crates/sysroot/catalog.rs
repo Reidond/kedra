@@ -953,60 +953,36 @@ fn definition(
     })
 }
 
+struct Preflight {
+    material: serde_json::Value,
+    input_material_sha256: String,
+    pins_bytes: Vec<u8>,
+    catalog_pins_sha256: String,
+    author_sha256: String,
+}
+
+#[derive(Default)]
+struct RealizedPackages {
+    outputs: BTreeMap<String, String>,
+    versions: BTreeMap<String, String>,
+    objects: BTreeMap<String, sysroot_engine::ObjectReceipt>,
+    nodes: BTreeMap<String, String>,
+}
+
 fn contribute(options: Contribution) -> Result<ExitCode> {
-    if options.source_revision.len() != 40
-        || !options
-            .source_revision
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-    {
-        return Err(Error::Invalid(
-            "source revision must be an exact lowercase Git commit".into(),
-        ));
-    }
+    validate_source_revision(&options.source_revision)?;
     let loaded = options
         .language
         .inputs()?
         .map(|inputs| crate::catalog_language::load(&inputs))
         .transpose()?;
     let mut policy: Policy = read(&options.policy)?;
-    let mut contribution_images = None;
-    let (catalog, names) = if let Some(loaded) = &loaded {
-        let images = if let Some(path) = &options.resolution {
-            read::<sysroot_catalog::language::Images>(path)?
-        } else {
-            sysroot_catalog::language::Images {
-                foundation: options.foundation.clone(),
-                builders: loaded
-                    .intent
-                    .builders
-                    .keys()
-                    .map(|role| {
-                        Ok((
-                            role.clone(),
-                            options.builder.clone().ok_or_else(|| {
-                                Error::Invalid("--builder or --resolution required".into())
-                            })?,
-                        ))
-                    })
-                    .collect::<Result<_>>()?,
-            }
-        };
-        if images.foundation != options.foundation {
-            return Err(Error::Invalid(
-                "resolved foundation differs from contribution".into(),
-            ));
+    let (catalog, names, contribution_images) = match &loaded {
+        Some(loaded) => {
+            let (lowered, images) = lower_contribution(&options, loaded, &mut policy)?;
+            (lowered.catalog, lowered.names, Some(images))
         }
-        let lowered =
-            sysroot_catalog::language::lower(&loaded.intent, &loaded.resources, &images, &policy)
-                .map_err(|e| Error::Invalid(e.to_string()))?;
-        policy
-            .source_objects
-            .extend(lowered.resources.keys().cloned());
-        contribution_images = Some(images);
-        (lowered.catalog, lowered.names)
-    } else {
-        (
+        None => (
             builtin(
                 options.builder.as_deref().ok_or_else(|| {
                     Error::Invalid("legacy contribution requires --builder".into())
@@ -1014,7 +990,8 @@ fn contribute(options: Contribution) -> Result<ExitCode> {
                 &options.foundation,
             ),
             BTreeMap::new(),
-        )
+            None,
+        ),
     };
     let selected = catalog
         .packages
@@ -1025,35 +1002,141 @@ fn contribute(options: Contribution) -> Result<ExitCode> {
                 .map_err(|error| Error::Invalid(error.to_string()))
         })
         .collect::<Result<Vec<_>>>()?;
-    let material_bytes = read_bytes(&options.input_material, sysroot_engine::MAX_JSON)?;
-    let material_hash = hash(&material_bytes);
-    if material_hash != options.expected_input_material_sha256 {
-        return Err(Error::Invalid("input material hash differs".into()));
+    let preflight = check_preflight(&options, loaded.as_ref())?;
+    let store = Store::open(&options.store)?;
+    if let (Some(loaded), Some(images)) = (&loaded, &contribution_images) {
+        verify_observed_rpms(&store, &loaded.intent, images, &preflight.material)?;
     }
-    let material: serde_json::Value = serde_json::from_slice(&material_bytes)?;
-    if loaded.is_none() && !material["source"]["package_frontend"].is_null() {
+    let mut realized = verify_realized_packages(&store, selected, &options.foundation)?;
+    if let Some(loaded) = &loaded {
+        alias_runtime_outputs(&loaded.intent, &names, &mut realized)?;
+    }
+    let definition = match &loaded {
+        Some(loaded) => language_definition(
+            loaded,
+            &options.foundation,
+            &options.source_revision,
+            realized.outputs.clone(),
+            realized.versions,
+        )?,
+        None => definition(
+            &options.foundation,
+            &options.source_revision,
+            &catalog.namespace,
+            realized.outputs.clone(),
+            realized.versions,
+        )?,
+    };
+    let definition_bytes = json_bytes(&definition)?;
+    let receipt = ContributionReceipt {
+        schema_version: 1,
+        source_revision: options.source_revision,
+        foundation_image: options.foundation,
+        input_material_sha256: preflight.input_material_sha256,
+        definition_sha256: hash(&definition_bytes),
+        catalog_pins_sha256: preflight.catalog_pins_sha256,
+        author_sha256: preflight.author_sha256,
+        outputs: realized.outputs,
+    };
+    let receipt_bytes = json_bytes(&receipt)?;
+    let results_bytes =
+        json_bytes(&serde_json::json!({"schema_version":1,"objects":realized.objects}))?;
+    write_contribution_files(
+        &options.output_dir,
+        [
+            ("system.json", &definition_bytes),
+            ("contribution.json", &receipt_bytes),
+            ("catalog-pins.json", &preflight.pins_bytes),
+            ("catalog-results.json", &results_bytes),
+        ],
+    )?;
+    emit(&serde_json::json!({
+        "definition": options.output_dir.join("system.json"),
+        "definition_sha256": receipt.definition_sha256,
+        "contribution_receipt": options.output_dir.join("contribution.json"),
+        "contribution_receipt_sha256": hash(&receipt_bytes),
+        "outputs": receipt.outputs,
+    }))
+}
+
+fn validate_source_revision(source_revision: &str) -> Result<()> {
+    if source_revision.len() != 40
+        || !source_revision
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
         return Err(Error::Invalid(
-            "new-format source requires explicit language contribution".into(),
+            "source revision must be an exact lowercase Git commit".into(),
         ));
     }
-    if serde_json::to_vec(&material)? != material_bytes {
+    Ok(())
+}
+
+fn lower_contribution(
+    options: &Contribution,
+    loaded: &crate::catalog_language::Loaded,
+    policy: &mut Policy,
+) -> Result<(
+    sysroot_catalog::language::Lowered,
+    sysroot_catalog::language::Images,
+)> {
+    let images = contribution_images(options, &loaded.intent)?;
+    if images.foundation != options.foundation {
         return Err(Error::Invalid(
-            "input material must be canonical without duplicate members".into(),
+            "resolved foundation differs from contribution".into(),
         ));
     }
-    let pins_value = match &loaded {
+    let lowered =
+        sysroot_catalog::language::lower(&loaded.intent, &loaded.resources, &images, policy)
+            .map_err(|e| Error::Invalid(e.to_string()))?;
+    policy
+        .source_objects
+        .extend(lowered.resources.keys().cloned());
+    Ok((lowered, images))
+}
+
+fn contribution_images(
+    options: &Contribution,
+    intent: &sysroot_catalog::language::Intent,
+) -> Result<sysroot_catalog::language::Images> {
+    if let Some(path) = &options.resolution {
+        return read(path);
+    }
+    Ok(sysroot_catalog::language::Images {
+        foundation: options.foundation.clone(),
+        builders: intent
+            .builders
+            .keys()
+            .map(|role| {
+                Ok((
+                    role.clone(),
+                    options.builder.clone().ok_or_else(|| {
+                        Error::Invalid("--builder or --resolution required".into())
+                    })?,
+                ))
+            })
+            .collect::<Result<_>>()?,
+    })
+}
+
+fn check_preflight(
+    options: &Contribution,
+    loaded: Option<&crate::catalog_language::Loaded>,
+) -> Result<Preflight> {
+    let (material, input_material_sha256) = read_input_material(options, loaded.is_some())?;
+    let pins_value = match loaded {
         Some(loaded) => language_pins(loaded)?,
         None => pins(),
     };
     let pins_bytes = json_bytes(&pins_value)?;
-    let pins_hash = hash(&pins_bytes);
-    let author_hash = hash(&read_bytes(&std::env::current_exe()?, 64 * 1024 * 1024)?);
+    let catalog_pins_sha256 = hash(&pins_bytes);
+    let author_sha256 = hash(&read_bytes(&std::env::current_exe()?, 64 * 1024 * 1024)?);
     if material["schema_version"] != 1
         || material["source"]["target"]["id"] != "qemu-arm64"
         || material["source"]["target"]["architecture"] != "aarch64"
-        || material["artifacts"]["catalog-pins"] != pins_hash
-        || material["artifacts"]["catalog-author"] != author_hash
-        || material["artifacts"]["sysroot"] != author_hash
+        || material["artifacts"]["catalog-pins"] != catalog_pins_sha256
+        || material["artifacts"]["catalog-author"] != author_sha256
+        || material["artifacts"]["sysroot"] != author_sha256
     {
         return Err(Error::Invalid(
             "catalog pins/author/target differ from preflight".into(),
@@ -1066,50 +1149,92 @@ fn contribute(options: Contribution) -> Result<ExitCode> {
             "selected frontend differs from committed source intent".into(),
         ));
     }
-    let store = Store::open(&options.store)?;
-    if let (Some(loaded), Some(images)) = (&loaded, &contribution_images) {
-        let observed = observe_roles(&store, &loaded.intent, images)?;
-        let rows = |value: &serde_json::Value| -> Result<Vec<Vec<String>>> {
-            let mut rows = value
-                .as_str()
-                .ok_or_else(|| Error::Invalid("missing observed RPM inventory".into()))?
-                .lines()
-                .filter(|line| !line.starts_with("gpg-pubkey\t"))
-                .map(|line| line.split('\t').map(str::to_owned).collect::<Vec<_>>())
-                .collect::<Vec<_>>();
-            if rows.is_empty() || rows.iter().any(|row| row.len() != 7) {
-                return Err(Error::Invalid("invalid observed RPM inventory".into()));
-            }
-            rows.sort();
-            Ok(rows)
-        };
-        if serde_json::to_value(rows(&observed["foundation"]["rpm_inventory"])?)?
-            != material["packages"]
-        {
-            return Err(Error::Invalid(
-                "contribution foundation RPM material differs from preflight".into(),
-            ));
-        }
-        let builders = observed["builders"]
-            .as_object()
-            .ok_or_else(|| Error::Invalid("missing observed compiler roles".into()))?
-            .iter()
-            .map(|(role, value)| Ok((role.clone(), rows(&value["rpm_inventory"])?)))
-            .collect::<Result<BTreeMap<_, _>>>()?;
-        if material["artifacts"]["catalog-builder-rpms"] != hash(&serde_json::to_vec(&builders)?) {
-            return Err(Error::Invalid(
-                "contribution compiler RPM material differs from preflight".into(),
-            ));
-        }
+    Ok(Preflight {
+        material,
+        input_material_sha256,
+        pins_bytes,
+        catalog_pins_sha256,
+        author_sha256,
+    })
+}
+
+fn read_input_material(
+    options: &Contribution,
+    language: bool,
+) -> Result<(serde_json::Value, String)> {
+    let material_bytes = read_bytes(&options.input_material, sysroot_engine::MAX_JSON)?;
+    let material_hash = hash(&material_bytes);
+    if material_hash != options.expected_input_material_sha256 {
+        return Err(Error::Invalid("input material hash differs".into()));
     }
-    let mut outputs = BTreeMap::new();
-    let mut versions = BTreeMap::new();
-    let mut objects = BTreeMap::new();
-    let mut realized_nodes = BTreeMap::new();
+    let material: serde_json::Value = serde_json::from_slice(&material_bytes)?;
+    if !language && !material["source"]["package_frontend"].is_null() {
+        return Err(Error::Invalid(
+            "new-format source requires explicit language contribution".into(),
+        ));
+    }
+    if serde_json::to_vec(&material)? != material_bytes {
+        return Err(Error::Invalid(
+            "input material must be canonical without duplicate members".into(),
+        ));
+    }
+    Ok((material, material_hash))
+}
+
+fn verify_observed_rpms(
+    store: &Store,
+    intent: &sysroot_catalog::language::Intent,
+    images: &sysroot_catalog::language::Images,
+    material: &serde_json::Value,
+) -> Result<()> {
+    let observed = observe_roles(store, intent, images)?;
+    if serde_json::to_value(observed_rpm_rows(&observed["foundation"]["rpm_inventory"])?)?
+        != material["packages"]
+    {
+        return Err(Error::Invalid(
+            "contribution foundation RPM material differs from preflight".into(),
+        ));
+    }
+    let builders = observed["builders"]
+        .as_object()
+        .ok_or_else(|| Error::Invalid("missing observed compiler roles".into()))?
+        .iter()
+        .map(|(role, value)| Ok((role.clone(), observed_rpm_rows(&value["rpm_inventory"])?)))
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    if material["artifacts"]["catalog-builder-rpms"] != hash(&serde_json::to_vec(&builders)?) {
+        return Err(Error::Invalid(
+            "contribution compiler RPM material differs from preflight".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn observed_rpm_rows(value: &serde_json::Value) -> Result<Vec<Vec<String>>> {
+    let mut rows = value
+        .as_str()
+        .ok_or_else(|| Error::Invalid("missing observed RPM inventory".into()))?
+        .lines()
+        .filter(|line| !line.starts_with("gpg-pubkey\t"))
+        .map(|line| line.split('\t').map(str::to_owned).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    if rows.is_empty() || rows.iter().any(|row| row.len() != 7) {
+        return Err(Error::Invalid("invalid observed RPM inventory".into()));
+    }
+    rows.sort();
+    Ok(rows)
+}
+
+fn verify_realized_packages(
+    store: &Store,
+    selected: Vec<ResolvedPackage>,
+    foundation: &str,
+) -> Result<RealizedPackages> {
+    let mut realized = RealizedPackages::default();
     for package in selected {
         for (node, spec) in &package.plan.specs {
             let object = &package.plan.outputs[node];
-            if realized_nodes
+            if realized
+                .nodes
                 .insert(node.clone(), object.clone())
                 .is_some_and(|prior| prior != *object)
             {
@@ -1118,98 +1243,77 @@ fn contribute(options: Contribution) -> Result<ExitCode> {
                 ));
             }
             let actual = store.verify(object)?;
-            if actual.runtime_image.as_deref() != Some(options.foundation.as_str())
+            if actual.runtime_image.as_deref() != Some(foundation)
                 || serde_json::to_value(&actual.derivation)? != serde_json::to_value(Some(spec))?
             {
                 return Err(Error::Invalid(
                     "realized catalog object differs from selected recipe/foundation".into(),
                 ));
             }
-            objects.insert(object.clone(), actual);
+            realized.objects.insert(object.clone(), actual);
         }
         let root = &package.plan.outputs[&package.recipe.root];
         store.closure(root)?;
-        versions.insert(package.package.clone(), package.version);
-        outputs.insert(package.package, root.clone());
+        realized
+            .versions
+            .insert(package.package.clone(), package.version);
+        realized.outputs.insert(package.package, root.clone());
     }
-    if let Some(loaded) = &loaded {
-        let mut runtime = loaded.intent.selected.clone();
-        let mut pending: Vec<_> = runtime.iter().cloned().collect();
-        while let Some(key) = pending.pop() {
-            for dependency in loaded.intent.recipes[&key].runtime_deps.values() {
-                if runtime.insert(dependency.clone()) {
-                    pending.push(dependency.clone());
-                }
+    Ok(realized)
+}
+
+fn alias_runtime_outputs(
+    intent: &sysroot_catalog::language::Intent,
+    names: &BTreeMap<String, String>,
+    realized: &mut RealizedPackages,
+) -> Result<()> {
+    for key in runtime_closure(intent) {
+        let recipe = &intent.recipes[&key];
+        let object = realized
+            .nodes
+            .get(&names[&key])
+            .ok_or_else(|| Error::Invalid("verified runtime output missing".into()))?
+            .clone();
+        if let Some(previous) = realized.outputs.insert(recipe.name.clone(), object.clone())
+            && previous != object
+        {
+            return Err(Error::Invalid(
+                "runtime package output alias conflicts".into(),
+            ));
+        }
+        realized
+            .versions
+            .insert(recipe.name.clone(), recipe.version.clone());
+    }
+    Ok(())
+}
+
+fn runtime_closure(
+    intent: &sysroot_catalog::language::Intent,
+) -> std::collections::BTreeSet<String> {
+    let mut runtime = intent.selected.clone();
+    let mut pending: Vec<_> = runtime.iter().cloned().collect();
+    while let Some(key) = pending.pop() {
+        for dependency in intent.recipes[&key].runtime_deps.values() {
+            if runtime.insert(dependency.clone()) {
+                pending.push(dependency.clone());
             }
         }
-        for key in runtime {
-            let recipe = &loaded.intent.recipes[&key];
-            let object = realized_nodes
-                .get(&names[&key])
-                .ok_or_else(|| Error::Invalid("verified runtime output missing".into()))?
-                .clone();
-            if let Some(previous) = outputs.insert(recipe.name.clone(), object.clone())
-                && previous != object
-            {
-                return Err(Error::Invalid(
-                    "runtime package output alias conflicts".into(),
-                ));
-            }
-            versions.insert(recipe.name.clone(), recipe.version.clone());
-        }
     }
-    let definition = match &loaded {
-        Some(loaded) => language_definition(
-            loaded,
-            &options.foundation,
-            &options.source_revision,
-            outputs.clone(),
-            versions,
-        )?,
-        None => definition(
-            &options.foundation,
-            &options.source_revision,
-            &catalog.namespace,
-            outputs.clone(),
-            versions,
-        )?,
-    };
-    let definition_bytes = json_bytes(&definition)?;
-    let receipt = ContributionReceipt {
-        schema_version: 1,
-        source_revision: options.source_revision,
-        foundation_image: options.foundation,
-        input_material_sha256: material_hash,
-        definition_sha256: hash(&definition_bytes),
-        catalog_pins_sha256: pins_hash,
-        author_sha256: author_hash,
-        outputs,
-    };
-    let receipt_bytes = json_bytes(&receipt)?;
-    let results_bytes = json_bytes(&serde_json::json!({"schema_version":1,"objects":objects}))?;
-    fs::DirBuilder::new()
-        .mode(0o700)
-        .create(&options.output_dir)?;
-    for (name, bytes) in [
-        ("system.json", &definition_bytes),
-        ("contribution.json", &receipt_bytes),
-        ("catalog-pins.json", &pins_bytes),
-        ("catalog-results.json", &results_bytes),
-    ] {
+    runtime
+}
+
+fn write_contribution_files(output_dir: &Path, files: [(&str, &[u8]); 4]) -> Result<()> {
+    fs::DirBuilder::new().mode(0o700).create(output_dir)?;
+    for (name, bytes) in files {
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .mode(0o600)
-            .open(options.output_dir.join(name))?;
+            .open(output_dir.join(name))?;
         file.write_all(bytes)?;
         file.sync_all()?;
     }
-    File::open(&options.output_dir)?.sync_all()?;
-    emit(&serde_json::json!({
-        "definition": options.output_dir.join("system.json"),
-        "definition_sha256": receipt.definition_sha256,
-        "contribution_receipt": options.output_dir.join("contribution.json"),
-        "contribution_receipt_sha256": hash(&receipt_bytes),
-        "outputs": receipt.outputs,
-    }))
+    File::open(output_dir)?.sync_all()?;
+    Ok(())
 }

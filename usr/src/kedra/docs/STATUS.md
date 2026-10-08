@@ -8,9 +8,9 @@ status set by `usr/src/kedra/tests/signoff.py` (AGENTS.md). `release.yml` no lon
 repeats the source checks before building, but still validates each exact candidate
 with the container harness before signing. The new owner-dispatched `iso.yml`
 publishes an installer ISO from a target's signed `stable` image as a GitHub
-Release. Neither the new workflow nor the sign-off path has run yet (`not-run`), and
-main's branch protection still requires the removed `rust` check until the owner
-switches it to `signoff`. See worklog CI-SIMPLIFY-01.
+Release. The new workflow has not run yet (`not-run`). Main's branch protection
+still requires the removed `rust` check until the owner switches it to `signoff`.
+See worklog CI-SIMPLIFY-01/02.
 
 ## Main-only integration (2026-10-07)
 

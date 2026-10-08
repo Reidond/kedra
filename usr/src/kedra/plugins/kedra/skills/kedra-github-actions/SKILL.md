@@ -1,11 +1,20 @@
 ---
 name: kedra-github-actions
-description: Maintain Kedra signed-container CI, midnight package checks and native VM workflows.
+description: Maintain Kedra's release workflows (signed OS updates, owner-dispatched installer ISO releases), local testing with sign-off, and the boot-level VM drivers.
 ---
 
 # Actions
 
-Read usr/src/kedra/docs/UPDATES.md, usr/src/kedra/docs/RELEASES.md and usr/src/kedra/docs/ARCHITECTURE.md. OS image builds run in Actions. ISO construction is explicit/local through usr/src/kedra/installer/build-local.py and never uploads. Do not create GitHub Releases, machine bundles or ISO/checksum assets.
+Read usr/src/kedra/docs/UPDATES.md, usr/src/kedra/docs/RELEASES.md and usr/src/kedra/docs/ARCHITECTURE.md.
+
+Owner decision (2026-10-08): Actions produces releases; testing of changes is local.
+- `release.yml` + reusable `release-target.yml` build, validate, sign and publish OS updates for installed systems (00:00 UTC schedule, image-affecting pushes to main, manual dispatch).
+- `iso.yml` is a full new installer release that the owner dispatches for one target. It builds an ISO from the target's current signed `stable` digest with usr/src/kedra/installer/build-local.py, splits it into parts below 2 GiB and attaches them with PARTS.SHA256SUMS, the builder's unchanged single-line SHA256SUMS (installer/macos/media.py verify requires that format) and installer.json marked `"uploaded": true` to a new GitHub Release tagged `<target>-<digest16>`. It never replaces a release, holds no signing secret and never builds, signs or moves an image. Only the owner dispatches it.
+- `check.yml` and the eight `test-*.yml` workflows were removed (last present at `3e33867`). Changes are tested locally and merge on the `signoff` commit status (AGENTS.md "Local testing and sign-off"; usr/src/kedra/tests/signoff.py). Main's branch protection needs `signoff` as its required status in place of `rust`; that setting is the owner's. The boot-level drivers remain under usr/src/kedra/tests/vm (tests/README.md).
+- The release build job builds the binaries without repeating the source checks the sign-off covers. `validate-candidate` and the qemu-arm64 installed catalog case still test each exact candidate before signing, because nightly refreshes produce images no sign-off saw.
+- `release-target.yml` is hashed into resolved-input recipes (usr/src/kedra/image/release/material.py), so editing it rebuilds each target once.
+
+Machine bundles and release metadata signatures are not published.
 
 The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure. Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
 
@@ -15,16 +24,12 @@ Per-target releases (implemented 2026-09-25; release 36617035503 passes both tar
 - release.yml keeps one non-cancelling `release-44` group. It calls reusable `release-target.yml` independently for desktop (`ubuntu-24.04`) and qemu-arm64 (`ubuntu-24.04-arm`).
 - Each target uses its own `kedra-<target>-signing` environment, secrets, builds repository and artifacts.
 - The callers use `secrets: inherit`, and only the signer job declares the environment. Observed 2026-09-25 (release run 36190624411 failed closed with empty signing secrets; probe run 36191986665): a called job that declares `environment:` sees that environment's secrets as empty unless the caller inherits secrets, despite the reusable-workflow docs. The repository has no repository-level secrets, so inheriting exposes nothing else.
-- check.yml adds a native `rust-aarch64` leg next to the required `rust` leg.
-- Hosted arm64 runners expose no `/dev/kvm`. test-qemu-arm64.yml therefore boots its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. Main run 36617035132 attempt 2 at `bafd1884` powers off with every security/bootc marker in 300 s.
-- The four x86 VM workflows boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd`, and require the guest's `KEDRA_SECUREBOOT_PASS`. test-signed-update adds a snakeoil-keys refusal case.
-- SMM under KVM on hosted runners is unverified until those runs.
 
-check.yml uses standard Cargo tools and actual CLI/OpenSSL workflows. test-container.yml (added 2026-09-27; main run 36617035048 passes both architectures on 2026-09-29) builds each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`, docker/BuildKit, KEDRA_LOCAL_BUILDER inputs). It then runs every container scenario and uploads report.json, junit.xml and screenshots. VM workflows keep boot-level coverage:
-- test-desktop: tuigreet login, PAM keyring, doctor gate, Xwayland/Qt choosers.
-- test-qemu-arm64: the bootc contract and the TCG Secure Boot boot.
-- Signed update, direct GHCR, home transition and RPM refresh.
-Image-content and session checks moved from these workflows into container scenarios. No unit/model/mock/doctests or repository scanners.
+Historical, from the test workflows removed on 2026-10-08 (their drivers remain):
+- Hosted arm64 runners expose no `/dev/kvm`, so test-qemu-arm64.yml booted its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. Main run 36617035132 attempt 2 at `bafd1884` powered off with every security/bootc marker in 300 s.
+- The four x86 VM drivers boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd` and require the guest's `KEDRA_SECUREBOOT_PASS`. The signed-update driver adds a snakeoil-keys refusal case.
+- test-container.yml (main run 36617035048 passes both architectures on 2026-09-29) built each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`) and ran every container scenario. The same harness now runs locally and in the release's `validate-candidate` job.
+Image-content and session checks live in container scenarios. No unit/model/mock/doctests or repository scanners.
 
 Observed 2026-09-29, QEMU 8.2.2 / Fedora systemd 259.9 / kernel 7.2.7:
 run 36617035132 attempt 1 froze PID 1 at guest 113.669 s, before the observer

@@ -7,7 +7,7 @@ The signed target identity is `qemu-arm64`; no UTM application is required.
 ARM64 container runs the unchanged `installer/build-local.py`, with the trusted
 checkout mounted read-only. Fixed-key verification, target/architecture checks,
 exact image/builder digests and ISO receipts remain mandatory. The host verifies
-`installer.json`, `SHA256SUMS`, ISO size and hash after export. No media is published.
+`installer.json`, `SHA256SUMS`, ISO size and hash after export. This builder publishes nothing; `media.py verify` (used by `kedra-lab vm installer`) also accepts a rejoined ISO from an `iso.yml` GitHub Release, whose `installer.json` records `"uploaded": true`.
 
 The privileged builder is confined to Docker's Linux VM. It delegates controllers
 inside its private cgroup namespace, uses nested Podman and requires 40 GiB free

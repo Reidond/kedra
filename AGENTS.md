@@ -261,10 +261,11 @@ sanctioned test runner; the unit-test ban above applies to the harness itself.
 Disposable VM tests remain for what a container cannot host: firmware and
 Secure Boot, SELinux enforcement, VT/greetd password login and PAM keyring
 unlock, bootc switch/update/rollback, the installer, and clients that receive no
-virtual-keyboard input in the nested session (Xwayland, Qt). They run locally on a
-disposable Linux host with KVM or through `kedra-lab vm`; the drivers under
-`usr/src/kedra/tests/vm/` were written for hosted Ubuntu runners and may need
-their runner variables (`RUNNER_TEMP`, `GITHUB_RUN_ID`) set. When changing niri,
+virtual-keyboard input in the nested session (Xwayland, Qt). Each boot-level
+driver has one command in `usr/src/kedra/tests/README.md` ("Boot-level drivers")
+for a disposable Ubuntu 24.04 host declared with `KEDRA_DISPOSABLE_HOST=1` (KVM
+for x86_64); `kedra-lab vm` covers interactive ARM VMs. Never declare a
+workstation disposable. When changing niri,
 Noctalia or other visible desktop configuration, check it with `kedra-lab up`,
 `kedra-lab sync` and `kedra-lab shot`, and show the owner the screenshots.
 

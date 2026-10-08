@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Run ONLY on a disposable Actions runner. Never call bootc on the host.
+# Run ONLY on a disposable host (common/disposable_host.py). Never call bootc on the host.
 set -euo pipefail
-test "${GITHUB_ACTIONS:-}" = true
-test "${RUNNER_OS:-}" = Linux
-test "${GITHUB_REPOSITORY:-}" = Reidond/kedra
-test -n "${RUNNER_TEMP:-}"
+. usr/src/kedra/tests/common/disposable-host.sh --evidence output/r01-evidence --architecture x86_64 --kvm \
+    --command podman --command skopeo --command openssl --command curl --command mkfs.ext4 \
+    --command qemu-system-x86_64 --command virt-fw-vars
 root="$RUNNER_TEMP/kedra-r01"
 private="$RUNNER_TEMP/kedra-r01-private"
 mkdir "$root" "$private"

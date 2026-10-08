@@ -23,6 +23,14 @@ if test "$#" -eq 1 && test "$1" = --help; then
     uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py --help
     exit 0
 fi
+if test "$#" -eq 0 && test -z "$hvf_controller$registry_volume$registry_volume_created_at$installer_base" &&
+   test "$supervised_admission" = false; then
+    # Default context: a hosted runner or a declared disposable aarch64 host
+    # (common/disposable_host.py); explicit local fixtures use the controller.
+    . usr/src/kedra/tests/common/disposable-host.sh --evidence output/ghcr-arm-evidence --architecture aarch64 \
+        --docker-containerd --command docker --command podman --command skopeo --command openssl --command curl \
+        --command mkfs.ext4 --command qemu-system-aarch64 --command virt-fw-vars --command rpm --command cpio
+fi
 test -z "$hvf_controller" || [[ "$hvf_controller" =~ ^[a-f0-9]{64}$ ]]
 test -z "$registry_volume" || [[ "$registry_volume" =~ ^[a-f0-9]{64}$ ]]
 test -z "$registry_volume_created_at" || [[ "$registry_volume_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$ ]]
@@ -231,10 +239,15 @@ base=$(uv run usr/src/kedra/image/release/refresh.py resolve-base --target qemu-
 "$binaries/sysroot" source plan --host qemu-arm64 --json > "$root/source-plan.json"
 "$binaries/sysroot" source archive --host qemu-arm64 --output "$root/build-context/payload.tar"
 cp "$binaries/sysroot" "$binaries/sysroot-helper" usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh "$root/build-context/"
+if test "$(jq -er .mode "$fixture_context")" = host; then
+    # A declared host prepares them in the disposable input container instead.
+    uv run usr/src/kedra/tests/common/prepare_inputs.py --target qemu-arm64 --context "$root/build-context" --evidence "$evidence"
+else
 # Existing explicit local-builder APIs use RUNNER_TEMP only as scratch; no CI
 # identity variable is invented or changed by the local workflow.
 KEDRA_LOCAL_BUILDER=1 RUNNER_TEMP="$runner_temp" bash usr/src/kedra/image/agents/prepare.sh qemu-arm64 "$root/build-context" "$private/agents" "$evidence/agent-inputs.json"
 KEDRA_LOCAL_BUILDER=1 RUNNER_TEMP="$runner_temp" uv run usr/src/kedra/image/bitwarden/prepare.py --target qemu-arm64 --context "$root/build-context" --evidence "$evidence/bitwarden-inputs.json"
+fi
 uv run usr/src/kedra/tests/vm/ghcr-update/candidate.py \
     "${fixture_args[@]}" \
     --context "$root/build-context" --source-plan "$root/source-plan.json" --base-image "$base" \

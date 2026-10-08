@@ -3,7 +3,11 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Actions-only end-to-end experiment using real Podman, DNF, RPM and repos."""
+"""Disposable-host end-to-end experiment using real Podman, DNF, RPM and repos.
+
+Runs on a declared disposable x86_64 host (common/disposable_host.py) or, as before,
+the hosted runner of main.
+"""
 
 import hashlib
 import json
@@ -16,6 +20,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
 CONTEXT = Path(__file__).resolve().parent
+sys.path.insert(0, str(CONTEXT.parent / "common"))
+import disposable_host
+
 OUTPUT = ROOT / "output/refresh-evidence"
 PODMAN = ["sudo", "podman"]
 HOST_COMMANDS = []
@@ -215,8 +222,10 @@ def evaluate(case, expected, exit_code, evidence, seed_id, intent_sha256, baseli
 
 
 def main():
-    if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("GITHUB_REF") != "refs/heads/main":
+    hosted = os.environ.get("GITHUB_ACTIONS") == "true"
+    if hosted and os.environ.get("GITHUB_REF") != "refs/heads/main":
         raise RuntimeError("OS/container builds are restricted to the development-branch Actions experiment")
+    run = disposable_host.enter(architecture="x86_64", commands=("sudo", "podman", "skopeo"), build=False)
     OUTPUT.mkdir(parents=True, exist_ok=False)
     cases = [{"case": name, "status": "not-run", "expected": expected} for name, _, expected in CASES]
     result_document = {"schema_version": 1, "scope": "RPM fixture only", "status": "not-run", "cases": cases}
@@ -235,9 +244,10 @@ def main():
                          "inherited": ["kedra-refresh-inherited"], "remove": []}
         intent_sha256 = hashlib.sha256(json.dumps(source_intent, sort_keys=True).encode()).hexdigest()
         write(OUTPUT / "environment.json", {
-            "schema_version": 1, "source_revision": os.environ["GITHUB_SHA"],
-            "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-            "run_url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+            "schema_version": 1, "source_revision": run["source_revision"], "execution_mode": run["mode"],
+            "run_id": run["run_id"], "run_attempt": run["run_attempt"],
+            "run_url": (f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run['run_id']}"
+                        if hosted else None),
             "fedora_base": resolved_base, "source_intent": source_intent,
             "source_intent_sha256": intent_sha256,
             "no_production_signing_or_publication": True,
@@ -252,7 +262,8 @@ def main():
         image_identity("fedora-base-image", resolved_base)
         native("native-tool-packages", [*PODMAN, "run", "--rm", "--network=none", tool_id,
                                         "rpm", "-qa", "--queryformat", "%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\n"])
-        native("prepare-snapshots", [*PODMAN, "run", "--rm", "--network=none", "--env", "GITHUB_ACTIONS=true",
+        disposable = "GITHUB_ACTIONS=true" if hosted else "KEDRA_DISPOSABLE_HOST=1"
+        native("prepare-snapshots", [*PODMAN, "run", "--rm", "--network=none", "--env", disposable,
                                      "--volume", f"{private}:/private:rw", "--volume", f"{public}:/public:rw",
                                      tool_id, "python3", "/opt/kedra-refresh/prepare.py"])
         native("public-fixture-ownership", ["sudo", "chown", "-R", f"{os.getuid()}:{os.getgid()}", str(public)])

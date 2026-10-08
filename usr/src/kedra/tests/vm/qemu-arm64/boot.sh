@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Boot ONE generated qemu-arm64 test disk through Ubuntu's Microsoft-enrolled AAVMF
-# Secure Boot firmware under TCG. Run only on a disposable arm64 Actions runner.
+# Secure Boot firmware under TCG. Run only on a disposable arm64 host, through run.py.
 set -euo pipefail
-test "${GITHUB_ACTIONS:-}" = true
-test "${RUNNER_OS:-}" = Linux
-test "${GITHUB_REPOSITORY:-}" = Reidond/kedra
+if test "${GITHUB_ACTIONS:-}" = true; then
+    test "${RUNNER_OS:-}" = Linux
+    test "${GITHUB_REPOSITORY:-}" = Reidond/kedra
+else
+    test "${KEDRA_DISPOSABLE_HOST:-}" = 1
+fi
 test "$(uname -m)" = aarch64
 test "$#" -eq 4
 disk=$(realpath -e "$1")

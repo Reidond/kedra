@@ -3,7 +3,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Public A/P/B source and signing fixtures for a disposable Actions VM.
+"""Public A/P/B source and signing fixtures for a disposable-host VM.
 
 Image A is built from a legacy-layout rewrite of the dispatched commit and
 image B from the root-filesystem layout, so the installed A/B/A home transition
@@ -24,8 +24,10 @@ from niri_fixture import incoming as incoming_niri
 parser = argparse.ArgumentParser()
 parser.add_argument('phase', choices=['images', 'requests'])
 args = parser.parse_args()
-if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('GITHUB_REPOSITORY') != 'Reidond/kedra':
-    raise SystemExit('Disposable Kedra Actions fixture only')
+# Hosted runner or declared disposable host; vm/home-transition/run.sh validated it.
+if ((os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('GITHUB_REPOSITORY') != 'Reidond/kedra')
+        and os.environ.get('KEDRA_DISPOSABLE_HOST') != '1'):
+    raise SystemExit('Disposable Kedra host fixture only')
 repo = pathlib.Path.cwd().resolve()
 root = pathlib.Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-r04'
 private = root.parent / 'kedra-r04-private'

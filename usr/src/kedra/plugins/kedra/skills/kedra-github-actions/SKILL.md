@@ -10,7 +10,8 @@ Read usr/src/kedra/docs/UPDATES.md, usr/src/kedra/docs/RELEASES.md and usr/src/k
 Owner decision (2026-10-08): Actions produces releases; testing of changes is local.
 - `release.yml` + reusable `release-target.yml` build, validate, sign and publish OS updates for installed systems (00:00 UTC schedule, image-affecting pushes to main, manual dispatch).
 - `iso.yml` is a full new installer release that the owner dispatches for one target. It builds an ISO from the target's current signed `stable` digest with usr/src/kedra/installer/build-local.py, splits it into parts below 2 GiB and attaches them with SHA256SUMS and installer.json to a new GitHub Release tagged `<target>-<digest16>`. It never replaces a release, holds no signing secret and never builds, signs or moves an image. Only the owner dispatches it.
-- `check.yml` and the eight `test-*.yml` workflows were removed (last present at `3e33867`). Changes are tested locally and merge on the `signoff` commit status (AGENTS.md "Local testing and sign-off"; usr/src/kedra/tests/signoff.py). Main's branch protection needs `signoff` as its required status in place of `rust`; that setting is the owner's. The boot-level drivers remain under usr/src/kedra/tests/vm (tests/README.md).
+- `check.yml` and the eight `test-*.yml` workflows were removed (last present at `3e33867`). Changes are tested locally and merge on the `signoff` commit status (AGENTS.md "Local testing and sign-off"; usr/src/kedra/tests/signoff.py). Main's branch protection needs `signoff` as its required status in place of `rust`; that setting is the owner's. The boot-level drivers remain under usr/src/kedra/tests/vm, agents and rpm-refresh, with one command each in tests/README.md ("Boot-level drivers").
+- Local boot-level runs (2026-10-08): a disposable Ubuntu 24.04 host declared with `KEDRA_DISPOSABLE_HOST=1`, ordinary user with non-interactive sudo, clean checkout. tests/common/disposable_host.py refuses other hosts (non-Ubuntu, booted bootc/OSTree, root, missing KVM/architecture/tools/containerd store, local changes, existing evidence), exports `RUNNER_TEMP` (fresh private directory), `GITHUB_SHA` (HEAD), a local `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT=1`, builds the release binaries and writes `execution.json`. The ARM fixture context has a matching `host` mode beside `actions` and `local`. vm/desktop/run.py and vm/qemu-arm64/run.py carry the steps those workflows ran inline. image/agents/prepare.sh and image/bitwarden/prepare.py are release recipes (material.py), so a declared host runs them unchanged in the lab input container (tests/common/prepare_inputs.py) instead of widening their guards; editing them would rebuild both targets.
 - The release build job builds the binaries without repeating the source checks the sign-off covers. `validate-candidate` and the qemu-arm64 installed catalog case still test each exact candidate before signing, because nightly refreshes produce images no sign-off saw.
 - `release-target.yml` is hashed into resolved-input recipes (usr/src/kedra/image/release/material.py), so editing it rebuilds each target once.
 
@@ -114,6 +115,8 @@ workflow explicitly selects containerd-snapshotter and must pass the unchanged
 public preflight before full candidate work; configuration alone is not a pass.
 Preserve other daemon settings, refuse existing containers before switching,
 and retain bounded backend/root/config metadata plus actual cleanup exits.
+Locally, vm/qemu-arm64/run.py requires an already-selected containerd store
+instead of switching the daemon and runs the same preflight (retention.py).
 Sources: `.specs/nix-release-composition/verification.md`, runs37199831847 and
 37199833274, https://docs.docker.com/engine/storage/containerd/ .
 

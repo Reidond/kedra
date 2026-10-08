@@ -3,7 +3,12 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Closed execution context for the disposable ARM release workflow."""
+"""Closed execution context for the disposable ARM release workflow.
+
+Modes: `actions` on a hosted runner, `host` on a declared disposable aarch64 host
+(KEDRA_DISPOSABLE_HOST=1, whose run variables common/disposable-host.sh exports)
+and `local` in the dedicated controller container.
+"""
 import argparse
 import hashlib
 import json
@@ -60,7 +65,7 @@ def validate(value):
     require(type(value['uid']) is int and sys.platform == 'linux' and platform.machine() == 'aarch64'
             and os.getuid() == os.geteuid() == value['uid'] and value['uid'] > 0,
             'The ARM fixture controller must run as an ordinary native Linux ARM user')
-    require(value['mode'] in ('actions', 'local') and re.fullmatch('[a-f0-9]{40}', value['source_revision'])
+    require(value['mode'] in ('actions', 'host', 'local') and re.fullmatch('[a-f0-9]{40}', value['source_revision'])
             and re.fullmatch('[a-f0-9]{40}', value['fixture_revision']),
             'Invalid fixture mode or source revision')
     if value['retained_candidate'] is None:
@@ -82,11 +87,30 @@ def validate(value):
     binaries = path(value['binaries'])
     require(temporary.is_dir() and binaries.is_dir(), 'Fixture directories are missing')
     require(not evidence.is_relative_to(temporary / 'kedra-ghcr-private'), 'Evidence must be outside private inputs')
+    validate_mode(value, temporary)
+    environment = {key: item for key, item in os.environ.items() if not key.startswith('GIT_')}
+    environment.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null', GIT_OPTIONAL_LOCKS='0')
+    head = subprocess.check_output(['/usr/bin/git', '--no-replace-objects', '-C', str(ROOT),
+        'rev-parse', '--verify', 'HEAD^{commit}'], env=environment, timeout=30).decode().strip()
+    require(head == value['fixture_revision'], 'Real committed HEAD differs from selected fixture tools')
+    require(binary_hashes(binaries) == value['binary_sha256'], 'Selected fixture binaries changed')
+    return value
+
+
+def validate_mode(value, temporary):
     if value['mode'] == 'actions':
         require(os.environ.get('GITHUB_ACTIONS') == 'true'
                 and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra'
                 and os.environ.get('GITHUB_SHA') == value['source_revision']
                 and temporary == Path(os.environ['RUNNER_TEMP']).resolve(), 'Actions context differs from dispatch')
+    elif value['mode'] == 'host':
+        require(os.environ.get('GITHUB_ACTIONS') != 'true' and os.environ.get('KEDRA_DISPOSABLE_HOST') == '1'
+                and os.environ.get('GITHUB_SHA') == value['source_revision']
+                and temporary == Path(os.environ['RUNNER_TEMP']).resolve(),
+                'Host context differs from the declared disposable host run')
+        info = temporary.stat()
+        require(info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o700,
+                'Host runner temp must be owned and mode 0700')
     else:
         require(os.environ.get('GITHUB_ACTIONS') != 'true', 'Local fixture mode is separate from Actions')
         info = MARKER.lstat()
@@ -98,23 +122,23 @@ def validate(value):
         info = temporary.stat()
         require(info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o700,
                 'Local runner temp must be owned and mode 0700')
-    environment = {key: item for key, item in os.environ.items() if not key.startswith('GIT_')}
-    environment.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null', GIT_OPTIONAL_LOCKS='0')
-    head = subprocess.check_output(['/usr/bin/git', '--no-replace-objects', '-C', str(ROOT),
-        'rev-parse', '--verify', 'HEAD^{commit}'], env=environment, timeout=30).decode().strip()
-    require(head == value['fixture_revision'], 'Real committed HEAD differs from selected fixture tools')
-    require(binary_hashes(binaries) == value['binary_sha256'], 'Selected fixture binaries changed')
-    return value
 
 
-def actions_context():
-    require(os.environ.get('GITHUB_ACTIONS') == 'true'
-            and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra', 'Expected a real Actions dispatch')
+def default_context():
+    # A hosted runner, or a declared disposable host whose run variables
+    # common/disposable-host.sh exported. Neither accepts overrides.
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        require(os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra', 'Expected a real Actions dispatch')
+        mode = 'actions'
+    else:
+        require(os.environ.get('KEDRA_DISPOSABLE_HOST') == '1',
+                'Expected a real Actions dispatch or a declared disposable host')
+        mode = 'host'
     binaries = ROOT / 'target/release'
     output = ROOT / 'output'
     require(not output.is_symlink(), 'Actions output must not be a symlink')
     output.mkdir(mode=0o700, exist_ok=True)
-    return {'schema_version': 1, 'kind': 'kedra-arm-release-fixture', 'mode': 'actions',
+    return {'schema_version': 1, 'kind': 'kedra-arm-release-fixture', 'mode': mode,
             'source_revision': os.environ['GITHUB_SHA'], 'fixture_revision': os.environ['GITHUB_SHA'],
             'retained_candidate': None, 'retained_candidate_sha256': None, 'repository': str(ROOT),
             'runner_temp': str(Path(os.environ['RUNNER_TEMP']).resolve()),
@@ -124,7 +148,7 @@ def actions_context():
 
 def load_context(filename=None):
     if filename is None:
-        return validate(actions_context())
+        return validate(default_context())
     filename = path(filename)
     info = filename.stat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1
@@ -399,7 +423,7 @@ def selected_context(parser, args, selected):
     if any(item is not None for item in (*selected, args.fixture_revision, args.retained_candidate,
                                         args.retained_candidate_sha256)):
         parser.error('Actions defaults cannot be overridden; select explicit local fixture mode')
-    return actions_context()
+    return default_context()
 
 
 def write_context(value):

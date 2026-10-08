@@ -83,8 +83,9 @@ def snapshot(name, packages, revision, fingerprint):
 
 
 def main():
-    if os.environ.get("GITHUB_ACTIONS") != "true" or not Path("/run/.containerenv").is_file():
-        raise RuntimeError("fixture generation is restricted to its Actions container")
+    disposable = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("KEDRA_DISPOSABLE_HOST") == "1"
+    if not disposable or not Path("/run/.containerenv").is_file():
+        raise RuntimeError("fixture generation is restricted to its disposable container")
     os.umask(0o077)
     GPG.mkdir(mode=0o700)
     for directory in ("packages", "specs", "snapshots"):

@@ -12,6 +12,13 @@ Release. Neither the new workflow nor the sign-off path has run yet (`not-run`),
 main's branch protection still requires the removed `rust` check until the owner
 switches it to `signoff`. See worklog CI-SIMPLIFY-01.
 
+Each boot-level test now has one local command (usr/src/kedra/tests/README.md,
+"Boot-level drivers") for a disposable Ubuntu 24.04 host declared with
+`KEDRA_DISPOSABLE_HOST=1`, including new `vm/desktop/run.py` and
+`vm/qemu-arm64/run.py` drivers for the orchestration that lived only in the removed
+YAML. Their refusal paths are exercised; no driver has completed a local boot run
+yet (`not-run`). See worklog BOOT-LOCAL-01.
+
 ## Main-only integration (2026-10-07)
 
 The owner requests main as the sole integration branch and removal of dev.

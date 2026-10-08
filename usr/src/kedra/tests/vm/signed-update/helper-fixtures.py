@@ -18,8 +18,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('phase', choices=['prepare', 'requests'])
 parser.add_argument('--root', type=pathlib.Path, required=True)
 args = parser.parse_args()
-if os.environ.get('GITHUB_ACTIONS') != 'true':
-    raise SystemExit('Disposable Actions fixture only')
+# Hosted runner or declared disposable host; vm/signed-update/run.sh validated it.
+if os.environ.get('GITHUB_ACTIONS') != 'true' and os.environ.get('KEDRA_DISPOSABLE_HOST') != '1':
+    raise SystemExit('Disposable host fixture only')
 root = args.root.resolve()
 if root != pathlib.Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-r01':
     raise SystemExit('Unexpected fixture directory')

@@ -28,7 +28,10 @@ is in [D2 verification](../../../../.specs/nix-release-composition/verification.
 source implementation does not establish protected-main publication success.
 
 The disposable ARM installer/update workflow has an explicit `--local-fixture`
-mode restricted to its dedicated ordinary-user controller container. It uses
+mode restricted to its dedicated ordinary-user controller container. Without
+arguments it runs in `host` mode on a declared disposable aarch64 host
+(usr/src/kedra/tests/README.md, "Boot-level drivers"), as it ran on the removed
+hosted runner. Either way it uses
 generated fixture keys and actual committed source, then the normal encrypted
 Anaconda installer and public updater. Its A/B fixture ranks share one native
 derivation, so that workflow does not qualify a changed-kernel upgrade.

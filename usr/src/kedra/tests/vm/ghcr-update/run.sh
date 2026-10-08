@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Disposable Actions only. The ghcr.io hostname is bound to this runner's local registry.
+# Disposable host only (common/disposable_host.py). The ghcr.io hostname is bound to this host's local registry.
 set -euo pipefail
-test "${GITHUB_ACTIONS:-}" = true
-test "${RUNNER_OS:-}" = Linux
-test "${GITHUB_REPOSITORY:-}" = Reidond/kedra
+. usr/src/kedra/tests/common/disposable-host.sh --evidence output/ghcr-evidence --architecture x86_64 --kvm \
+    --command podman --command skopeo --command openssl --command curl --command mkfs.ext4 \
+    --command qemu-system-x86_64 --command virt-fw-vars
 root="$RUNNER_TEMP/kedra-ghcr"
 private="$RUNNER_TEMP/kedra-ghcr-private"
 mkdir "$root" "$private"

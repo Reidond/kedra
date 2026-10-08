@@ -1,10 +1,11 @@
 # QEMU ARM64 Secure Boot check
 
-`.github/workflows/test-qemu-arm64.yml` qualified the aarch64 `qemu-arm64` candidate on `ubuntu-24.04-arm` until it was removed on 2026-10-08 with the other test workflows; `git show 3e33867:.github/workflows/test-qemu-arm64.yml` keeps its steps for a local run on an aarch64 Linux host. Hosted arm64 runners expose no `/dev/kvm`, so the boot is TCG emulation. That qualifies the firmware → shim → GRUB → kernel chain and the booted deployment. It does not qualify HVF, TPM, VirGL/Metal rendering or the graphical session; those require the native QEMU lab qualification.
+`.github/workflows/test-qemu-arm64.yml` qualified the aarch64 `qemu-arm64` candidate on `ubuntu-24.04-arm` until it was removed on 2026-10-08 with the other test workflows (`git show 3e33867:.github/workflows/test-qemu-arm64.yml`). Its steps are now `run.py`, run on a disposable Ubuntu 24.04 aarch64 host as `KEDRA_DISPOSABLE_HOST=1 uv run usr/src/kedra/tests/vm/qemu-arm64/run.py` ([tests/README.md](../../README.md), "Boot-level drivers"). Hosted arm64 runners expose no `/dev/kvm`, so the boot is TCG emulation. That qualifies the firmware → shim → GRUB → kernel chain and the booted deployment. It does not qualify HVF, TPM, VirGL/Metal rendering or the graphical session; those require the native QEMU lab qualification.
 
 | File | Role |
 |---|---|
-| (moved) | The read-only candidate checks formerly in `image-check.sh` are container scenarios: [qemu-arm64-image.yaml](../../container/scenarios/qemu-arm64-image.yaml) with the [qemu-ga probe](../../container/lab/probes/qemu-ga.py), and [image-contents.yaml](../../container/scenarios/image-contents.yaml). The workflow keeps the bootc contract check before booting. |
+| (moved) | The read-only candidate checks formerly in `image-check.sh` are container scenarios: [qemu-arm64-image.yaml](../../container/scenarios/qemu-arm64-image.yaml) with the [qemu-ga probe](../../container/lab/probes/qemu-ga.py), and [image-contents.yaml](../../container/scenarios/image-contents.yaml). `run.py` keeps the bootc contract check before booting. |
+| `run.py` | The workflow's steps: public image-retention preflight (`retention.py`), full candidate composition through `../ghcr-update/candidate.py`, bootc lint, platform and contract checks, observer image, disposable disk, then `boot.sh` |
 | `Containerfile`, `check.sh`, `check.service` | Non-promotable observer layer over `localhost/kedra-qemu-arm64:research`, tagged `localhost/kedra-qemu-arm64-test:secureboot` |
 | `boot.sh` | Firmware validation, fresh NVRAM with one explicit boot entry, bounded TCG boot, marker verification |
 
@@ -122,7 +123,7 @@ Run on an Apple M2 Pro, Docker 29.4.0 on OrbStack, `linux/arm64`. There was no K
 
 The runner is slower than an M2 core. The `boot.sh` bound (90 min) and step bound (100 min) leave wide margins.
 
-To reproduce, run `boot.sh` as above in a disposable `ubuntu:24.04` arm64 container after installing `qemu-system-arm qemu-efi-aarch64 qemu-utils python3-virt-firmware jq`. Give it the disk, a new work directory, an evidence directory and the image digest. Never run it on a workstation host or against a real disk.
+To reproduce the boot alone, run `boot.sh` as above in a disposable `ubuntu:24.04` arm64 container with `KEDRA_DISPOSABLE_HOST=1`, after installing `qemu-system-arm qemu-efi-aarch64 qemu-utils python3-virt-firmware jq`. Give it the disk, a new work directory, an evidence directory and the image digest. The full check is `run.py` above. Never run either on a workstation host or against a real disk.
 
 ## Status
 

@@ -26,8 +26,8 @@ if args.fixture_context is not None:
     fixture = load_context(args.fixture_context)
     root = Path(fixture['runner_temp']) / 'kedra-ghcr'
 else:
-    # Preserve the existing desktop Actions fixture without ARM-specific context.
-    assert os.environ.get('GITHUB_ACTIONS') == 'true'
+    # The desktop fixture (vm/ghcr-update/run.sh) has no ARM-specific context.
+    assert os.environ.get('GITHUB_ACTIONS') == 'true' or os.environ.get('KEDRA_DISPOSABLE_HOST') == '1'
     root = Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-ghcr'
 cases = json.loads((root / 'cases/cases.json').read_bytes())
 context = ssl.create_default_context(cafile=str(root / 'context/tls.crt'))

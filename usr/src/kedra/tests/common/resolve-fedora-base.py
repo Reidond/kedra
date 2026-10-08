@@ -32,8 +32,10 @@ parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--architecture', choices=('amd64', 'arm64'), default='amd64',
                     help='OCI platform of the reviewed Fedora stream (default: amd64)')
 args = parser.parse_args()
-require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_OS') == 'Linux'
-        and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra', 'Use only a disposable Kedra Actions runner')
+require((os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_OS') == 'Linux'
+         and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra')
+        or os.environ.get('KEDRA_DISPOSABLE_HOST') == '1',
+        'Use only a disposable Kedra Actions runner or declared disposable host')
 root = Path(__file__).resolve().parents[2]
 inputs = json.loads((root / 'image/inputs.json').read_bytes())
 tag = inputs['base_tag']

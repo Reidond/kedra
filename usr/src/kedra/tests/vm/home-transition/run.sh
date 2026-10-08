@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
-# Actions-only signed graphical A/B/rollback experiment. No workstation disks.
+# Disposable-host signed graphical A/B/rollback experiment (common/disposable_host.py). No workstation disks.
 set -euo pipefail
-test "${GITHUB_ACTIONS:-}" = true
-test "${RUNNER_OS:-}" = Linux
-test "${GITHUB_REPOSITORY:-}" = Reidond/kedra
+# The B baseline comes from compose-artifact.py on a native aarch64 host, at this commit.
+if ! test -f output/home-artifact/producer.json; then
+    echo 'Copy output/home-artifact from the aarch64 compose-artifact.py run at this commit first' >&2
+    exit 1
+fi
+. usr/src/kedra/tests/common/disposable-host.sh --evidence output/r04-evidence --architecture x86_64 --kvm \
+    --command podman --command skopeo --command openssl --command curl --command mkfs.ext4 \
+    --command qemu-system-x86_64 --command virt-fw-vars --command xvfb-run --command xauth --command xdotool \
+    --command import
+test "$(jq -er .product_source output/home-artifact/producer.json)" = "$GITHUB_SHA"
 root="$RUNNER_TEMP/kedra-r04"
 private="$RUNNER_TEMP/kedra-r04-private"
 mkdir "$root" "$private"
@@ -69,8 +76,7 @@ done
 curl --silent --fail --cacert "$root/tls.crt" https://registry.kedra.test:5000/v2/ > /dev/null
 target/release/sysroot source archive --host desktop --output "$root/desktop/payload.tar"
 cp target/release/sysroot target/release/sysroot-helper usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh "$root/desktop/"
-bash usr/src/kedra/image/agents/prepare.sh desktop "$root/desktop" "$private/agent-inputs" "$evidence/agent-inputs.json"
-uv run usr/src/kedra/image/bitwarden/prepare.py --target desktop --context "$root/desktop" --evidence "$evidence/bitwarden-inputs.json"
+uv run usr/src/kedra/tests/common/prepare_inputs.py --target desktop --context "$root/desktop" --evidence "$evidence"
 sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$base" \
     --tag localhost/kedra-r04-desktop:base "$root/desktop" > "$evidence/desktop-build.log" 2>&1
 for variant in A B; do

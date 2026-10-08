@@ -5,7 +5,9 @@
 # ///
 """Produce the signed B fixture's receipt through ordinary native ARM composition.
 
-Actions-only, public generated inputs. The output is test evidence, not a release.
+Disposable native aarch64 host only (common/disposable_host.py), public generated
+inputs. The output is test evidence, not a release. Copy the output directory to
+output/home-artifact of the x86_64 host's checkout at the same commit for run.sh.
 The producer and store are removed before the signed-image consumer runs.
 """
 import argparse
@@ -14,22 +16,28 @@ import os
 import pathlib
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 
 from niri_fixture import incoming
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / 'common'))
+import disposable_host
+
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--foundation', required=True)
+parser.add_argument('--foundation', help='Exact Fedora bootc arm64 reference; resolved from the reviewed stream if omitted')
 parser.add_argument('--output', type=pathlib.Path, required=True)
 args = parser.parse_args()
-if (os.environ.get('GITHUB_ACTIONS') != 'true'
-        or os.environ.get('GITHUB_REPOSITORY') != 'Reidond/kedra'
-        or os.uname().machine != 'aarch64'):
-    raise SystemExit('Use only a disposable native ARM Kedra Actions runner')
+disposable_host.enter(architecture='aarch64', commands=('docker', 'skopeo'), docker_containerd=True)
 repo = pathlib.Path.cwd()
 tool = repo / 'target/release/sysroot'
+args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.mkdir(mode=0o700)
+if args.foundation is None:
+    args.foundation = subprocess.check_output(
+        ['uv', 'run', 'usr/src/kedra/tests/common/resolve-fedora-base.py', '--architecture', 'arm64',
+         '--output', str(args.output / 'foundation-resolution.json')], stdin=subprocess.DEVNULL, text=True).strip()
 environment = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
 environment.update({'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'})
 

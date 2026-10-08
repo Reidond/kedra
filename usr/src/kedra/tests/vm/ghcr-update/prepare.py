@@ -13,7 +13,9 @@ import sys
 import time
 from pathlib import Path
 
-assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra'
+# Hosted runner or declared disposable host; vm/ghcr-update/run.sh validated it.
+assert ((os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra')
+        or os.environ.get('KEDRA_DISPOSABLE_HOST') == '1')
 root = Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-ghcr'
 context = root / 'context'
 private = root.parent / 'kedra-ghcr-private'

@@ -175,144 +175,19 @@ impl Store {
     ) -> Result<ImportResult> {
         let mut archive = tar::Archive::new(File::open(bundle)?);
         let mut members = archive.entries()?;
-        let mut first = members
-            .next()
-            .ok_or_else(|| Error::Invalid("empty bundle".into()))??;
-        if first.path()?.as_ref() != Path::new("manifest.json")
-            || !first.header().entry_type().is_file()
-            || first.size() > MAX_JSON
-        {
-            return Err(Error::Invalid(
-                "bundle must begin with bounded regular manifest.json".into(),
-            ));
-        }
-        let mut bytes = Vec::new();
-        first.read_to_end(&mut bytes)?;
-        let manifest: Bundle = serde_json::from_slice(&bytes)?;
+        let (manifest, manifest_bytes) = read_manifest(&mut members)?;
         let allowlist = validate_manifest(&manifest)?;
-        fs::create_dir(stage.join("objects"))?;
-        fs::create_dir(stage.join("images"))?;
+        create_staged_directories(stage, &manifest)?;
+        unpack_members(members, stage, &allowlist, manifest_bytes)?;
         for (id, object) in &manifest.objects {
-            let data = stage.join("objects").join(id).join("data");
-            fs::create_dir_all(&data)?;
-            for entry in &object.entries {
-                if matches!(entry.kind, Kind::Directory) {
-                    fs::create_dir(data.join(&entry.path))?;
-                    fs::set_permissions(data.join(&entry.path), Permissions::from_mode(0o755))?;
-                }
-            }
-        }
-        for id in manifest.images.keys() {
-            fs::create_dir(stage.join("images").join(&id[7..]))?;
-        }
-        let mut seen = BTreeSet::new();
-        let mut total = bytes.len() as u64;
-        for member in members {
-            let mut member = member?;
-            if !member.header().entry_type().is_file() {
-                return Err(Error::Invalid(
-                    "archive links, devices and non-files are forbidden".into(),
-                ));
-            }
-            let path = member
-                .path()?
-                .to_str()
-                .ok_or_else(|| Error::Invalid("non-UTF8 bundle member".into()))?
-                .to_owned();
-            relative(&path, false)?;
-            if !seen.insert(path.clone()) {
-                return Err(Error::Invalid(format!("duplicate bundle member {path}")));
-            }
-            let (dest, expected) = allowlist
-                .get(&path)
-                .ok_or_else(|| Error::Invalid(format!("unknown bundle member {path}")))?;
-            if member.size() != *expected {
-                return Err(Error::Corrupt("bundle member size differs".into()));
-            }
-            total = total
-                .checked_add(member.size())
-                .ok_or_else(|| Error::Invalid("bundle size overflow".into()))?;
-            if total > MAX_BUNDLE {
-                return Err(Error::Invalid("bundle exceeds 16 GiB".into()));
-            }
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o600)
-                .open(stage.join(dest))?;
-            std::io::copy(&mut member, &mut file)?;
-            file.sync_all()?;
-        }
-        if seen.len() != allowlist.len() {
-            return Err(Error::Invalid("bundle is missing declared members".into()));
-        }
-        for (id, object) in &manifest.objects {
-            let data = stage.join("objects").join(id).join("data");
-            for entry in &object.entries {
-                match &entry.kind {
-                    Kind::File { executable, .. } => fs::set_permissions(
-                        data.join(&entry.path),
-                        Permissions::from_mode(if *executable { 0o755 } else { 0o644 }),
-                    )?,
-                    Kind::Symlink { target } => {
-                        std::os::unix::fs::symlink(target, data.join(&entry.path))?
-                    }
-                    Kind::Directory => {}
-                }
-            }
-            let tree = tree::inspect(&data, None)?;
-            if tree.digest != object.receipt.tree_sha256
-                || serde_json::to_vec(&tree.entries)? != serde_json::to_vec(&object.entries)?
-            {
-                return Err(Error::Corrupt(format!("bundle tree differs for {id}")));
-            }
-            self.validate_receipt(&object.receipt, &tree)?;
-            if self.object_path(id).exists() {
-                let existing = self.verify(id)?;
-                if serde_json::to_vec(&existing)? != serde_json::to_vec(&object.receipt)? {
-                    return Err(Error::Corrupt("bundle conflicts with stored output".into()));
-                }
-            }
+            self.verify_staged_object(stage, id, object)?;
         }
         for (id, receipt) in &manifest.images {
-            let (sha, bytes) = hash_file(
-                &stage.join("images").join(&id[7..]).join("image.tar"),
-                8 * 1024 * 1024 * 1024,
-            )?;
-            if sha != receipt.sha256 || bytes != receipt.bytes {
-                return Err(Error::Corrupt("bundle image archive differs".into()));
-            }
-            crate::image_archive::verify(
-                &stage.join("images").join(&id[7..]).join("image.tar"),
-                &receipt.image,
-                &receipt.platform,
-            )?;
-            if self.image_path(id).exists() {
-                let old = self.verify_image(id)?;
-                if old.sha256 != receipt.sha256 {
-                    return Err(Error::Corrupt(
-                        "bundle conflicts with stored image archive".into(),
-                    ));
-                }
-            }
+            self.verify_staged_image(stage, id, receipt)?;
         }
         let order = dependency_order(&manifest)?;
         if let Some(authorization) = authorization {
-            let root = manifest
-                .objects
-                .get(&authorization.receipt().root.object)
-                .ok_or_else(|| Error::Invalid("authorized bundle root is absent".into()))?;
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|_| Error::Invalid("system clock precedes Unix epoch".into()))?
-                .as_secs();
-            authorization.validate_bundle(
-                &manifest.roots,
-                &root.receipt,
-                sha256,
-                bundle_bytes,
-                now,
-            )?;
+            authorize_bundle(authorization, &manifest, sha256, bundle_bytes)?;
         }
         let journal = ImportJournal {
             schema: 1,
@@ -347,6 +222,47 @@ impl Store {
         Ok(ImportResult {
             roots: manifest.roots,
         })
+    }
+    fn verify_staged_object(&self, stage: &Path, id: &str, object: &BundledObject) -> Result<()> {
+        let data = stage.join("objects").join(id).join("data");
+        restore_modes_and_links(&data, &object.entries)?;
+        let tree = tree::inspect(&data, None)?;
+        if tree.digest != object.receipt.tree_sha256
+            || serde_json::to_vec(&tree.entries)? != serde_json::to_vec(&object.entries)?
+        {
+            return Err(Error::Corrupt(format!("bundle tree differs for {id}")));
+        }
+        self.validate_receipt(&object.receipt, &tree)?;
+        if self.object_path(id).exists() {
+            let existing = self.verify(id)?;
+            if serde_json::to_vec(&existing)? != serde_json::to_vec(&object.receipt)? {
+                return Err(Error::Corrupt("bundle conflicts with stored output".into()));
+            }
+        }
+        Ok(())
+    }
+    fn verify_staged_image(&self, stage: &Path, id: &str, receipt: &ImageReceipt) -> Result<()> {
+        let (sha, bytes) = hash_file(
+            &stage.join("images").join(&id[7..]).join("image.tar"),
+            8 * 1024 * 1024 * 1024,
+        )?;
+        if sha != receipt.sha256 || bytes != receipt.bytes {
+            return Err(Error::Corrupt("bundle image archive differs".into()));
+        }
+        crate::image_archive::verify(
+            &stage.join("images").join(&id[7..]).join("image.tar"),
+            &receipt.image,
+            &receipt.platform,
+        )?;
+        if self.image_path(id).exists() {
+            let old = self.verify_image(id)?;
+            if old.sha256 != receipt.sha256 {
+                return Err(Error::Corrupt(
+                    "bundle conflicts with stored image archive".into(),
+                ));
+            }
+        }
+        Ok(())
     }
     pub(crate) fn recover_import(&self) -> Result<()> {
         self.retire_import_next()?;
@@ -469,6 +385,119 @@ fn append<W: Write>(
     header.set_cksum();
     tar.append_data(&mut header, path, data)?;
     Ok(())
+}
+fn read_manifest(members: &mut tar::Entries<'_, File>) -> Result<(Bundle, u64)> {
+    let mut first = members
+        .next()
+        .ok_or_else(|| Error::Invalid("empty bundle".into()))??;
+    if first.path()?.as_ref() != Path::new("manifest.json")
+        || !first.header().entry_type().is_file()
+        || first.size() > MAX_JSON
+    {
+        return Err(Error::Invalid(
+            "bundle must begin with bounded regular manifest.json".into(),
+        ));
+    }
+    let mut bytes = Vec::new();
+    first.read_to_end(&mut bytes)?;
+    let manifest: Bundle = serde_json::from_slice(&bytes)?;
+    Ok((manifest, bytes.len() as u64))
+}
+fn create_staged_directories(stage: &Path, manifest: &Bundle) -> Result<()> {
+    fs::create_dir(stage.join("objects"))?;
+    fs::create_dir(stage.join("images"))?;
+    for (id, object) in &manifest.objects {
+        let data = stage.join("objects").join(id).join("data");
+        fs::create_dir_all(&data)?;
+        for entry in &object.entries {
+            if matches!(entry.kind, Kind::Directory) {
+                fs::create_dir(data.join(&entry.path))?;
+                fs::set_permissions(data.join(&entry.path), Permissions::from_mode(0o755))?;
+            }
+        }
+    }
+    for id in manifest.images.keys() {
+        fs::create_dir(stage.join("images").join(&id[7..]))?;
+    }
+    Ok(())
+}
+fn unpack_members(
+    members: tar::Entries<'_, File>,
+    stage: &Path,
+    allowlist: &BTreeMap<String, (String, u64)>,
+    manifest_bytes: u64,
+) -> Result<()> {
+    let mut seen = BTreeSet::new();
+    let mut total = manifest_bytes;
+    for member in members {
+        let mut member = member?;
+        if !member.header().entry_type().is_file() {
+            return Err(Error::Invalid(
+                "archive links, devices and non-files are forbidden".into(),
+            ));
+        }
+        let path = member
+            .path()?
+            .to_str()
+            .ok_or_else(|| Error::Invalid("non-UTF8 bundle member".into()))?
+            .to_owned();
+        relative(&path, false)?;
+        if !seen.insert(path.clone()) {
+            return Err(Error::Invalid(format!("duplicate bundle member {path}")));
+        }
+        let (dest, expected) = allowlist
+            .get(&path)
+            .ok_or_else(|| Error::Invalid(format!("unknown bundle member {path}")))?;
+        if member.size() != *expected {
+            return Err(Error::Corrupt("bundle member size differs".into()));
+        }
+        total = total
+            .checked_add(member.size())
+            .ok_or_else(|| Error::Invalid("bundle size overflow".into()))?;
+        if total > MAX_BUNDLE {
+            return Err(Error::Invalid("bundle exceeds 16 GiB".into()));
+        }
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(stage.join(dest))?;
+        std::io::copy(&mut member, &mut file)?;
+        file.sync_all()?;
+    }
+    if seen.len() != allowlist.len() {
+        return Err(Error::Invalid("bundle is missing declared members".into()));
+    }
+    Ok(())
+}
+fn restore_modes_and_links(data: &Path, entries: &[Entry]) -> Result<()> {
+    for entry in entries {
+        match &entry.kind {
+            Kind::File { executable, .. } => fs::set_permissions(
+                data.join(&entry.path),
+                Permissions::from_mode(if *executable { 0o755 } else { 0o644 }),
+            )?,
+            Kind::Symlink { target } => std::os::unix::fs::symlink(target, data.join(&entry.path))?,
+            Kind::Directory => {}
+        }
+    }
+    Ok(())
+}
+fn authorize_bundle(
+    authorization: &VerifiedCacheReceipt,
+    manifest: &Bundle,
+    sha256: &str,
+    bundle_bytes: u64,
+) -> Result<()> {
+    let root = manifest
+        .objects
+        .get(&authorization.receipt().root.object)
+        .ok_or_else(|| Error::Invalid("authorized bundle root is absent".into()))?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| Error::Invalid("system clock precedes Unix epoch".into()))?
+        .as_secs();
+    authorization.validate_bundle(&manifest.roots, &root.receipt, sha256, bundle_bytes, now)
 }
 fn validate_manifest(manifest: &Bundle) -> Result<BTreeMap<String, (String, u64)>> {
     if manifest.schema != 1

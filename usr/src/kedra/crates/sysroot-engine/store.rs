@@ -100,6 +100,37 @@ struct GcJournal {
     objects: Vec<String>,
     images: Vec<String>,
 }
+/// Validated GC journal entries: each object's retirement position and the image set.
+struct GcTargets {
+    positions: BTreeMap<String, usize>,
+    images: BTreeSet<String>,
+}
+impl GcTargets {
+    fn from_journal(journal: &GcJournal) -> Result<Self> {
+        let mut positions = BTreeMap::new();
+        for (position, id) in journal.objects.iter().enumerate() {
+            object_id(id)?;
+            if positions.insert(id.clone(), position).is_some() {
+                return Err(Error::RecoveryRequired("duplicate GC object".into()));
+            }
+        }
+        let mut images = BTreeSet::new();
+        for image in &journal.images {
+            image_id(image)?;
+            if !images.insert(image.clone()) {
+                return Err(Error::RecoveryRequired("duplicate GC image".into()));
+            }
+        }
+        Ok(Self { positions, images })
+    }
+    fn declares_tombstone(&self, member: &str, id: &str) -> bool {
+        if member == "objects" {
+            self.positions.contains_key(id)
+        } else {
+            self.images.contains(&format!("sha256:{id}"))
+        }
+    }
+}
 pub struct Store {
     path: PathBuf,
     pub(crate) token: String,
@@ -869,28 +900,34 @@ impl Store {
             ));
         }
         stage_name(&journal.stage)?;
-        let mut positions = BTreeMap::new();
-        for (position, id) in journal.objects.iter().enumerate() {
-            object_id(id)?;
-            if positions.insert(id.clone(), position).is_some() {
-                return Err(Error::RecoveryRequired("duplicate GC object".into()));
-            }
+        let targets = GcTargets::from_journal(journal)?;
+        self.check_gc_targets_unretained(&targets)?;
+        self.check_gc_retirement_order(&targets)?;
+        let stage = self.path.join("transactions").join(&journal.stage);
+        if exists_nofollow(&stage)? {
+            self.retire_gc_stage(journal, &targets, &stage)?;
+        } else if self.gc_artifacts_live(journal) {
+            return Err(Error::RecoveryRequired(
+                "GC staging missing before retirement completed".into(),
+            ));
         }
-        let mut images = BTreeSet::new();
-        for image in &journal.images {
-            image_id(image)?;
-            if !images.insert(image.clone()) {
-                return Err(Error::RecoveryRequired("duplicate GC image".into()));
-            }
-        }
+        fs::remove_file(self.path.join("transactions/gc.json"))?;
+        File::open(self.path.join("transactions"))?.sync_all()?;
+        Ok(())
+    }
+    fn check_gc_targets_unretained(&self, targets: &GcTargets) -> Result<()> {
         let (retained, retained_images) = self.retained()?;
-        if retained.iter().any(|id| positions.contains_key(id))
-            || !images.is_disjoint(&retained_images)
+        if retained.iter().any(|id| targets.positions.contains_key(id))
+            || !targets.images.is_disjoint(&retained_images)
         {
             return Err(Error::RecoveryRequired(
                 "GC journal includes retained artifacts".into(),
             ));
         }
+        Ok(())
+    }
+    fn check_gc_retirement_order(&self, targets: &GcTargets) -> Result<()> {
+        let positions = &targets.positions;
         // Every live referrer must be retired before its dependencies. Previously
         // retired directories can be partly deleted and are intentionally not read.
         for id in list_names(&self.path.join("objects"))? {
@@ -909,7 +946,7 @@ impl Store {
             if receipt
                 .runtime_image
                 .as_ref()
-                .is_some_and(|image| images.contains(image))
+                .is_some_and(|image| targets.images.contains(image))
                 && !positions.contains_key(&id)
             {
                 return Err(Error::RecoveryRequired(
@@ -917,50 +954,34 @@ impl Store {
                 ));
             }
         }
-        let stage = self.path.join("transactions").join(&journal.stage);
-        if exists_nofollow(&stage)? {
-            private(&stage, true)?;
-            for name in list_names(&stage)? {
-                if name != "objects" && name != "images" {
-                    return Err(Error::RecoveryRequired("unknown GC staging member".into()));
-                }
-                private(&stage.join(&name), true)?;
-                for id in list_names(&stage.join(&name))? {
-                    let declared = if name == "objects" {
-                        positions.contains_key(&id)
-                    } else {
-                        images.contains(&format!("sha256:{id}"))
-                    };
-                    if !declared {
-                        return Err(Error::RecoveryRequired("undeclared GC tombstone".into()));
-                    }
-                    owned_node(&stage.join(&name).join(id), true)?;
-                }
-            }
-            for id in &journal.objects {
-                retire(&self.object_path(id), &stage.join("objects").join(id))?;
-            }
-            for image in &journal.images {
-                retire(
-                    &self.image_path(image),
-                    &stage.join("images").join(&image[7..]),
-                )?;
-            }
-            tree::remove(&stage)?;
-            File::open(self.path.join("transactions"))?.sync_all()?;
-        } else if journal
+        Ok(())
+    }
+    fn retire_gc_stage(
+        &self,
+        journal: &GcJournal,
+        targets: &GcTargets,
+        stage: &Path,
+    ) -> Result<()> {
+        check_gc_stage(stage, targets)?;
+        for id in &journal.objects {
+            retire(&self.object_path(id), &stage.join("objects").join(id))?;
+        }
+        for image in &journal.images {
+            retire(
+                &self.image_path(image),
+                &stage.join("images").join(&image[7..]),
+            )?;
+        }
+        tree::remove(stage)?;
+        File::open(self.path.join("transactions"))?.sync_all()?;
+        Ok(())
+    }
+    fn gc_artifacts_live(&self, journal: &GcJournal) -> bool {
+        journal
             .objects
             .iter()
             .any(|id| self.object_path(id).exists())
             || journal.images.iter().any(|id| self.image_path(id).exists())
-        {
-            return Err(Error::RecoveryRequired(
-                "GC staging missing before retirement completed".into(),
-            ));
-        }
-        fs::remove_file(self.path.join("transactions/gc.json"))?;
-        File::open(self.path.join("transactions"))?.sync_all()?;
-        Ok(())
     }
     pub fn recover(path: &Path) -> Result<Recovery> {
         let store = Self::open_inner(path, true)?;
@@ -1139,6 +1160,22 @@ fn exists_nofollow(path: &Path) -> Result<bool> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error.into()),
     }
+}
+fn check_gc_stage(stage: &Path, targets: &GcTargets) -> Result<()> {
+    private(stage, true)?;
+    for name in list_names(stage)? {
+        if name != "objects" && name != "images" {
+            return Err(Error::RecoveryRequired("unknown GC staging member".into()));
+        }
+        private(&stage.join(&name), true)?;
+        for id in list_names(&stage.join(&name))? {
+            if !targets.declares_tombstone(&name, &id) {
+                return Err(Error::RecoveryRequired("undeclared GC tombstone".into()));
+            }
+            owned_node(&stage.join(&name).join(id), true)?;
+        }
+    }
+    Ok(())
 }
 fn retire(live: &Path, tombstone: &Path) -> Result<()> {
     let present = exists_nofollow(live)?;

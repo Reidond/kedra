@@ -500,6 +500,305 @@ fn response(
     Ok(())
 }
 
+fn check_enrollment_preconditions(
+    trust: &Trust,
+    before: &Host,
+    migrate_legacy: bool,
+    expected_digest: Option<&str>,
+) -> Result<()> {
+    if before.staged.is_some() || before.rollback_queued {
+        return Err("enrollment requires no pending deployment or queued rollback".into());
+    }
+    if expected_digest.is_some_and(|d| d != before.booted.digest) {
+        return Err("booted digest differs from explicit enrollment expectation".into());
+    }
+    if migrate_legacy && !trust.scope.legacy() {
+        return Err("legacy migration exists only for desktop x86_64".into());
+    }
+    if migrate_legacy && expected_digest.is_none() {
+        return Err(
+            "legacy migration requires the explicitly reviewed booted --expected-digest".into(),
+        );
+    }
+    // Store::create refuses any existing entry; refuse before transferring the image
+    // or pruning layers that an existing journal's operation still needs.
+    if !migrate_legacy {
+        match std::fs::symlink_metadata(STORE) {
+            Ok(_) => return Err("already enrolled; use update status or check".into()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+fn migrate_legacy_journal(
+    journal: &mut Journal,
+    booted: &Receipt,
+    before: &Host,
+    trust: &Trust,
+) -> Result<()> {
+    let mut store = Store::open(Path::new(STORE))?;
+    let (revision, legacy) = super::load(&store, trust)?;
+    if legacy
+        .operation
+        .as_ref()
+        .is_some_and(|o| matches!(o.phase, Phase::Intent | Phase::AwaitingReboot))
+    {
+        return Err("legacy operation must be reconciled before migration".into());
+    }
+    journal.rollback_hold = legacy.rollback_hold;
+    if let Some(slot) = &before.rollback {
+        journal.legacy_rollback = Some(legacy_rollback(&store, &slot.digest, trust)?);
+    }
+    // Preserve the original canonical v1 record and every existing release receipt.
+    let original = serde_json::to_vec(&legacy)?;
+    if let Some(backup) = store.read("legacy-deployment-v1")? {
+        if backup.bytes != original {
+            return Err("legacy backup differs; inspect interrupted migration".into());
+        }
+    } else {
+        store.compare_exchange("legacy-deployment-v1", None, &original)?;
+    }
+    journal.legacy = Some(legacy);
+    retain(&mut store, booted)?;
+    save(&mut store, revision, journal)?;
+    Ok(())
+}
+fn enroll(
+    trust: &Trust,
+    before: &Host,
+    migrate_legacy: bool,
+    expected_digest: Option<&str>,
+) -> Result<()> {
+    check_enrollment_preconditions(trust, before, migrate_legacy, expected_digest)?;
+    let booted = authenticate(&before.booted.digest, trust, true, &cached(before, None))?;
+    if observe(&trust.scope)? != *before {
+        return Err("native deployment changed during enrollment".into());
+    }
+    let mut journal = Journal {
+        schema_version: 2,
+        machine: trust.machine.clone(),
+        scope: trust.scope.clone(),
+        key_fingerprint: sysroot_core::release::public_key_fingerprint(&trust.key)?,
+        high_water: booted.clone(),
+        rollback_hold: false,
+        operation: None,
+        last_registry_check_at: Some(now()?),
+        legacy: None,
+        legacy_rollback: None,
+        identity_health_error: None,
+    };
+    if migrate_legacy {
+        migrate_legacy_journal(&mut journal, &booted, before, trust)?;
+    } else {
+        let bytes = serde_json::to_vec(&journal)?;
+        let receipt = serde_json::to_vec(&booted)?;
+        Store::create(
+            Path::new(STORE),
+            &[(RECORD, &bytes), (&receipt_name(&booted.digest)?, &receipt)],
+        )?;
+    }
+    response(trust, before, Some(&journal), None, false)
+}
+fn check_unenrolled(trust: &Trust, before: &Host) -> Result<()> {
+    installed(trust)?;
+    let digest = resolve(trust)?;
+    let available = authenticate(&digest, trust, false, &cached(before, None))?;
+    if resolve(trust)? != digest || observe(&trust.scope)? != *before {
+        return Err("channel or deployment changed during check".into());
+    }
+    response(trust, before, None, Some(&available), true)
+}
+
+/// Loads the journal and records the observed operation phase and booted identity health.
+fn reconcile(store: &mut Store, before: &Host, trust: &Trust) -> Result<(u64, Journal)> {
+    let (mut revision, mut journal) = load(store, trust)?;
+    let old = journal.operation.clone();
+    if let Some(op) = &mut journal.operation {
+        op.observe(before);
+    }
+    let identity_error = matches_booted(store, before, trust)
+        .err()
+        .map(|error| error.to_string());
+    let health_changed = journal.identity_health_error != identity_error;
+    journal.identity_health_error = identity_error;
+    if old != journal.operation || health_changed {
+        revision = save(store, revision, &journal)?;
+    }
+    Ok((revision, journal))
+}
+fn verify_channel(journal: &Journal, before: &Host, trust: &Trust) -> Result<Receipt> {
+    let digest = resolve(trust)?;
+    let available = authenticate(
+        &digest,
+        trust,
+        digest == before.booted.digest,
+        &cached(before, Some(journal)),
+    )?;
+    available.follows(&journal.high_water)?;
+    if resolve(trust)? != digest || observe(&trust.scope)? != *before {
+        return Err("channel or deployment changed during verification".into());
+    }
+    Ok(available)
+}
+fn record_check(
+    store: &mut Store,
+    revision: u64,
+    journal: &mut Journal,
+    before: &Host,
+    trust: &Trust,
+) -> Result<()> {
+    let available = verify_channel(journal, before, trust)?;
+    // A verified observation advances replay protection, never a deployment slot.
+    retain(store, &available)?;
+    journal.high_water = available.clone();
+    journal.last_registry_check_at = Some(now()?);
+    save(store, revision, journal)?;
+    response(trust, before, Some(journal), Some(&available), true)
+}
+
+/// The native deployment a verified request authorizes once its intent is recorded.
+struct Plan {
+    kind: OperationKind,
+    target: String,
+    should_run: bool,
+}
+fn plan_stage(
+    store: &mut Store,
+    journal: &mut Journal,
+    before: &Host,
+    trust: &Trust,
+    expected_digest: Option<&str>,
+    replace_staged: Option<&str>,
+    resume: bool,
+) -> Result<Plan> {
+    let available = verify_channel(journal, before, trust)?;
+    let digest = available.digest.clone();
+    if expected_digest.is_some_and(|d| d != digest) {
+        return Err("channel digest differs from explicit expectation".into());
+    }
+    let action = deployment::stage_action(
+        before,
+        &digest,
+        replace_staged,
+        journal.rollback_hold,
+        resume,
+    )?;
+    retain(store, &available)?;
+    journal.high_water = available;
+    journal.last_registry_check_at = Some(now()?);
+    if resume {
+        journal.rollback_hold = false;
+    }
+    Ok(Plan {
+        kind: OperationKind::Stage,
+        target: digest,
+        should_run: action == StageAction::Switch,
+    })
+}
+fn plan_rollback(
+    store: &Store,
+    journal: &mut Journal,
+    before: &Host,
+    trust: &Trust,
+    replace_staged: Option<&str>,
+) -> Result<Plan> {
+    let slot = before
+        .rollback
+        .as_ref()
+        .ok_or("no retained rollback deployment")?;
+    if slot.download_only {
+        return Err("rollback slot is download-only".into());
+    }
+    if before
+        .staged
+        .as_ref()
+        .is_some_and(|s| replace_staged != Some(&s.digest))
+        || before.staged.is_none() && replace_staged.is_some()
+    {
+        return Err("explicit pending digest replacement is required".into());
+    }
+    // Receipt was authenticated before staging/enrollment, so retained rollback works offline.
+    if store.read(&receipt_name(&slot.digest)?)?.is_some() {
+        recorded(store, &slot.digest, trust)?;
+    } else {
+        let document = journal
+            .legacy_rollback
+            .as_ref()
+            .ok_or("retained rollback receipt missing")?;
+        if super::verify(document, trust)?.release().image_digest != slot.digest {
+            return Err("legacy receipt does not match native rollback slot".into());
+        }
+    }
+    journal.rollback_hold = true;
+    Ok(Plan {
+        kind: OperationKind::Rollback,
+        target: slot.digest.clone(),
+        should_run: !before.rollback_queued,
+    })
+}
+fn run_bootc(kind: &OperationKind, reference: &str) -> Result<bool> {
+    let arguments = match kind {
+        OperationKind::Stage => vec!["switch", "--enforce-container-sigpolicy", reference],
+        OperationKind::Rollback => vec!["rollback"],
+    };
+    if matches!(kind, OperationKind::Stage) {
+        eprintln!(
+            "sysroot-helper: staging {reference} with bootc; it fetches only layers it does not already have"
+        );
+    }
+    // bootc's own progress and messages go to the caller's terminal.
+    Ok(process("30m", &arguments)
+        .stdout(Stdio::from(std::io::stderr().as_fd().try_clone_to_owned()?))
+        .stderr(Stdio::inherit())
+        .status()?
+        .success())
+}
+fn deploy(
+    store: &mut Store,
+    mut revision: u64,
+    journal: &mut Journal,
+    before: &Host,
+    trust: &Trust,
+    plan: Plan,
+) -> Result<()> {
+    let Plan {
+        kind,
+        target,
+        should_run,
+    } = plan;
+    if observe(&trust.scope)? != *before {
+        return Err("native deployment changed before intent".into());
+    }
+    journal.operation = Some(Operation {
+        kind: kind.clone(),
+        target_digest: target.clone(),
+        previous_booted: before.booted.digest.clone(),
+        previous_staged: before.staged.as_ref().map(|s| s.digest.clone()),
+        phase: Phase::Intent,
+    });
+    revision = save(store, revision, journal)?;
+    let reference = format!("{}@{target}", trust.scope.repository);
+    let result = if should_run {
+        run_bootc(&kind, &reference)?
+    } else {
+        true
+    };
+    let after = observe(&trust.scope)?;
+    let operation = journal
+        .operation
+        .as_mut()
+        .ok_or("missing deployment intent")?;
+    operation.observe(&after);
+    let completed = matches!(operation.phase, Phase::AwaitingReboot | Phase::Booted);
+    save(store, revision, journal)?;
+    response(trust, &after, Some(journal), None, false)?;
+    if !result || !completed {
+        return Err("native deployment incomplete; inspect recorded status before retrying".into());
+    }
+    Ok(())
+}
+
 pub(super) fn run(request: Request) -> Result<()> {
     if rustix::process::getuid().as_raw() != 0 || rustix::process::geteuid().as_raw() != 0 {
         return Err(
@@ -526,84 +825,7 @@ pub(super) fn run(request: Request) -> Result<()> {
         expected_digest,
     } = request
     {
-        if before.staged.is_some() || before.rollback_queued {
-            return Err("enrollment requires no pending deployment or queued rollback".into());
-        }
-        if expected_digest
-            .as_ref()
-            .is_some_and(|d| d != &before.booted.digest)
-        {
-            return Err("booted digest differs from explicit enrollment expectation".into());
-        }
-        if migrate_legacy && !trust.scope.legacy() {
-            return Err("legacy migration exists only for desktop x86_64".into());
-        }
-        if migrate_legacy && expected_digest.is_none() {
-            return Err(
-                "legacy migration requires the explicitly reviewed booted --expected-digest".into(),
-            );
-        }
-        // Store::create refuses any existing entry; refuse before transferring the image
-        // or pruning layers that an existing journal's operation still needs.
-        if !migrate_legacy {
-            match std::fs::symlink_metadata(STORE) {
-                Ok(_) => return Err("already enrolled; use update status or check".into()),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
-                Err(error) => return Err(error.into()),
-            }
-        }
-        let booted = authenticate(&before.booted.digest, &trust, true, &cached(&before, None))?;
-        if observe(&trust.scope)? != before {
-            return Err("native deployment changed during enrollment".into());
-        }
-        let mut journal = Journal {
-            schema_version: 2,
-            machine: trust.machine.clone(),
-            scope: trust.scope.clone(),
-            key_fingerprint: sysroot_core::release::public_key_fingerprint(&trust.key)?,
-            high_water: booted.clone(),
-            rollback_hold: false,
-            operation: None,
-            last_registry_check_at: Some(now()?),
-            legacy: None,
-            legacy_rollback: None,
-            identity_health_error: None,
-        };
-        if migrate_legacy {
-            let mut store = Store::open(Path::new(STORE))?;
-            let (revision, legacy) = super::load(&store, &trust)?;
-            if legacy
-                .operation
-                .as_ref()
-                .is_some_and(|o| matches!(o.phase, Phase::Intent | Phase::AwaitingReboot))
-            {
-                return Err("legacy operation must be reconciled before migration".into());
-            }
-            journal.rollback_hold = legacy.rollback_hold;
-            if let Some(slot) = &before.rollback {
-                journal.legacy_rollback = Some(legacy_rollback(&store, &slot.digest, &trust)?);
-            }
-            // Preserve the original canonical v1 record and every existing release receipt.
-            let original = serde_json::to_vec(&legacy)?;
-            if let Some(backup) = store.read("legacy-deployment-v1")? {
-                if backup.bytes != original {
-                    return Err("legacy backup differs; inspect interrupted migration".into());
-                }
-            } else {
-                store.compare_exchange("legacy-deployment-v1", None, &original)?;
-            }
-            journal.legacy = Some(legacy);
-            retain(&mut store, &booted)?;
-            save(&mut store, revision, &journal)?;
-        } else {
-            let bytes = serde_json::to_vec(&journal)?;
-            let receipt = serde_json::to_vec(&booted)?;
-            Store::create(
-                Path::new(STORE),
-                &[(RECORD, &bytes), (&receipt_name(&booted.digest)?, &receipt)],
-            )?;
-        }
-        return response(&trust, &before, Some(&journal), None, false);
+        return enroll(&trust, &before, migrate_legacy, expected_digest.as_deref());
     }
     if matches!(
         request,
@@ -611,30 +833,12 @@ pub(super) fn run(request: Request) -> Result<()> {
     ) && !Path::new(STORE).try_exists()?
     {
         if matches!(request, Request::ChannelCheck {}) {
-            installed(&trust)?;
-            let digest = resolve(&trust)?;
-            let available = authenticate(&digest, &trust, false, &cached(&before, None))?;
-            if resolve(&trust)? != digest || observe(&trust.scope)? != before {
-                return Err("channel or deployment changed during check".into());
-            }
-            return response(&trust, &before, None, Some(&available), true);
+            return check_unenrolled(&trust, &before);
         }
         return response(&trust, &before, None, None, false);
     }
     let mut store = Store::open(Path::new(STORE))?;
-    let (mut revision, mut journal) = load(&store, &trust)?;
-    let old = journal.operation.clone();
-    if let Some(op) = &mut journal.operation {
-        op.observe(&before);
-    }
-    let identity_error = matches_booted(&store, &before, &trust)
-        .err()
-        .map(|error| error.to_string());
-    let health_changed = journal.identity_health_error != identity_error;
-    journal.identity_health_error = identity_error;
-    if old != journal.operation || health_changed {
-        revision = save(&mut store, revision, &journal)?;
-    }
+    let (revision, mut journal) = reconcile(&mut store, &before, &trust)?;
     // A bad current identity cannot authorize forward work. Recovery is different:
     // the retained rollback receipt and native rollback slot authorize only that slot.
     if journal.identity_health_error.is_some()
@@ -643,135 +847,34 @@ pub(super) fn run(request: Request) -> Result<()> {
         response(&trust, &before, Some(&journal), None, false)?;
         return Err("booted identity health failed; high-water preserved, inspect status and recover explicitly".into());
     }
-    if matches!(request, Request::ChannelStatus {}) {
-        return response(&trust, &before, Some(&journal), None, false);
-    }
-    let (kind, target, should_run) = match request {
-        Request::ChannelCheck {} | Request::ChannelStage { .. } => {
-            let digest = resolve(&trust)?;
-            let available = authenticate(
-                &digest,
-                &trust,
-                digest == before.booted.digest,
-                &cached(&before, Some(&journal)),
-            )?;
-            available.follows(&journal.high_water)?;
-            if resolve(&trust)? != digest || observe(&trust.scope)? != before {
-                return Err("channel or deployment changed during verification".into());
-            }
-            if matches!(request, Request::ChannelCheck {}) {
-                // A verified observation advances replay protection, never a deployment slot.
-                retain(&mut store, &available)?;
-                journal.high_water = available.clone();
-                journal.last_registry_check_at = Some(now()?);
-                save(&mut store, revision, &journal)?;
-                return response(&trust, &before, Some(&journal), Some(&available), true);
-            }
-            let Request::ChannelStage {
-                expected_digest,
-                replace_staged,
-                resume,
-            } = request
-            else {
-                return Err("invalid channel request".into());
-            };
-            if expected_digest.as_ref().is_some_and(|d| d != &digest) {
-                return Err("channel digest differs from explicit expectation".into());
-            }
-            let action = deployment::stage_action(
-                &before,
-                &digest,
-                replace_staged.as_deref(),
-                journal.rollback_hold,
-                resume,
-            )?;
-            retain(&mut store, &available)?;
-            journal.high_water = available;
-            journal.last_registry_check_at = Some(now()?);
-            if resume {
-                journal.rollback_hold = false;
-            }
-            (OperationKind::Stage, digest, action == StageAction::Switch)
+    let plan = match request {
+        Request::ChannelStatus {} => {
+            return response(&trust, &before, Some(&journal), None, false);
         }
-        Request::ChannelRollback { replace_staged } => {
-            let slot = before
-                .rollback
-                .as_ref()
-                .ok_or("no retained rollback deployment")?;
-            if slot.download_only {
-                return Err("rollback slot is download-only".into());
-            }
-            if before
-                .staged
-                .as_ref()
-                .is_some_and(|s| replace_staged.as_deref() != Some(&s.digest))
-                || before.staged.is_none() && replace_staged.is_some()
-            {
-                return Err("explicit pending digest replacement is required".into());
-            }
-            // Receipt was authenticated before staging/enrollment, so retained rollback works offline.
-            if store.read(&receipt_name(&slot.digest)?)?.is_some() {
-                recorded(&store, &slot.digest, &trust)?;
-            } else {
-                let document = journal
-                    .legacy_rollback
-                    .as_ref()
-                    .ok_or("retained rollback receipt missing")?;
-                if super::verify(document, &trust)?.release().image_digest != slot.digest {
-                    return Err("legacy receipt does not match native rollback slot".into());
-                }
-            }
-            journal.rollback_hold = true;
-            (
-                OperationKind::Rollback,
-                slot.digest.clone(),
-                !before.rollback_queued,
-            )
+        Request::ChannelCheck {} => {
+            return record_check(&mut store, revision, &mut journal, &before, &trust);
         }
+        Request::ChannelStage {
+            expected_digest,
+            replace_staged,
+            resume,
+        } => plan_stage(
+            &mut store,
+            &mut journal,
+            &before,
+            &trust,
+            expected_digest.as_deref(),
+            replace_staged.as_deref(),
+            resume,
+        )?,
+        Request::ChannelRollback { replace_staged } => plan_rollback(
+            &store,
+            &mut journal,
+            &before,
+            &trust,
+            replace_staged.as_deref(),
+        )?,
         _ => return Err("unsupported direct registry operation".into()),
     };
-    if observe(&trust.scope)? != before {
-        return Err("native deployment changed before intent".into());
-    }
-    journal.operation = Some(Operation {
-        kind: kind.clone(),
-        target_digest: target.clone(),
-        previous_booted: before.booted.digest.clone(),
-        previous_staged: before.staged.as_ref().map(|s| s.digest.clone()),
-        phase: Phase::Intent,
-    });
-    revision = save(&mut store, revision, &journal)?;
-    let reference = format!("{}@{target}", trust.scope.repository);
-    let result = if should_run {
-        let arguments = match kind {
-            OperationKind::Stage => vec!["switch", "--enforce-container-sigpolicy", &reference],
-            OperationKind::Rollback => vec!["rollback"],
-        };
-        if matches!(kind, OperationKind::Stage) {
-            eprintln!(
-                "sysroot-helper: staging {reference} with bootc; it fetches only layers it does not already have"
-            );
-        }
-        // bootc's own progress and messages go to the caller's terminal.
-        process("30m", &arguments)
-            .stdout(Stdio::from(std::io::stderr().as_fd().try_clone_to_owned()?))
-            .stderr(Stdio::inherit())
-            .status()?
-            .success()
-    } else {
-        true
-    };
-    let after = observe(&trust.scope)?;
-    let operation = journal
-        .operation
-        .as_mut()
-        .ok_or("missing deployment intent")?;
-    operation.observe(&after);
-    let completed = matches!(operation.phase, Phase::AwaitingReboot | Phase::Booted);
-    save(&mut store, revision, &journal)?;
-    response(&trust, &after, Some(&journal), None, false)?;
-    if !result || !completed {
-        return Err("native deployment incomplete; inspect recorded status before retrying".into());
-    }
-    Ok(())
+    deploy(&mut store, revision, &mut journal, &before, &trust, plan)
 }

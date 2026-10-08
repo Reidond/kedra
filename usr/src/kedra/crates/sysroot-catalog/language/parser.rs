@@ -83,173 +83,198 @@ pub(super) struct Token {
 }
 
 pub(super) fn tokens(file: &str, input: &str) -> Result<Vec<Token>> {
-    let error = |span, code, message| fail(file, span, code, message);
     if input.len() > MAX_INPUT || input.contains('\r') || input.contains('\0') {
-        return Err(error(
+        return Err(fail(
+            file,
             Span { line: 1, column: 1 },
             "input",
             "expected bounded UTF-8 LF input; convert CRLF explicitly",
         ));
     }
-    let bytes = input.as_bytes();
-    let mut offset = 0;
-    let mut line = 1;
-    let mut column = 1;
+    let mut lexer = Lexer {
+        file,
+        input,
+        offset: 0,
+        line: 1,
+        column: 1,
+    };
     let mut result = Vec::new();
-    while offset < bytes.len() {
+    while lexer.offset < input.len() {
         if result.len() >= MAX_VALUES {
-            return Err(error(
-                Span { line, column },
-                "limit",
-                "token limit exceeded",
-            ));
+            return Err(lexer.error("limit", "token limit exceeded"));
         }
-        let start = offset;
-        let span = Span { line, column };
-        let c = bytes[offset];
-        if c.is_ascii_whitespace() {
-            offset += 1;
-        } else if input[offset..].starts_with("//") {
-            offset += 2;
-            while offset < bytes.len() && bytes[offset] != b'\n' {
-                offset += 1;
-            }
-            result.push(Token {
-                span,
-                kind: TokenKind::Comment(input[start..offset].into()),
-            });
-        } else if input[offset..].starts_with("\"\"\"") {
-            offset += 3;
-            if bytes.get(offset) != Some(&b'\n') {
-                return Err(error(span, "literal", "raw literal must start with LF"));
-            }
-            offset += 1;
-            let body_start = offset;
-            let mut close = None;
-            while offset < bytes.len() {
-                let line_start = offset;
-                while bytes.get(offset) == Some(&b' ') {
-                    offset += 1;
-                }
-                if input[offset..].starts_with("\"\"\"") {
-                    close = Some((line_start, offset));
-                    break;
-                }
-                while offset < bytes.len() && bytes[offset] != b'\n' {
-                    offset += 1;
-                }
-                if offset < bytes.len() {
-                    offset += 1;
-                }
-            }
-            let (body_end, delimiter) =
-                close.ok_or_else(|| error(span, "literal", "unterminated raw literal"))?;
-            let prefix = &input[body_end..delimiter];
-            if input[body_start..body_end].contains("\"\"\"") {
-                return Err(error(
-                    span,
-                    "literal",
-                    "delimiter in payload requires an escaped string",
-                ));
-            }
-            let mut decoded = String::new();
-            for body_line in input[body_start..body_end].split_inclusive('\n') {
-                if body_line == "\n" {
-                    decoded.push('\n');
-                } else {
-                    decoded.push_str(body_line.strip_prefix(prefix).ok_or_else(|| {
-                        error(span, "literal", "raw line lacks closing indentation prefix")
-                    })?);
-                }
-            }
-            offset = delimiter + 3;
-            if bytes.get(offset).is_some_and(|c| !b";,]} \n\t".contains(c)) {
-                return Err(error(
-                    span,
-                    "literal",
-                    "raw closing delimiter must stand alone",
-                ));
-            }
-            result.push(Token {
-                span,
-                kind: TokenKind::Raw(decoded),
-            });
-        } else if c == b'"' {
-            offset += 1;
-            loop {
-                let next = *bytes
-                    .get(offset)
-                    .ok_or_else(|| error(span, "string", "unterminated string"))?;
-                offset += 1;
-                if next == b'"' {
-                    break;
-                }
-                if next == b'\\' {
-                    if offset >= bytes.len() {
-                        return Err(error(span, "string", "unterminated escape"));
-                    }
-                    offset += 1;
-                }
-                if next < 0x20 {
-                    return Err(error(span, "string", "control byte in quoted string"));
-                }
-            }
-            let value = serde_json::from_str(&input[start..offset])
-                .map_err(|_| error(span, "string", "invalid JSON string escape"))?;
-            result.push(Token {
-                span,
-                kind: TokenKind::String(value),
-            });
-        } else if c.is_ascii_digit() {
-            while offset < bytes.len() && bytes[offset].is_ascii_digit() {
-                offset += 1;
-            }
-            if offset - start > 20 {
-                return Err(error(span, "number", "integer exceeds u64"));
-            }
-            let n = input[start..offset]
-                .parse()
-                .map_err(|_| error(span, "number", "integer exceeds u64"))?;
-            result.push(Token {
-                span,
-                kind: TokenKind::Number(n),
-            });
-        } else if c.is_ascii_alphabetic() || c == b'_' {
-            while offset < bytes.len()
-                && (bytes[offset].is_ascii_alphanumeric() || bytes[offset] == b'_')
-            {
-                offset += 1;
-            }
-            if offset - start > 128 {
-                return Err(error(span, "name", "identifier exceeds 128 bytes"));
-            }
-            result.push(Token {
-                span,
-                kind: TokenKind::Word(input[start..offset].into()),
-            });
-        } else if b"{}[]();=:,.".contains(&c) {
-            offset += 1;
-            result.push(Token {
-                span,
-                kind: TokenKind::Symbol(char::from(c)),
-            });
-        } else {
-            return Err(error(span, "syntax", "unsupported token"));
+        let start = lexer.offset;
+        let span = lexer.span();
+        if let Some(kind) = lexer.lex()? {
+            result.push(Token { span, kind });
         }
-        for c in input[start..offset].chars() {
-            if c == '\n' {
-                line += 1;
-                column = 1;
-            } else {
-                column += 1;
-            }
-        }
+        lexer.advance_span(start);
     }
     result.push(Token {
         kind: TokenKind::End,
-        span: Span { line, column },
+        span: lexer.span(),
     });
     Ok(result)
+}
+
+struct Lexer<'a> {
+    file: &'a str,
+    input: &'a str,
+    offset: usize,
+    line: usize,
+    column: usize,
+}
+impl<'a> Lexer<'a> {
+    fn span(&self) -> Span {
+        Span {
+            line: self.line,
+            column: self.column,
+        }
+    }
+    fn error(&self, code: &str, message: &str) -> super::Diagnostic {
+        fail(self.file, self.span(), code, message)
+    }
+    fn take_while(&mut self, keep: impl Fn(&u8) -> bool) -> &'a str {
+        let start = self.offset;
+        while self.input.as_bytes().get(self.offset).is_some_and(&keep) {
+            self.offset += 1;
+        }
+        &self.input[start..self.offset]
+    }
+    fn advance_span(&mut self, start: usize) {
+        for c in self.input[start..self.offset].chars() {
+            if c == '\n' {
+                self.line += 1;
+                self.column = 1;
+            } else {
+                self.column += 1;
+            }
+        }
+    }
+    fn lex(&mut self) -> Result<Option<TokenKind>> {
+        let c = self.input.as_bytes()[self.offset];
+        if c.is_ascii_whitespace() {
+            self.offset += 1;
+            return Ok(None);
+        }
+        let rest = &self.input[self.offset..];
+        let kind = if rest.starts_with("//") {
+            TokenKind::Comment(self.take_while(|&byte| byte != b'\n').into())
+        } else if rest.starts_with("\"\"\"") {
+            self.raw()?
+        } else if c == b'"' {
+            self.quoted()?
+        } else if c.is_ascii_digit() {
+            self.number()?
+        } else if c.is_ascii_alphabetic() || c == b'_' {
+            self.word()?
+        } else if b"{}[]();=:,.".contains(&c) {
+            self.offset += 1;
+            TokenKind::Symbol(char::from(c))
+        } else {
+            return Err(self.error("syntax", "unsupported token"));
+        };
+        Ok(Some(kind))
+    }
+    fn quoted(&mut self) -> Result<TokenKind> {
+        let bytes = self.input.as_bytes();
+        let start = self.offset;
+        self.offset += 1;
+        loop {
+            let next = *bytes
+                .get(self.offset)
+                .ok_or_else(|| self.error("string", "unterminated string"))?;
+            self.offset += 1;
+            if next == b'"' {
+                break;
+            }
+            if next == b'\\' {
+                if self.offset >= bytes.len() {
+                    return Err(self.error("string", "unterminated escape"));
+                }
+                self.offset += 1;
+            }
+            if next < 0x20 {
+                return Err(self.error("string", "control byte in quoted string"));
+            }
+        }
+        let value = serde_json::from_str(&self.input[start..self.offset])
+            .map_err(|_| self.error("string", "invalid JSON string escape"))?;
+        Ok(TokenKind::String(value))
+    }
+    fn number(&mut self) -> Result<TokenKind> {
+        let digits = self.take_while(u8::is_ascii_digit);
+        if digits.len() > 20 {
+            return Err(self.error("number", "integer exceeds u64"));
+        }
+        let n = digits
+            .parse()
+            .map_err(|_| self.error("number", "integer exceeds u64"))?;
+        Ok(TokenKind::Number(n))
+    }
+    fn word(&mut self) -> Result<TokenKind> {
+        let word = self.take_while(|&byte| byte.is_ascii_alphanumeric() || byte == b'_');
+        if word.len() > 128 {
+            return Err(self.error("name", "identifier exceeds 128 bytes"));
+        }
+        Ok(TokenKind::Word(word.into()))
+    }
+    fn raw(&mut self) -> Result<TokenKind> {
+        let bytes = self.input.as_bytes();
+        self.offset += 3;
+        if bytes.get(self.offset) != Some(&b'\n') {
+            return Err(self.error("literal", "raw literal must start with LF"));
+        }
+        let body_start = self.offset + 1;
+        let (body_end, delimiter) = raw_close(self.input, body_start)
+            .ok_or_else(|| self.error("literal", "unterminated raw literal"))?;
+        let body = &self.input[body_start..body_end];
+        if body.contains("\"\"\"") {
+            return Err(self.error("literal", "delimiter in payload requires an escaped string"));
+        }
+        let decoded = dedent(body, &self.input[body_end..delimiter])
+            .ok_or_else(|| self.error("literal", "raw line lacks closing indentation prefix"))?;
+        self.offset = delimiter + 3;
+        if bytes
+            .get(self.offset)
+            .is_some_and(|c| !b";,]} \n\t".contains(c))
+        {
+            return Err(self.error("literal", "raw closing delimiter must stand alone"));
+        }
+        Ok(TokenKind::Raw(decoded))
+    }
+}
+
+fn raw_close(input: &str, mut offset: usize) -> Option<(usize, usize)> {
+    let bytes = input.as_bytes();
+    while offset < bytes.len() {
+        let line_start = offset;
+        while bytes.get(offset) == Some(&b' ') {
+            offset += 1;
+        }
+        if input[offset..].starts_with("\"\"\"") {
+            return Some((line_start, offset));
+        }
+        while offset < bytes.len() && bytes[offset] != b'\n' {
+            offset += 1;
+        }
+        if offset < bytes.len() {
+            offset += 1;
+        }
+    }
+    None
+}
+
+fn dedent(body: &str, prefix: &str) -> Option<String> {
+    let mut decoded = String::new();
+    for line in body.split_inclusive('\n') {
+        if line == "\n" {
+            decoded.push('\n');
+        } else {
+            decoded.push_str(line.strip_prefix(prefix)?);
+        }
+    }
+    Some(decoded)
 }
 
 struct Parser<'a> {
@@ -374,99 +399,104 @@ impl Parser<'_> {
                 self.take();
                 Kind::Integer(n)
             }
-            TokenKind::Symbol('[') => {
-                self.take();
-                let mut values = Vec::new();
-                if !self.symbol(']') {
-                    loop {
-                        values.push(self.value(depth + 1)?);
-                        if self.symbol(']') {
-                            break;
-                        }
-                        self.expect(',')?;
-                        if self.symbol(']') {
-                            break;
-                        }
-                    }
-                }
-                Kind::List(values)
-            }
+            TokenKind::Symbol('[') => self.list(depth)?,
             TokenKind::Symbol('{') => Kind::Block(self.block(depth + 1)?),
             TokenKind::Word(name) => {
                 self.take();
-                if name == "true" || name == "false" {
-                    Kind::Boolean(name == "true")
-                } else if matches!(name.as_str(), "text" | "shell") {
-                    let token = self.take();
-                    match token.kind {
-                        TokenKind::String(value) | TokenKind::Raw(value) => {
-                            Kind::Tagged(name, value)
-                        }
-                        _ => {
-                            return Err(fail(
-                                self.file,
-                                token.span,
-                                "type",
-                                "text/shell requires a literal",
-                            ));
-                        }
-                    }
-                } else if self.token().kind == TokenKind::Symbol('{') {
-                    Kind::Construct(name, self.block(depth + 1)?)
-                } else {
-                    let mut reference = vec![name];
-                    while self.symbol('.') {
-                        reference.push(self.word()?);
-                    }
-                    if self.symbol('(') {
-                        let mut args = Vec::new();
-                        if !self.symbol(')') {
-                            loop {
-                                let named = matches!(self.token().kind, TokenKind::Word(_))
-                                    && self
-                                        .tokens
-                                        .get(self.position + 1)
-                                        .is_some_and(|t| t.kind == TokenKind::Symbol(':'));
-                                let key = if named {
-                                    let key = self.word()?;
-                                    self.expect(':')?;
-                                    Some(key)
-                                } else {
-                                    None
-                                };
-                                if args.first().is_some_and(
-                                    |(existing, _): &(Option<String>, Value)| {
-                                        existing.is_some() != key.is_some()
-                                    },
-                                ) || key.as_ref().is_some_and(|key| {
-                                    args.iter().any(|(other, _)| other.as_ref() == Some(key))
-                                }) {
-                                    return Err(self
-                                        .error("arguments", "mixed or duplicate named arguments"));
-                                }
-                                args.push((key, self.value(depth + 1)?));
-                                if self.symbol(')') {
-                                    break;
-                                }
-                                self.expect(',')?;
-                            }
-                        }
-                        Kind::Call(reference, args)
-                    } else {
-                        Kind::Reference(reference)
-                    }
-                }
+                self.word_value(name, depth)?
             }
             _ => return Err(self.error("syntax", "expected value")),
         };
         Ok(Value { span, kind })
     }
-    fn module(mut self) -> Result<Module> {
-        self.keyword("language")?;
-        if self.take().kind != TokenKind::Number(1) {
-            return Err(self.error("version", "unsupported language major; upgrade explicitly"));
+    fn list(&mut self, depth: usize) -> Result<Kind> {
+        self.take();
+        let mut values = Vec::new();
+        if !self.symbol(']') {
+            loop {
+                values.push(self.value(depth + 1)?);
+                if self.symbol(']') {
+                    break;
+                }
+                self.expect(',')?;
+                if self.symbol(']') {
+                    break;
+                }
+            }
         }
-        self.expect(';')?;
+        Ok(Kind::List(values))
+    }
+    fn word_value(&mut self, name: String, depth: usize) -> Result<Kind> {
+        if name == "true" || name == "false" {
+            Ok(Kind::Boolean(name == "true"))
+        } else if matches!(name.as_str(), "text" | "shell") {
+            self.tagged(name)
+        } else if self.token().kind == TokenKind::Symbol('{') {
+            Ok(Kind::Construct(name, self.block(depth + 1)?))
+        } else {
+            self.reference_or_call(name, depth)
+        }
+    }
+    fn tagged(&mut self, tag: String) -> Result<Kind> {
+        let token = self.take();
+        match token.kind {
+            TokenKind::String(value) | TokenKind::Raw(value) => Ok(Kind::Tagged(tag, value)),
+            _ => Err(fail(
+                self.file,
+                token.span,
+                "type",
+                "text/shell requires a literal",
+            )),
+        }
+    }
+    fn reference_or_call(&mut self, name: String, depth: usize) -> Result<Kind> {
+        let mut reference = vec![name];
+        while self.symbol('.') {
+            reference.push(self.word()?);
+        }
+        if self.symbol('(') {
+            Ok(Kind::Call(reference, self.arguments(depth)?))
+        } else {
+            Ok(Kind::Reference(reference))
+        }
+    }
+    fn arguments(&mut self, depth: usize) -> Result<Vec<(Option<String>, Value)>> {
+        let mut args = Vec::new();
+        if !self.symbol(')') {
+            loop {
+                let key = self.argument_name()?;
+                if Self::mixed_or_duplicate(&args, key.as_deref()) {
+                    return Err(self.error("arguments", "mixed or duplicate named arguments"));
+                }
+                args.push((key, self.value(depth + 1)?));
+                if self.symbol(')') {
+                    break;
+                }
+                self.expect(',')?;
+            }
+        }
+        Ok(args)
+    }
+    fn argument_name(&mut self) -> Result<Option<String>> {
+        let named = matches!(self.token().kind, TokenKind::Word(_))
+            && self
+                .tokens
+                .get(self.position + 1)
+                .is_some_and(|t| t.kind == TokenKind::Symbol(':'));
+        if !named {
+            return Ok(None);
+        }
+        let key = self.word()?;
+        self.expect(':')?;
+        Ok(Some(key))
+    }
+    fn mixed_or_duplicate(args: &[(Option<String>, Value)], key: Option<&str>) -> bool {
+        args.first()
+            .is_some_and(|(existing, _)| existing.is_some() != key.is_some())
+            || key.is_some_and(|key| args.iter().any(|(other, _)| other.as_deref() == Some(key)))
+    }
+    fn module(mut self) -> Result<Module> {
+        self.header()?;
         let mut module = Module {
             file: self.file.into(),
             namespace: None,
@@ -483,72 +513,12 @@ impl Parser<'_> {
                 module.namespace = Some(self.string()?);
                 self.expect(';')?;
             } else if kind == "import" {
-                self.expect('{')?;
-                let mut names = vec![self.word()?];
-                while self.symbol(',') {
-                    let name = self.word()?;
-                    if names.contains(&name) {
-                        return Err(self.error("duplicate", "duplicate import name"));
-                    }
-                    names.push(name);
-                }
-                self.expect('}')?;
-                self.keyword("from")?;
-                let path = self.string()?;
-                self.expect(';')?;
-                module.imports.push(Import { names, path, span });
+                module.imports.push(self.import(span)?);
             } else {
-                if !matches!(
-                    kind.as_str(),
-                    "foundation" | "builder" | "set" | "target" | "package" | "library"
-                ) {
-                    return Err(fail(
-                        self.file,
-                        span,
-                        "declaration",
-                        "unsupported declaration",
-                    ));
-                }
-                let name = if kind == "target" {
-                    self.string()?
-                } else {
-                    self.word()?
-                };
-                let mut parameters = BTreeMap::new();
-                if matches!(kind.as_str(), "package" | "library") {
-                    self.expect('(')?;
-                    if !self.symbol(')') {
-                        loop {
-                            let parameter = self.word()?;
-                            self.expect(':')?;
-                            let ty = self.word()?;
-                            if !matches!(ty.as_str(), "Builder" | "Foundation")
-                                || parameters.insert(parameter, ty).is_some()
-                            {
-                                return Err(
-                                    self.error("type", "unknown type or duplicate parameter")
-                                );
-                            }
-                            if self.symbol(')') {
-                                break;
-                            }
-                            self.expect(',')?;
-                        }
-                    }
-                }
-                let block = self.block(1)?;
+                let declaration = self.declaration(kind, span)?;
                 if module
                     .declarations
-                    .insert(
-                        name.clone(),
-                        Declaration {
-                            kind,
-                            name,
-                            span,
-                            parameters,
-                            block,
-                        },
-                    )
+                    .insert(declaration.name.clone(), declaration)
                     .is_some()
                 {
                     return Err(fail(self.file, span, "duplicate", "duplicate declaration"));
@@ -556,6 +526,81 @@ impl Parser<'_> {
             }
         }
         Ok(module)
+    }
+    fn header(&mut self) -> Result<()> {
+        self.keyword("language")?;
+        if self.take().kind != TokenKind::Number(1) {
+            return Err(self.error("version", "unsupported language major; upgrade explicitly"));
+        }
+        self.expect(';')
+    }
+    fn import(&mut self, span: Span) -> Result<Import> {
+        self.expect('{')?;
+        let mut names = vec![self.word()?];
+        while self.symbol(',') {
+            let name = self.word()?;
+            if names.contains(&name) {
+                return Err(self.error("duplicate", "duplicate import name"));
+            }
+            names.push(name);
+        }
+        self.expect('}')?;
+        self.keyword("from")?;
+        let path = self.string()?;
+        self.expect(';')?;
+        Ok(Import { names, path, span })
+    }
+    fn declaration(&mut self, kind: String, span: Span) -> Result<Declaration> {
+        if !matches!(
+            kind.as_str(),
+            "foundation" | "builder" | "set" | "target" | "package" | "library"
+        ) {
+            return Err(fail(
+                self.file,
+                span,
+                "declaration",
+                "unsupported declaration",
+            ));
+        }
+        let name = if kind == "target" {
+            self.string()?
+        } else {
+            self.word()?
+        };
+        let parameters = if matches!(kind.as_str(), "package" | "library") {
+            self.parameters()?
+        } else {
+            BTreeMap::new()
+        };
+        let block = self.block(1)?;
+        Ok(Declaration {
+            kind,
+            name,
+            span,
+            parameters,
+            block,
+        })
+    }
+    fn parameters(&mut self) -> Result<BTreeMap<String, String>> {
+        self.expect('(')?;
+        let mut parameters = BTreeMap::new();
+        if !self.symbol(')') {
+            loop {
+                let parameter = self.word()?;
+                self.expect(':')?;
+                let ty = self.word()?;
+                if !matches!(ty.as_str(), "Builder" | "Foundation")
+                    || parameters.insert(parameter, ty).is_some()
+                {
+                    return Err(self.error("type", "unknown type or duplicate parameter"));
+                }
+                if self.symbol(')') {
+                    break;
+                }
+                self.expect(',')?;
+            }
+        }
+        Ok(parameters)
     }
 }
 

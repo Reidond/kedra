@@ -1,0 +1,7 @@
+# Complexity gate (https://github.com/moznion/cccc): every function, method and
+# closure in the Rust and Python sources stays within these cognitive and
+# cyclomatic limits. Version pinned in mise.toml and check.yml; AGENTS.md
+# requires `cccc .` to pass. Refactor code that exceeds them; do not raise the
+# limits or exclude files to pass.
+max-cognitive = 40
+max-cyclomatic = 40

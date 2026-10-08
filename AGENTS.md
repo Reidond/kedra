@@ -20,7 +20,7 @@ harness `tests/container/` is the one other member), `image/`
 inputs, release tooling and the closed `release/targets.json`), `installer/`,
 `tests/`, `plugins/` and `docs/`. The root also keeps `README.md`, this file,
 `CLAUDE.md`, `worklog.md`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`,
-`rustfmt.toml`, `.python-version`, `mise.toml`, `ruff.toml` and dot directories. The source plan refuses any
+`rustfmt.toml`, `.python-version`, `mise.toml`, `ruff.toml`, `cccc.toml` and dot directories. The source plan refuses any
 other top-level directory, other `usr/src/` content and unknown files in a target
 overlay. Retained commits in the earlier layout (`hosts/`, `packages/`, root `home/`)
 must stay readable by the resolver and by home review. `.github/workflows/release.yml`
@@ -41,7 +41,7 @@ is bound into signed image identity; never rename it.
   and checks data; inline author shell runs only in admitted engine builders.
   This grants no general configuration interpreter or deployment authority.
 - Python runs through uv; see below. Development tools are pinned in `mise.toml`
-  (Rust 1.98.1, uv, ruff) at the same versions as CI; mise's `RUSTUP_TOOLCHAIN`
+  (Rust 1.98.1, uv, ruff, cccc) at the same versions as CI; mise's `RUSTUP_TOOLCHAIN`
   overrides a global `rust = "stable"` for shells and editors in this checkout.
 - Shared root-filesystem inputs, explicit target overlays, independent per-target
   signed releases. Never guess the future XPS hardware or current disk/device IDs.
@@ -273,6 +273,18 @@ changes (a container engine is required; it builds or pulls the image under test
 then `uv run usr/src/kedra/tests/cli/release-interop.py --sysroot target/release/sysroot
 --workdir target/release-interop` and `uv run usr/src/kedra/tests/cli/release-material.py
 --workdir target/release-material` as check.yml does.
+
+### Complexity gate
+
+Validate that `cccc` passes before finishing any change to Rust or Python code:
+run `cccc --table --min 41 .` from the repository root and require exit status 0.
+`cccc.toml` limits every function, method and closure to cognitive and cyclomatic
+complexity 40; `--min 41` only narrows the table to the functions over the limit.
+The version is pinned in `mise.toml` and check.yml, which runs the same gate. When a
+function exceeds a limit, refactor it into cohesive, well-named helpers with the
+same behavior, error text and order of checks and side effects. Never raise the
+limits, exclude files, or hide logic in macros or closures to pass the gate.
+
 Do not recreate the removed xtask runner or skill-copy validation machinery.
 Keep dependency additions
 small and justified. Prefer typed errors and explicit process arguments over

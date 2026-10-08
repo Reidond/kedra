@@ -93,7 +93,21 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --test 'e2e_*' --locked
 cargo build --workspace --release --locked
+cccc --table --min 41 .
 ```
+
+`cccc` 1.7.0 (pinned in mise.toml and check.yml) gates every Rust and Python
+function, method and closure at cognitive and cyclomatic complexity 40 through
+the root `cccc.toml`. Closures are measured as their own units, so a parent's
+score excludes them; split long functions into cohesive named helpers instead of
+wrapping logic in closures or macros. The initial adoption (2026-10-07) found 31
+functions over the limit, led by the `.kedra` checker's `typed` (cognitive 118)
+and `validate` (cyclomatic 68); all were refactored with unchanged behavior
+(worklog CCCC-02). `--min 41` still lists every file, offenders under theirs.
+Before refactoring a file, compare HEAD and new binaries on the same inputs;
+editing `sysroot/catalog.rs` changes the legacy catalog pins, which hash that
+file's own source. Running E2E as root fails seven cases by design (owner-private
+stores and home review refuse root); CI's unprivileged run is authoritative.
 
 Only E2E/manual tests: no unit/model/mock/doctests or repository source scanners. Build Fedora-compatible binaries for image ABI compatibility. Compiler success is separate from installed/desktop qualification.
 

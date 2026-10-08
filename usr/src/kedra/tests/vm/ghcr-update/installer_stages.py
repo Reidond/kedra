@@ -250,42 +250,33 @@ def capture(argv):
     return outcome
 
 
-def observe_commands(emit):
-    for label, unit in UNITS.items():
-        raw, reason = capture(['/usr/bin/systemctl', 'show', '--property=ActiveState,Result,ExecMainStatus,ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic', unit])
-        if reason:
-            emit('CAPTURE_' + label + '_' + reason)
-            if reason == 'CLEANUP':
-                return False
-        try:
-            values = dict(line.split('=', 1) for line in raw.decode('ascii').splitlines()) if raw else {}
-            state = values.get('ActiveState', '')
-            result = values.get('Result', '')
-            status = values.get('ExecMainStatus', '')
-            started = values.get('ExecMainStartTimestampMonotonic', '')
-            exited = values.get('ExecMainExitTimestampMonotonic', '')
-            if not values:
-                emit('UNIT_' + label + '_UNAVAILABLE')
-                if reason is None:
-                    emit('CAPTURE_' + label + '_MALFORMED')
-                continue
-            emit('UNIT_' + label + '_STATE_' + (state if state in STATES else 'other').upper())
-            if re.fullmatch('[0-9]{1,20}', started) and int(started) > 0:
-                emit('UNIT_' + label + '_STARTED')
-            if re.fullmatch('[0-9]{1,20}', exited) and int(exited) > 0:
-                emit('UNIT_' + label + '_EXITED')
-                emit('UNIT_' + label + '_RESULT_' + (result if result in RESULTS else 'other').upper().replace('-', '_'))
-                if re.fullmatch('[0-9]{1,3}', status) and int(status) < 256:
-                    emit('UNIT_' + label + '_STATUS_' + str(int(status)))
-        except (UnicodeError, ValueError):
+def _report_unit(emit, label, raw, reason):
+    try:
+        values = dict(line.split('=', 1) for line in raw.decode('ascii').splitlines()) if raw else {}
+        state = values.get('ActiveState', '')
+        result = values.get('Result', '')
+        status = values.get('ExecMainStatus', '')
+        started = values.get('ExecMainStartTimestampMonotonic', '')
+        exited = values.get('ExecMainExitTimestampMonotonic', '')
+        if not values:
             emit('UNIT_' + label + '_UNAVAILABLE')
-            emit('CAPTURE_' + label + '_MALFORMED')
-    pane, reason = capture(['/usr/bin/tmux', 'display-message', '-p', '-t', 'anaconda:main.0',
-                    '#{pane_dead}|#{pane_current_command}'])
-    if reason:
-        emit('CAPTURE_TMUX_' + reason)
-        if reason == 'CLEANUP':
-            return False
+            if reason is None:
+                emit('CAPTURE_' + label + '_MALFORMED')
+            return
+        emit('UNIT_' + label + '_STATE_' + (state if state in STATES else 'other').upper())
+        if re.fullmatch('[0-9]{1,20}', started) and int(started) > 0:
+            emit('UNIT_' + label + '_STARTED')
+        if re.fullmatch('[0-9]{1,20}', exited) and int(exited) > 0:
+            emit('UNIT_' + label + '_EXITED')
+            emit('UNIT_' + label + '_RESULT_' + (result if result in RESULTS else 'other').upper().replace('-', '_'))
+            if re.fullmatch('[0-9]{1,3}', status) and int(status) < 256:
+                emit('UNIT_' + label + '_STATUS_' + str(int(status)))
+    except (UnicodeError, ValueError):
+        emit('UNIT_' + label + '_UNAVAILABLE')
+        emit('CAPTURE_' + label + '_MALFORMED')
+
+
+def _report_tmux_pane(emit, pane):
     if pane is None or not re.fullmatch(rb'[01]\|[A-Za-z0-9_.+-]{0,64}\n', pane):
         emit('TMUX_UNAVAILABLE')
         if pane is not None:
@@ -298,6 +289,23 @@ def observe_commands(emit):
         emit('TMUX_MAIN_LIVE_PYTHON')
     else:
         emit('TMUX_MAIN_LIVE_OTHER')
+
+
+def observe_commands(emit):
+    for label, unit in UNITS.items():
+        raw, reason = capture(['/usr/bin/systemctl', 'show', '--property=ActiveState,Result,ExecMainStatus,ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic', unit])
+        if reason:
+            emit('CAPTURE_' + label + '_' + reason)
+            if reason == 'CLEANUP':
+                return False
+        _report_unit(emit, label, raw, reason)
+    pane, reason = capture(['/usr/bin/tmux', 'display-message', '-p', '-t', 'anaconda:main.0',
+                    '#{pane_dead}|#{pane_current_command}'])
+    if reason:
+        emit('CAPTURE_TMUX_' + reason)
+        if reason == 'CLEANUP':
+            return False
+    _report_tmux_pane(emit, pane)
     return True
 
 

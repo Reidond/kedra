@@ -53,6 +53,29 @@ jobs:
       - name: Python lint
         # Same pin as mise.toml; ruff.toml holds the configuration.
         run: uvx ruff@0.16.9 check --no-cache
+      - name: Complexity
+        # Same pin as mise.toml; cccc.toml holds the limits. The release archive
+        # is verified against its published SHA-256 before use. --min 41 only
+        # narrows the table to the functions over the limit of 40.
+        env:
+          CCCC_VERSION: 1.7.0
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          case "$EXPECTED_ARCHITECTURE" in
+            x86_64) digest=75d2fb5486238eeb40a80fec2de8fe5075e6ce567b6741a56fa511ed2082e45a ;;
+            aarch64) digest=f775a19ebd58fc7a4cd64769b8d442425d8afde66207386db04eb87747ed75b8 ;;
+            *) echo "no pinned cccc archive for $EXPECTED_ARCHITECTURE" >&2; exit 1 ;;
+          esac
+          archive="cccc-v${CCCC_VERSION}-${EXPECTED_ARCHITECTURE}-unknown-linux-musl.tar.gz"
+          tools="$RUNNER_TEMP/cccc"
+          mkdir -p "$tools"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --output "$tools/$archive" \
+            "https://github.com/moznion/cccc/releases/download/v${CCCC_VERSION}/$archive"
+          echo "$digest  $tools/$archive" | sha256sum --check --strict
+          tar -xzf "$tools/$archive" -C "$tools" cccc
+          "$tools/cccc" --version
+          "$tools/cccc" --table --min 41 .
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: End-to-end CLI workflows

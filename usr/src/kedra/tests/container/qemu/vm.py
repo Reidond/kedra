@@ -401,43 +401,56 @@ def up(directory, state):
     raise ValueError('desktop readiness timed out; inspect retained logs: ' + last_error)
 
 
+def wait_while_owned(state, key, until, interval):
+    while owned_process(state, key) and time.monotonic() < until:
+        time.sleep(interval)
+
+
+def request_shutdown(directory, state, force):
+    if not force and state['mode'] == 'lab':
+        # A desktop shell may inhibit the ACPI power key to display its menu.
+        # The fixture permits exactly this shutdown command through sudo.
+        try:
+            ssh(directory, state, ['sudo', '-n', '/usr/bin/systemctl', 'poweroff', '--no-block'], timeout=10, session=False)
+        except subprocess.CalledProcessError as error:
+            # sshd can stop before sending its successful exit status. Only
+            # accept that disconnect if the owned QEMU process really exits.
+            if error.returncode != 255:
+                raise
+    else:
+        try:
+            qmp(directory, state, 'quit' if force else 'system_powerdown')
+        except (OSError, ValueError):
+            if not force:
+                raise
+
+
+def stop_qemu(directory, state, force, deadline):
+    request_shutdown(directory, state, force)
+    graceful_deadline = deadline - 2 if force else deadline
+    wait_while_owned(state, 'qemu', graceful_deadline, 0.2)
+    if owned_process(state, 'qemu'):
+        if not force:
+            raise ValueError('guest did not stop; use down --force explicitly')
+        os.kill(state['qemu']['pid'], signal.SIGTERM)
+        wait_while_owned(state, 'qemu', deadline, 0.1)
+        if owned_process(state, 'qemu'):
+            os.kill(state['qemu']['pid'], signal.SIGKILL)
+
+
+def stop_swtpm(state):
+    os.kill(state['swtpm']['pid'], signal.SIGTERM)
+    wait_while_owned(state, 'swtpm', time.monotonic() + 5, 0.1)
+    if owned_process(state, 'swtpm'):
+        raise ValueError('owned TPM process did not exit; state retained for recovery')
+
+
 def down(directory, state, force):
     deadline = time.monotonic() + (10 if force else 30)
     if owned_process(state, 'qemu'):
-        if not force and state['mode'] == 'lab':
-            # A desktop shell may inhibit the ACPI power key to display its menu.
-            # The fixture permits exactly this shutdown command through sudo.
-            try:
-                ssh(directory, state, ['sudo', '-n', '/usr/bin/systemctl', 'poweroff', '--no-block'], timeout=10, session=False)
-            except subprocess.CalledProcessError as error:
-                # sshd can stop before sending its successful exit status. Only
-                # accept that disconnect if the owned QEMU process really exits.
-                if error.returncode != 255:
-                    raise
-        else:
-            try:
-                qmp(directory, state, 'quit' if force else 'system_powerdown')
-            except (OSError, ValueError):
-                if not force:
-                    raise
-        graceful_deadline = deadline - 2 if force else deadline
-        while owned_process(state, 'qemu') and time.monotonic() < graceful_deadline:
-            time.sleep(0.2)
-        if owned_process(state, 'qemu'):
-            if not force:
-                raise ValueError('guest did not stop; use down --force explicitly')
-            os.kill(state['qemu']['pid'], signal.SIGTERM)
-            while owned_process(state, 'qemu') and time.monotonic() < deadline:
-                time.sleep(0.1)
-            if owned_process(state, 'qemu'):
-                os.kill(state['qemu']['pid'], signal.SIGKILL)
+        stop_qemu(directory, state, force, deadline)
     if owned_process(state, 'swtpm'):
-        os.kill(state['swtpm']['pid'], signal.SIGTERM)
-        until = time.monotonic() + 5
-        while owned_process(state, 'swtpm') and time.monotonic() < until:
-            time.sleep(0.1)
-        if owned_process(state, 'swtpm'):
-            raise ValueError('owned TPM process did not exit; state retained for recovery')
+        stop_swtpm(state)
     state.pop('qemu', None)
     state.pop('swtpm', None)
     write_json(directory / 'state.json', state)
@@ -502,10 +515,7 @@ print(json.dumps({
     print(path)
 
 
-def main():
-    os.umask(0o077)
-    signal.signal(signal.SIGTERM, lambda _signal, _frame: sys.exit(130))
-    signal.signal(signal.SIGINT, lambda _signal, _frame: sys.exit(130))
+def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', required=True, type=Path)
     parser.add_argument('--runtime', required=True, type=Path)
@@ -536,116 +546,126 @@ def main():
     sub.add_parser('sync')
     keyboard = sub.add_parser('key')
     keyboard.add_argument('keys', nargs='+', help='QEMU qcodes, for example meta_l ret')
-    args = parser.parse_args()
-    if not re.fullmatch('[a-zA-Z0-9_-]{1,32}', args.name):
-        parser.error('invalid instance name')
-    args.root, args.runtime = args.root.resolve(), args.runtime.resolve()
-    directory = args.root / 'instances' / args.name
+    return parser
+
+
+def check_instance_location(parser, args, directory):
     if any(char in str(directory) + str(args.runtime) for char in ',\n\r') or len(str(directory / 'qmp.sock').encode()) >= 104:
         parser.error('QEMU paths must fit Unix socket limits and contain no commas/newlines')
     if directory.is_symlink() or directory.parent.is_symlink():
         parser.error('instance directory or its parent is a symlink')
     if not directory.exists() and args.operation not in ('up', 'installer'):
         parser.error('instance does not exist')
-    directory.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if args.operation == 'status':
-        state = read_state(directory / 'state.json')
-        validate_instance(directory, state)
-        check_process_ownership(state)
-        print(json.dumps(qmp(directory, state, 'query-status') if owned_process(state, 'qemu') else {'status': 'stopped'}))
-        return
-    with (directory.parent / (args.name + '.lock')).open('w') as lock:
-        mode = fcntl.LOCK_SH if args.operation in ('exec', 'shot', 'logs', 'key') else fcntl.LOCK_EX
-        try:
-            fcntl.flock(lock, mode | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise ValueError('instance is busy with another lifecycle or sync operation; retry when it finishes') from None
-        record = directory / 'state.json'
-        if record.exists():
-            if args.operation == 'installer':
-                raise ValueError('instance already exists; choose a new --name')
-            state = read_state(record)
-            validate_instance(directory, state)
-            check_process_ownership(state)
-            if args.operation == 'up' and state.get('graphics', 'accelerated') != 'accelerated':
-                raise ValueError('unsupported retired graphics profile; create a new GPU instance')
-        else:
-            if directory.exists():
-                raise ValueError('instance directory exists without a receipt; inspect it before removing it')
-            if args.operation not in ('up', 'installer') or not 1024 <= args.memory_mib <= 32768 or not 1 <= args.cpus <= 16:
-                parser.error('invalid new instance options')
-            if args.operation == 'installer' and not 32 <= args.disk_gib <= 1024:
-                parser.error('--disk-gib must be between 32 and 1024')
-            pending = directory.parent / ('.' + args.name + '.create-' + secrets.token_hex(6))
-            pending.mkdir(mode=0o700)
+
+
+def print_status(directory):
+    state = read_state(directory / 'state.json')
+    validate_instance(directory, state)
+    check_process_ownership(state)
+    print(json.dumps(qmp(directory, state, 'query-status') if owned_process(state, 'qemu') else {'status': 'stopped'}))
+
+
+def lock_instance(lock, operation):
+    mode = fcntl.LOCK_SH if operation in ('exec', 'shot', 'logs', 'key') else fcntl.LOCK_EX
+    try:
+        fcntl.flock(lock, mode | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise ValueError('instance is busy with another lifecycle or sync operation; retry when it finishes') from None
+
+
+def load_existing_instance(directory, record, operation):
+    if operation == 'installer':
+        raise ValueError('instance already exists; choose a new --name')
+    state = read_state(record)
+    validate_instance(directory, state)
+    check_process_ownership(state)
+    if operation == 'up' and state.get('graphics', 'accelerated') != 'accelerated':
+        raise ValueError('unsupported retired graphics profile; create a new GPU instance')
+    return state
+
+
+def create_new_instance(parser, args, directory):
+    if directory.exists():
+        raise ValueError('instance directory exists without a receipt; inspect it before removing it')
+    if args.operation not in ('up', 'installer') or not 1024 <= args.memory_mib <= 32768 or not 1 <= args.cpus <= 16:
+        parser.error('invalid new instance options')
+    if args.operation == 'installer' and not 32 <= args.disk_gib <= 1024:
+        parser.error('--disk-gib must be between 32 and 1024')
+    pending = directory.parent / ('.' + args.name + '.create-' + secrets.token_hex(6))
+    pending.mkdir(mode=0o700)
+    try:
+        state = create_installer(pending, args) if args.operation == 'installer' else create(pending, args)
+        os.rename(pending, directory)
+    finally:
+        if pending.exists():
+            shutil.rmtree(pending)
+    validate_instance(directory, state)
+    return state
+
+
+def up_with_cleanup(directory, state):
+    was_running = owned_process(state, 'qemu')
+    try:
+        up(directory, state)
+    except BaseException:
+        # Retain disk/logs for diagnosis, but do not leak a newly started
+        # TPM or QEMU after failed or interrupted readiness.
+        if not was_running:
             try:
-                state = create_installer(pending, args) if args.operation == 'installer' else create(pending, args)
-                os.rename(pending, directory)
-            finally:
-                if pending.exists():
-                    shutil.rmtree(pending)
-            validate_instance(directory, state)
-        if args.operation in ('exec', 'shot', 'logs', 'sync') and state['mode'] != 'lab':
-            raise ValueError('guest automation is available only in a disposable lab fixture')
-        if args.operation in ('up', 'installer'):
-            was_running = owned_process(state, 'qemu')
-            try:
-                up(directory, state)
-            except BaseException:
-                # Retain disk/logs for diagnosis, but do not leak a newly started
-                # TPM or QEMU after failed or interrupted readiness.
-                if not was_running:
-                    try:
-                        down(directory, state, True)
-                    except (OSError, ValueError, subprocess.SubprocessError) as cleanup_error:
-                        print(f'owned startup cleanup failed: {cleanup_error}', file=sys.stderr)
-                raise
-        elif args.operation == 'detach-installer':
-            if owned_process(state, 'qemu') or owned_process(state, 'swtpm'):
-                raise ValueError('stop the VM before detaching media')
-            if state.get('installer') != 'installer.iso':
-                raise ValueError('this instance has no attached installer')
-            sentinel = state.get('sentinel')
-            if sentinel and (sentinel.get('filename') != 'sentinel.raw'
-                             or sentinel.get('size_bytes') != (directory / 'sentinel.raw').stat().st_size
-                             or sentinel.get('sha256') != sha256(directory / 'sentinel.raw')):
-                raise ValueError('installer sentinel disk changed; installation may have selected the wrong disk')
-            state.pop('installer')
-            write_json(record, state)
-            (directory / 'installer.iso').unlink()
-            print('Installer detached; original ISO retained.')
-        elif args.operation == 'down':
-            down(directory, state, args.force)
-        elif args.operation == 'remove':
-            if owned_process(state, 'qemu') or owned_process(state, 'swtpm'):
-                raise ValueError('stop the instance before removing it')
-            shutil.rmtree(directory)
-        elif args.operation == 'exec':
-            argv = args.argv[1:] if args.argv[:1] == ['--'] else args.argv
-            if not argv:
-                parser.error('exec needs a guest command')
-            os.write(1, ssh(directory, state, argv, timeout=120))
-        elif args.operation == 'shot':
-            shot(directory, state, args.label, args.root)
-        elif args.operation == 'key':
-            qmp(directory, state, 'send-key', {'keys': [{'type': 'qcode', 'data': key} for key in args.keys], 'hold-time': 100})
-        elif args.operation == 'sync':
-            data = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
-            if len(data) > 32 * 1024 * 1024:
-                raise ValueError('sync payload too large')
-            os.write(1, ssh(directory, state, ['/usr/libexec/kedra-lab/probes/sync-home.py'], data=data, timeout=60))
-        elif args.operation == 'logs':
-            output = args.root / 'logs' / f'{args.name}-{time.time_ns()}'
-            output.mkdir(parents=True)
-            for name in ['qemu.log', 'serial.log', 'swtpm.log']:
-                if (directory / name).exists():
-                    shutil.copy2(directory / name, output / name)
-            for name, argv in [('user-journal.log', ['journalctl', '--user', '-b', '--no-pager']),
-                               ('outputs.json', ['niri', 'msg', '--json', 'outputs'])]:
-                (output / name).write_bytes(ssh(directory, state, argv))
-            # The fixed image-owned observer supplies native deployment facts;
-            # collecting diagnostics does not grant guest root authority.
-            observer = '''import json, os, stat
+                down(directory, state, True)
+            except (OSError, ValueError, subprocess.SubprocessError) as cleanup_error:
+                print(f'owned startup cleanup failed: {cleanup_error}', file=sys.stderr)
+        raise
+
+
+def detach_installer(directory, state, record):
+    if owned_process(state, 'qemu') or owned_process(state, 'swtpm'):
+        raise ValueError('stop the VM before detaching media')
+    if state.get('installer') != 'installer.iso':
+        raise ValueError('this instance has no attached installer')
+    sentinel = state.get('sentinel')
+    if sentinel and (sentinel.get('filename') != 'sentinel.raw'
+                     or sentinel.get('size_bytes') != (directory / 'sentinel.raw').stat().st_size
+                     or sentinel.get('sha256') != sha256(directory / 'sentinel.raw')):
+        raise ValueError('installer sentinel disk changed; installation may have selected the wrong disk')
+    state.pop('installer')
+    write_json(record, state)
+    (directory / 'installer.iso').unlink()
+    print('Installer detached; original ISO retained.')
+
+
+def remove(directory, state):
+    if owned_process(state, 'qemu') or owned_process(state, 'swtpm'):
+        raise ValueError('stop the instance before removing it')
+    shutil.rmtree(directory)
+
+
+def guest_exec(parser, directory, state, argv):
+    argv = argv[1:] if argv[:1] == ['--'] else argv
+    if not argv:
+        parser.error('exec needs a guest command')
+    os.write(1, ssh(directory, state, argv, timeout=120))
+
+
+def sync_home(directory, state):
+    data = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
+    if len(data) > 32 * 1024 * 1024:
+        raise ValueError('sync payload too large')
+    os.write(1, ssh(directory, state, ['/usr/libexec/kedra-lab/probes/sync-home.py'], data=data, timeout=60))
+
+
+def collect_logs(directory, state, args):
+    output = args.root / 'logs' / f'{args.name}-{time.time_ns()}'
+    output.mkdir(parents=True)
+    for name in ['qemu.log', 'serial.log', 'swtpm.log']:
+        if (directory / name).exists():
+            shutil.copy2(directory / name, output / name)
+    for name, argv in [('user-journal.log', ['journalctl', '--user', '-b', '--no-pager']),
+                       ('outputs.json', ['niri', 'msg', '--json', 'outputs'])]:
+        (output / name).write_bytes(ssh(directory, state, argv))
+    # The fixed image-owned observer supplies native deployment facts;
+    # collecting diagnostics does not grant guest root authority.
+    observer = '''import json, os, stat
 from pathlib import Path
 try:
     descriptor = os.open('/run/kedra-lab/native-boot.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -665,8 +685,56 @@ if not isinstance(value.get('bootc'), dict):
     raise ValueError('native boot diagnostic status absent')
 print(json.dumps(value['bootc'], indent=2))
 '''
-            (output / 'bootc.json').write_bytes(ssh(directory, state, ['/usr/bin/python3', '-I', '-c', observer]))
-            print(output)
+    (output / 'bootc.json').write_bytes(ssh(directory, state, ['/usr/bin/python3', '-I', '-c', observer]))
+    print(output)
+
+
+def run_operation(parser, args, directory, state, record):
+    if args.operation in ('up', 'installer'):
+        up_with_cleanup(directory, state)
+    elif args.operation == 'detach-installer':
+        detach_installer(directory, state, record)
+    elif args.operation == 'down':
+        down(directory, state, args.force)
+    elif args.operation == 'remove':
+        remove(directory, state)
+    elif args.operation == 'exec':
+        guest_exec(parser, directory, state, args.argv)
+    elif args.operation == 'shot':
+        shot(directory, state, args.label, args.root)
+    elif args.operation == 'key':
+        qmp(directory, state, 'send-key', {'keys': [{'type': 'qcode', 'data': key} for key in args.keys], 'hold-time': 100})
+    elif args.operation == 'sync':
+        sync_home(directory, state)
+    elif args.operation == 'logs':
+        collect_logs(directory, state, args)
+
+
+def main():
+    os.umask(0o077)
+    signal.signal(signal.SIGTERM, lambda _signal, _frame: sys.exit(130))
+    signal.signal(signal.SIGINT, lambda _signal, _frame: sys.exit(130))
+    parser = build_parser()
+    args = parser.parse_args()
+    if not re.fullmatch('[a-zA-Z0-9_-]{1,32}', args.name):
+        parser.error('invalid instance name')
+    args.root, args.runtime = args.root.resolve(), args.runtime.resolve()
+    directory = args.root / 'instances' / args.name
+    check_instance_location(parser, args, directory)
+    directory.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if args.operation == 'status':
+        print_status(directory)
+        return
+    with (directory.parent / (args.name + '.lock')).open('w') as lock:
+        lock_instance(lock, args.operation)
+        record = directory / 'state.json'
+        if record.exists():
+            state = load_existing_instance(directory, record, args.operation)
+        else:
+            state = create_new_instance(parser, args, directory)
+        if args.operation in ('exec', 'shot', 'logs', 'sync') and state['mode'] != 'lab':
+            raise ValueError('guest automation is available only in a disposable lab fixture')
+        run_operation(parser, args, directory, state, record)
 
 
 if __name__ == '__main__':

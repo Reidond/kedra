@@ -183,11 +183,7 @@ def validate(files, changed):
     return masked
 
 
-def apply(request):
-    if request.get('schema_version') != 1 or set(request) != {'schema_version', 'source', 'files'}:
-        raise ValueError('unsupported lab sync request')
-    source, files = request['source'], request['files']
-    installed = json.loads(Path('/usr/share/sysroot/source.json').read_text())
+def check_home_only(source, installed):
     if source['target'] != installed['target']:
         raise ValueError('sync target differs from the running image')
     for key in ('packages', 'remove_packages'):
@@ -195,8 +191,14 @@ def apply(request):
             raise ValueError('package changes need an image build, not home sync')
     if manifest_files(source, False) != manifest_files(installed, False):
         raise ValueError('rootfs changes need an image build, not home sync')
-    expected = {entry['destination'][len(PREFIX):]: entry for entry in source['files']
-                if entry['destination'].startswith(PREFIX) and supported(entry['destination'][len(PREFIX):])}
+
+
+def desktop_entries(source):
+    return {entry['destination'][len(PREFIX):]: entry for entry in source['files']
+            if entry['destination'].startswith(PREFIX) and supported(entry['destination'][len(PREFIX):])}
+
+
+def check_payload(files, expected):
     if set(files) != set(expected):
         raise ValueError('desktop payload does not match its source manifest')
     for name, value in files.items():
@@ -207,20 +209,27 @@ def apply(request):
             raise ValueError(f'lab sync content hash differs: {name}')
         if value['mode'] != int(expected[name]['mode'], 8) & 0o777:
             raise ValueError(f'lab sync file mode differs: {name}')
-    receipt_path = STATE / 'receipt.json'
-    previous = json.loads(receipt_path.read_text()) if receipt_path.exists() else None
+
+
+def load_receipt(path):
+    previous = json.loads(path.read_text()) if path.exists() else None
     if previous is not None and previous.get('schema_version') != 1:
         raise ValueError('unknown lab sync receipt')
-    if previous is None:
-        baseline = {}
-        for entry in installed['files']:
-            name = entry['destination'].removeprefix(PREFIX)
-            if entry['destination'].startswith(PREFIX) and supported(name):
-                path = checked_path(BASE, name)
-                baseline[name] = {'content': base64.b64encode(path.read_bytes()).decode(),
-                                  'mode': stat.S_IMODE(path.stat().st_mode)}
-    else:
-        baseline = previous['files']
+    return previous
+
+
+def image_baseline(installed):
+    baseline = {}
+    for entry in installed['files']:
+        name = entry['destination'].removeprefix(PREFIX)
+        if entry['destination'].startswith(PREFIX) and supported(name):
+            path = checked_path(BASE, name)
+            baseline[name] = {'content': base64.b64encode(path.read_bytes()).decode(),
+                              'mode': stat.S_IMODE(path.stat().st_mode)}
+    return baseline
+
+
+def plan_changes(files, baseline):
     changes = {}
     for name in sorted(set(files) | set(baseline)):
         if not supported(name):
@@ -230,19 +239,23 @@ def apply(request):
             raise ValueError(f'guest edit preserved; sync conflict: {name}')
         if current != wanted:
             changes[name] = {'before': current, 'after': wanted}
-    masked = validate(files, changes)
-    if not changes:
-        return {'changed': [], 'masked_settings': masked, 'source': source['source_revision']}
+    return changes
+
+
+def check_guest_unchanged(changes):
     for name, change in changes.items():
         if contents(name) != change['before']:
             raise ValueError(f'guest config changed during validation: {name}')
+
+
+def commit(changes, previous, receipt_path, receipt):
     write_json(STATE / 'transaction.json', {'schema_version': 1, 'previous': previous, 'changes': changes})
     try:
         # Install includes before entrypoints; the journal makes an interruption recoverable.
         for name in sorted(changes, key=lambda name: name.endswith(('config.kdl', 'config.toml'))):
             replace(name, changes[name]['after'])
         ready(changes)
-        write_json(receipt_path, {'schema_version': 1, 'source': source, 'files': files})
+        write_json(receipt_path, receipt)
         (STATE / 'transaction.json').unlink()
     except (ValueError, OSError, subprocess.TimeoutExpired) as error:
         try:
@@ -250,6 +263,24 @@ def apply(request):
         except (ValueError, OSError, subprocess.TimeoutExpired) as recovery:
             raise ValueError(f'{error}; recovery also failed: {recovery}') from error
         raise
+
+
+def apply(request):
+    if request.get('schema_version') != 1 or set(request) != {'schema_version', 'source', 'files'}:
+        raise ValueError('unsupported lab sync request')
+    source, files = request['source'], request['files']
+    installed = json.loads(Path('/usr/share/sysroot/source.json').read_text())
+    check_home_only(source, installed)
+    check_payload(files, desktop_entries(source))
+    receipt_path = STATE / 'receipt.json'
+    previous = load_receipt(receipt_path)
+    baseline = image_baseline(installed) if previous is None else previous['files']
+    changes = plan_changes(files, baseline)
+    masked = validate(files, changes)
+    if not changes:
+        return {'changed': [], 'masked_settings': masked, 'source': source['source_revision']}
+    check_guest_unchanged(changes)
+    commit(changes, previous, receipt_path, {'schema_version': 1, 'source': source, 'files': files})
     return {'changed': list(changes), 'masked_settings': masked, 'source': source['source_revision']}
 
 

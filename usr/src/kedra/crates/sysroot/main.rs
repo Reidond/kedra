@@ -419,9 +419,43 @@ fn source_plan(repo: PathBuf, host: String, json: bool) -> Result<(), Box<dyn st
     Ok(())
 }
 
+fn source_archive(
+    repo: PathBuf,
+    host: String,
+    output: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let plan = source::archive(&repo, &host, &output)?;
+    println!(
+        "Created {} from {} for {} ({} payload files).",
+        output.display(),
+        plan.source_revision,
+        plan.target.id,
+        plan.files.len()
+    );
+    Ok(())
+}
+
+fn run_source(command: SourceCommand) -> ExitCode {
+    let result = match command {
+        SourceCommand::Plan { repo, host, json } => source_plan(repo, host, json),
+        SourceCommand::Archive { repo, host, output } => source_archive(repo, host, output),
+    };
+    exit_status(result, ExitCode::FAILURE)
+}
+
+fn exit_status<E: std::fmt::Display>(result: Result<(), E>, failure: ExitCode) -> ExitCode {
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("sysroot: {error}");
+            failure
+        }
+    }
+}
+
 #[cfg(unix)]
-fn run_engine(command: engine::Command) -> ExitCode {
-    match engine::run(command) {
+fn engine_exit_status(result: sysroot_engine::Result<ExitCode>) -> ExitCode {
+    match result {
         Ok(code) => code,
         Err(error) => {
             eprintln!("sysroot: {error}");
@@ -430,168 +464,133 @@ fn run_engine(command: engine::Command) -> ExitCode {
     }
 }
 
+#[cfg(unix)]
+fn run_engine(command: engine::Command) -> ExitCode {
+    engine_exit_status(engine::run(command))
+}
+
+// Some(code) ends the run before dispatch: the frontend worker was refused or
+// could not apply its limits, or catalog planning ran in an isolated worker.
+#[cfg(unix)]
+fn isolated_frontend_exit(cli: &Cli) -> Option<ExitCode> {
+    if cli.frontend_process {
+        return confine_frontend_worker(cli.command.as_ref());
+    }
+    if let Some(Commands::Catalog(options)) = &cli.command
+        && options.planning()
+    {
+        return Some(engine_exit_status(catalog_process::planning()));
+    }
+    None
+}
+
+#[cfg(unix)]
+fn confine_frontend_worker(command: Option<&Commands>) -> Option<ExitCode> {
+    let data_only = match command {
+        Some(Commands::Catalog(options)) => options.planning(),
+        Some(Commands::FrontendInput) => true,
+        _ => false,
+    };
+    if !data_only {
+        eprintln!("sysroot: frontend worker accepts only data-only commands");
+        return Some(ExitCode::from(78));
+    }
+    if let Err(error) = catalog_process::worker_limits() {
+        eprintln!("sysroot: {error}");
+        return Some(ExitCode::FAILURE);
+    }
+    None
+}
+
+fn run_doctor(json: bool) -> ExitCode {
+    match doctor::run(json) {
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::FAILURE,
+        Err(error) => {
+            eprintln!("sysroot: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn print_help() -> ExitCode {
+    if let Err(error) = Cli::command().print_help() {
+        eprintln!("sysroot: {error}");
+        return ExitCode::FAILURE;
+    }
+    println!();
+    ExitCode::SUCCESS
+}
+
+fn print_status(json: bool) {
+    if json {
+        println!("{}", sysroot_core::STATUS_JSON);
+    } else {
+        println!(
+            "Kedra capabilities: the private Unix build/store/profile engine, source and release tools, Linux deployment, Noctalia/niri home workflows and TPM disk unlock setup are implemented. Engine execution requires native aarch64 Linux Docker and retained image evidence. Installed state is not checked here. Use sysroot update status, sysroot update status --home, sysroot doctor and sysroot setup tpm-unlock --dry-run for installed checks."
+        );
+    }
+}
+
+fn reject_unavailable(args: &[OsString]) -> ExitCode {
+    let command = args
+        .first()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if let Some(gates) = sysroot_core::research_gate(command) {
+        eprintln!("sysroot: {command} is not implemented; complete research {gates}.");
+        return ExitCode::from(78);
+    }
+    eprintln!("sysroot: unsupported command or arguments; run sysroot --help");
+    ExitCode::from(2)
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     #[cfg(unix)]
-    if cli.frontend_process {
-        let data_only = match &cli.command {
-            Some(Commands::Catalog(options)) => options.planning(),
-            Some(Commands::FrontendInput) => true,
-            _ => false,
-        };
-        if !data_only {
-            eprintln!("sysroot: frontend worker accepts only data-only commands");
-            return ExitCode::from(78);
-        }
-        if let Err(error) = catalog_process::worker_limits() {
-            eprintln!("sysroot: {error}");
-            return ExitCode::FAILURE;
-        }
-    } else if let Some(Commands::Catalog(options)) = &cli.command
-        && options.planning()
-    {
-        return match catalog_process::planning() {
-            Ok(code) => code,
-            Err(error) => {
-                eprintln!("sysroot: {error}");
-                return engine::failure_code(&error);
-            }
-        };
+    if let Some(code) = isolated_frontend_exit(&cli) {
+        return code;
     }
     match cli.command {
         #[cfg(unix)]
-        Some(Commands::FrontendInput) => {
-            return match catalog_language::worker() {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(error) => {
-                    eprintln!("sysroot: {error}");
-                    ExitCode::FAILURE
-                }
-            };
+        Some(Commands::FrontendInput) => exit_status(catalog_language::worker(), ExitCode::FAILURE),
+        #[cfg(unix)]
+        Some(Commands::Catalog(options)) => engine_exit_status(catalog::run(options)),
+        #[cfg(unix)]
+        Some(Commands::System(options)) => {
+            engine_exit_status(system::run(options).map(|()| ExitCode::SUCCESS))
         }
         #[cfg(unix)]
-        Some(Commands::Catalog(options)) => {
-            return match catalog::run(options) {
-                Ok(code) => code,
-                Err(error) => {
-                    eprintln!("sysroot: {error}");
-                    engine::failure_code(&error)
-                }
-            };
-        }
+        Some(Commands::Build(options)) => run_engine(engine::Command::Build(options)),
         #[cfg(unix)]
-        Some(Commands::System(options)) => match system::run(options) {
-            Ok(()) => (),
-            Err(error) => {
-                eprintln!("sysroot: {error}");
-                return engine::failure_code(&error);
-            }
-        },
+        Some(Commands::Store(options)) => run_engine(engine::Command::Store(options)),
         #[cfg(unix)]
-        Some(Commands::Build(options)) => return run_engine(engine::Command::Build(options)),
+        Some(Commands::Run(options)) => run_engine(engine::Command::Run(options)),
         #[cfg(unix)]
-        Some(Commands::Store(options)) => return run_engine(engine::Command::Store(options)),
+        Some(Commands::Profile(options)) => run_engine(engine::Command::Profile(options)),
         #[cfg(unix)]
-        Some(Commands::Run(options)) => return run_engine(engine::Command::Run(options)),
-        #[cfg(unix)]
-        Some(Commands::Profile(options)) => return run_engine(engine::Command::Profile(options)),
-        #[cfg(unix)]
-        Some(Commands::Develop(options)) => return run_engine(engine::Command::Develop(options)),
-        Some(Commands::Doctor { json }) => match doctor::run(json) {
-            Ok(true) => (),
-            Ok(false) => return ExitCode::FAILURE,
-            Err(error) => {
-                eprintln!("sysroot: {error}");
-                return ExitCode::FAILURE;
-            }
-        },
-        Some(Commands::Home(options)) => {
-            if let Err(error) = home::run(options) {
-                eprintln!("sysroot: {error}");
-                return ExitCode::FAILURE;
-            }
-        }
+        Some(Commands::Develop(options)) => run_engine(engine::Command::Develop(options)),
+        Some(Commands::Doctor { json }) => run_doctor(json),
+        Some(Commands::Home(options)) => exit_status(home::run(options), ExitCode::FAILURE),
         Some(Commands::Update(options)) => {
-            if let Err(error) = deployment::run(options) {
-                eprintln!("sysroot: {error}");
-                return ExitCode::from(78);
-            }
+            exit_status(deployment::run(options), ExitCode::from(78))
         }
-        Some(Commands::Setup(options)) => {
-            if let Err(error) = setup::run(options) {
-                eprintln!("sysroot: {error}");
-                return ExitCode::from(78);
-            }
-        }
+        Some(Commands::Setup(options)) => exit_status(setup::run(options), ExitCode::from(78)),
         Some(Commands::Codex(options)) => {
-            if let Err(error) = agents::run("codex", options) {
-                eprintln!("sysroot: {error}");
-                return ExitCode::from(78);
-            }
+            exit_status(agents::run("codex", options), ExitCode::from(78))
         }
         Some(Commands::Claude(options)) => {
-            if let Err(error) = agents::run("claude", options) {
-                eprintln!("sysroot: {error}");
-                return ExitCode::from(78);
-            }
+            exit_status(agents::run("claude", options), ExitCode::from(78))
         }
         Some(Commands::Release { command }) => {
-            if let Err(error) = verify_release(command) {
-                eprintln!("sysroot: {error}");
-                return ExitCode::FAILURE;
-            }
+            exit_status(verify_release(command), ExitCode::FAILURE)
         }
-        None => {
-            if let Err(error) = Cli::command().print_help() {
-                eprintln!("sysroot: {error}");
-                return ExitCode::FAILURE;
-            }
-            println!();
-        }
+        None => print_help(),
         Some(Commands::Status { json }) => {
-            if json {
-                println!("{}", sysroot_core::STATUS_JSON);
-            } else {
-                println!(
-                    "Kedra capabilities: the private Unix build/store/profile engine, source and release tools, Linux deployment, Noctalia/niri home workflows and TPM disk unlock setup are implemented. Engine execution requires native aarch64 Linux Docker and retained image evidence. Installed state is not checked here. Use sysroot update status, sysroot update status --home, sysroot doctor and sysroot setup tpm-unlock --dry-run for installed checks."
-                );
-            }
+            print_status(json);
+            ExitCode::SUCCESS
         }
-        Some(Commands::Source {
-            command: SourceCommand::Plan { repo, host, json },
-        }) => {
-            if let Err(error) = source_plan(repo, host, json) {
-                eprintln!("sysroot: {error}");
-                return ExitCode::FAILURE;
-            }
-        }
-        Some(Commands::Source {
-            command: SourceCommand::Archive { repo, host, output },
-        }) => match source::archive(&repo, &host, &output) {
-            Ok(plan) => println!(
-                "Created {} from {} for {} ({} payload files).",
-                output.display(),
-                plan.source_revision,
-                plan.target.id,
-                plan.files.len()
-            ),
-            Err(error) => {
-                eprintln!("sysroot: {error}");
-                return ExitCode::FAILURE;
-            }
-        },
-        Some(Commands::Unavailable(args)) => {
-            let command = args
-                .first()
-                .and_then(|value| value.to_str())
-                .unwrap_or_default();
-            if let Some(gates) = sysroot_core::research_gate(command) {
-                eprintln!("sysroot: {command} is not implemented; complete research {gates}.");
-                return ExitCode::from(78);
-            }
-            eprintln!("sysroot: unsupported command or arguments; run sysroot --help");
-            return ExitCode::from(2);
-        }
+        Some(Commands::Source { command }) => run_source(command),
+        Some(Commands::Unavailable(args)) => reject_unavailable(&args),
     }
-    ExitCode::SUCCESS
 }

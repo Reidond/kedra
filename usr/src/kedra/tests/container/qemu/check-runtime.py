@@ -30,20 +30,16 @@ def sha256(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def inspect(runtime):
+def load_pins():
     pins = json.loads((HERE / 'inputs.json').read_text())
     if (not isinstance(pins, dict) or pins.get('schema_version') != 1 or pins.get('platform') != 'macos-arm64'
             or any(not re.fullmatch('[a-f0-9]{40}', entry['revision'])
                    for entry in pins['sources'].values())):
         raise ValueError('unsupported or malformed native runtime inputs')
-    checks = []
+    return pins
 
-    def add(name, passed, detail, category='build'):
-        checks.append({'name': name, 'category': category,
-                       'status': 'pass' if passed else 'blocked', 'detail': detail})
 
-    add('host', platform.system() == 'Darwin' and platform.machine() == 'arm64',
-        f'{platform.system()} {platform.release()} {platform.machine()}', 'runtime')
+def check_build_tools(pins, add):
     for name in ('clang', 'ninja', 'pkg-config', 'git', 'uv', 'autoconf', 'automake', 'glibtoolize'):
         found = shutil.which(name)
         add(name, found is not None, found or 'not found; install only with owner authorization')
@@ -56,48 +52,78 @@ def inspect(runtime):
     add('meson', ok and version == pins['build_tools']['meson'], version)
     ok, version = command(['xcrun', 'metal', '--version'])
     add('metal-toolchain', ok, version)
+
+
+def receipt_matches_inputs(receipt):
+    required = {'bin/qemu-system-aarch64', 'bin/qemu-img', 'bin/swtpm',
+                'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64',
+                'Kedra QEMU.app/Contents/Info.plist',
+                'firmware/AAVMF_CODE.secboot.fd', 'firmware/AAVMF_VARS.ms.fd'}
+    return (isinstance(receipt, dict) and receipt.get('schema_version') == 1 and isinstance(receipt.get('files'), dict)
+            and required.issubset(receipt['files'])
+            and receipt.get('inputs_sha256') == sha256(HERE / 'inputs.json')
+            and receipt.get('recipe_sha256') == sha256(HERE / 'prepare-runtime.py')
+            and receipt.get('angle_dependencies_sha256') == sha256(HERE / 'angle-dependencies.json')
+            and receipt.get('python_lock_sha256') == sha256(HERE / 'build-tools/uv.lock'))
+
+
+def runtime_file_failures(runtime, files):
+    failures = []
+    for name, expected in files.items():
+        relative = Path(name)
+        if relative.is_absolute() or '..' in relative.parts:
+            failures.append('unsafe receipt path')
+            break
+        path = runtime / relative
+        if (path.is_symlink() or not path.is_file()
+                or not path.resolve().is_relative_to(runtime.resolve())
+                or sha256(path) != expected):
+            failures.append(name)
+    return failures
+
+
+def check_qemu_features(runtime, add):
+    binary = str(runtime / 'bin/qemu-system-aarch64')
+    for name, arguments, expected in [
+        ('hvf', ['-accel', 'help'], 'hvf'),
+        ('cocoa', ['-display', 'help'], 'cocoa'),
+        ('virtio-gl', ['-device', 'virtio-gpu-gl-pci,help'], 'virtio-gpu-gl-pci options:'),
+    ]:
+        ok, output = command([binary, *arguments])
+        add(name, ok and expected in output, output, 'runtime')
+
+
+def check_runtime_receipt(runtime, add):
+    receipt_path = runtime / 'receipt.json'
+    if not receipt_path.is_file():
+        add('runtime-receipt', False, 'no prepared standalone runtime at ' + str(runtime), 'runtime')
+        return
+    receipt = json.loads(receipt_path.read_text())
+    if not receipt_matches_inputs(receipt):
+        add('runtime-receipt', False, 'unsupported, incomplete or mismatched receipt', 'runtime')
+        return
+    failures = runtime_file_failures(runtime, receipt['files'])
+    add('runtime-receipt', not failures,
+        'missing/changed runtime files: ' + ', '.join(failures[:5]) if failures
+        else 'runtime file hashes checked; GPU qualification is separate', 'runtime')
+    if not failures:
+        check_qemu_features(runtime, add)
+
+
+def inspect(runtime):
+    pins = load_pins()
+    checks = []
+
+    def add(name, passed, detail, category='build'):
+        checks.append({'name': name, 'category': category,
+                       'status': 'pass' if passed else 'blocked', 'detail': detail})
+
+    add('host', platform.system() == 'Darwin' and platform.machine() == 'arm64',
+        f'{platform.system()} {platform.release()} {platform.machine()}', 'runtime')
+    check_build_tools(pins, add)
     add('dependency-lock', pins.get('closure_locked') is True,
         'complete ANGLE Git/CIPD/GCS and tool dependency closure required before preparation', 'runtime')
-    receipt_path = runtime / 'receipt.json'
-    if receipt_path.is_file():
-        receipt = json.loads(receipt_path.read_text())
-        required = {'bin/qemu-system-aarch64', 'bin/qemu-img', 'bin/swtpm',
-                    'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64',
-                    'Kedra QEMU.app/Contents/Info.plist',
-                    'firmware/AAVMF_CODE.secboot.fd', 'firmware/AAVMF_VARS.ms.fd'}
-        if (not isinstance(receipt, dict) or receipt.get('schema_version') != 1 or not isinstance(receipt.get('files'), dict)
-                or not required.issubset(receipt['files'])
-                or receipt.get('inputs_sha256') != sha256(HERE / 'inputs.json')
-                or receipt.get('recipe_sha256') != sha256(HERE / 'prepare-runtime.py')
-                or receipt.get('angle_dependencies_sha256') != sha256(HERE / 'angle-dependencies.json')
-                or receipt.get('python_lock_sha256') != sha256(HERE / 'build-tools/uv.lock')):
-            add('runtime-receipt', False, 'unsupported, incomplete or mismatched receipt', 'runtime')
-        else:
-            failures = []
-            for name, expected in receipt['files'].items():
-                relative = Path(name)
-                if relative.is_absolute() or '..' in relative.parts:
-                    failures.append('unsafe receipt path')
-                    break
-                path = runtime / relative
-                if (path.is_symlink() or not path.is_file()
-                        or not path.resolve().is_relative_to(runtime.resolve())
-                        or sha256(path) != expected):
-                    failures.append(name)
-            add('runtime-receipt', not failures,
-                'missing/changed runtime files: ' + ', '.join(failures[:5]) if failures
-                else 'runtime file hashes checked; GPU qualification is separate', 'runtime')
-            if not failures:
-                binary = str(runtime / 'bin/qemu-system-aarch64')
-                for name, arguments, expected in [
-                    ('hvf', ['-accel', 'help'], 'hvf'),
-                    ('cocoa', ['-display', 'help'], 'cocoa'),
-                    ('virtio-gl', ['-device', 'virtio-gpu-gl-pci,help'], 'virtio-gpu-gl-pci options:'),
-                ]:
-                    ok, output = command([binary, *arguments])
-                    add(name, ok and expected in output, output, 'runtime')
-    else:
-        add('runtime-receipt', False, 'no prepared standalone runtime at ' + str(runtime), 'runtime')
+    check_runtime_receipt(runtime, add)
     return {'schema_version': 1, 'runtime': str(runtime), 'gpu_qualified': False,
             'build_prerequisites_ready': all(check['status'] == 'pass' for check in checks if check['category'] == 'build'),
             'ready_for_qualification': all(check['status'] == 'pass' for check in checks if check['category'] == 'runtime'),

@@ -330,7 +330,7 @@ def registry_volume(args):
     print(json.dumps(result, sort_keys=True))
 
 
-def main():
+def argument_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--local-fixture', action='store_true')
     parser.add_argument('--source-revision')
@@ -350,55 +350,59 @@ def main():
     parser.add_argument('--nonce')
     parser.add_argument('--owner-pid', type=int)
     parser.add_argument('--private-diagnostic', choices=('prepare', 'capture'), help='Private local installer failure custody')
-    args = parser.parse_args()
-    selected = (args.source_revision, args.runner_temp, args.evidence, args.binaries)
-    if args.admission is not None or args.private_diagnostic is not None:
-        if (args.fixture_context is None or args.local_fixture
-                or (args.admission is not None and args.private_diagnostic is not None)
-                or any(item is not None for item in (*selected, args.fixture_revision,
-                    args.retained_candidate, args.retained_candidate_sha256, args.registry_volume,
-                    args.registry_volume_created_at, args.registry_container, args.registry_volume_before))):
-            parser.error('supervised operations require only an existing local fixture context')
-        if args.admission is not None:
-            admission(args)
-        else:
-            if args.nonce is not None or args.owner_pid is not None:
-                parser.error('diagnostic custody does not accept admission credentials')
-            private_diagnostic(args)
-        return
-    if any(item is not None for item in (args.phase, args.nonce, args.owner_pid)):
-        parser.error('phase, nonce and owner PID require a supervised operation')
-    if args.registry_volume is not None:
-        if (args.fixture_context is None or args.registry_volume_created_at is None or args.local_fixture
-                or any(item is not None for item in (*selected, args.fixture_revision,
-                                                    args.retained_candidate, args.retained_candidate_sha256))):
-            parser.error('registry inspection requires only an existing fixture context and explicit volume identity')
-        registry_volume(args)
-        return
-    if any(item is not None for item in (args.fixture_context, args.registry_volume_created_at,
-                                        args.registry_container, args.registry_volume_before)):
-        parser.error('registry inspection options require --registry-volume')
-    if args.local_fixture:
-        if not all(item is not None for item in selected):
-            parser.error('--local-fixture requires source revision, private runner temp, evidence and binaries')
-        retained = (args.retained_candidate, args.retained_candidate_sha256)
-        if any(item is not None for item in retained) and not all(item is not None for item in retained):
-            parser.error('retained candidate path and independently selected SHA-256 must be supplied together')
-        if args.retained_candidate is not None and args.fixture_revision is None:
-            parser.error('retained candidates require an explicit --fixture-revision')
-        value = {'schema_version': 1, 'kind': 'kedra-arm-release-fixture', 'mode': 'local',
-                 'source_revision': args.source_revision, 'fixture_revision': args.fixture_revision or args.source_revision,
-                 'retained_candidate': str(path(args.retained_candidate)) if args.retained_candidate is not None else None,
-                 'retained_candidate_sha256': args.retained_candidate_sha256, 'repository': str(ROOT),
-                 'runner_temp': str(path(args.runner_temp)), 'evidence': str(path(args.evidence, existing=False)),
-                 'binaries': str(path(args.binaries)), 'binary_sha256': binary_hashes(path(args.binaries)),
-                 'uid': os.getuid()}
+    return parser
+
+
+def supervised_operation(parser, args, selected):
+    if (args.fixture_context is None or args.local_fixture
+            or (args.admission is not None and args.private_diagnostic is not None)
+            or any(item is not None for item in (*selected, args.fixture_revision,
+                args.retained_candidate, args.retained_candidate_sha256, args.registry_volume,
+                args.registry_volume_created_at, args.registry_container, args.registry_volume_before))):
+        parser.error('supervised operations require only an existing local fixture context')
+    if args.admission is not None:
+        admission(args)
     else:
-        if any(item is not None for item in (*selected, args.fixture_revision, args.retained_candidate,
-                                            args.retained_candidate_sha256)):
-            parser.error('Actions defaults cannot be overridden; select explicit local fixture mode')
-        value = actions_context()
-    validate(value)
+        if args.nonce is not None or args.owner_pid is not None:
+            parser.error('diagnostic custody does not accept admission credentials')
+        private_diagnostic(args)
+
+
+def registry_inspection(parser, args, selected):
+    if (args.fixture_context is None or args.registry_volume_created_at is None or args.local_fixture
+            or any(item is not None for item in (*selected, args.fixture_revision,
+                                                args.retained_candidate, args.retained_candidate_sha256))):
+        parser.error('registry inspection requires only an existing fixture context and explicit volume identity')
+    registry_volume(args)
+
+
+def local_context(parser, args, selected):
+    if not all(item is not None for item in selected):
+        parser.error('--local-fixture requires source revision, private runner temp, evidence and binaries')
+    retained = (args.retained_candidate, args.retained_candidate_sha256)
+    if any(item is not None for item in retained) and not all(item is not None for item in retained):
+        parser.error('retained candidate path and independently selected SHA-256 must be supplied together')
+    if args.retained_candidate is not None and args.fixture_revision is None:
+        parser.error('retained candidates require an explicit --fixture-revision')
+    return {'schema_version': 1, 'kind': 'kedra-arm-release-fixture', 'mode': 'local',
+            'source_revision': args.source_revision, 'fixture_revision': args.fixture_revision or args.source_revision,
+            'retained_candidate': str(path(args.retained_candidate)) if args.retained_candidate is not None else None,
+            'retained_candidate_sha256': args.retained_candidate_sha256, 'repository': str(ROOT),
+            'runner_temp': str(path(args.runner_temp)), 'evidence': str(path(args.evidence, existing=False)),
+            'binaries': str(path(args.binaries)), 'binary_sha256': binary_hashes(path(args.binaries)),
+            'uid': os.getuid()}
+
+
+def selected_context(parser, args, selected):
+    if args.local_fixture:
+        return local_context(parser, args, selected)
+    if any(item is not None for item in (*selected, args.fixture_revision, args.retained_candidate,
+                                        args.retained_candidate_sha256)):
+        parser.error('Actions defaults cannot be overridden; select explicit local fixture mode')
+    return actions_context()
+
+
+def write_context(value):
     filename = Path(value['runner_temp']) / 'kedra-release-context.json'
     descriptor = os.open(filename, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, 'w') as stream:
@@ -407,6 +411,26 @@ def main():
         stream.flush()
         os.fsync(stream.fileno())
     print(filename)
+
+
+def main():
+    parser = argument_parser()
+    args = parser.parse_args()
+    selected = (args.source_revision, args.runner_temp, args.evidence, args.binaries)
+    if args.admission is not None or args.private_diagnostic is not None:
+        supervised_operation(parser, args, selected)
+        return
+    if any(item is not None for item in (args.phase, args.nonce, args.owner_pid)):
+        parser.error('phase, nonce and owner PID require a supervised operation')
+    if args.registry_volume is not None:
+        registry_inspection(parser, args, selected)
+        return
+    if any(item is not None for item in (args.fixture_context, args.registry_volume_created_at,
+                                        args.registry_container, args.registry_volume_before)):
+        parser.error('registry inspection options require --registry-volume')
+    value = selected_context(parser, args, selected)
+    validate(value)
+    write_context(value)
 
 
 if __name__ == '__main__':

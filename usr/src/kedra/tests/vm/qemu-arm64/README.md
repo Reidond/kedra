@@ -1,6 +1,6 @@
 # QEMU ARM64 Secure Boot check
 
-`.github/workflows/test-qemu-arm64.yml` qualifies the aarch64 `qemu-arm64` candidate on `ubuntu-24.04-arm`. Hosted arm64 runners expose no `/dev/kvm`, so the boot is TCG emulation. That qualifies the firmware → shim → GRUB → kernel chain and the booted deployment. It does not qualify HVF, TPM, VirGL/Metal rendering or the graphical session; those require the native QEMU lab qualification.
+`.github/workflows/test-qemu-arm64.yml` qualified the aarch64 `qemu-arm64` candidate on `ubuntu-24.04-arm` until it was removed on 2026-10-08 with the other test workflows; `git show 3e33867:.github/workflows/test-qemu-arm64.yml` keeps its steps for a local run on an aarch64 Linux host. Hosted arm64 runners expose no `/dev/kvm`, so the boot is TCG emulation. That qualifies the firmware → shim → GRUB → kernel chain and the booted deployment. It does not qualify HVF, TPM, VirGL/Metal rendering or the graphical session; those require the native QEMU lab qualification.
 
 | File | Role |
 |---|---|

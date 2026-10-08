@@ -5,7 +5,7 @@ description: Maintain automatically signed GHCR image identity, isolated publica
 
 # Signed OCI authority
 
-Read usr/src/kedra/docs/RELEASES.md, usr/src/kedra/docs/UPDATES.md and usr/src/kedra/docs/ARCHITECTURE.md. The published artifacts are independently signed OCI images per enabled target. Stable is discovery; deployment uses the exact verified digest. No GitHub Releases or ISO/metadata assets.
+Read usr/src/kedra/docs/RELEASES.md, usr/src/kedra/docs/UPDATES.md and usr/src/kedra/docs/ARCHITECTURE.md. The published artifacts are independently signed OCI images per enabled target. Stable is discovery; deployment uses the exact verified digest. The only GitHub Releases are owner-dispatched installer ISO releases (`iso.yml`); no release metadata or signature assets.
 
 | Target | Repository | Builds repository | Environment | Secret/variable prefix | Authority |
 |---|---|---|---|---|---|
@@ -32,4 +32,4 @@ Changed inputs require a signed image before stable advances. No-change publishe
 
 Retain known-good digests/signatures. Rollback holds forward updates and preserves persistent data. Key rotation needs actual qualification. Container signatures do not establish Secure Boot.
 
-Local ISO construction consumes a reviewed signed image and verifies the embedded payload offline. It does not upload or create a release signature for local output. Keep this skill checkout-local.
+ISO construction consumes an exact signed image and verifies the embedded payload offline. Locally it uploads nothing. The owner-dispatched `iso.yml` (2026-10-08) builds the same media from a target's current `stable` digest and attaches its parts, SHA256SUMS and installer.json to a GitHub Release; those checksums are not release signatures, and the workflow holds no signing key. Keep this skill checkout-local.

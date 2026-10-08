@@ -1,5 +1,5 @@
 # Lint for every Python script in the repository: host uv scripts, the lab's
 # guest probes and VM guest checks. The ruff version is pinned in mise.toml
-# and check.yml; its default rule set applies. Host scripts target the uv
+# for the local checks; its default rule set applies. Host scripts target the uv
 # interpreter (.python-version); guest scripts run on the image's newer Python.
 target-version = "py312"

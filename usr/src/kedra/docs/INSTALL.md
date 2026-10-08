@@ -1,6 +1,6 @@
 # Build and install local media
 
-Kedra publishes signed container images per target: `ghcr.io/reidond/kedra-desktop` (x86_64) and `ghcr.io/reidond/kedra-qemu-arm64` (aarch64, a native QEMU VM on Apple Silicon). Installation media is constructed locally from an explicitly reviewed digest. No GitHub Release or ISO download is required.
+Kedra publishes signed container images per target: `ghcr.io/reidond/kedra-desktop` (x86_64) and `ghcr.io/reidond/kedra-qemu-arm64` (aarch64, a native QEMU VM on Apple Silicon). Installation media installs one exact signed digest. Download a published installer release, or build the ISO locally from a digest you reviewed.
 
 ## Secure Boot prerequisites
 
@@ -15,6 +15,18 @@ Configure the firmware before installing:
 - **Check `db` if unsure:** run `mokutil --db` from Linux live media, or `Get-SecureBootUEFI db` on Windows. Fedora 44 x86_64 live media uses the same shim, so a Secure Boot boot of it is a quick pre-check. The Fedora 44 GA aarch64 netinst ISO is not a valid pre-check: its kernel is unsigned.
 
 Secure Boot here covers firmware, shim, GRUB and the kernel, plus kernel lockdown. It does not sign the initramfs, the kernel command line or the composefs root, so it is not verified boot.
+
+## Download a published installer
+
+When the owner wants a full new release, they dispatch the `iso.yml` workflow for one target. It builds the ISO from that target's current signed `stable` image, which already contains every published update, with the same `build-local.py` checks described below, and attaches it to a new [GitHub Release](https://github.com/Reidond/kedra/releases) tagged `<target>-<first 16 digest hex>`. Release assets must be smaller than 2 GiB, so the ISO is split into numbered parts:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+cat kedra-desktop-44-DIGEST16.iso.part-* > kedra-desktop-44-DIGEST16.iso
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+`installer.json` names the image digest, its source revision and the public-key fingerprint. Confirm that fingerprint against the values below. The checksums only detect damaged downloads; they are not signatures. The ISO verifies its embedded signed image offline before installing. The release workflow builds the media but does not boot it or install from it.
 
 ## Build hosts
 
@@ -47,7 +59,7 @@ The repository selects the target. Other repositories, tags and cross-architectu
 
 The script checks the fixed public fingerprint and strict native container signature policy before extracting the image's helper, source and trust. It then requires the payload, builder and Anaconda environment to have the target's OCI architecture and the signed scope to name that target. It uses the image's recorded Fedora base and the per-architecture digest-pinned builder in usr/src/kedra/installer/inputs.json. Legacy images without recorded resolved inputs additionally require an explicitly reviewed `--base-image quay.io/fedora/fedora-bootc@sha256:BASE_DIGEST`.
 
-The result is one complete `kedra-<target>-44-<first 16 digest hex>.iso`, `installer.json` and `SHA256SUMS` in the selected directory. No existing output is overwritten and nothing is uploaded. Local checksum files describe the built ISO; they are not release signatures. The embedded signed OS payload is independently verified offline before installation.
+The result is one complete `kedra-<target>-44-<first 16 digest hex>.iso`, `installer.json` and `SHA256SUMS` in the selected directory. No existing output is overwritten and the script uploads nothing; only the owner-dispatched `iso.yml` publishes its output. Local checksum files describe the built ISO; they are not release signatures. The embedded signed OS payload is independently verified offline before installation.
 
 Rootful Podman retains its normal image/build cache. Temporary build data is removed after success and retained with its reported location after failure. Do not share the container store with another image-build operation while creating media.
 

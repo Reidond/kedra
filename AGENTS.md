@@ -5,10 +5,11 @@
 Read the current project status and latest entries in `worklog.md`, then
 `usr/src/kedra/docs/STATUS.md` and the `kedra-context` skill at the start of a new or
 resumed session. `usr/src/kedra/PLAN.md` defines the product;
-`usr/src/kedra/docs/ARCHITECTURE.md` defines durable contracts; exact Actions runs and
-`usr/src/kedra/docs/STATUS.md` describe actual results. Never infer an implemented
-feature from a design example or a stale worklog summary. Inspect source, Git state,
-and CI before continuing.
+`usr/src/kedra/docs/ARCHITECTURE.md` defines durable contracts; exact local check
+results, sign-offs, Actions release runs and `usr/src/kedra/docs/STATUS.md` describe
+actual results. Never infer an implemented feature from a design example or a stale
+worklog summary. Inspect source, Git state, sign-off status and release runs before
+continuing.
 
 ## Repository layout
 
@@ -31,7 +32,12 @@ is bound into signed image identity; never rename it.
 - Kedra is the OS/project; `sysroot` is the command. Repo: `Reidond/kedra`.
 - `main` is the sole integration/default branch. Feature PRs target `main`;
   do not recreate a separate `dev` integration branch.
-- Fedora 44 bootc, plain Containerfile, Actions signed OCI builds and local on-demand ISO construction; unsigned local lab builds only for testing. No BlueBuild or GitHub Release/ISO publication.
+- Fedora 44 bootc, plain Containerfile. Owner decision (2026-10-08): Actions
+  only builds, validates, signs and publishes OS updates (`release.yml`) and, when the owner
+  dispatches `iso.yml`, publishes an installer ISO as a GitHub Release. It runs no
+  check or test workflow for changes; testing is local and a change merges on its
+  `signoff` (see "Local testing and sign-off"). Local on-demand ISO construction
+  remains available; unsigned local lab builds only for testing. No BlueBuild.
 - Rust edition 2024, Cargo workspace, one lockfile, pinned toolchain,
   rustfmt/Clippy. No Cargo `src/` directories: crates keep explicit flat
   `main.rs`/`lib.rs` under `usr/src/kedra/crates/`.
@@ -41,7 +47,7 @@ is bound into signed image identity; never rename it.
   and checks data; inline author shell runs only in admitted engine builders.
   This grants no general configuration interpreter or deployment authority.
 - Python runs through uv; see below. Development tools are pinned in `mise.toml`
-  (Rust 1.98.1, uv, ruff, cccc) at the same versions as CI; mise's `RUSTUP_TOOLCHAIN`
+  (Rust 1.98.1, uv, ruff, cccc) for the local checks; mise's `RUSTUP_TOOLCHAIN`
   overrides a global `rust = "stable"` for shells and editors in this checkout.
 - Shared root-filesystem inputs, explicit target overlays, independent per-target
   signed releases. Never guess the future XPS hardware or current disk/device IDs.
@@ -56,7 +62,7 @@ is bound into signed image identity; never rename it.
 ## Python
 
 Every Python script passes `ruff check` (configuration in `ruff.toml`, version
-pinned in `mise.toml` and check.yml). Run every Python script on a development machine or CI runner with `uv run` (for
+pinned in `mise.toml`). Run every Python script on a development machine or CI runner with `uv run` (for
 example `uv run usr/src/kedra/installer/build-local.py --help`), never with `python3`,
 `python` or `pip` directly; inline runner code uses `uv run python -`.
 `.python-version` pins the interpreter. Host-side entry scripts carry PEP 723
@@ -212,7 +218,8 @@ container harness (`usr/src/kedra/tests/container`) may build unsigned candidate
 images of the working tree or a commit and layer the working tree over published
 images, for testing and viewing only: never push, sign, promote or install them.
 The explicit local installer entrypoint may build on-demand ISO media from
-reviewed signed images. End-to-end CLI checks and manual experiments using
+reviewed signed images; only the owner dispatches `iso.yml` to publish installer
+media, and agents never trigger it or a release run on their own. End-to-end CLI checks and manual experiments using
 generated fixtures can run locally. Never test enrollment, disk formatting, bootc switch, or home apply
 on the current workstation. No production signing keys in research. No arbitrary
 checkout scripts or hooks run as root. Never weaken verification to pass a test.
@@ -251,10 +258,13 @@ Kedra session nested in a headless compositor, and runs versioned YAML
 scenarios and native Rust tests through `cargo test -p kedra-container-tests
 --test container`. The harness and its `kedra-lab` development tool are the one
 sanctioned test runner; the unit-test ban above applies to the harness itself.
-Disposable VM workflows remain for what a container cannot host: firmware and
+Disposable VM tests remain for what a container cannot host: firmware and
 Secure Boot, SELinux enforcement, VT/greetd password login and PAM keyring
 unlock, bootc switch/update/rollback, the installer, and clients that receive no
-virtual-keyboard input in the nested session (Xwayland, Qt). When changing niri,
+virtual-keyboard input in the nested session (Xwayland, Qt). They run locally on a
+disposable Linux host with KVM or through `kedra-lab vm`; the drivers under
+`usr/src/kedra/tests/vm/` were written for hosted Ubuntu runners and may need
+their runner variables (`RUNNER_TEMP`, `GITHUB_RUN_ID`) set. When changing niri,
 Noctalia or other visible desktop configuration, check it with `kedra-lab up`,
 `kedra-lab sync` and `kedra-lab shot`, and show the owner the screenshots.
 
@@ -265,14 +275,52 @@ must assess the resulting user workflow. Preserve disposable VM testing and manu
 verification. Formatting, Clippy, builds, syntax checks and runtime validation
 remain required; removing unit tests does not remove implementation safeguards.
 
-Use standard Cargo commands appropriate to the change, and `ruff check` for Python: `cargo fmt --all -- --check`,
-`cargo clippy --workspace --all-targets --locked -- -D warnings`,
-`cargo test --workspace --test 'e2e_*' --locked`, and `cargo build --workspace --release --locked`,
-plus `cargo test -p kedra-container-tests --test container --locked` for installed-system
-changes (a container engine is required; it builds or pulls the image under test),
-then `uv run usr/src/kedra/tests/cli/release-interop.py --sysroot target/release/sysroot
---workdir target/release-interop` and `uv run usr/src/kedra/tests/cli/release-material.py
---workdir target/release-material` as check.yml does.
+### Local testing and sign-off — owner decision, 2026-10-08
+
+No Actions workflow tests a change. Every change is tested locally on the exact
+commit that merges, and `main` requires a successful `signoff` commit status on the
+pull request head instead of a CI check. Agents follow the same procedure as the
+owner:
+
+1. Commit the change on its feature branch and push it.
+2. With a clean working tree on that commit, run the local checks below that the
+   change needs. Record each result in the worklog as `pass`, `fail` or `not-run`.
+3. Only when every required check passes, sign off:
+   `uv run usr/src/kedra/tests/signoff.py --checks "<the checks that passed>"`.
+   It refuses local changes and a commit GitHub does not hold, then sets the
+   `signoff` status on HEAD with the GitHub CLI, under your GitHub identity.
+4. Every new commit, including a merge of `main`, needs its own checks and sign-off.
+
+Never sign off a commit whose required checks failed, were skipped or ran on other
+content, and never sign off a commit you did not check. A session without an
+authenticated GitHub CLI, or without the container engine or VM a check needs,
+reports the checks it ran with their results, marks the rest `not-run`, and leaves
+the sign-off to the owner or a local session that completes them. A sign-off is not
+a boot, installation or release result.
+
+Local checks, from the repository root:
+
+```sh
+cargo fmt --all -- --check
+ruff check
+cccc --table --min 41 .
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --test 'e2e_*' --locked
+cargo build --workspace --release --locked
+uv run usr/src/kedra/tests/cli/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
+uv run usr/src/kedra/tests/cli/release-material.py --workdir target/release-material
+# Installed-system changes (needs a container engine; builds or pulls the image under test):
+cargo test -p kedra-container-tests --test container --locked
+```
+
+Run the complete list for Rust or Python changes. Add `kedra-lab` screenshots for
+visible desktop changes and disposable VM or manual testing for boot, installer,
+update and Secure Boot changes. Documentation-only changes need no build, but
+still need review and a sign-off. Run checks on Linux for installed behavior.
+
+The release workflow still runs the container harness on each exact candidate
+image before signing it. That gate covers nightly Fedora package refreshes that no
+sign-off saw; it does not replace local testing.
 
 ### Complexity gate
 
@@ -280,7 +328,7 @@ Validate that `cccc` passes before finishing any change to Rust or Python code:
 run `cccc --table --min 41 .` from the repository root and require exit status 0.
 `cccc.toml` limits every function, method and closure to cognitive and cyclomatic
 complexity 40; `--min 41` only narrows the table to the functions over the limit.
-The version is pinned in `mise.toml` and check.yml, which runs the same gate. When a
+The version is pinned in `mise.toml`. When a
 function exceeds a limit, refactor it into cohesive, well-named helpers with the
 same behavior, error text and order of checks and side effects. Never raise the
 limits, exclude files, or hide logic in macros or closures to pass the gate.

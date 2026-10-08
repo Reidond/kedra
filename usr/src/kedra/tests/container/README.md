@@ -15,7 +15,7 @@ Nothing here enters the OS image, installer or release. A container does not boo
 
 ## Prerequisites
 
-- A Docker Engine API endpoint that can run privileged containers with a private cgroup namespace. On macOS that is OrbStack or Docker Desktop; in CI it is the GitHub runner's Docker.
+- A Docker Engine API endpoint that can run privileged containers with a private cgroup namespace. On macOS that is OrbStack or Docker Desktop; in the release workflow's candidate validation it is the GitHub runner's Docker.
   - Testcontainers uses `DOCKER_HOST` or `/var/run/docker.sock`, not Docker contexts.
 - The pinned Rust toolchain.
 - Network access for pulling images, Fedora packages in the lab layer, and the pinned Codex/Bitwarden inputs of full builds.
@@ -338,7 +338,7 @@ Control flow belongs in native tests or probes.
 | Schema / migrations | Not applicable. Image contents come from the stage's own build, or from the overlay replay of its payload steps. |
 | Reset strategy | A dedicated container per test |
 | Deadlines | Boot 90 s, session 90 s + 60 s for IPC, step 60 s by default, scenario 10 m by default, full image build 30 m per step |
-| Artifacts | `target/kedra-lab/runs/<execution>/` (ignored by Git); uploaded by `test-container.yml` |
+| Artifacts | `target/kedra-lab/runs/<execution>/` (ignored by Git); the release workflow uploads its candidate validation's reports |
 | HTTP/database operations | Not applicable. `exec`/`observe` against the OS take their place. |
 | Unit tests for the parser and assertions | None, by owner decision (AGENTS.md). Strict parsing and assertion sensitivity are checked by running the harness. |
 | Parallel scenarios, container reuse | One or two isolated workers; default one. A two-worker ARM run passed on 2026-09-28. No mutable container reuse between tests. |

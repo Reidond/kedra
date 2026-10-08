@@ -96,7 +96,7 @@ cargo build --workspace --release --locked
 cccc --table --min 41 .
 ```
 
-`cccc` 1.7.0 (pinned in mise.toml and check.yml) gates every Rust and Python
+`cccc` 1.7.0 (pinned in mise.toml; a local check before sign-off) gates every Rust and Python
 function, method and closure at cognitive and cyclomatic complexity 40 through
 the root `cccc.toml`. Closures are measured as their own units, so a parent's
 score excludes them; split long functions into cohesive named helpers instead of

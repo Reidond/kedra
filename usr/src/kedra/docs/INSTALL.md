@@ -18,15 +18,15 @@ Secure Boot here covers firmware, shim, GRUB and the kernel, plus kernel lockdow
 
 ## Download a published installer
 
-When the owner wants a full new release, they dispatch the `iso.yml` workflow for one target. It builds the ISO from that target's current signed `stable` image, which already contains every published update, with the same `build-local.py` checks described below, and attaches it to a new [GitHub Release](https://github.com/Reidond/kedra/releases) tagged `<target>-<first 16 digest hex>`. Release assets must be smaller than 2 GiB, so the ISO is split into numbered parts:
+When the owner wants a full new release, they dispatch the `iso.yml` workflow for one target. It builds the ISO from that target's current signed `stable` image, which already contains every published update, with the same `build-local.py` checks described below, and attaches it to a new [GitHub Release](https://github.com/Reidond/kedra/releases) tagged `<target>-<first 16 digest hex>`. Release assets must be smaller than 2 GiB, so the ISO is split into numbered parts. Download every file of the release into one directory, then:
 
 ```sh
-sha256sum --check --ignore-missing SHA256SUMS
+sha256sum --check PARTS.SHA256SUMS
 cat kedra-desktop-44-DIGEST16.iso.part-* > kedra-desktop-44-DIGEST16.iso
-sha256sum --check --ignore-missing SHA256SUMS
+sha256sum --check SHA256SUMS
 ```
 
-`installer.json` names the image digest, its source revision and the public-key fingerprint. Confirm that fingerprint against the values below. The checksums only detect damaged downloads; they are not signatures. The ISO verifies its embedded signed image offline before installing. The release workflow builds the media but does not boot it or install from it.
+`SHA256SUMS` and `installer.json` keep the format `build-local.py` writes, except that the published `installer.json` records `"uploaded": true`, so a rejoined `qemu-arm64` ISO works with `kedra-lab vm installer --iso` like a local build. `installer.json` names the image digest, its source revision and the public-key fingerprint. Confirm that fingerprint against the values below. The checksums only detect damaged downloads; they are not signatures. The ISO verifies its embedded signed image offline before installing. The release workflow builds the media but does not boot it or install from it.
 
 ## Build hosts
 

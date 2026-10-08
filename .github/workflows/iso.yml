@@ -84,7 +84,9 @@ jobs:
           # Each GitHub release asset must be smaller than 2 GiB.
           split --bytes=2000M --numeric-suffixes=1 --suffix-length=2 "$iso" "$iso.part-"
           test "$(cat "$iso".part-* | sha256sum | cut -d ' ' -f 1)" = "$(jq -er .installer.sha256 installer.json)"
-          sha256sum "$iso".part-* >> SHA256SUMS
+          # SHA256SUMS keeps build-local.py's single ISO line, which
+          # installer/macos/media.py verify requires of the rejoined ISO.
+          sha256sum "$iso".part-* > PARTS.SHA256SUMS
           rm -- "$iso"
       - name: Publish the installer release
         working-directory: ${{ env.MEDIA }}
@@ -106,20 +108,23 @@ jobs:
           - Installer tooling revision: $GITHUB_SHA
           - Release public key SPKI SHA-256: \`$fingerprint\`
 
-          Download every \`$iso.part-*\` file and \`SHA256SUMS\` into one directory, then:
+          Download every file of this release into one directory, then:
 
           \`\`\`sh
-          sha256sum --check --ignore-missing SHA256SUMS
+          sha256sum --check PARTS.SHA256SUMS
           cat $iso.part-* > $iso
-          sha256sum --check --ignore-missing SHA256SUMS
+          sha256sum --check SHA256SUMS
           \`\`\`
 
           The checksums detect damaged downloads; they are not signatures. Before installing, the
           ISO verifies its embedded OS image offline against the target's release key and refuses
           to start without UEFI Secure Boot. See usr/src/kedra/docs/INSTALL.md.
           NOTES
+          # The published record is uploaded; build-local.py wrote it before upload.
+          jq '.uploaded = true' installer.json > "$RUNNER_TEMP/installer.json"
+          mv -- "$RUNNER_TEMP/installer.json" installer.json
           gh release create "$TAG" --target "$source_revision" --title "Kedra installer $TAG" \
-            --notes-file "$RUNNER_TEMP/notes.md" installer.json SHA256SUMS "$iso".part-*
+            --notes-file "$RUNNER_TEMP/notes.md" installer.json SHA256SUMS PARTS.SHA256SUMS "$iso".part-*
           {
             echo "Published installer release $TAG for $IMAGE."
             echo 'The ISO was built from the signed stable image; no installation or boot ran in this workflow.'

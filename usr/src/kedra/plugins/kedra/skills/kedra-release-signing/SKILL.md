@@ -32,4 +32,4 @@ Changed inputs require a signed image before stable advances. No-change publishe
 
 Retain known-good digests/signatures. Rollback holds forward updates and preserves persistent data. Key rotation needs actual qualification. Container signatures do not establish Secure Boot.
 
-ISO construction consumes an exact signed image and verifies the embedded payload offline. Locally it uploads nothing. The owner-dispatched `iso.yml` (2026-10-08) builds the same media from a target's current `stable` digest and attaches its parts, SHA256SUMS and installer.json to a GitHub Release; those checksums are not release signatures, and the workflow holds no signing key. Keep this skill checkout-local.
+ISO construction consumes an exact signed image and verifies the embedded payload offline. Locally it uploads nothing. The owner-dispatched `iso.yml` (2026-10-08) builds the same media from a target's current `stable` digest and attaches its parts, PARTS.SHA256SUMS, SHA256SUMS and installer.json to a GitHub Release; those checksums are not release signatures, and the workflow holds no signing key. Keep this skill checkout-local.

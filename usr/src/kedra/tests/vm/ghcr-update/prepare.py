@@ -4,17 +4,22 @@
 # dependencies = []
 # ///
 """Generate public image identities for the disposable fixed-domain native test."""
+import argparse
 import hashlib
 import json
-import os
+import re
 import shutil
 import subprocess
-import sys
 import time
 from pathlib import Path
 
-assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra'
-root = Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-ghcr'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--root', type=Path, required=True, help='The fixture root that run.sh created')
+parser.add_argument('--source-revision', help='Committed checkout revision recorded in the fixture source')
+parser.add_argument('stage', nargs='?', choices=('finalize',))
+args = parser.parse_args()
+root = args.root.resolve()
+assert root.name == 'kedra-ghcr' and root.is_dir()
 context = root / 'context'
 private = root.parent / 'kedra-ghcr-private'
 scope = {'target': 'desktop', 'architecture': 'x86_64', 'fedora_release': 44,
@@ -31,7 +36,7 @@ def write(name, value, pretty=False):
     return data
 
 
-if sys.argv[1:] == ['finalize']:
+if args.stage == 'finalize':
     material = json.loads((context / 'resolved-inputs.json').read_bytes())
     rows = [line.split('\t') for line in (root / 'package-material.txt').read_text().splitlines()]
     material['packages'] = sorted(row for row in rows if row[0] != 'gpg-pubkey')
@@ -54,7 +59,8 @@ write('policy.json', {'default': [{'type': 'reject'}], 'transports': {
 (context / 'registries.yaml').write_text('docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n')
 (context / 'hosts').write_text('127.0.0.1 localhost\n::1 localhost\n10.0.2.2 ghcr.io\n')
 (context / 'install.toml').write_text('[install]\nenforce-container-sigpolicy = true\n')
-source = {'schema_version': 1, 'source_revision': os.environ['GITHUB_SHA'], 'input_scope': 'generated-native-ghcr-fixture',
+assert args.source_revision is not None and re.fullmatch('[a-f0-9]{40}', args.source_revision)
+source = {'schema_version': 1, 'source_revision': args.source_revision, 'input_scope': 'generated-native-ghcr-fixture',
           'target': {'id': 'desktop', 'architecture': 'x86_64', 'image': scope['repository'],
                      'fedora_release': 44, 'candidate_target': True, 'hardware_status': 'disposable VM'},
           'files': [], 'packages': [], 'remove_packages': []}

@@ -3,16 +3,18 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Boot only this workflow's generated ARM installer/installed disks under TCG."""
+"""Boot only this workflow's generated ARM installer/installed disks.
+
+The shared launcher (usr/src/kedra/tests/common/qemu.py) builds the Secure Boot
+machine: KVM when the disposable host offers it, TCG otherwise.
+"""
 import argparse
 import fcntl
 import hashlib
 import json
 import os
 import re
-import shutil
 import signal
-import socket
 import stat
 import subprocess
 import sys
@@ -26,12 +28,12 @@ from fixture import add_context_argument, load_context
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE.parents[1] / 'common'))
+import qemu
 import secure_boot as firmware
 
-TEMPLATE = Path('/usr/share/AAVMF/AAVMF_VARS.ms.fd')
-CODE = Path('/usr/share/AAVMF/AAVMF_CODE.secboot.fd')
-DESCRIPTOR = Path('/usr/share/qemu/firmware/40-edk2-aarch64-secure-enrolled.json')
-LIMIT = 128 * 1024**2
+TEMPLATE = firmware.FIRMWARE['aarch64']['templates']['microsoft']
+CODE = firmware.FIRMWARE['aarch64']['code']
+LIMIT = qemu.LOG_LIMIT
 
 
 def sha(path):
@@ -51,92 +53,15 @@ def command(*argv, **kwargs):
 def qmp_key(path, password):
     # Fixed public QMP keyboard input into an observed LUKS prompt. Never log
     # request bodies or pass a password in process arguments/environment.
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-        client.settimeout(15)
-        client.connect(str(path))
-        stream = client.makefile('rwb')
-        greeting = json.loads(stream.readline(65536))
-        require('QMP' in greeting, 'Unexpected QMP greeting')
-
-        def request(name, arguments=None):
-            payload = {'execute': name, 'id': name}
-            if arguments is not None:
-                payload['arguments'] = arguments
-            stream.write(json.dumps(payload).encode() + b'\n')
-            stream.flush()
-            while True:
-                value = json.loads(stream.readline(65536))
-                if value.get('id') == name:
-                    require('return' in value, 'QMP keyboard command failed')
-                    return
-        request('qmp_capabilities')
-        for character in password:
-            request('send-key', {'keys': [{'type': 'qcode', 'data': character}], 'hold-time': 40})
-            time.sleep(0.08)
-        request('send-key', {'keys': [{'type': 'qcode', 'data': 'ret'}]})
+    with qemu.Qmp(path) as session:
+        session.type_text(password + '\n')
 
 
 def qmp_quit(path, process, phase_deadline):
-    deadline = min(time.monotonic() + 15, phase_deadline)
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-        remaining = deadline - time.monotonic()
-        require(remaining > 0, 'QMP quit deadline exceeded')
-        client.settimeout(remaining)
-        client.connect(str(path))
-        with client.makefile('rwb') as stream:
-            def message(allow_eof=False):
-                remaining = deadline - time.monotonic()
-                require(remaining > 0, 'QMP quit deadline exceeded')
-                client.settimeout(remaining)
-                line = stream.readline(65536)
-                if not line and allow_eof:
-                    return None
-                require(line.endswith(b'\n'), 'QMP response absent or oversized')
-                try:
-                    result = json.loads(line)
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    raise RuntimeError('Malformed QMP response') from None
-                require(isinstance(result, dict), 'Unexpected QMP response')
-                return result
-
-            def response(identifier, allow_eof=False):
-                for _ in range(128):
-                    result = message(allow_eof)
-                    if result is None:
-                        return
-                    if result.get('id') == identifier:
-                        require('return' in result and 'error' not in result, 'QMP command refused')
-                        return
-                    require('event' in result, 'Unexpected QMP response identifier')
-                raise RuntimeError('QMP response bound exceeded')
-
-            def send(payload):
-                remaining = deadline - time.monotonic()
-                require(remaining > 0, 'QMP quit deadline exceeded')
-                client.settimeout(remaining)
-                stream.write(payload)
-                stream.flush()
-
-            require('QMP' in message(), 'Unexpected QMP greeting')
-            send(b'{"execute":"qmp_capabilities","id":"capabilities"}\n')
-            response('capabilities')
-            send(b'{"execute":"quit","id":"quit"}\n')
-            # Closing first can discard a queued command in QEMU's monitor.
-            # QAPI permits server EOF before the reply; only real exit0 qualifies it.
-            response('quit', allow_eof=True)
-            remaining = deadline - time.monotonic()
-            require(remaining > 0, 'QMP quit deadline exceeded')
-            require(process.wait(timeout=remaining) == 0, 'QEMU quit failed')
-
-
-def stop(process):
-    if process.poll() is None:
-        os.killpg(process.pid, signal.SIGTERM)
-        try:
-            process.wait(timeout=20)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait(timeout=20)
+    remaining = min(15, phase_deadline - time.monotonic())
+    require(remaining > 0, 'QMP quit deadline exceeded')
+    with qemu.Qmp(path, timeout=remaining) as session:
+        session.quit(process, timeout=max(0.1, phase_deadline - time.monotonic()))
 
 
 def publish_phase_failure(fixture, root, phase, error, progress):
@@ -223,44 +148,20 @@ def publish_phase_failure(fixture, root, phase, error, progress):
 def parse_phase_arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
-    parser.add_argument('--phase', choices=('prepare-hvf', 'refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
+    parser.add_argument('--phase', choices=('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
     parser.add_argument('--iso', type=Path)
     add_context_argument(parser)
     return parser.parse_args()
 
 
-def require_fresh_hvf_preparation(fixture, args, root, private):
-    require(fixture['mode'] == 'local' and args.fixture_context is not None,
-            'Fresh HVF preparation requires an explicit local fixture')
-    os.umask(0o077)
-    require(not any(path.exists() or path.is_symlink() for path in (
-        root / 'insecure-installer',
-        *(root / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
-          for suffix in ('-result.json', '-timeout.json', '.serial.log', '.qmp.sock')),
-        *(private / (phase + suffix) for phase in ('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK')
-          for suffix in ('.serial.log', '.qemu.log')),
-    )), 'Fresh HVF preparation refuses previous boot evidence')
-
-
 def verified_firmware_trust():
-    original_trust = firmware.trust(TEMPLATE)
-    require({'PK', 'KEK', 'db', 'SecureBootEnable'} <= original_trust.keys()
-            and original_trust['SecureBootEnable'][1] == b'\x01'
-            and firmware.MICROSOFT_2023 in firmware.certificates(original_trust['db'][1])
-            and original_trust['PK'][1] and original_trust['KEK'][1],
-            'ARM template does not enforce the required Microsoft trust')
-    descriptor = json.loads(DESCRIPTOR.read_text())
-    require(descriptor['mapping']['nvram-template']['filename'] == str(TEMPLATE)
-            and Path(descriptor['mapping']['executable']['filename']).resolve() == CODE.resolve()
-            and {'enrolled-keys', 'secure-boot'} <= set(descriptor['features'])
-            and any(target.get('architecture') == 'aarch64' for target in descriptor['targets']),
-            'Unexpected ARM firmware descriptor')
-    return original_trust
+    """The Microsoft-enrolled AAVMF template and Ubuntu's descriptor pairing it with the code."""
+    return firmware.template('microsoft', 'aarch64'), firmware.enrolled_descriptor('aarch64')
 
 
-def write_firmware_provenance(root, original_trust):
+def write_firmware_provenance(root, original_trust, descriptor):
     provenance = {'schema_version': 1, 'code_sha256': sha(CODE), 'vars_sha256': sha(TEMPLATE),
-                  'descriptor_sha256': sha(DESCRIPTOR),
+                  'descriptor_sha256': sha(descriptor),
                   'db_certificate_sha256': sorted(firmware.certificates(original_trust['db'][1]))}
     package_record = Path('/usr/share/kedra-release-fixture/firmware/packages.txt')
     if package_record.is_file():
@@ -295,7 +196,7 @@ def create_install_disks(disks, iso, insecure):
     require(iso is not None and iso.is_file() and not iso.is_symlink(), 'Expected private fixture ISO')
     require(not any(path.exists() or path.is_symlink() for path in disks),
             'Install disks must be new')
-    shutil.copyfile(TEMPLATE, disks.variables)
+    firmware.create('microsoft', disks.variables, 'aarch64')
     if insecure:
         command('virt-fw-vars', '--inplace', disks.variables, '--set-false', 'SecureBootEnable',
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -307,48 +208,17 @@ def create_install_disks(disks, iso, insecure):
         'iso': str(iso.resolve())}, sort_keys=True) + '\n')
 
 
-def write_hvf_preparation_receipt(fixture, args, root, disks):
-    files = {
-        'disks.json': disks.manifest, 'installed.qcow2': disks.disk, 'sentinel.raw': disks.sentinel,
-        'AAVMF_VARS.fd': disks.variables, 'cases.raw': root / 'cases.raw',
-        'installation-plan.json': root / 'installation-plan.json',
-        'firmware-provenance.json': root / 'firmware-provenance.json',
-        'installer.iso': args.iso, 'code.fd': CODE, 'template.fd': TEMPLATE,
-        'firmware.json': DESCRIPTOR,
-    }
-    receipt = {'schema_version': 1, 'kind': 'kedra-fresh-hvf-preparation',
-               'source_revision': fixture['source_revision'],
-               'fixture_revision': fixture['fixture_revision'],
-               'context_sha256': sha(args.fixture_context), 'qemu_started': False,
-               'files': {name: {'sha256': sha(path), 'bytes': path.stat().st_size}
-                         for name, path in files.items()}}
-    output = root / 'hvf-preparation.json'
-    with output.open('x') as stream:
-        json.dump(receipt, stream, sort_keys=True)
-        stream.write('\n')
-        stream.flush()
-        os.fsync(stream.fileno())
-    return output
-
-
-def qemu_argv(disks, root, qmp, log, iso):
-    argv = ['qemu-system-aarch64', '-machine', 'virt', '-cpu', 'max,pauth-impdef=on',
-            '-accel', 'tcg,thread=multi', '-smp', '4', '-m', '8192',
-            '-drive', f'if=pflash,format=raw,unit=0,readonly=on,file={CODE}',
-            '-drive', f'if=pflash,format=raw,unit=1,file={disks.variables}',
-            '-drive', f'if=none,id=target,format=qcow2,file={disks.disk}',
-            '-device', 'virtio-blk-pci,drive=target,serial=KEDRA_INSTALL_ONLY',
-            '-drive', f'if=none,id=sentinel,format=raw,file={disks.sentinel}',
-            '-device', 'virtio-blk-pci,drive=sentinel,serial=KEDRA_KEEP_DATA',
-            '-drive', f'if=none,id=cases,format=raw,readonly=on,file={root / "cases.raw"}',
-            '-device', 'virtio-blk-pci,drive=cases,serial=KEDRA_CASES',
-            '-device', 'virtio-rng-pci', '-device', 'virtio-gpu-pci', '-device', 'virtio-keyboard-pci',
-            '-netdev', 'user,id=net0', '-device', 'virtio-net-pci,netdev=net0,romfile=',
-            '-display', 'none', '-monitor', 'none', '-no-reboot',
-            '-qmp', f'unix:{qmp},server=on,wait=off', '-serial', f'file:{log}']
+def qemu_argv(disks, root, qmp, log, iso, accelerator):
+    argv = [qemu.qemu_binary('aarch64'), *qemu.machine_argv(
+        'aarch64', accelerator, code=CODE, variables=disks.variables, qmp=qmp, serial=log, cpus=4, memory_mib=8192)]
+    argv += qemu.disk_argv('target', disks.disk, serial='KEDRA_INSTALL_ONLY')
+    argv += qemu.disk_argv('sentinel', disks.sentinel, image_format='raw', serial='KEDRA_KEEP_DATA')
+    argv += qemu.disk_argv('cases', root / 'cases.raw', image_format='raw', readonly=True, serial='KEDRA_CASES')
+    argv += ['-device', 'virtio-gpu-pci', '-device', 'virtio-keyboard-pci', *qemu.network_argv(True),
+             '-display', 'none', '-no-reboot']
     if iso is not None:
         argv.extend(['-device', 'virtio-scsi-pci,id=scsi0', '-drive',
-                     f'if=none,id=cdrom,format=raw,media=cdrom,readonly=on,file={iso.resolve()}',
+                     f'if=none,id=cdrom,format=raw,media=cdrom,readonly=on,file={qemu.option_path(iso.resolve())}',
                      '-device', 'scsi-cd,drive=cdrom,bus=scsi0.0', '-boot', 'order=d'])
     return argv
 
@@ -373,7 +243,7 @@ def quit_after_refusal(text, qmp, process, deadline, progress, started):
 def boot_phase(args, root, private, disks, log, insecure, media_boot, progress):
     qmp = root / (args.phase + '.qmp.sock')
     require(not qmp.exists() and not log.exists(), 'Phase output already exists')
-    argv = qemu_argv(disks, root, qmp, log, args.iso if media_boot else None)
+    argv = qemu_argv(disks, root, qmp, log, args.iso if media_boot else None, progress['accelerator'])
     password = (private / 'disk-passphrase').read_text().strip()
     require(len(password) == 48 and all(c in '0123456789abcdef' for c in password), 'Invalid private fixture passphrase')
     entered = False
@@ -403,7 +273,7 @@ def boot_phase(args, root, private, disks, log, insecure, media_boot, progress):
                 time.sleep(1)
             require(process.returncode == 0, 'QEMU failed')
         finally:
-            stop(process)
+            qemu.stop(process)
     return started, entered, refused
 
 
@@ -414,8 +284,9 @@ def require_fixture_intact(disks, selected, expected_trust):
     command('qemu-img', 'check', disks.disk, stdout=subprocess.DEVNULL)
 
 
-def write_phase_report(root, phase, started, insecure, media_boot, entered):
+def write_phase_report(root, phase, started, insecure, media_boot, entered, accelerator):
     report = {'schema_version': 1, 'phase': phase, 'outcome': 'refused' if insecure else 'pass',
+              'accelerator': accelerator,
               'elapsed_seconds': time.monotonic() - started, 'sentinel_unchanged': True,
               'iso_unchanged': True, 'firmware_trust_unchanged': True,
               'iso_attached': media_boot, 'luks_unlock_observed': entered,
@@ -434,13 +305,11 @@ def phase_main(progress=None):
             'Unexpected fixture directory')
     private = root.parent / 'kedra-ghcr-private'
     require(root.is_dir() and private.is_dir(), 'Fixture preparation is absent')
-    preparing = args.phase == 'prepare-hvf'
-    if preparing:
-        require_fresh_hvf_preparation(fixture, args, root, private)
     insecure = args.phase == 'refuse-insecure'
-    media_boot = preparing or args.phase in ('refuse-insecure', 'install')
-    original_trust = verified_firmware_trust()
-    write_firmware_provenance(root, original_trust)
+    media_boot = args.phase in ('refuse-insecure', 'install')
+    progress['accelerator'] = qemu.default_accelerator('aarch64')
+    original_trust, descriptor = verified_firmware_trust()
+    write_firmware_provenance(root, original_trust, descriptor)
     disks = prepare_phase_disks(root, args.iso, insecure, media_boot)
     selected = json.loads(disks.manifest.read_text())
     require(sha(disks.sentinel) == selected['sentinel_sha256'], 'Sentinel changed before boot')
@@ -448,10 +317,6 @@ def phase_main(progress=None):
     if insecure:
         expected_trust['SecureBootEnable'] = (original_trust['SecureBootEnable'][0], b'\x00')
     require(firmware.trust(disks.variables) == expected_trust, 'ARM firmware trust changed')
-    if preparing:
-        command('qemu-img', 'check', disks.disk, stdout=subprocess.DEVNULL)
-        print(sha(write_hvf_preparation_receipt(fixture, args, root, disks)))
-        return
     log = private / (args.phase + '.serial.log') if media_boot else root / (args.phase + '.serial.log')
     started, entered, refused = boot_phase(args, root, private, disks, log, insecure, media_boot, progress)
     text = log.read_text(errors='replace')
@@ -464,16 +329,15 @@ def phase_main(progress=None):
     if not media_boot:
         require('KEDRA_SECUREBOOT_PASS' in text and entered, 'Installed boot lacks security/unlock evidence')
     require_fixture_intact(disks, selected, expected_trust)
-    write_phase_report(root, args.phase, started, insecure, media_boot, entered)
+    write_phase_report(root, args.phase, started, insecure, media_boot, entered, progress['accelerator'])
 
 
 def main():
-    # The same controller-only gate protects the optional Mac transfer boundary.
     if '--help' in sys.argv:
         return phase_main()
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--root', type=Path, required=True)
-    parser.add_argument('--phase', choices=('prepare-hvf', 'refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
+    parser.add_argument('--phase', choices=('refuse-insecure', 'install', 'A', 'B', 'ROLLBACK'), required=True)
     add_context_argument(parser)
     args, _ = parser.parse_known_args()
     fixture = load_context(args.fixture_context)
@@ -483,16 +347,13 @@ def main():
     descriptor = os.open(root / 'host-launch.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, 'r+b') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        require(not (root / 'hvf-owner.json').exists(), 'Fixture was transferred; Linux boot is retired')
-        require(not ((root / 'hvf-preparation.json').exists() or (root / 'hvf-preparation.json').is_symlink()),
-                'Fixture was prepared for HVF; Linux boot is retired')
         progress = {}
         try:
             phase_main(progress)
         except Exception as error:
             publish_phase_failure(fixture, root, args.phase, error, progress)
-            # phase_main has already reaped its owned QEMU in finally. Only the
-            # unchanged phase deadline licenses a fresh-target HVF retry.
+            # phase_main has already reaped its owned QEMU in finally; record
+            # a deadline separately from other failures.
             if isinstance(error, RuntimeError) and str(error) == 'ARM fixture exceeded its phase deadline':
                 try:
                     receipt = {'schema_version': 1, 'phase': args.phase, 'reason': 'phase_deadline',

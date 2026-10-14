@@ -2,24 +2,14 @@
 # VM-only desktop checks: what a container cannot host. The session's services,
 # home review and recovery, Noctalia appearance, portals, agents, Bitwarden and
 # the GTK 3/libadwaita file choosers are container scenarios in
-# usr/src/kedra/tests/container (test-container.yml).
+# usr/src/kedra/tests/container. Driven by run.py and session.py on the host.
 set -Eeuo pipefail
 marker() { printf '%s\n' "$1" | tee /dev/ttyS1; }
 trap 'code=$?; marker "KEDRA_R07_FAIL line=$LINENO code=$code"; journalctl -b -u greetd --no-pager -n 50; systemctl poweroff --no-block; exit "$code"' ERR
 test "$(getenforce)" = Enforcing
-# UEFI Secure Boot as seen by shim, the firmware variables (efivarfs prefixes
-# each value with 4 attribute bytes), kernel lockdown and the kernel's report.
-# The journal keeps the kernel line that the image's quiet karg hides.
-check_secure_boot() {
-    local efi=/sys/firmware/efi/efivars global=8be4df61-93ca-11d2-aa0d-00e098032b8c
-    test "$(mokutil --sb-state)" = 'SecureBoot enabled'
-    test "$(od -An -tx1 -v "$efi/SecureBoot-$global" | awk 'NR == 1 && NF == 5 { print $5 }')" = 01
-    test "$(od -An -tx1 -v "$efi/SetupMode-$global" | awk 'NR == 1 && NF == 5 { print $5 }')" = 00
-    grep -E '\[(integrity|confidentiality)\]' /sys/kernel/security/lockdown
-    journalctl -k -b --no-pager -o cat | grep -Fx 'secureboot: Secure boot enabled'
-}
-check_secure_boot
-marker KEDRA_SECUREBOOT_PASS
+# The shared guest check (usr/src/kedra/tests/common/secure_boot_check.py)
+# prints its evidence and KEDRA_SECUREBOOT_PASS to the marker port.
+/usr/bin/python3 -I /usr/libexec/kedra-research/secure_boot_check.py | tee /dev/ttyS1
 uid=$(id -u kedra-test)
 for attempt in $(seq 1 60); do
     if pgrep -u greetd -x tuigreet >/dev/null; then break; fi

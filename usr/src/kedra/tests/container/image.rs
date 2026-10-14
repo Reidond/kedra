@@ -530,6 +530,7 @@ fn prepare_fixture(
             "session-start",
             "boot-check.py",
             "boot-check.service",
+            "secure-boot.service",
         ]
     } else {
         &[
@@ -543,8 +544,10 @@ fn prepare_fixture(
             "journald-container.conf",
         ]
     };
-    let test_profile =
-        crate::repository_root().join("usr/src/kedra/tests/common/test-profile.toml");
+    let common = crate::repository_root().join("usr/src/kedra/tests/common");
+    let test_profile = common.join("test-profile.toml");
+    // The native lab installs the one shared guest Secure Boot check.
+    let secure_boot_check = native.then(|| common.join("secure_boot_check.py"));
     let probes_dir = crate::harness_dir().join("lab/probes");
     let mut probes: Vec<PathBuf> = fs::read_dir(&probes_dir)?
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
@@ -579,6 +582,9 @@ fn prepare_fixture(
         key_parts.push(fs::read(lab_file(name))?);
     }
     key_parts.push(fs::read(&test_profile)?);
+    if let Some(path) = &secure_boot_check {
+        key_parts.push(fs::read(path)?);
+    }
     for probe in &probes {
         key_parts.push(
             probe
@@ -596,6 +602,9 @@ fn prepare_fixture(
         .map(|name| ((*name).to_owned(), lab_file(name)))
         .collect();
     files.push(("test-profile.toml".into(), test_profile));
+    if let Some(path) = secure_boot_check {
+        files.push(("secure_boot_check.py".into(), path));
+    }
     if let Some(material_file) = &material_file {
         files.push(("native-provenance.json".into(), material_file.0.clone()));
     }

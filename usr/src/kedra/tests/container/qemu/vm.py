@@ -3,7 +3,12 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Retained native QEMU instances; private state, QMP ownership and pinned guest SSH."""
+"""Retained native QEMU instances; private state, QMP ownership and pinned guest SSH.
+
+The Secure Boot machine, QMP client and process ownership come from the shared
+VM launcher, usr/src/kedra/tests/common/qemu.py, with HVF and this checkout's
+private runtime and firmware.
+"""
 import argparse
 import fcntl
 import hashlib
@@ -23,6 +28,9 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(HERE.parents[1] / 'common'))
+import qemu as launcher
 
 
 class GraphicsError(ValueError):
@@ -134,28 +142,11 @@ def runtime_check(runtime):
 
 
 def qmp(directory, state, execute, arguments=None):
-    with socket.socket(socket.AF_UNIX) as sock:
-        sock.settimeout(5)
-        sock.connect(str(directory / 'qmp.sock'))
-        stream = sock.makefile('rwb')
-        if 'QMP' not in json.loads(stream.readline(1048576)):
-            raise ValueError('invalid QMP greeting')
-
-        def command(name, params=None):
-            stream.write(json.dumps({'execute': name, 'arguments': params or {}, 'id': name}).encode() + b'\n')
-            stream.flush()
-            for _ in range(100):
-                response = json.loads(stream.readline(1048576))
-                if response.get('id') == name:
-                    if 'error' in response:
-                        raise ValueError(str(response['error']))
-                    return response.get('return')
-            raise ValueError('QMP response missing')
-
-        command('qmp_capabilities')
-        if command('query-name').get('name') != state['identity']:
-            raise ValueError('QMP socket belongs to another VM')
-        return command(execute, arguments)
+    try:
+        with launcher.Qmp(directory / 'qmp.sock', timeout=5, identity=state['identity']) as session:
+            return session.execute(execute, arguments if arguments is not None else {})
+    except launcher.VmError as error:
+        raise ValueError(str(error)) from None
 
 
 def process_identity(pid):
@@ -245,7 +236,7 @@ def create(directory, args):
     run([args.runtime / 'bin/qemu-img', 'create', '-f', 'qcow2', '-F', 'qcow2', '-b', disk, directory / 'disk.qcow2'])
     shutil.copy2(args.runtime / 'firmware/AAVMF_VARS.ms.fd', directory / 'vars.fd')
     run(['uv', 'run', '--project', HERE / 'build-tools', '--locked', 'virt-fw-vars', '--inplace', directory / 'vars.fd',
-         '--append-boot-filepath', '\\EFI\\fedora\\shimaa64.efi'])
+         '--append-boot-filepath', launcher.AARCH64_SHIM])
     (directory / 'tpm').mkdir(mode=0o700)
     write_json(directory / 'state.json', state)
     return state
@@ -306,10 +297,10 @@ def up(directory, state):
         with socket.socket() as port:
             port.bind(('127.0.0.1', 0))
             state['ssh_port'] = port.getsockname()[1]
-        network = f'user,id=net,hostfwd=tcp:127.0.0.1:{state["ssh_port"]}-:22'
+        forward = f'tcp:127.0.0.1:{state["ssh_port"]}-:22'
     else:
         state.pop('ssh_port', None)
-        network = 'user,id=net'
+        forward = None
     env = dict(os.environ, DYLD_FALLBACK_LIBRARY_PATH=str(runtime / 'lib'))
     with (directory / 'swtpm.log').open('ab') as log:
         process = subprocess.Popen([runtime / 'bin/swtpm', 'socket', '--tpm2', '--tpmstate', 'dir=' + str(directory / 'tpm'),
@@ -328,20 +319,18 @@ def up(directory, state):
         time.sleep(0.1)
     display = state.get('display', {'width': 2560, 'height': 1600, 'scale': 2})
     disk_serial = 'KEDRALAB' if state['mode'] == 'lab' else 'KEDRAINSTALL'
-    command = [runtime / 'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64', '-name', state['identity'],
-               '-machine', 'virt', '-accel', 'hvf', '-cpu', 'host', '-smp', str(state['cpus']), '-m', str(state['memory_mib']),
+    command = [runtime / 'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64', *launcher.machine_argv(
+                   'aarch64', 'hvf', code=runtime / 'firmware/AAVMF_CODE.secboot.fd', variables=directory / 'vars.fd',
+                   qmp=directory / 'qmp.sock', serial=directory / 'serial.log', cpus=state['cpus'],
+                   memory_mib=state['memory_mib'], name=state['identity']),
                '-nodefaults', '-display', 'cocoa,gl=es',
                '-device', f'virtio-gpu-gl-pci,xres={display["width"]},yres={display["height"]}',
-               '-device', 'virtio-keyboard-pci', '-device', 'virtio-tablet-pci', '-device', 'virtio-rng-pci',
-               '-drive', f'if=pflash,format=raw,unit=0,readonly=on,file={runtime}/firmware/AAVMF_CODE.secboot.fd',
-               '-drive', f'if=pflash,format=raw,unit=1,file={directory}/vars.fd',
-               '-drive', f'if=none,id=os,format=qcow2,file={directory}/disk.qcow2',
-               '-device', f'virtio-blk-pci,drive=os,serial={disk_serial}',
-               '-netdev', network, '-device', 'virtio-net-pci,netdev=net,romfile=',
+               '-device', 'virtio-keyboard-pci', '-device', 'virtio-tablet-pci',
+               *launcher.disk_argv('os', directory / 'disk.qcow2', serial=disk_serial),
+               *launcher.network_argv(True, forward),
                '-chardev', f'socket,id=tpm,path={directory}/tpm.sock', '-tpmdev', 'emulator,id=tpm,chardev=tpm', '-device', 'tpm-tis-device,tpmdev=tpm',
                '-device', 'virtio-serial-pci', '-chardev', f'socket,id=qga,path={directory}/qga.sock,server=on,wait=off',
                '-device', 'virtserialport,chardev=qga,name=org.qemu.guest_agent.0',
-               '-qmp', f'unix:{directory}/qmp.sock,server=on,wait=off', '-serial', f'file:{directory}/serial.log', '-monitor', 'none',
                '-audiodev', 'coreaudio,id=audio,out.fixed-settings=false', '-device', 'virtio-sound-pci,audiodev=audio,streams=1']
     if state['mode'] == 'lab':
         command += ['-fw_cfg', f'name=opt/kedra/seed,file={directory}/seed.json']
@@ -543,6 +532,7 @@ def build_parser():
     execute = sub.add_parser('exec')
     execute.add_argument('argv', nargs=argparse.REMAINDER)
     sub.add_parser('logs')
+    sub.add_parser('check')
     sub.add_parser('sync')
     keyboard = sub.add_parser('key')
     keyboard.add_argument('keys', nargs='+', help='QEMU qcodes, for example meta_l ret')
@@ -566,7 +556,7 @@ def print_status(directory):
 
 
 def lock_instance(lock, operation):
-    mode = fcntl.LOCK_SH if operation in ('exec', 'shot', 'logs', 'key') else fcntl.LOCK_EX
+    mode = fcntl.LOCK_SH if operation in ('exec', 'shot', 'logs', 'key', 'check') else fcntl.LOCK_EX
     try:
         fcntl.flock(lock, mode | fcntl.LOCK_NB)
     except BlockingIOError:
@@ -689,6 +679,45 @@ print(json.dumps(value['bootc'], indent=2))
     print(output)
 
 
+# Runs through the guest's interpreter: reads the root-written result of the
+# shared guest check (kedra-lab-secure-boot.service) for the current boot only.
+SECURE_BOOT_READER = '''import json, os, stat, sys
+from pathlib import Path
+try:
+    descriptor = os.open('/run/kedra-lab/secure-boot.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+except FileNotFoundError:
+    sys.exit(3)
+with os.fdopen(descriptor, 'rb') as stream:
+    info = os.fstat(stream.fileno())
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o022:
+        raise ValueError('guest Secure Boot result is unsafe')
+    data = stream.read(1024 * 1024 + 1)
+if len(data) > 1024 * 1024:
+    raise ValueError('guest Secure Boot result exceeds limit')
+value = json.loads(data)
+if value.get('boot_id') != Path('/proc/sys/kernel/random/boot_id').read_text().strip():
+    raise ValueError('guest Secure Boot result belongs to another boot')
+print(json.dumps(value))
+'''
+
+
+def secure_boot_check(directory, state):
+    """Require the shared guest check's pass for the running boot."""
+    deadline = time.monotonic() + 120
+    while True:
+        try:
+            value = json.loads(ssh(directory, state, ['/usr/bin/python3', '-I', '-c', SECURE_BOOT_READER], session=False))
+            break
+        except subprocess.CalledProcessError as error:
+            # Exit 3: the boot-time check has not published its result yet.
+            if error.returncode != 3 or time.monotonic() > deadline:
+                raise
+            time.sleep(2)
+    if value.get('passed') is not True:
+        raise ValueError('guest Secure Boot check failed: ' + str(value.get('error')))
+    print(json.dumps({key: item for key, item in value.items() if key != 'efibootmgr'}, indent=2, sort_keys=True))
+
+
 def run_operation(parser, args, directory, state, record):
     if args.operation in ('up', 'installer'):
         up_with_cleanup(directory, state)
@@ -708,6 +737,8 @@ def run_operation(parser, args, directory, state, record):
         sync_home(directory, state)
     elif args.operation == 'logs':
         collect_logs(directory, state, args)
+    elif args.operation == 'check':
+        secure_boot_check(directory, state)
 
 
 def main():
@@ -732,7 +763,7 @@ def main():
             state = load_existing_instance(directory, record, args.operation)
         else:
             state = create_new_instance(parser, args, directory)
-        if args.operation in ('exec', 'shot', 'logs', 'sync') and state['mode'] != 'lab':
+        if args.operation in ('exec', 'shot', 'logs', 'sync', 'check') and state['mode'] != 'lab':
             raise ValueError('guest automation is available only in a disposable lab fixture')
         run_operation(parser, args, directory, state, record)
 

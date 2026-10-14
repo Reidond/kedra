@@ -8,7 +8,6 @@ import argparse
 import hashlib
 import http.server
 import json
-import os
 import re
 import ssl
 import subprocess
@@ -21,14 +20,15 @@ from fixture import add_context_argument, load_context
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_context_argument(parser)
+parser.add_argument('--root', type=Path, help='The x86_64 desktop fixture root that run.sh created')
 args = parser.parse_args()
 if args.fixture_context is not None:
     fixture = load_context(args.fixture_context)
     root = Path(fixture['runner_temp']) / 'kedra-ghcr'
 else:
-    # Preserve the existing desktop Actions fixture without ARM-specific context.
-    assert os.environ.get('GITHUB_ACTIONS') == 'true'
-    root = Path(os.environ['RUNNER_TEMP']).resolve() / 'kedra-ghcr'
+    # The x86_64 desktop fixture has no ARM-specific context; run.sh admitted its host.
+    assert args.root is not None and args.root.name == 'kedra-ghcr' and args.root.is_dir()
+    root = args.root.resolve()
 cases = json.loads((root / 'cases/cases.json').read_bytes())
 context = ssl.create_default_context(cafile=str(root / 'context/tls.crt'))
 TARGET = cases.get('target', 'desktop')

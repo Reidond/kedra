@@ -45,7 +45,6 @@ Settings are environment variables for `cargo test`, or flags for `kedra-lab`:
 | `KEDRA_LAB_ARTIFACTS` | output directory | `target/kedra-lab` |
 | `KEDRA_QEMU_HOME` | native QEMU runtime and retained VM root | durable per-user paths (see `qemu/README.md`) |
 | `KEDRA_LAB_KEEP` | `never`, `failed`, `always` | `never` |
-| `KEDRA_LAB_ORDER` | `forward`, `reverse` | `forward` |
 
 One worker remains the default; one or two workers are supported. Every case still
 gets a fresh container. A selection with no cases applicable to the target does
@@ -183,7 +182,7 @@ groups, OS packages and system files require an overlay/full image rebuild.
 Measured local working-tree results on 2026-09-28 (M2 Pro, OrbStack/Docker 29.4.0,
 cached ARM image plus overlay; software rendering): five edit+capture samples had
 median **5.000 s**, maximum **9.177 s**; five capture commands had median **0.331 s**,
-maximum **0.467 s** (millisecond reporting precision). All 13 scenarios passed in forward and reverse order, and a
+maximum **0.467 s** (millisecond reporting precision). All 13 scenarios passed in forward and (with a since-removed order option) reverse order, and a
 two-worker run passed all 13 in **111.60 s**. These suite timings are single-run
 observations, not the five-run suite performance gate. Active-case interruption
 exited 130 in **1.707 s**, retained its report and left no test container from that
@@ -191,10 +190,11 @@ execution; a separate retained lab stayed usable. See worklog WL-20260928-04.
 
 ### Native QEMU status
 
-`kedra-lab vm tools check` is a read-only host/runtime preflight that does not
-require Docker. The native runtime and GPU VM lifecycle are not yet implemented
-or qualified; see [QEMU prerequisites](qemu/README.md). UTM tooling, ARM identity
-and existing boot-level CI remain unchanged until the replacement is qualified.
+`kedra-lab vm` runs the native QEMU/HVF desktop on Apple Silicon: `vm tools check`
+is a read-only host/runtime preflight without Docker, and the prepared runtime,
+retained instances, installer media and `vm check` (the shared guest Secure Boot
+check for the running boot) are described in [qemu/README.md](qemu/README.md),
+with their recorded qualification there and in STATUS.
 
 ### Manual GPU desktop
 
@@ -213,7 +213,7 @@ cocoa-way/waypipe builder and TCP bridge have been removed.
 | Fixture manager | `test_user` (a disposable wheel account from `/etc/skel` with a generated password) and `desktop_session`. Fixtures are scoped to one container. |
 | Scenario runner / assertions | `scenario.rs`, `actions.rs` |
 | Native tests | `native.rs`, using the same `Context` as scenarios |
-| Diagnostics | `Environment::collect` (journal, failed units, sessions, processes, final screenshot) and `report.rs` (`report.json`, `junit.xml`) |
+| Diagnostics | `Environment::collect` (journal, failed units, sessions, processes, final screenshot) and `report.rs` (`report.json`) |
 
 Shared Linux Cargo output is locked through copying the built executables into
 the builder container's private storage. Host binary/payload caches are addressed
@@ -239,7 +239,7 @@ The lab tools layer (`lab/tools.Containerfile`) installs sway, grim, wlrctl, wty
 | greetd and bootloader-update: `ConditionVirtualization=!container` | No VT and no bootloader. Their enablement state stays testable. |
 | rtkit `--no-limit-resources` | rtkit's per-UID `RLIMIT_NPROC` counts every container's rtkit on a shared kernel. A second lab container's rtkit then fails, and `xdg-desktop-portal` times out on it. |
 | journald `ReadKMsg=no` | The kernel log belongs to the host. |
-| (CI host) unload Ubuntu's `unix-chkpwd` AppArmor profile | Ubuntu 24.04 attaches that profile by path, so it also confines the container's Fedora `unix_chkpwd`. That copy then cannot read the container's accounts, and PAM refuses the user manager (`test-container.yml`, 2026-09-27; the diagnosis is recorded in the worklog). |
+| (CI host) unload Ubuntu's `unix-chkpwd` AppArmor profile | Ubuntu 24.04 attaches that profile by path, so it also confines the container's Fedora `unix_chkpwd`. That copy then cannot read the container's accounts, and PAM refuses the user manager (the removed `test-container.yml` workflow, 2026-09-27; the diagnosis is recorded in the worklog). |
 | (CI host) `kernel.apparmor_restrict_unprivileged_userns=0` | Ubuntu 24.04 puts every unprivileged user namespace under its `unprivileged_userns` profile, including those in the container. That denies Bitwarden's Chromium sandbox and `bwrap`, as the kernel audit log recorded. |
 | Single-link copies in `/etc`, `/usr/lib/systemd`, `/usr/share/containers` | bootc images hard-link files to their embedded ostree objects. A booted composefs system shows one link, and `sysroot`'s trusted reads require exactly one. |
 
@@ -321,7 +321,7 @@ Control flow belongs in native tests or probes.
 - **Isolation.** Every test gets its own container, so every mutable service starts fresh. An execution shares only read-only images and the Cargo caches (named volumes; Cargo's fingerprints decide freshness). Container names and labels carry the execution ID, `<unix seconds>-<pid>`. Tests run one at a time.
 - **Cleanup.** Explicit termination comes first; Testcontainers' drop and `watchdog` (SIGINT/SIGTERM) are fallbacks. testcontainers-rs has no Ryuk reaper, so after a hard kill run `kedra-lab clean --execution <id>` or `--all`. A cleanup failure fails an otherwise passing test, and it never replaces a test failure.
 - **Reports.** They go to `target/kedra-lab/runs/<execution>/`:
-  - `report.json` and `junit.xml`, including the image provenance.
+  - `report.json`, including the image provenance.
   - Per test: `steps.json` with durations and expected/actual values, and screenshots.
   - On failure: `journal.log`, `failed-units.txt`, `sessions.txt`, `processes.txt` and a final screenshot.
 
@@ -349,10 +349,10 @@ Local runs on 2026-09-27: M2 Pro, OrbStack 2.2.3, qemu-arm64 target. See `worklo
 
 | Case | Status |
 |---|---|
-| A1 fresh execution | Local pass. 13 tests in one run (101 s), working tree over `stable`. The same suite on a full local build of the working tree also passes: 12 in one run, and the doctor scenario after its release-trust expectation was corrected. CI (`test-container.yml`) not-run. |
+| A1 fresh execution | Local pass. 13 tests in one run (101 s), working tree over `stable`. The same suite on a full local build of the working tree also passes: 12 in one run, and the doctor scenario after its release-trust expectation was corrected. The container workflow then passed both targets (main run 36617035048, 2026-09-29) before its removal on 2026-10-08; the release's `validate-candidate` job runs the same harness. |
 | A2 filtering | Pass. A filter provisions only the selected tests; `--list` provisions nothing. |
 | A3 concurrent executions | Pass. Two executions of the same scenario ran at once, with the same fixture names and a retained lab container alongside. Both passed and nothing was left behind. Earlier concurrency exposed and fixed the rtkit per-UID limit. |
-| A4 order independence | Partly observed. Scenarios passed alone, in the suite and repeated. A reversed-order run is not-run. |
+| A4 order independence | Observed. Scenarios passed alone, in the suite, repeated and, on 2026-09-28, in reverse order through a since-removed order option. |
 | A5 partial startup failure | Observed. Failed overlay and session starts removed their containers. Not a scripted fault injection. |
 | A6, A7, A10 | Not-run as deliberate fault injections (cancellation, async timeout, teardown failure) |
 | A8 strict parsing | Pass, before any container. Refused: duplicate keys, unknown fields, two operations in one step, shell or interpreter argv, unresolved references, bad selectors, unknown actions, profile-incompatible identities, recursive includes. |

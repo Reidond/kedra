@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Disposable ARM workflow: real composed image, generated authority,
 # normal offline installer, then public signed A/B/A with persistent home/data.
+# Host mode: --disposable-host --work NEW_DIR on a disposable aarch64 Linux host.
+# Local mode: --local-fixture ... inside the dedicated controller container.
 set -euo pipefail
-hvf_controller=
 registry_volume=
 registry_volume_created_at=
 installer_base=
@@ -10,7 +11,6 @@ supervised_admission=false
 while test "$#" -gt 0; do
     case "$1" in
         --supervised-admission) test "$supervised_admission" = false; supervised_admission=true; shift; continue ;;
-        --hvf-controller) test "$#" -ge 2 && test -z "$hvf_controller"; hvf_controller=$2 ;;
         --registry-volume) test "$#" -ge 2 && test -z "$registry_volume"; registry_volume=$2 ;;
         --registry-volume-created-at) test "$#" -ge 2 && test -z "$registry_volume_created_at"; registry_volume_created_at=$2 ;;
         --installer-base-image) test "$#" -ge 2 && test -z "$installer_base"; installer_base=$2 ;;
@@ -19,29 +19,27 @@ while test "$#" -gt 0; do
     shift 2
 done
 if test "$#" -eq 1 && test "$1" = --help; then
-    echo 'Wrapper options: --hvf-controller ID; --registry-volume NAME --registry-volume-created-at TIME; --installer-base-image EXACT_FEDORA_REFERENCE; --supervised-admission (local fixture only)'
+    echo 'Wrapper options: --registry-volume NAME --registry-volume-created-at TIME; --installer-base-image EXACT_FEDORA_REFERENCE; --supervised-admission (local fixture only)'
     uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py --help
     exit 0
 fi
-test -z "$hvf_controller" || [[ "$hvf_controller" =~ ^[a-f0-9]{64}$ ]]
 test -z "$registry_volume" || [[ "$registry_volume" =~ ^[a-f0-9]{64}$ ]]
 test -z "$registry_volume_created_at" || [[ "$registry_volume_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$ ]]
 test -z "$registry_volume$registry_volume_created_at" || { test -n "$registry_volume" && test -n "$registry_volume_created_at"; }
 test -z "$installer_base" || [[ "$installer_base" =~ ^quay[.]io/fedora/fedora-bootc@sha256:[a-f0-9]{64}$ ]]
-if test -n "$hvf_controller$registry_volume" && test "$supervised_admission" != true; then
-    echo 'Local HVF/retained-registry execution requires --supervised-admission and an owning supervisor' >&2
+if test -n "$registry_volume" && test "$supervised_admission" != true; then
+    echo 'Local retained-registry execution requires --supervised-admission and an owning supervisor' >&2
     exit 1
 fi
 installer_options=()
 if test -n "$installer_base"; then installer_options=(--base-image "$installer_base"); fi
 fixture_context=$(uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "$@")
-if test -n "$hvf_controller$registry_volume$installer_base"; then
+if test -n "$registry_volume$installer_base"; then
     test "$(jq -er .mode "$fixture_context")" = local
 fi
 if test "$supervised_admission" = true; then
     jq --exit-status '.mode == "local"' "$fixture_context" >/dev/null
 fi
-fixture_backend=tcg
 runner_temp=$(jq -er .runner_temp "$fixture_context")
 evidence=$(jq -er .evidence "$fixture_context")
 binaries=$(jq -er .binaries "$fixture_context")
@@ -264,6 +262,7 @@ openssl req -x509 -newkey rsa:3072 -nodes -days 1 -subj /CN=ghcr.io \
     > "$private/tls-generation.log" 2>&1
 uv run usr/src/kedra/tests/vm/ghcr-update/prepare-arm64.py --root "$root" "${fixture_args[@]}"
 cp usr/src/kedra/tests/vm/ghcr-update/{arm64.Containerfile,arm64-variant.Containerfile,check.py,arm64-check.service,identity-recovery.py} "$root/context/"
+cp usr/src/kedra/tests/common/secure_boot_check.py "$root/context/"
 cp usr/src/kedra/tests/container/qemu/boot-check.py "$root/context/native-observer.py"
 sudo mkdir -p /etc/containers/certs.d/ghcr.io /etc/containers/registries.d
 test ! -e /etc/containers/certs.d/ghcr.io/ca.crt
@@ -436,31 +435,18 @@ PY
 fi
 mapfile -t media < <(find "$private/media" -maxdepth 1 -type f -name '*.iso')
 test "${#media[@]}" -eq 1
-if test -n "$hvf_controller"; then
-    openssl x509 -checkend 28800 -noout -in "$root/context/tls.crt" > "$evidence/tls-before-fresh-preparation.txt"
-    fresh_preparation=$(uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" \
-        --phase prepare-hvf --iso "${media[0]}")
-    openssl x509 -checkend 28800 -noout -in "$root/context/tls.crt" > "$evidence/tls-before-handoff.txt"
-    # New HVF runs prepare blank media without starting a Linux guest. The
-    # bounded handoff retains this original EXIT trap for every final outcome.
-    uv run usr/src/kedra/tests/vm/ghcr-update/macos-transfer.py "${fixture_args[@]}" \
-        --operation handoff --controller "$hvf_controller" --registry "$registry_id" \
-        --control-pid "$controller_pid" --start install --fresh-install-sha256 "$fresh_preparation" \
-        > "$evidence/hvf-handoff.jsonl"
-    fixture_backend=hvf
-else
-    uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase refuse-insecure --iso "${media[0]}" \
-        > "$evidence/secureboot-disabled.json"
-    uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase install --iso "${media[0]}" \
-        > "$evidence/install-phase.json"
-    for phase in A B ROLLBACK; do
-        uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase "$phase" \
-            > "$evidence/$phase-result.json"
-        cp "$root/$phase.serial.log" "$evidence/"
-    done
-fi
+uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase refuse-insecure --iso "${media[0]}" \
+    > "$evidence/secureboot-disabled.json"
+uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase install --iso "${media[0]}" \
+    > "$evidence/install-phase.json"
+for phase in A B ROLLBACK; do
+    uv run usr/src/kedra/tests/vm/ghcr-update/boot-arm64.py --root "$root" "${fixture_args[@]}" --phase "$phase" \
+        > "$evidence/$phase-result.json"
+    cp "$root/$phase.serial.log" "$evidence/"
+done
 cp "$root/installation-plan.json" "$root/disks.json" "$root/firmware-provenance.json" "$evidence/"
-uv run python - "$fixture_context" "$fixture_backend" <<'PY'
+accelerator=$(jq -er .accelerator "$evidence/install-phase.json")
+uv run python - "$fixture_context" "$accelerator" <<'PY'
 import json
 import sys
 from pathlib import Path

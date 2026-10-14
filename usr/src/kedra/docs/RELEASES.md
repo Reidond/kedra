@@ -27,8 +27,10 @@ Desktop retains complete assembly. This integration's current execution status
 is in [D2 verification](../../../../.specs/nix-release-composition/verification.md);
 source implementation does not establish protected-main publication success.
 
-The disposable ARM installer/update workflow has an explicit `--local-fixture`
-mode restricted to its dedicated ordinary-user controller container. It uses
+The disposable ARM installer/update workflow runs on a disposable aarch64 Linux
+host (`--disposable-host --work DIR`, admitted by the shared VM launcher's guard)
+or in an explicit `--local-fixture` mode restricted to its dedicated
+ordinary-user controller container. It uses
 generated fixture keys and actual committed source, then the normal encrypted
 Anaconda installer and public updater. Its A/B fixture ranks share one native
 derivation, so that workflow does not qualify a changed-kernel upgrade.
@@ -47,7 +49,7 @@ Installer media is published only when the owner dispatches `.github/workflows/i
 
 The r1, r2 and legacy-channel GitHub Releases and all 31 uploaded assets have been removed; their source Git tags remain. The owner confirmed that nobody installed those releases, so no deployed-system migration is required. The legacy protocol-1 metadata commands stay desktop/x86_64 only. [STATUS](STATUS.md) records verified signed GHCR publication per target and remaining installation qualification.
 
-Local HVF or retained-registry fixtures additionally require `--supervised-admission`.
+Local retained-registry fixtures additionally require `--supervised-admission`.
 The existing owning supervisor receives one JSON `fixture-admission` event before
 registry start and each public installer U/W/A call. It verifies the exact live
 wrapper PID/start/boot, fixture-context path/hash, expected next phase and current
@@ -57,9 +59,9 @@ existing overall operation deadline running during the at-most30-second handshak
 EOF, timeout or a mismatched nonce fails through the original cleanup trap.
 There is no command hook or stored approval. The wrapper then rechecks Linux
 capacity at that same cold threshold (zero cache credit) and TLS remaining life
-of36000 seconds before the call. HVF preparation/handoff retain28800 seconds.
+of36000 seconds before the call.
 Source/producer admission and fresh controller/storage custody are independent;
-a nonce never waives them. Actions defaults do not use this local protocol.
+a nonce never waives them. Host mode does not use this local protocol.
 
 For supervised local fixtures, failed U/W/A installer logs are captured with a
 16MiB tail limit under the fresh runner's0700 `kedra-ghcr-diagnostics` directory,

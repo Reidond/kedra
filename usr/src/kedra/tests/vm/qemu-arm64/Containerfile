@@ -2,6 +2,7 @@
 FROM localhost/kedra-qemu-arm64:research
 COPY check.sh /usr/libexec/kedra-research-qemu-arm64
 COPY check.service /usr/lib/systemd/system/kedra-research-qemu-arm64.service
+COPY secure_boot_check.py /usr/libexec/kedra-research/secure_boot_check.py
 # TCG only: full emulation runs Python-based units (tuned) far slower than
 # HVF, past Fedora's default start timeout (run 36186175108). Every unit must still start.
 RUN mkdir -p /usr/lib/systemd/system.conf.d && \

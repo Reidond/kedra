@@ -1,0 +1,14 @@
+[Unit]
+Description=Disposable Kedra lab guest UEFI Secure Boot check
+After=systemd-journald.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# The shared guest check; kedra-lab vm check reads its result over SSH, and the
+# serial copy serves headless Linux boots of the same disk.
+ExecStart=/usr/bin/bash -c 'set -o pipefail; /usr/bin/python3 -I /usr/libexec/kedra-lab/secure-boot-check.py --boot-entry shimaa64.efi --output /run/kedra-lab/secure-boot.json | tee /dev/ttyAMA0'
+TimeoutStartSec=3min
+
+[Install]
+WantedBy=multi-user.target

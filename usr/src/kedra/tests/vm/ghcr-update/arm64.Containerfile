@@ -10,6 +10,7 @@ COPY --chmod=0644 install.toml /usr/lib/bootc/install/10-kedra.toml
 COPY --chmod=0644 journal-console.conf /usr/lib/systemd/journald.conf.d/90-kedra-ghcr-console.conf
 COPY --chmod=0644 check.py /usr/libexec/kedra-ghcr-check.py
 COPY --chmod=0644 identity-recovery.py /usr/libexec/kedra-ghcr-identity-recovery.py
+COPY --chmod=0644 secure_boot_check.py /usr/libexec/kedra-secure-boot-check.py
 COPY --chmod=0644 native-observer.py /usr/libexec/kedra-ghcr-native.py
 COPY --chmod=0644 arm64-check.service /usr/lib/systemd/system/kedra-ghcr-test.service
 RUN printf 'Kedra generated GHCR test VM\n' > /usr/share/sysroot/disposable-ghcr-test && \

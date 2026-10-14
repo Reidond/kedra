@@ -5,14 +5,14 @@ description: Qualify Kedra features through real end-to-end workflows, container
 
 # Qualification
 
-Read usr/src/kedra/docs/ARCHITECTURE.md and usr/src/kedra/docs/STATUS.md, then choose the smallest real workflow covering the changed feature. Existing tests live under usr/src/kedra/tests/ and .github/workflows/test-*.yml.
+Read usr/src/kedra/docs/ARCHITECTURE.md and usr/src/kedra/docs/STATUS.md, then choose the smallest real workflow covering the changed feature. Existing tests live under usr/src/kedra/tests/ (tests/README.md); the test workflows were removed on 2026-10-08 and every check runs locally.
 
 Use real CLI/process/Git, RPM transactions, native applications, container scenarios and disposable VMs. Include wrong authority/target, stale inputs, interruption and recovery where relevant. No unit/model/mock/doctests, source assertions or repository scanners; the container harness is the one sanctioned runner (AGENTS.md, owner decision 2026-09-27).
 
 Choose the layer by what the behavior needs:
 - **Host CLI.** Cargo `e2e_*` and the Python release checks, for source, release and CLI logic.
 - **Containers.** usr/src/kedra/tests/container, run through `cargo test -p kedra-container-tests --test container`, for installed-system behavior without a kernel boot: files, units, the real session, portals, keyring, home review, apps and screenshots. Add YAML scenarios for linear checks, native tests (native.rs) for control flow, and guest probes (lab/probes) for in-guest logic.
-- **VMs.** For Secure Boot, SELinux enforcement, VT/greetd password login and PAM, bootc switch/update/rollback, the installer, and Xwayland/Qt keyboard-driven dialogs.
+- **VMs.** For Secure Boot, SELinux enforcement, VT/greetd password login and PAM, bootc switch/update/rollback, the installer, and Xwayland/Qt keyboard-driven dialogs. Drivers in usr/src/kedra/tests/vm build machines only through usr/src/kedra/tests/common/qemu.py (OVMF/AAVMF Secure Boot, KVM or TCG, QMP; HVF for `kedra-lab vm`) and prove Secure Boot only through the shared guest check common/secure_boot_check.py; add to them rather than copying QEMU arguments or the check. Each Linux driver requires `--disposable-host`, which refuses Linux hosts with bootc/ostree/Kedra paths or an `ostree=`/`composefs=` kernel argument (also visible from containers) without calling bootc. On the owner's Mac, `kedra-lab vm up` plus `vm check` is the aarch64 Secure Boot boot and guest check; x86_64 KVM drivers need a separate x86 host.
 
 Exported system contexts use `kedra-lab replay --image composition:<dir>
 --composition-identity <independent-id>`. Static replay loads/builds/runs with no
@@ -64,7 +64,7 @@ Container adaptations and limits are listed in the harness README. Examples: no 
 
 Harness additions measured 2026-09-28 (M2 Pro, Docker 29.4.0): `--test-threads 2`
 runs two fresh isolated containers at once; all 13 ARM cases passed in 111.60 s
-in one run. Default remains one worker. `KEDRA_LAB_ORDER=reverse` also passed.
+in one run. Default remains one worker. A reverse-order run also passed (that option was removed 2026-10-14, with the unconsumed junit.xml report).
 The first interrupt preserves partial reports and attempts bounded owned cleanup;
 a second signal force-exits. An active-probe cancellation left no test containers
 from its execution while another retained lab stayed usable. Preserve the report's
@@ -163,11 +163,11 @@ Source: `.specs/nix-release-composition/verification.md`, attempt 9 cleanup and
 still requires a new installer-environment build; retained signed payload reuse
 does not qualify the new ISO or eliminate that build's resource budget.
 
-For the explicit fresh HVF fixture path, prepare firmware/blank disk/sentinel
-without starting TCG and bind a separate fresh-preparation receipt before export.
-Do not fabricate a timeout to enter recovery admission. Keep legacy interrupted
-boundary adoption separate from normal fresh media qualification. The ARM target
-already orders serial before tty0; bootc 1.16.13 deduplicates repeated arguments
+The never-executed HVF transfer drafts of the ARM release fixture (boot-macos.py,
+macos-transfer.py and their marker input) were deleted on 2026-10-14; that fixture
+runs on a disposable aarch64 Linux host (`--disposable-host`) or in its controller
+container (`--local-fixture`). Do not fabricate a timeout to enter recovery
+admission. The ARM target already orders serial before tty0; bootc 1.16.13 deduplicates repeated arguments
 without reordering them. Use the fixture journald destination rather than an
 appended reversed karg pair. These new routes require their own actual fresh run.
 

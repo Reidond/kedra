@@ -1,26 +1,33 @@
 # QEMU ARM64 Secure Boot check
 
-`.github/workflows/test-qemu-arm64.yml` qualified the aarch64 `qemu-arm64` candidate on `ubuntu-24.04-arm` until it was removed on 2026-10-08 with the other test workflows; `git show 3e33867:.github/workflows/test-qemu-arm64.yml` keeps its steps for a local run on an aarch64 Linux host. Hosted arm64 runners expose no `/dev/kvm`, so the boot is TCG emulation. That qualifies the firmware → shim → GRUB → kernel chain and the booted deployment. It does not qualify HVF, TPM, VirGL/Metal rendering or the graphical session; those require the native QEMU lab qualification.
+`run.py` qualifies an aarch64 `qemu-arm64` candidate on a disposable aarch64 Linux host (see the [disposable-host guard](../../README.md#boot-level-drivers)):
+
+```sh
+uv run usr/src/kedra/tests/vm/qemu-arm64/run.py --disposable-host --work /new/directory \
+    --candidate ghcr.io/reidond/kedra-qemu-arm64:stable
+```
+
+It replaces `boot.sh` and the removed `test-qemu-arm64.yml` (last present at `3e33867`), which built the candidate inline on hosted `ubuntu-24.04-arm` runners. The boot runs under KVM when `/dev/kvm` is usable and under TCG otherwise; hosted arm64 runners exposed no `/dev/kvm`. That qualifies the firmware → shim → GRUB → kernel chain and the booted deployment. It does not qualify HVF, TPM, VirGL/Metal rendering or the graphical session; `kedra-lab vm up` and `vm check` cover the HVF Secure Boot boot and the shared guest check on Apple Silicon ([native lab](../../container/qemu/README.md)).
 
 | File | Role |
 |---|---|
-| (moved) | The read-only candidate checks formerly in `image-check.sh` are container scenarios: [qemu-arm64-image.yaml](../../container/scenarios/qemu-arm64-image.yaml) with the [qemu-ga probe](../../container/lab/probes/qemu-ga.py), and [image-contents.yaml](../../container/scenarios/image-contents.yaml). The workflow keeps the bootc contract check before booting. |
-| `Containerfile`, `check.sh`, `check.service` | Non-promotable observer layer over `localhost/kedra-qemu-arm64:research`, tagged `localhost/kedra-qemu-arm64-test:secureboot` |
-| `boot.sh` | Firmware validation, fresh NVRAM with one explicit boot entry, bounded TCG boot, marker verification |
+| (moved) | The read-only candidate checks formerly in `image-check.sh` are container scenarios: [qemu-arm64-image.yaml](../../container/scenarios/qemu-arm64-image.yaml) with the [qemu-ga probe](../../container/lab/probes/qemu-ga.py), and [image-contents.yaml](../../container/scenarios/image-contents.yaml). `run.py` keeps the bootc contract check before booting. |
+| `Containerfile`, `check.sh`, `check.service` | Non-promotable observer layer over `localhost/kedra-qemu-arm64:research`, tagged `localhost/kedra-qemu-arm64-test:secureboot`, with the shared guest check `../../common/secure_boot_check.py` |
+| `run.py` | Candidate import and bootc contract, fixture and disk build (`../../common/disk.py`), firmware validation, fresh NVRAM with one explicit boot entry, bounded boot through the shared launcher (`../../common/qemu.py`), marker verification |
 
 The disk comes from the arm64 bootc-image-builder pin (`usr/src/kedra/image/inputs.json` `.platforms.arm64.builder`), with a generated account whose password is never stored. The account exists only so the observer can run `sysroot doctor` as a non-root user.
 
 ## Guest markers
 
-The observer writes markers to the virtio-serial port `org.kedra.events` (host `vm/events.log`) and, best effort, to `ttyAMA0` (`vm/serial.log`). `boot.sh` requires all four markers, a `KEDRA_QEMU_ARM64_IMAGE_DIGEST=` line equal to podman's `.Digest` for the observer image, no `KEDRA_QEMU_ARM64_FAIL`, and a firmware line showing that the explicit entry was booted:
+The observer writes markers to the virtio-serial port `org.kedra.events` (host `evidence/events.log`) and, best effort, to `ttyAMA0` (`evidence/serial.log`). `run.py` requires `KEDRA_SECUREBOOT_PASS` from the shared guest check, all four markers below, a `KEDRA_QEMU_ARM64_IMAGE_DIGEST=` line equal to podman's `.Digest` for the observer image, no `KEDRA_QEMU_ARM64_FAIL`, and a firmware line showing that the explicit entry was booted:
 
-- `KEDRA_QEMU_ARM64_SECUREBOOT_PASS` requires:
+- `KEDRA_SECUREBOOT_PASS` (the shared guest check with `--boot-entry shimaa64.efi`) requires:
   - `mokutil --sb-state` is exactly `SecureBoot enabled`;
   - the SecureBoot efivar is 1 and SetupMode is 0;
   - lockdown is `[integrity]` or `[confidentiality]`;
   - the kernel journal has `secureboot: Secure boot enabled`;
-  - `BootCurrent` is the `shimaa64.efi` entry;
-  - the doctor `secure_boot` check passes.
+  - `BootCurrent` is the `shimaa64.efi` entry.
+- `KEDRA_QEMU_ARM64_SECUREBOOT_PASS` follows it and requires the doctor `secure_boot` check to pass.
 - `KEDRA_QEMU_ARM64_BOOTC_PASS`: `bootc status` shows the booted `localhost/kedra-qemu-arm64-test:secureboot`, `arm64`, and no staged or rollback deployment; `source.json` is `qemu-arm64`/`aarch64`.
 - `KEDRA_QEMU_ARM64_SELINUX_PASS`: Enforcing, the targeted policy, and no `enforcing=0` or `selinux=0` on the command line. AVC listings are evidence only.
 - `KEDRA_QEMU_ARM64_UNITS_PASS`: `systemctl is-system-running --wait` reports `running` with zero failed system units, and `qemu-guest-agent.service` is active on the host-provided channel with the `usr/src/kedra/image/targets/qemu-arm64` `--block-rpcs` list on its command line.
@@ -38,11 +45,13 @@ Fedora 44 `shim-aa64-16.1-5` has two kinds of signature:
 
 bootc-image-builder disks carry no NVRAM entry. The firmware therefore takes the removable path: `BOOTAA64.EFI` finds `fbaa64.efi`, and shim stops with `Verification failed: (0x1A) Security Violation`.
 
-An installed system does not use that path. Anaconda and bootupd `--update-firmware` create an entry for `\EFI\fedora\shimaa64.efi`. `boot.sh` reproduces that entry by adding it to a fresh copy of `AAVMF_VARS.ms.fd` with `virt-fw-vars --append-boot-filepath`. This writes a short-form `FilePath` entry, and edk2 expands it to the disk's EFI System Partition. The entry is placed first in `BootOrder`.
+An installed system does not use that path. Anaconda and bootupd `--update-firmware` create an entry for `\EFI\fedora\shimaa64.efi`. The shared launcher (`qemu.create_variables`, used by `run.py` and `qemu.py boot`) reproduces that entry by adding it to a fresh copy of `AAVMF_VARS.ms.fd` with `virt-fw-vars --append-boot-filepath`. This writes a short-form `FilePath` entry, and edk2 expands it to the disk's EFI System Partition. The entry is placed first in `BootOrder`.
 
 Fedora 45 `shim-16.1-7` fixes the fallback signatures. Do not remove the entry until Fedora 44 ships that fix.
 
 ## Local prototype (2026-09-25)
+
+This history names the driver of the time, `boot.sh`, which `run.py` replaced on 2026-10-14.
 
 Run on an Apple M2 Pro, Docker 29.4.0 on OrbStack, `linux/arm64`. There was no KVM, so this is TCG like the runner. Only disposable `--rm` containers and `/tmp` scratch were used.
 
@@ -120,12 +129,12 @@ Run on an Apple M2 Pro, Docker 29.4.0 on OrbStack, `linux/arm64`. There was no K
      - The digest matched and every marker appeared.
      - The same two AVC sources as above appeared: 3 `bootupctl`, 8 `chcon`.
 
-The runner is slower than an M2 core. The `boot.sh` bound (90 min) and step bound (100 min) leave wide margins.
+The runner is slower than an M2 core. The boot bound (90 min, kept by `run.py`) and step bound (100 min) leave wide margins.
 
-To reproduce, run `boot.sh` as above in a disposable `ubuntu:24.04` arm64 container after installing `qemu-system-arm qemu-efi-aarch64 qemu-utils python3-virt-firmware jq`. Give it the disk, a new work directory, an evidence directory and the image digest. Never run it on a workstation host or against a real disk.
+To reproduce, run `run.py` in a disposable aarch64 Linux host or privileged `ubuntu:24.04` arm64 container after installing `podman skopeo qemu-system-arm qemu-efi-aarch64 qemu-utils python3-virt-firmware openssl`. Never run it on a workstation host or against a real disk; its guard refuses bootc hosts.
 
 ## Status
 
-As of 2026-09-25 the workflow has not run in Actions (`not-run`). The local prototype and rehearsal are emulation evidence only; they are not a runner, UTM or hardware result.
+As of 2026-09-25 the workflow had not yet run in Actions; main run 36617035132 later passed (2026-09-29). `run.py` itself is not-run on an aarch64 Linux host (2026-10-14). The local prototype and rehearsal are emulation evidence only; they are not a runner, UTM or hardware result.
 
 The guest-agent RPC block list and its checks were added after that rehearsal. The `image-check.sh` block (since moved to the container scenarios) passed locally against `quay.io/fedora/fedora-bootc:44` (arm64, `sha256:6718b063…887b`) with `qemu-guest-agent-10.2.2-1.fc44` and the drop-in installed, not against a utm candidate. The `check.sh` command-line assertion has not run in a booted guest (`not-run`).

@@ -344,17 +344,6 @@ fn main() -> ExitCode {
     if composition_source {
         bodies.retain(|(_, body)| matches!(body, Body::Native(test) if test.source.applies(true, derivation_source)));
     }
-    match std::env::var("KEDRA_LAB_ORDER").as_deref() {
-        Ok("reverse") => bodies.reverse(),
-        Err(_) | Ok("") | Ok("forward") => {}
-        Ok(other) => {
-            eprintln!(
-                "container tests: KEDRA_LAB_ORDER={other:?} must be forward or reverse; nothing was provisioned"
-            );
-            return ExitCode::from(2);
-        }
-    }
-
     if args.list {
         let trials = bodies
             .into_iter()

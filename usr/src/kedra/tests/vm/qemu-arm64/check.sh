@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# Disposable qemu-arm64 Secure Boot boot observer; runs only inside the generated TCG VM.
+# Disposable qemu-arm64 Secure Boot boot observer; runs only inside the generated VM (run.py).
 # Markers go to a dedicated virtio-serial port (host events.log) and, best effort,
 # the PL011 serial console; the qemu-arm64 kargs keep /dev/console on tty0.
 set -Eeuo pipefail
@@ -31,24 +31,12 @@ case "$cmdline" in *' console=ttyAMA0,115200 '*) ;; *) false ;; esac
 case "$cmdline" in *' console=tty0 '*) ;; *) false ;; esac
 evidence cat /sys/class/tty/console/active
 
-# Firmware -> shim -> GRUB -> kernel under enforced UEFI Secure Boot.
-evidence mokutil --sb-state
-test "$(mokutil --sb-state)" = 'SecureBoot enabled'
-efi_value() {
-    od -An -t u1 -j 4 -N 1 "/sys/firmware/efi/efivars/$1-8be4df61-93ca-11d2-aa0d-00e098032b8c" | tr -d ' \n'
-}
-test "$(efi_value SecureBoot)" = 1
-test "$(efi_value SetupMode)" = 0
-evidence cat /sys/kernel/security/lockdown
-grep -Eq '\[(integrity|confidentiality)\]' /sys/kernel/security/lockdown
-# The image's quiet karg hides this console line; the kernel journal keeps it.
-journalctl -k -b --no-pager --output=cat | grep -F 'secureboot: Secure boot enabled' > "$events"
-# The host added one explicit vendor-path entry; prove this boot used it rather
-# than the removable path whose Fedora 44 aarch64 fallback is test-signed.
+# Firmware -> shim -> GRUB -> kernel under enforced UEFI Secure Boot, through the
+# one explicit vendor-path entry the host added rather than the removable path
+# whose Fedora 44 aarch64 fallback is test-signed. The shared guest check
+# (usr/src/kedra/tests/common/secure_boot_check.py) prints KEDRA_SECUREBOOT_PASS.
+/usr/bin/python3 -I /usr/libexec/kedra-research/secure_boot_check.py --boot-entry shimaa64.efi > "$events"
 evidence efibootmgr -v
-current=$(efibootmgr | sed -n 's/^BootCurrent: \([0-9A-Fa-f]\{4\}\)$/\1/p')
-test -n "$current"
-efibootmgr -v | grep -E "^Boot${current}[* ]" | grep -F 'shimaa64.efi' > "$events"
 # Doctor refuses root; the disposable account has no session, so only its
 # secure_boot result (a required-for-session check) is asserted here.
 doctor_home=$(getent passwd kedra-test | cut -d: -f6)

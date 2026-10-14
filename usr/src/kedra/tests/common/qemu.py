@@ -13,11 +13,13 @@ and refuses hosts that may be a workstation before a driver prepares host state.
 
   qemu.py guard --disposable-host        exit 0 only on an admitted disposable host
   qemu.py boot --disposable-host ...     boot generated disks until guest poweroff
+  qemu.py refuse --disposable-host ...   require firmware without Microsoft keys to refuse a disk
 """
 import argparse
 import json
 import os
 import platform
+import re
 import signal
 import socket
 import subprocess
@@ -46,6 +48,8 @@ FREEZE = 'systemd[1]: Freezing execution.'
 # vendor-path entry from Anaconda/bootupd, generated disks from the launcher.
 AARCH64_SHIM = '\\EFI\\fedora\\shimaa64.efi'
 LOG_LIMIT = 128 * 1024**2
+# edk2's report when Secure Boot verification of a boot option's loader fails.
+ACCESS_DENIED = re.compile(r'BdsDxe: failed to load Boot[0-9A-F]{4} .*: Access Denied')
 
 
 class VmError(RuntimeError):
@@ -326,6 +330,40 @@ def boot(args):
                       'firmware_trust_unchanged': True}, sort_keys=True))
 
 
+def refuse(args):
+    """The same disk under firmware whose db trusts only Ubuntu's snakeoil key.
+
+    Fedora's Microsoft-signed x86_64 shim must be refused: the firmware reports
+    Access Denied, nothing starts and QEMU stays at the boot menu until the bound.
+    """
+    require_disposable_host(args.disposable_host)
+    require(args.disk.suffix == '.qcow2' and args.disk.is_file(), 'Only a generated QCOW2 disk can be booted')
+    work = args.work.resolve()
+    work.mkdir(mode=0o700, parents=True)
+    variables = work / 'OVMF_VARS.snakeoil.fd'
+    secure_boot.create('snakeoil', variables)
+    accelerator = args.accelerator or default_accelerator('x86_64')
+    argv = [qemu_binary('x86_64'), *machine_argv(
+        'x86_64', accelerator, code=secure_boot.CODE, variables=variables, qmp=work / 'qmp.sock',
+        serial=args.serial, cpus=2, memory_mib=4096)]
+    # Snapshot: the refused boot never writes the disk the positive phases use.
+    argv += [*disk_argv('system', args.disk, snapshot=True), *network_argv(False), '-display', 'none']
+    started = time.monotonic()
+    process = launch(argv, work / 'qemu.log')
+    try:
+        wait_for_socket(work / 'qmp.sock', process)
+        while time.monotonic() < started + args.timeout:
+            require(process.poll() is None, 'QEMU exited before the bound; the firmware did not stay at its boot menu')
+            require(not any(marker in read_log(args.serial) for marker in ('Linux version', 'KEDRA_')),
+                    'Firmware without Microsoft keys started the operating system')
+            time.sleep(2)
+        require(ACCESS_DENIED.search(read_log(args.serial)), 'The firmware did not report Access Denied for the boot option')
+    finally:
+        stop(process)
+    print(json.dumps({'schema_version': 1, 'template': 'snakeoil', 'accelerator': accelerator,
+                      'bound_seconds': args.timeout, 'outcome': 'refused'}, sort_keys=True))
+
+
 def parser():
     result = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = result.add_subparsers(dest='command', required=True)
@@ -349,6 +387,13 @@ def parser():
     run.add_argument('--require', action='append', default=[], help='Marker the guest must report')
     run.add_argument('--fail-marker', action='append', default=[])
     run.add_argument('--until-markers', action='store_true', help='Quit through QMP once every marker appeared')
+    refusal = commands.add_parser('refuse', help='Require x86_64 firmware without Microsoft keys to refuse a disk')
+    refusal.add_argument('--disposable-host', action='store_true')
+    refusal.add_argument('--accelerator', choices=('kvm', 'tcg'))
+    refusal.add_argument('--disk', type=Path, required=True, help='Generated QCOW2 system disk, never written')
+    refusal.add_argument('--work', type=Path, required=True, help='New private directory for the store and QMP')
+    refusal.add_argument('--serial', type=Path, required=True)
+    refusal.add_argument('--timeout', type=int, default=120, help='Seconds the firmware must stay at its menu')
     return result
 
 
@@ -360,7 +405,7 @@ def main():
         return
     signal.signal(signal.SIGTERM, lambda _signal, _frame: sys.exit(130))
     try:
-        boot(args)
+        boot(args) if args.command == 'boot' else refuse(args)
     except (VmError, secure_boot.FirmwareError, OSError, subprocess.SubprocessError) as error:
         raise SystemExit('kedra vm: ' + str(error)) from None
 

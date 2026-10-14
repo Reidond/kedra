@@ -113,10 +113,16 @@ mapfile -t disks < <(find "$root/image" -type f -name '*.qcow2')
 test "${#disks[@]}" -eq 1
 truncate -s 16M "$root/cases.raw"
 mkfs.ext4 -q -L KEDRA_GHCR_CASES -d "$root/cases" "$root/cases.raw"
+uv=$(command -v uv)
+# Negative UEFI Secure Boot case on the same disk (snapshot, no network): the
+# same firmware with a db trusting only Ubuntu's snakeoil test key must refuse
+# Fedora's Microsoft-signed shim and remain at its boot menu for 120 s.
+sudo "$uv" run usr/src/kedra/tests/common/qemu.py refuse --disposable-host --accelerator kvm \
+    --disk "${disks[0]}" --work "$root/vm-untrusted-keys" --serial "$evidence/untrusted-keys.serial.log" \
+    --timeout 120 > "$evidence/untrusted-keys-result.json"
 # Microsoft-enrolled UEFI Secure Boot variables persist across the three boots
 # (shim's fallback may add a boot entry and reset once). The shared launcher
 # creates them on the first boot and verifies their trust around every boot.
-uv=$(command -v uv)
 for phase in A B ROLLBACK; do
     sudo "$uv" run usr/src/kedra/tests/common/qemu.py boot --disposable-host --architecture x86_64 \
         --accelerator kvm --disk "${disks[0]}" --data-disk "$root/cases.raw" --vars "$root/OVMF_VARS.fd" \
@@ -132,7 +138,7 @@ pathlib.Path(sys.argv[1], 'scope.json').write_text(json.dumps({
         'wrong-target','wrong-architecture-identity','wrong-channel','malformed-identity','same-rank-equivocation',
         'offline','available','stage','pending-preservation','idempotent-stage','boot-B','lower-rank-replay',
         'identity-health-refusal-and-retained-rollback','boot-A','persistent-data','hold','resume',
-        'uefi-secure-boot-microsoft-keys','first-verification-downloads-every-layer',
+        'uefi-secure-boot-microsoft-keys','untrusted-keys-firmware-refusal','first-verification-downloads-every-layer',
         'repeated-verification-reuses-cached-layers','check-then-stage-reuse','cache-persists-across-reboot',
         'untrusted-cache-discarded-without-following-links','cached-digest-signature-withdrawn'],
     'not_run_cases':['deterministic-tag-race','interrupted-helper-or-bootc-operation','legacy-state-migration',

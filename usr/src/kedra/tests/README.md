@@ -47,7 +47,7 @@ A candidate is `docker:REF` (for example the full local build `kedra-lab image -
 | Driver | Coverage | Host |
 |---|---|---|
 | `usr/src/kedra/tests/agents/run.py` | Real agent launcher/runtime/profile behavior with generated profiles | Native x86_64 or aarch64, offline, after `image/agents/fetch.py` and `package.py` |
-| `vm/ghcr-update/run.sh --disposable-host --work DIR` | Direct signed registry v2 enrollment/check/stage, A/B/rollback, identity recovery and critical refusals, under UEFI Secure Boot | x86_64 with KVM, after `cargo build --workspace --release --locked` |
+| `vm/ghcr-update/run.sh --disposable-host --work DIR` | Direct signed registry v2 enrollment/check/stage, A/B/rollback, identity recovery and critical refusals, under UEFI Secure Boot; firmware refusal of the same disk without Microsoft keys | x86_64 with KVM, after `cargo build --workspace --release --locked` |
 | `vm/ghcr-update/run-arm64.sh --disposable-host --work DIR` | The composed qemu-arm64 image: public installer refusals, encrypted Anaconda installation and signed A/B/A with persistent home and data | aarch64, KVM or TCG; `--local-fixture` mode runs in the controller container ([RELEASES](../docs/RELEASES.md)) |
 | `vm/signed-update/run.sh` | Signed bootc update, negative authority/replay cases and retained rollback under UEFI Secure Boot; firmware refusal of the same disk without Microsoft keys | x86_64 with KVM |
 | `vm/home-transition/run.sh` | Actual signed A/B/A home-baseline acceptance and rollback under UEFI Secure Boot | x86_64 with KVM, after `compose-artifact.py` on aarch64 |
@@ -83,7 +83,7 @@ Every guest boot runs `common/secure_boot_check.py`, which prints `KEDRA_SECUREB
 
 With `--boot-entry shimaa64.efi` (qemu-arm64, the native lab and its boot observer) it also requires that firmware's `BootCurrent` entry names that loader.
 
-The signed-update driver also runs one negative case. It boots the same disk with the snakeoil-only store, no network and a 120 s timeout. It requires three results: the firmware's `Access Denied` for the boot option, QEMU still at the firmware boot menu when the timeout ends it (exit 124), and no `Linux version` line.
+One negative case runs before the positive boots of `vm/ghcr-update/run.sh`, through `qemu.py refuse` (it moved there from the removed signed-update driver). It boots the same disk read-only with the snakeoil-only store, no network and a 120 s bound. It requires three results: the firmware's `Access Denied` for the boot option, QEMU still at the firmware boot menu when the bound ends, and no `Linux version` or `KEDRA_` line.
 
 bootc-image-builder disks have no NVRAM boot entry, so the first boot takes the removable path. Shim's fallback then adds `\EFI\fedora\shimx64.efi` and boots it; the runners do not pass `-no-reboot` in case fallback resets. A local TCG smoke on 2026-09-25 exercised this path: Ubuntu ovmf 2024.02-2ubuntu0.9 booted Fedora 44 shim-x64 16.1-5, grub2-efi-x64 2.12-64 and kernel 7.2.7-200 (`quiet` set) into a minimal initramfs that ran the guest check function, then booted again through the new entry. The negative store was refused. The full images were not booted locally; the runners' KVM boots are the qualification.
 

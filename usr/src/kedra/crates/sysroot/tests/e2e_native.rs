@@ -1,4 +1,5 @@
-//! Native derivation through public CLI commands; installed behavior uses the System harness.
+//! Native derivation through the public `sysroot derive` commands; installed
+//! behavior uses the System harness.
 #![cfg(unix)]
 
 use std::collections::BTreeMap;
@@ -12,9 +13,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use serde_json::{Value, json};
-use sysroot_engine::{
-    NativeDefinition, NativeStep, PLATFORM, SystemContent, SystemDefinition, SystemFile,
-};
+use sysroot_engine::{NativeStep, PLATFORM, SystemContent, SystemDefinition, SystemFile};
 
 const FOUNDATION: &str = "sha256:9d6eb030a55f86232e7f6df46551d5394599b70b2ad7837a41a5cde300550e71";
 const BASELINE: &[&str] = &[
@@ -300,26 +299,19 @@ impl Fixture {
         command: &str,
         context: &Path,
         parent: &str,
-        spec: &Path,
+        steps: &Path,
         expected: Option<&str>,
     ) -> Output {
-        let binary = std::env::var_os("KEDRA_NATIVE_LAB_BINARY")
-            .or_else(|| std::env::var_os("KEDRA_CONTEXT_LAB_BINARY"))
-            .expect("set KEDRA_NATIVE_LAB_BINARY to the already built kedra-lab executable");
-        let mut process = Command::new(binary);
+        let mut process = self.cli(&["derive", command, "--context"]);
         process
-            .args([command, "--image"])
-            .arg(format!("composition:{}", context.display()))
-            .args([
-                "--composition-identity",
-                parent,
-                "--target",
-                "qemu-arm64",
-                "--native-plan",
-            ])
-            .arg(spec);
+            .arg(context)
+            .args(["--expected-identity", parent, "--steps"])
+            .arg(steps)
+            .arg("--state")
+            // KEDRA_LAB_ARTIFACTS=<retained root> lets the harness reuse these bindings.
+            .arg(self.path("derive"));
         if let Some(identity) = expected {
-            process.args(["--derivation-identity", identity]);
+            process.args(["--expected-derivation", identity]);
         }
         run(&mut process)
     }
@@ -335,24 +327,24 @@ impl Drop for Fixture {
     }
 }
 
-fn declaration(parent: &str) -> NativeDefinition {
-    NativeDefinition {
-        schema: 1,
-        parent_identity: parent.into(),
-        steps: vec![
-            NativeStep::GlibSchemas,
-            NativeStep::Systemd {
-                enable: vec!["sysroot-native-fixture.service".into()],
-                disable: vec![],
-                mask: vec!["sysroot-native-masked.service".into()],
-                default_target: Some("multi-user.target".into()),
-            },
-            NativeStep::InitialSkel,
-            NativeStep::QemuInitramfs {
-                required_modules: sysroot_engine::default_native_modules(),
-            },
-        ],
-    }
+fn declaration() -> Vec<NativeStep> {
+    vec![
+        NativeStep::GlibSchemas,
+        NativeStep::Systemd {
+            enable: vec!["sysroot-native-fixture.service".into()],
+            disable: vec![],
+            mask: vec!["sysroot-native-masked.service".into()],
+            default_target: Some("multi-user.target".into()),
+        },
+        NativeStep::InitialSkel,
+        NativeStep::QemuInitramfs {
+            required_modules: sysroot_engine::default_native_modules(),
+        },
+    ]
+}
+
+fn write_steps(path: &Path, steps: &[NativeStep]) {
+    write_json(path, &json!({"schema_version": 1, "steps": steps}));
 }
 
 fn reject_baseline_deletion(f: &Fixture) {
@@ -363,17 +355,12 @@ fn reject_baseline_deletion(f: &Fixture) {
     let context = f.path("deletion-context");
     let composition = f.compose(&context);
     let parent = composition["identity"].as_str().unwrap();
-    let definition = NativeDefinition {
-        schema: 1,
-        parent_identity: parent.into(),
-        steps: vec![NativeStep::InitialSkel],
-    };
-    let spec = f.path("deletion-plan.json");
-    write_json(&spec, &definition);
-    let planned = json_output(f.native("derive-plan", &context, parent, &spec, None));
+    let spec = f.path("deletion-steps.json");
+    write_steps(&spec, &[NativeStep::InitialSkel]);
+    let planned = json_output(f.native("plan", &context, parent, &spec, None));
     refused(
         f.native(
-            "derive",
+            "build",
             &context,
             parent,
             &spec,
@@ -389,31 +376,31 @@ fn reject_baseline_deletion(f: &Fixture) {
 
 fn reject_invalid_plans(f: &Fixture, parent: &str, expected: &str) {
     let context = f.path("context");
-    let spec = f.path("invalid-plan.json");
+    let spec = f.path("invalid-steps.json");
     write_json(
         &spec,
-        &json!({"schema":1,"parent_identity":parent,"steps":[{"kind":"run","argv":["touch","/unapproved"]}]}),
+        &json!({"schema_version":1,"steps":[{"kind":"run","argv":["touch","/unapproved"]}]}),
     );
     refused(
-        f.native("derive-plan", &context, parent, &spec, None),
+        f.native("plan", &context, parent, &spec, None),
         "unknown variant",
     );
-    let mut invalid = declaration(parent);
-    if let NativeStep::Systemd { mask, .. } = &mut invalid.steps[1] {
+    let mut invalid = declaration();
+    if let NativeStep::Systemd { mask, .. } = &mut invalid[1] {
         mask.push("sysroot-native-fixture.service".into());
     }
-    write_json(&spec, &invalid);
+    write_steps(&spec, &invalid);
     refused(
-        f.native("derive-plan", &context, parent, &spec, None),
+        f.native("plan", &context, parent, &spec, None),
         "conflicting unit",
     );
-    let mut invalid = declaration(parent);
-    if let NativeStep::Systemd { enable, .. } = &mut invalid.steps[1] {
+    let mut invalid = declaration();
+    if let NativeStep::Systemd { enable, .. } = &mut invalid[1] {
         enable[0] = "../outside.service".into();
     }
-    write_json(&spec, &invalid);
+    write_steps(&spec, &invalid);
     refused(
-        f.native("derive-plan", &context, parent, &spec, None),
+        f.native("plan", &context, parent, &spec, None),
         "concrete unit",
     );
     fs::remove_file(spec).unwrap();
@@ -424,18 +411,23 @@ fn reject_invalid_plans(f: &Fixture, parent: &str, expected: &str) {
     };
     refused(
         f.native(
-            "derive",
+            "build",
             &context,
             parent,
-            &f.path("native-plan.json"),
+            &f.path("native-steps.json"),
             Some(&wrong),
         ),
         "native derivation identity differs",
     );
+    // The in-image executor refuses to run on an ordinary machine.
+    refused(
+        run(f.cli(&["derive", "apply"]).arg(f.path("native-steps.json"))),
+        "runs only as root inside the offline sysroot derive build",
+    );
 }
 
 #[test]
-#[ignore = "requires native ARM Docker, exact restored foundation, and KEDRA_NATIVE_LAB_BINARY"]
+#[ignore = "requires native ARM Docker with BuildKit and an exact retained foundation"]
 fn native_artifacts_derive_from_committed_configuration() {
     let f = Fixture::new();
     f.repository();
@@ -450,11 +442,11 @@ fn native_artifacts_derive_from_committed_configuration() {
     let context = f.path("context");
     let composition = f.compose(&context);
     let parent = composition["identity"].as_str().unwrap();
-    let spec = f.path("native-plan.json");
-    write_json(&spec, &declaration(parent));
+    let spec = f.path("native-steps.json");
+    write_steps(&spec, &declaration());
     remove_fixture(&f.path("producer")).unwrap();
     assert!(!f.path("producer").exists());
-    let planned = json_output(f.native("derive-plan", &context, parent, &spec, None));
+    let planned = json_output(f.native("plan", &context, parent, &spec, None));
     let identity = planned["identity"].as_str().unwrap();
     assert_ne!(identity, parent);
     write_json(
@@ -462,7 +454,7 @@ fn native_artifacts_derive_from_committed_configuration() {
         &json!({"composition_identity":parent,"derivation_identity":identity,"foundation":f.foundation}),
     );
     reject_invalid_plans(&f, parent, identity);
-    let derived = json_output(f.native("derive", &context, parent, &spec, Some(identity)));
+    let derived = json_output(f.native("build", &context, parent, &spec, Some(identity)));
     assert_eq!(derived["material"]["identity"], identity);
     assert_eq!(derived["material"]["parent_identity"], parent);
     assert_eq!(derived["material"]["rpm_sha256"], planned["rpm_sha256"]);
@@ -473,5 +465,8 @@ fn native_artifacts_derive_from_committed_configuration() {
             .is_empty()
     );
     assert_ne!(derived["image"], derived["parent_image"]);
+    // A retained binding is re-read from the image, not trusted, and reused.
+    let repeated = json_output(f.native("build", &context, parent, &spec, Some(identity)));
+    assert_eq!(repeated, derived);
     write_json(&f.path("derived-receipt.json"), &derived);
 }

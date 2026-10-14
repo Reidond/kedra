@@ -12,6 +12,8 @@ mod catalog_language;
 #[cfg(unix)]
 mod catalog_process;
 mod deployment;
+#[cfg(unix)]
+mod derive;
 mod doctor;
 #[cfg(unix)]
 mod engine;
@@ -51,6 +53,9 @@ enum Commands {
     /// Plan or export declarative configuration over a retained Fedora foundation.
     #[cfg(unix)]
     System(system::Options),
+    /// Derive the native OS image from a verified composition, offline.
+    #[cfg(unix)]
+    Derive(derive::Options),
     /// Build an independent declared package graph in a private Linux namespace.
     #[cfg(unix)]
     Build(engine::BuildOptions),
@@ -556,6 +561,10 @@ fn main() -> ExitCode {
         Some(Commands::FrontendInput) => exit_status(catalog_language::worker(), ExitCode::FAILURE),
         #[cfg(unix)]
         Some(Commands::Catalog(options)) => engine_exit_status(catalog::run(options)),
+        #[cfg(unix)]
+        Some(Commands::Derive(options)) => {
+            engine_exit_status(derive::run(options).map(|()| ExitCode::SUCCESS))
+        }
         #[cfg(unix)]
         Some(Commands::System(options)) => {
             engine_exit_status(system::run(options).map(|()| ExitCode::SUCCESS))

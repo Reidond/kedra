@@ -94,12 +94,16 @@ kedra-lab replay --image composition:/private/context \
   --output <typed-alias> --program bin/program -- argument
 ```
 
-`kedra-lab replay` is part of the sanctioned harness. It loads the retained
-archive, checks native ID, observations, paths and inherited ONBUILD/volumes, then
-builds only the verified static context with pulls and network disabled. It runs
-the selected typed output directly in that image. Cache bindings tie image ID,
-identity, payload, foundation and daemon together; owned interrupted work resumes
-under a per-context lock. Foreign tags and unknown state refuse.
+The static image itself is realized by `sysroot-engine` (`realize_composition`),
+the same code `sysroot derive build` uses for its parent image. It loads the
+retained archive, checks native ID, observations, paths and inherited
+ONBUILD/volumes, then builds only the verified static context with pulls and
+network disabled, and checks that the result's layers extend the foundation's.
+Cache bindings in the owner-private derive state tie image ID, identity, payload,
+foundation and daemon together; owned interrupted work resumes under a
+per-context lock. Foreign tags and unknown state refuse. `kedra-lab replay` is
+part of the sanctioned harness: it calls that realization (state under its
+artifact root) and runs the selected typed output directly in the image.
 
 Composition requests default to no source overlay and require the separate
 identity. Working-tree/binary overrides and VM composition are refused. Ordinary
@@ -120,11 +124,11 @@ artifact hashes, loads the retained archive, verifies its exact image ID and
 assigns that tag before building with pulls/network disabled. Exported files carry
 no signing or installed-system authority.
 
-The separate [native stage](NATIVE.md) compiles GLib schemas, changes declared
-service links, seeds initial account defaults and generates generic QEMU initramfs
-images. The release workflow may feed a verified catalog contribution to that
-stage, but final installed behavior, boot/update/install/SELinux and protected
-signing remain independent gates.
+The separate [native stage](NATIVE.md) (`sysroot derive`) compiles GLib schemas,
+changes declared service links, seeds initial account defaults and generates
+generic QEMU initramfs images. The release workflow may feed a verified catalog
+contribution to that stage, but final installed behavior,
+boot/update/install/SELinux and protected signing remain independent gates.
 
 See [package declarations](PACKAGES.md), [engine operations](ENGINE.md),
 [architecture](ARCHITECTURE.md), [actual status](STATUS.md), and the

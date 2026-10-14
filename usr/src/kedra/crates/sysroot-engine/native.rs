@@ -14,7 +14,14 @@ const SCHEMAS: &str = "/usr/share/glib-2.0/schemas/";
 const SYSTEMD: &str = "/etc/systemd/system/";
 const MODULES: &str = "/usr/lib/modules/";
 const IDENTITY_DOMAIN: &[u8] = b"sysroot-native-model-v1\0";
-const RECIPE: &str = "FROM sysroot-foundation:<parent>\nUSER 0:0\nWORKDIR /\nCOPY native-plan.json /tmp/kedra-native-plan.json\nCOPY native-driver.py /tmp/kedra-native-driver.py\nRUN [\"/usr/bin/python3\", \"-I\", \"/tmp/kedra-native-driver.py\", \"build\"]\nRUN [\"/usr/bin/rm\", \"--\", \"/tmp/kedra-native-plan.json\", \"/tmp/kedra-native-driver.py\"]\n";
+/// Read-only BuildKit bind mounts; neither file enters an image layer.
+pub const NATIVE_MOUNT: &str = "/run/sysroot-native";
+pub const NATIVE_EXECUTOR: &str = "/run/sysroot-native/sysroot";
+pub const NATIVE_PLAN: &str = "/run/sysroot-native/native-plan.json";
+/// Written only inside the throwaway observation stage, never the derived image.
+pub const NATIVE_OBSERVATION: &str = "/sysroot-native-observation.json";
+const RECIPE: &str = "FROM sysroot-foundation:<parent>\nUSER 0:0\nWORKDIR /\nRUN --network=none --mount=type=bind,source=sysroot,target=/run/sysroot-native/sysroot --mount=type=bind,source=native-plan.json,target=/run/sysroot-native/native-plan.json [\"/run/sysroot-native/sysroot\", \"derive\", \"apply\", \"/run/sysroot-native/native-plan.json\"]\n";
+const OBSERVATION_RECIPE: &str = "FROM sysroot-foundation:<image> AS observe\nUSER 0:0\nWORKDIR /\nRUN --network=none --mount=type=bind,source=sysroot,target=/run/sysroot-native/sysroot --mount=type=bind,source=native-plan.json,target=/run/sysroot-native/native-plan.json [\"/run/sysroot-native/sysroot\", \"derive\", \"observe\", \"/run/sysroot-native/native-plan.json\"]\nFROM scratch\nCOPY --from=observe /sysroot-native-observation.json /\n";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -47,11 +54,19 @@ pub fn default_native_modules() -> Vec<String> {
         .map(String::from)
         .to_vec()
 }
+/// Committed step declaration (`image/release/native-steps.json`). The parent
+/// identity is bound by the caller's independently selected composition.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NativeSteps {
+    pub schema_version: u32,
+    pub steps: Vec<NativeStep>,
+}
 /// Supplied only by the trusted Rust adapter, never deserialized from a plan.
-/// The adapter must pass its reviewed, compiled-in driver and implementation version.
+/// `executor_sha256` names the exact sysroot binary that runs inside the build.
 pub struct NativeImplementation {
     pub version: &'static str,
-    pub driver: &'static str,
+    pub executor_sha256: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -106,7 +121,7 @@ pub struct NativeKernel {
     #[serde(deserialize_with = "crate::model::unique_map")]
     pub required_modules: BTreeMap<String, String>,
 }
-/// Actual observed material; the harness binds this to final image and daemon IDs.
+/// Actual observed material; the deriver binds this to final image and daemon IDs.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NativeReceipt {
@@ -124,7 +139,8 @@ pub struct NativeReceipt {
     pub tools: BTreeMap<String, String>,
 }
 
-pub fn read_native(path: &Path) -> Result<NativeDefinition> {
+/// Reads the committed steps and binds them to the selected parent composition.
+pub fn read_native_steps(path: &Path, parent_identity: &str) -> Result<NativeDefinition> {
     let mut bytes = Vec::new();
     File::open(path)?
         .take(MAX_JSON + 1)
@@ -132,7 +148,15 @@ pub fn read_native(path: &Path) -> Result<NativeDefinition> {
     if bytes.len() as u64 > MAX_JSON {
         return Err(invalid("oversized declaration"));
     }
-    let mut definition: NativeDefinition = serde_json::from_slice(&bytes)?;
+    let steps: NativeSteps = serde_json::from_slice(&bytes)?;
+    if steps.schema_version != 1 {
+        return Err(invalid("unsupported native steps schema"));
+    }
+    let mut definition = NativeDefinition {
+        schema: 1,
+        parent_identity: parent_identity.to_owned(),
+        steps: steps.steps,
+    };
     normalize(&mut definition)?;
     Ok(definition)
 }
@@ -156,8 +180,7 @@ pub fn plan_native(
             .version
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
-        || implementation.driver.is_empty()
-        || implementation.driver.len() > 1024 * 1024
+        || !plan::hex(&implementation.executor_sha256)
     {
         return Err(invalid("invalid compiled native implementation"));
     }
@@ -185,7 +208,7 @@ pub fn plan_native(
         identity: String::new(),
         definition,
         implementation: implementation.version.to_owned(),
-        driver_sha256: plan::hash(implementation.driver.as_bytes()),
+        driver_sha256: implementation.executor_sha256.clone(),
         recipe_sha256: plan::hash(RECIPE.as_bytes()),
         foundation_image: composition.plan.foundation.receipt.image.clone(),
         rpm_sha256: composition.plan.foundation.rpm_sha256.clone(),
@@ -197,7 +220,7 @@ pub fn plan_native(
     Ok(result)
 }
 
-/// The harness pins this tag to the checked immutable static image immediately
+/// The deriver pins this tag to the checked immutable static image immediately
 /// before its isolated, offline build; no user supplied image reference is rendered.
 pub fn render_native_recipe(plan: &NativePlan, parent_image: &str) -> Result<String> {
     plan::image_id(parent_image)?;
@@ -205,6 +228,11 @@ pub fn render_native_recipe(plan: &NativePlan, parent_image: &str) -> Result<Str
         return Err(invalid("native recipe implementation differs"));
     }
     Ok(RECIPE.replace("<parent>", &parent_image[7..]))
+}
+/// Readback of a built image in a throwaway stage that exports only its report.
+pub(crate) fn render_observation_recipe(image: &str) -> Result<String> {
+    plan::image_id(image)?;
+    Ok(OBSERVATION_RECIPE.replace("<image>", &image[7..]))
 }
 
 fn selected(definition: &NativeDefinition, path: &str) -> bool {
@@ -337,7 +365,7 @@ fn invalid(message: impl Into<String>) -> Error {
     Error::Invalid(format!("native derivation: {}", message.into()))
 }
 
-/// Checks the closed material contract. The harness must additionally re-read
+/// Checks the closed material contract. The deriver must additionally re-read
 /// these bytes and links from the immutable final image, compare full RPM rows,
 /// and bind that image to its current daemon; JSON alone is never evidence.
 pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -> Result<()> {
@@ -497,9 +525,10 @@ fn validate_systemd_links(
     Ok(())
 }
 
-/// Exact executable inputs whose resolved bytes the guest records.
+/// Exact image executables whose resolved bytes the guest records. The executor
+/// itself is bound by `driver_sha256`; it runs on the image's own C library.
 pub fn native_tools(plan: &NativePlan) -> BTreeSet<&'static str> {
-    let mut tools = BTreeSet::from(["/usr/bin/python3", "/usr/bin/rpm"]);
+    let mut tools = BTreeSet::from(["/usr/bin/rpm"]);
     for step in &plan.definition.steps {
         match step {
             NativeStep::GlibSchemas => {

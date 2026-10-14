@@ -24,8 +24,9 @@ steps:
               - {name: secure_boot, passed: false, required_for_session: true}
               - {name: system_services, passed: true}
               - {name: user_services, passed: true}
-              - {name: niri_configuration, passed: true}
-              - {name: noctalia_configuration, passed: true}
+              # One check per managed home file that declares one (home-files.toml).
+              - {name: "home_file:.config/niri/config.kdl", passed: true}
+              - {name: "home_file:.config/noctalia/config.toml", passed: true}
               - {name: login_keyring, passed: true}
               - {name: desktop_portal_response, passed: true}
               - {name: compositor, passed: true}

@@ -1,5 +1,18 @@
 # Verified status
 
+## Managed home files (2026-10-14)
+
+The niri- and Noctalia-specific home review is replaced by the data-driven
+[managed home files](HOME.md): `usr/share/kedra/home-files.toml` and
+`sysroot home status|capture|update`. The Noctalia field projection and version
+allow-list, the niri review store and IPC client, the home SQLite state and the
+qemu-arm64 niri artifact record (`home-artifacts.json`) are gone, so earlier
+sections about them describe retired code. Locally, `e2e_home` and the container
+case `native::home_files_update` pass on the working tree (worklog
+HOME-FILES-01); exact-head results are recorded there. Killed-process recovery
+of an update and the native-derivation skeleton seeding are not qualified. Not
+merged, not released, not installed.
+
 ## Local testing, sign-off and installer releases (2026-10-08)
 
 The owner moved testing out of Actions. `check.yml` and the eight `test-*.yml`

@@ -34,6 +34,10 @@ chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper /usr/libexec/kedra-sessi
 glib-compile-schemas --strict /usr/share/glib-2.0/schemas
 mkdir -p /etc/skel
 cp -a /usr/share/sysroot/home/default/. /etc/skel/
+rm -rf /etc/skel/.local/state/kedra/home/applied
+install -d -m 0700 /etc/skel/.local/state/kedra /etc/skel/.local/state/kedra/home \
+    /etc/skel/.local/state/kedra/home/applied
+cp -a /usr/share/sysroot/home/default/. /etc/skel/.local/state/kedra/home/applied/
 niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl
 NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \
     NOCTALIA_STATE_HOME=/tmp/kedra-noctalia-validation noctalia config validate

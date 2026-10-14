@@ -1,82 +1,63 @@
 ---
 name: kedra-home
-description: Maintain writable home review, selected publication, local-only policy, native activation and recovery.
+description: Maintain managed home files - the data-driven list, three-way update, capture into the checkout, local edits and privacy.
 ---
 
-# Writable home
+# Managed home files
 
-Read usr/src/kedra/docs/HOME-REVIEW.md, usr/src/kedra/docs/TEXT-REVIEW.md, usr/src/kedra/docs/ARCHITECTURE.md and references/state-model.md. Native Noctalia safe fields and explicitly adopted niri text paths are supported; wider arbitrary groups are not. Check usr/src/kedra/docs/STATUS.md for actual qualification rather than assuming all failure cases pass.
+Read usr/src/kedra/docs/HOME.md, usr/src/kedra/docs/ARCHITECTURE.md ("Writable
+home") and references/state-model.md. Check usr/src/kedra/docs/STATUS.md for what
+actually passed.
 
-Keep accepted baseline B, live L, next baseline N, selected S, local policy I, published receipts P and recovery J independent. Later app writes never mutate selected content. Publication does not accept a new installed baseline. Preserve private source ancestry and host/shared path provenance.
+The image lists managed files in `usr/share/kedra/home-files.toml` (schema1):
+`path` plus optional `check` and `reload` argv with an absolute program and a
+`{file}` placeholder. `sysroot home` (crates/sysroot/home.rs, home/) knows no
+application. Never add app-specific Rust (version allow-lists, IPC clients,
+process-tree or service-unit checks, field projections); put behavior in the data
+file or in the application's own CLI. `sysroot doctor` runs the same checks on
+live files as `home_file:<path>`.
 
-Capture only adopted safe paths/projections. Full live text must not become Git objects: Git 2.55 supports diff --no-index against stdin with exits 0/1. Only approved selected content crosses into source. Do not reset the user's source index or expose private review ancestry, credentials, transcripts, caches or vault data.
+`update` merges with `git merge-file -p --diff3` over B (last applied baseline,
+`$XDG_STATE_HOME/kedra/home/applied/`), L (live) and N (installed baseline). Check
+the candidate beside the live file (`replace_file::Directory::validate_bytes`),
+replace atomically (`prepare`/`publish`/`finish`, keeps mode/group/label, refuses
+links), run each distinct reload once, then record N. A conflict writes
+`<file>.kedra-new` and `pending/<path>`; deleting the conflict file resolves it.
+Never write conflict markers into a live file, never overwrite a `.kedra-new` an
+update did not write, never record N before check and reload succeed. New
+accounts get B from `/etc/skel/.local/state/kedra/home/applied/` (assemble.sh,
+lab overlay-apply.sh); without B a differing file becomes a conflict, not an
+adoption.
 
-Compute candidates away from live files. Never write conflict markers. Validate and coordinate native writers, recheck reviewed content/metadata, journal changes, then reload/start and verify before clearing pending recovery. Failed or partial apply never advances baseline. Unknown/corrupt records refuse, not initialize over existing state.
+`capture` writes one live file to the checkout's source path (target overlay copy
+if the checkout has one, else `etc/skel/`) and never stages or commits; the owner
+picks lines with `git add -p`. Only declared files are read. Diffs show the
+owner's live content: review before staging, since staged text can become a
+public Git object. No symlinked or whole-home capture, no SQLite review store.
 
-Niri 26.04 relative includes use the main file's parent; preserve that validation context. IPC LoadConfigFile may change runtime path, so argv/environment are not active-file proof. Subscribe before reload, consume the initial prior ConfigLoaded state, request reload and require a new event. Acknowledgement alone only queues asynchronous work. Failure retains recovery. Native Actions 34237287511 at 5e238c7 covered relative includes and real killed-CLI recovery; signed A/B/A coverage is recorded in STATUS.
+Facts behind the shipped entries (2026-10-14, Fedora44 qemu-arm64 stable
+c36c10c: niri-26.04-1, noctalia-5.2.1-1, git-2.56.0):
+- `noctalia config validate [path]` validates one file when given a file; with no
+  path it merges every `*.toml` in the config dir plus state overrides. The shell
+  loads every `*.toml` there, so candidates and `.kedra-new` must not end in
+  `.toml`. Unknown enum values are warnings (exit0), not failures.
+- niri resolves relative includes against the config file's directory, so check
+  candidates in the live directory. niri reloads its config itself; no reload argv.
+- Noctalia GUI overrides in `~/.local/state/noctalia/settings.toml` win over
+  `config.toml` and are not managed.
+Source: `noctalia config validate --help` and `niri validate` runs in that image,
+crates/sysroot/tests/e2e_home.rs, tests/container/home_files_tests.rs.
 
-Noctalia 5.0.1 writes GUI overrides separately from curated TOML. Project only the supported safe fields, retain unknown/private data only in the live native file, and coordinate service stop/readback/restart. Keep-current must validate the writer before clearing recovery. Actual process-kill coverage does not establish power-loss/full-disk guarantees.
+Test with the real CLI only: `cargo test -p sysroot --test e2e_home` (generated
+image root via `--root`, real Git) and the container case
+`native::home_files_update` (nested session: niri loads the merged file, Noctalia
+restarts, check refusal, conflict and resolution). `kedra-lab sync` stages the
+working tree as a `--root` image and runs the same update. Kill-at-publication
+recovery is not qualified: an interrupted update can leave a private
+`.sysroot-activation-<token>` directory holding the previous content.
 
-Use real CLI/Git and desktop/home-transition E2E. Include selected/local/later edits, deletes, ambiguous upstream context, symlink/hardlink refusal, metadata, source drift and rollback. No immutable-home symlinks, blanket rsync, source scanners or synthetic model tests.
-
-Noctalia 5.2.1 qualification (2026-10-06): exact ARM candidate f3f61f5a carries
-noctalia-5.2.1-1.fc44.aarch64 and prints exactly `noctalia v5.2.1`. Native config
-validation and full export retain the three approved field types. The new exact
-allowlist entry passes the full13/13 container suite1791294686-58725 with actual
-Noctalia selection/discard/recovery, niri privacy/recovery and no cleanup failures.
-Persisted APP_VERSION remains5.0.1; unknown outputs still refuse. This qualifies
-the existing adapter, not Noctalia artifact production or a production release.
-Source: home/linux.rs, core/noctalia.rs and worklog PR39 entry.
-
-Niri artifact integration (2026-10-06): qemu-arm64 ordinary composition imports a
-public single-file source object using the engine's canonical tree encoder and
-verified admission/readback. Its root-owned0644 home-artifacts.json is at most
-4096 bytes and is checked against the already trusted ordinary baseline without
-opening a desktop build store. ENOENT alone selects legacy loading; malformed,
-linked, unsupported or mismatched present records refuse. Keep schema1 home
-records/journals and native activation domains unchanged. Actual composition/GC,
-installed-loader refusals and retained old CLI readback pass locally; native home
-reload/killed-CLI recovery passes on the composed fixture. Signed A/B/A remains a
-separate exact-run gate. Source: home_artifact.rs, engine store/tree.rs,
-tests/e2e_system.rs, tests/container/home_artifact_tests.rs and worklog PR39 entry.
-
-Qualified 2026-09-30, Fedora 44 `noctalia-5.2.0-1.fc44`: native output is exactly
-`noctalia v5.2.0`. Shipped TOML passes native validation; the full export retains
-`theme.mode`, `shell.button_borders` and `shell.input_borders` with the same types.
-The real home-review cycle passes (`1790750757-17043`), as does the full ARM
-container suite (`1790751520-28479`, 13/13). A live export with 29 sections,
-including weather/plugins, exposes only the three approved keys through public
-home status. Add only this exact runtime to both native-output matching and the
-projection allowlist. Keep persisted `APP_VERSION = 5.0.1`, so previously captured
-records and image rollback remain readable. Unknown runtime outputs still refuse
-before capture. See worklog WL-20260930-01 and docs/HOME-REVIEW.md; raw exports are
-private fixture evidence and do not belong in Git.
-
-Qualified native home workflow2026-10-07, Fedora44
-`noctalia-5.2.1-1.fc44.aarch64`: native output exactly `noctalia v5.2.1`,
-curated validation and safe three-field types remain compatible. The real
-home-review cycle1791358601-5762 passes in21.96s with no cleanup failure, including
-writer coordination, discard and killed-CLI recovery. Add only this exact runtime
-to native matching and the projection allowlist; retain persisted APP_VERSION5.0.1
-and unknown-version refusal. Both earlier container and signed home VM failures
-37517864833/37517864796 originate at this gate. VM A/B/A completion is separate.
-Source: worklog WL-20261007-HOMEQUAL-01/02, docs/HOME-REVIEW.md, Linux
-home/live and core/noctalia.rs. Raw effective exports must remain private/transient.
-
-Hosted follow-up atd5e34e1 (2026-10-07): full native desktop12/12 and ARM13/13
-run37588829710 pass with exact5.2.1 output and no cleanup failures. Signed
-UEFI Secure Boot A/B/A home run37588829765 passes stage-B, accept-B/rollback-staged
-and rollback-A-home plus independent-group/baseline/recovery assessment. Preserve
-persisted5.0.1 identity; production publication and unrelated installer gates are
-separate. Sources: worklog HOMEQUAL-04 and Actions37588829710/37588829765.
-
-Main integration (2026-10-07): PR38 introduces SourceFile/source_identity and
-Store::import_resources. The niri helper delegates to that admission and shared
-canonical tree encoder, preserving zero references, non-executable content and
-verified readback. Generic resource32MiB limits do not change niri128KiB limits.
-Use a pre-artifact CLI that supports the selected package format for source
-preview: b60 refuses the authoritative .kedra source after packages.list retirement.
-The signed home fixture pins pre-artifact main46b4; do not treat old schema1 state
-readback as proof that an older CLI understands a newer source language.
-Source: resources/store/tree.rs, source_packages.rs and the public source-plan
-refusal recorded in WL-20261007-MAINONLY-01. New signed execution is still required.
+History: until 2026-10-14 home management was a Noctalia three-field projection
+with a version allow-list, a niri line-review store with IPC reload proof and a
+qemu-arm64 niri artifact record (`home-artifacts.json`). The owner replaced it
+with this data-driven model; no installed review state needed migration. See
+worklog WL-20261014-HOME-FILES-01.

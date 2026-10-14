@@ -204,29 +204,6 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
     plan_committed(repo, host, revision, "committed HEAD only")
 }
 
-/// Read an exact retained source commit without moving HEAD or the index.
-#[cfg(target_os = "linux")]
-pub(crate) fn plan_revision(repo: &Path, host: &str, revision: &str) -> Result<Plan, Error> {
-    if !identifier(host)
-        || !matches!(revision.len(), 40 | 64)
-        || !revision
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-    {
-        return Err(invalid(
-            "an explicit target and full lowercase commit ID are required",
-        ));
-    }
-    let resolved = git(
-        repo,
-        &["rev-parse", "--verify", &format!("{revision}^{{commit}}")],
-    )?;
-    if text(&resolved)?.trim() != revision {
-        return Err(invalid("source revision must identify the commit itself"));
-    }
-    plan_committed(repo, host, revision.into(), "exact committed revision only")
-}
-
 /// Committed input paths of one target, in the layout of one commit.
 /// See `sysroot_core::layout`; retained legacy commits keep their old meaning.
 struct Inputs {

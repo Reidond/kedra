@@ -5,6 +5,7 @@
 
 pub mod language;
 mod recipes;
+pub mod rpm_lock;
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};

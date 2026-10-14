@@ -157,7 +157,14 @@ def inspect_stored(spec, local, digest, work, label):
         identity, inputs = m.verify(config, identity_bytes, inputs_bytes, source_bytes, spec['id'])
         rpm_bytes = copied_file(container, '/usr/share/sysroot/package-material.txt', m.LIMIT)
         m.require(m.packages(rpm_bytes, spec['architecture']) == inputs['packages'],
-                  'Actual candidate RPM inventory differs from preflight material')
+                  'Installed RPM inventory differs from the RPM lock')
+        if 'rpm-lock' in inputs['artifacts']:
+            lock_bytes = copied_file(container, '/usr/share/sysroot/rpm-lock.json', m.LOCK_LIMIT)
+            lock = m.document(lock_bytes)
+            m.require(m.canonical(lock) == lock_bytes and m.lock_pins_sha256(lock) == inputs['artifacts']['rpm-lock']
+                      and lock['foundation']['packages'] == inputs['packages'],
+                      'Installed RPM lock differs from the signed resolved inputs')
+            (work / (label + '-rpm-lock.json')).write_bytes(lock_bytes)
         native = None
         if m.NATIVE_RECIPE in inputs['recipes']:
             m.require(spec['id'] == 'qemu-arm64', 'Native release composition is ARM-only')
@@ -203,6 +210,7 @@ def prepare(spec, args):
     source = current_source()
     context = ROOT / 'output' / (spec['id'] + '-context')
     derivative = ROOT / 'output/release-context'
+    binaries = ROOT / 'output/release-binaries'
     plan = m.document(m.read(args.work / 'source-plan.json', 1024**2))
     m.require(plan['source_revision'] == source, 'Source plan differs from accepted main')
     m.require(plan['target']['id'] == spec['id'] and plan['target']['architecture'] == spec['architecture']
@@ -218,55 +226,23 @@ def prepare(spec, args):
     previous = verified_image(spec, previous_digest, args.work, 'previous', policy) if previous_digest else {
         'digest': None, 'identity': None, 'inputs': None}
     base = resolve_base(spec, args.work)
-    resolution = args.work / 'resolution'
-    resolution.mkdir()
-    log = run('sudo', 'podman', 'run', '--rm', '--pull=always', '--volume', str(context) + ':/context:ro',
-              '--volume', str(resolution.resolve()) + ':/resolution', '--entrypoint', '/bin/bash', base, '-euc',
-              'tar -xf /context/payload.tar -C /; tar -xf /context/agents.tar -C /; '
-              'tar -xf /context/bitwarden.tar -C /; mkdir -p /usr/libexec/sysroot; '
-              'cp /context/sysroot /usr/bin/sysroot; cp /context/sysroot-helper /usr/libexec/sysroot/helper; '
-              '/bin/bash /context/assemble.sh --resolve-packages', timeout=2400)
-    (resolution / 'native.log').write_bytes(log.stdout + log.stderr)
-    run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', resolution / 'package-material.txt')
-    catalog = None
-    if spec['id'] == 'qemu-arm64':
-        compiler = args.work / 'catalog-resolution'
-        compiler.mkdir()
-        script = ROOT / (IMAGE + 'catalog/builder.sh')
-        pins_path = ROOT / 'output/release-binaries/catalog-pins.json'
-        pins = m.document(m.read(pins_path))
-        if pins.get('schema_version') == 2:
-            m.require(pins['builders'] == plan['package_frontend']['builders'] and pins['builders'],
-                      'Compiler roles differ from committed source')
-            observed = {}
-            for index, (role, requests) in enumerate(sorted(pins['builders'].items())):
-                destination = compiler / str(index)
-                destination.mkdir()
-                write(destination / 'catalog-builder-requests.json', {'schema_version': 1, 'packages': requests,
-                      'foundation_packages': plan['packages'], 'remove': plan['remove_packages']})
-                log = run('sudo', 'podman', 'run', '--rm', '--pull=always', '--platform=linux/arm64',
-                          '--volume', str(script.resolve()) + ':/tmp/kedra-catalog-builder.sh:ro',
-                          '--volume', str(destination.resolve()) + ':/resolution', '--entrypoint', '/bin/bash',
-                          base, '/tmp/kedra-catalog-builder.sh', '--resolve', timeout=2400)
-                (destination / 'resolver.log').write_bytes(log.stdout + log.stderr)
-                run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', destination / 'catalog-builder-rpms.txt')
-                observed[role] = m.packages(m.read(destination / 'catalog-builder-rpms.txt'), 'aarch64')
-            write(compiler / 'catalog-builder-rpms.json', observed)
-            catalog = {'pins': pins_path, 'builder_rpms': compiler / 'catalog-builder-rpms.json'}
-        else:
-            log = run('sudo', 'podman', 'run', '--rm', '--pull=always', '--platform=linux/arm64',
-                      '--volume', str(script.resolve()) + ':/tmp/kedra-catalog-builder.sh:ro',
-                      '--volume', str(compiler.resolve()) + ':/resolution', '--entrypoint', '/bin/bash',
-                      base, '/tmp/kedra-catalog-builder.sh', '--resolve', timeout=2400)
-            (compiler / 'resolver.log').write_bytes(log.stdout + log.stderr)
-            run('sudo', 'chown', f'{os.getuid()}:{os.getgid()}', compiler / 'catalog-builder-rpms.txt')
-            catalog = {'pins': pins_path, 'builder_rpms': compiler / 'catalog-builder-rpms.txt'}
-    inputs = m.resolved_inputs(ROOT, plan, base, context, ROOT / 'output/release-binaries',
-                               m.read(resolution / 'package-material.txt'), spec['id'], catalog=catalog)
+    # The run's only package resolution. Every later build installs offline from
+    # this lock's fixed-output store objects, so a mirror push mid-run cannot
+    # make the build differ from what was recorded here.
+    lock_path = args.work / 'rpm-lock.json'
+    run(binaries / 'sysroot', 'catalog', 'lock', 'resolve', '--input-root', ROOT / (IMAGE + 'packages'),
+        '--entry', 'catalog.kedra', '--lock', 'packages.lock.json', '--target', spec['id'],
+        '--target-policy', ROOT / (IMAGE + 'package-policy.json'), '--base', base, '--store', args.store,
+        '--log-dir', args.work / 'rpm-resolution', '--output', lock_path, timeout=3600)
+    catalog = {'pins': binaries / 'catalog-pins.json'} if spec['id'] == 'qemu-arm64' else None
+    inputs = m.resolved_inputs(ROOT, plan, base, context, binaries, m.read(lock_path, m.LOCK_LIMIT),
+                               spec['id'], catalog=catalog)
     material_bytes = m.canonical(inputs)
     (args.work / 'resolved-inputs.json').write_bytes(material_bytes)
     write(args.work / 'preflight-bootc-compatibility.json', m.bootc_compatibility(inputs['packages'], spec['architecture']))
     m.require_bootc(inputs['packages'], spec['architecture'])
+    # Source and lock pins are both in the resolved inputs: equal inputs mean the
+    # stable image was built from this source and these exact RPMs.
     changed = previous['inputs'] != inputs
     write(args.work / 'comparison.json', {'decision': 'changed' if changed else 'unchanged',
           'reason': 'verified stable inputs differ or are absent' if changed else 'verified stable resolved inputs match',
@@ -275,6 +251,8 @@ def prepare(spec, args):
     output('changed', str(changed).lower())
     if not changed:
         return
+    run(binaries / 'sysroot', 'catalog', 'lock', 'repo', '--store', args.store, '--lock', lock_path,
+        '--foundation', '--output', context / 'rpms', timeout=1800)
     identity = {'schema_version': 2, 'project': 'Kedra', 'target': spec['id'], 'architecture': spec['architecture'],
                 'fedora_release': 44, 'repository': spec['repository'], 'channel': 'stable', 'source_revision': source,
                 'source_manifest_sha256': m.sha(source_bytes), 'resolved_inputs_sha256': m.sha(material_bytes),
@@ -356,9 +334,12 @@ if __name__ == '__main__':
     parser.add_argument('operation', choices=('resolve-base', 'prepare', 'inspect-candidate', 'publish'))
     parser.add_argument('--target', choices=sorted(m.TARGETS), required=True)
     parser.add_argument('--work', type=Path, required=True)
+    parser.add_argument('--store', type=Path, help='Private engine store for the RPM lock objects (prepare)')
     args = parser.parse_args()
     spec = target(args.target)
     args.work.mkdir(parents=True, exist_ok=True)
+    if args.operation == 'prepare' and args.store is None:
+        parser.error('prepare needs --store')
     if args.operation == 'resolve-base':
         print(resolve_base(spec, args.work))
     else:

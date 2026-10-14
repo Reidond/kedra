@@ -31,8 +31,10 @@ NATIVE_RECIPE = IMAGE + 'release/native-steps.json'
 ENGINE_PLATFORM = 'aarch64-linux'
 OCI_PLATFORM = 'linux/arm64'
 PROGRAMS = ('sysroot', 'sysroot-helper', 'kedra-lab')
-CONTEXT_FILES = frozenset(('Containerfile', 'assemble.sh', 'sysroot', 'sysroot-helper',
-                           'payload.tar', 'agents.tar', 'bitwarden.tar'))
+CONTEXT_FILES = frozenset(('Containerfile', 'assemble.sh', 'install-rpms.sh', 'sysroot', 'sysroot-helper',
+                           'payload.tar', 'agents.tar', 'bitwarden.tar', 'rpms'))
+CONTEXT_RECIPES = {'Containerfile': IMAGE + 'Containerfile', 'assemble.sh': IMAGE + 'assemble.sh',
+                   'install-rpms.sh': IMAGE + 'catalog/install-rpms.sh'}
 MAX_JSON = 64 * 1024**2
 MAX_FILE = 8 * 1024**3
 INSPECT_TIMEOUT = 300
@@ -508,7 +510,7 @@ class Runner:
         self.check_source_manifest(source)
         m.require(source == self.source, 'Image source differs from the current committed source plan')
         rows = m.packages(m.read(ordinary(directory / 'package-material.txt')), 'aarch64')
-        m.require(rows == self.inputs['packages'], 'Actual image RPM material differs from preflight')
+        m.require(rows == self.inputs['packages'], 'Image RPM material differs from the RPM lock')
         return directory, m.sha(source_bytes), m.sha(package_bytes(rows))
 
     def retain(self, image):
@@ -527,10 +529,11 @@ class Runner:
         context = ordinary(self.args.context, directory=True)
         m.require({path.name for path in context.iterdir()} == CONTEXT_FILES, 'Unexpected foundation context entries')
         snapshot = private_directory(self.output / 'context', create=True)
-        for name in sorted(CONTEXT_FILES - {'payload.tar'}):
-            expected = (self.inputs['recipes'][IMAGE + name] if name in ('Containerfile', 'assemble.sh')
+        for name in sorted(CONTEXT_FILES - {'payload.tar', 'rpms'}):
+            expected = (self.inputs['recipes'][CONTEXT_RECIPES[name]] if name in CONTEXT_RECIPES
                         else self.inputs['artifacts'].get(name))
             copy_pinned(context / name, snapshot / name, expected, 0o500 if name in PROGRAMS else 0o600)
+        self.snapshot_rpms(context / 'rpms', snapshot / 'rpms')
         self.run('source-archive', [self.programs['sysroot'], 'source', 'archive', '--repo', self.repo,
             '--host', 'qemu-arm64', '--output', snapshot / 'payload.tar'], BUILD_TIMEOUT)
         m.require(hash_file(snapshot / 'payload.tar') == hash_file(context / 'payload.tar'),
@@ -559,6 +562,25 @@ class Runner:
                   'retention_receipt_sha256': retention_hash}
         write_json(self.output / 'foundation.json', result)
         return result
+
+    def snapshot_rpms(self, source, destination):
+        """Copy the foundation's offline repository, bound to the preflight RPM lock."""
+        source = ordinary(source, directory=True)
+        m.require({path.name for path in source.iterdir()} == {'lock.json', 'packages'},
+                  'Unexpected offline RPM repository entries')
+        lock, data = read_json(source / 'lock.json', limit=m.LOCK_LIMIT)
+        m.require(m.canonical(lock) == data and m.lock_pins_sha256(lock) == self.inputs['artifacts'].get('rpm-lock')
+                  and lock['foundation']['packages'] == self.inputs['packages'],
+                  'Offline RPM repository lock differs from preflight')
+        packages = ordinary(source / 'packages', directory=True)
+        files = lock['foundation']['install']
+        m.require(sorted(path.name for path in packages.iterdir()) == files,
+                  'Offline RPM repository files differ from the lock')
+        private_directory(destination, create=True)
+        write_new(destination / 'lock.json', data)
+        private_directory(destination / 'packages', create=True)
+        for name in files:
+            copy_pinned(packages / name, destination / 'packages' / name, lock['rpms'][name]['sha256'])
 
     def contribution(self, foundation):
         if self.args.definition is None:

@@ -10,8 +10,12 @@ ADD payload.tar /
 ADD agents.tar /
 ADD bitwarden.tar /
 COPY assemble.sh /tmp/kedra-assemble.sh
-RUN case "$KEDRA_ASSEMBLY_MODE" in \
+COPY install-rpms.sh /tmp/kedra-install-rpms.sh
+# rpms/ is the offline repository of this run's RPM lock: bound for this step
+# only, so no RPM file enters an image layer.
+RUN --mount=type=bind,source=rpms,target=/run/kedra-rpms,ro \
+    case "$KEDRA_ASSEMBLY_MODE" in \
       complete) /bin/bash /tmp/kedra-assemble.sh ;; \
       foundation) /bin/bash /tmp/kedra-assemble.sh --foundation ;; \
       *) echo "Unsupported Kedra assembly mode" >&2; exit 1 ;; \
-    esac && rm /tmp/kedra-assemble.sh
+    esac && rm /tmp/kedra-assemble.sh /tmp/kedra-install-rpms.sh

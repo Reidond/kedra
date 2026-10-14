@@ -10,6 +10,8 @@ mod catalog;
 #[cfg(unix)]
 mod catalog_language;
 #[cfg(unix)]
+mod catalog_lock;
+#[cfg(unix)]
 mod catalog_process;
 mod deployment;
 mod doctor;

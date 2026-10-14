@@ -70,6 +70,11 @@ enum Command {
     },
     /// Author installed configuration and receipts from already verified packages.
     Contribute(Contribution),
+    /// Per-run Fedora RPM lock: resolve once, fetch, and materialize offline repositories.
+    Lock {
+        #[command(subcommand)]
+        command: crate::catalog_lock::Command,
+    },
 }
 
 #[derive(Args)]
@@ -354,6 +359,7 @@ pub fn run(options: Options) -> Result<ExitCode> {
             }))
         }
         Command::Contribute(options) => contribute(options),
+        Command::Lock { command } => crate::catalog_lock::run(command),
     }
 }
 

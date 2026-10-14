@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 LIMIT = 4 * 1024**2
+LOCK_LIMIT = 8 * 1024**2
 LABEL = 'org.kedra.image.identity'
 IMAGE = 'usr/src/kedra/image/'
 NATIVE_RECIPE = IMAGE + 'release/native-steps.json'
@@ -116,12 +117,78 @@ def language_material(root, source, pins, pins_data, binaries, target):
     return sorted(inputs)
 
 
-def resolved_inputs(root, source, base, context, binaries, package_material, target, catalog=None):
+RPM_LOCK_FIELDS = {'schema_version', 'format', 'target', 'architecture', 'fedora_release', 'base',
+                   'repositories', 'intent_sha256', 'rpms', 'foundation', 'builders'}
+RPM_FIELDS = {'name', 'epoch', 'version', 'release', 'arch', 'size', 'sha256', 'header_sha256',
+              'payload_sha256', 'source_rpm', 'repository', 'durable_url', 'mirror_url', 'object'}
+ROLE_FIELDS = {'requests', 'remove', 'install', 'packages'}
+
+
+def lock_pins_sha256(lock):
+    """Identity of what an RPM lock installs: the lock without per-run mirror URLs."""
+    pins = dict(lock, rpms={name: {key: value for key, value in rpm.items() if key != 'mirror_url'}
+                            for name, rpm in lock['rpms'].items()})
+    return sha(canonical(pins))
+
+
+def lock_role(lock, role, architecture):
+    require(isinstance(role, dict) and set(role) == ROLE_FIELDS
+            and all(isinstance(role[key], list) and role[key] == sorted(set(role[key]))
+                    for key in ('requests', 'remove', 'install')), 'Invalid RPM lock role')
+    rows = role['packages']
+    require(isinstance(rows, list) and rows and all(isinstance(row, list) for row in rows)
+            and packages(('\n'.join('\t'.join(row) for row in rows) + '\n').encode(), architecture) == rows,
+            'Noncanonical RPM lock inventory')
+    installed = {tuple(row) for row in rows}
+    for name in role['install']:
+        rpm = lock['rpms'].get(name)
+        require(isinstance(rpm, dict) and tuple(rpm[key] for key in (
+            'name', 'epoch', 'version', 'release', 'arch', 'header_sha256', 'payload_sha256')) in installed,
+            'RPM lock installs a file outside its inventory: ' + str(name))
+    return rows
+
+
+def rpm_lock(data, source, base, target):
+    """Check a run's RPM lock against the committed source it was resolved for."""
+    spec = target_spec(target)
+    lock = document(data)
+    require(isinstance(lock, dict) and set(lock) == RPM_LOCK_FIELDS and canonical(lock) == data,
+            'Unsupported or noncanonical RPM lock')
+    frontend = source.get('package_frontend')
+    require(isinstance(frontend, dict) and lock['schema_version'] == 1 and lock['format'] == 'kedra-rpm-lock'
+            and lock['fedora_release'] == 44 and lock['target'] == target
+            and lock['architecture'] == spec['architecture'] and lock['base'] == base
+            and lock['intent_sha256'] == frontend.get('intent_sha256'),
+            'RPM lock belongs to another target, base or package intent')
+    rpms = lock['rpms']
+    require(isinstance(rpms, dict) and all(
+        isinstance(rpm, dict) and set(rpm) == RPM_FIELDS and isinstance(rpm['size'], int) and rpm['size'] > 0
+        and re.fullmatch('[a-f0-9]{64}', rpm['sha256'])
+        and name == f"{rpm['name']}-{rpm['version']}-{rpm['release']}.{rpm['arch']}.rpm"
+        for name, rpm in rpms.items()), 'Invalid RPM lock entry')
+    foundation, builders = lock['foundation'], lock['builders']
+    require(isinstance(builders, dict) and isinstance(foundation, dict)
+            and all(isinstance(value, dict) for value in builders.values())
+            and foundation.get('requests') == sorted(set(source['packages']))
+            and foundation.get('remove') == sorted(set(source['remove_packages']))
+            and {role: value.get('requests') for role, value in builders.items()} == frontend.get('builders'),
+            'RPM lock requests differ from the committed package selection')
+    lock_role(lock, foundation, spec['architecture'])
+    for role in builders.values():
+        lock_role(lock, role, spec['architecture'])
+    used = set(foundation['install']).union(*(role['install'] for role in builders.values()))
+    require(used == set(rpms), 'RPM lock lists files no role installs')
+    return lock
+
+
+def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target, catalog=None):
     """Record deterministic build inputs for a caller's frozen committed source.
 
     Production establishes accepted-main authority before calling this function;
     branch fixtures use their own frozen source. This function grants neither
     publication nor installed trust and performs no package or registry operation.
+    Every RPM comes from the run's lock: its foundation inventory is the image's
+    package material and its pins hash is the `rpm-lock` artifact.
     """
     spec = target_spec(target)
     require(source.get('schema_version') == 1 and source.get('target', {}).get('id') == target
@@ -133,9 +200,10 @@ def resolved_inputs(root, source, base, context, binaries, package_material, tar
             'Source plan differs from the closed release target')
     require(re.fullmatch(r'quay\.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}', base),
             'Unreviewed Fedora base')
+    lock = rpm_lock(rpm_lock_data, source, base, target)
     recipes = [IMAGE + name for name in (
-        'Containerfile', 'assemble.sh', 'release/Containerfile', 'release/prepare-trust.py',
-        'release/refresh.py', 'release/material.py', 'release/targets.json',
+        'Containerfile', 'assemble.sh', 'catalog/install-rpms.sh', 'release/Containerfile',
+        'release/prepare-trust.py', 'release/refresh.py', 'release/material.py', 'release/targets.json',
         'release/compatibility.json', 'agents/prepare.sh', 'agents/package.py',
         'agents/fetch.py', 'agents/pins.py', 'agents/inputs.json', 'bitwarden/prepare.py',
         'bitwarden/inputs.json')]
@@ -147,18 +215,14 @@ def resolved_inputs(root, source, base, context, binaries, package_material, tar
         recipes.extend((IMAGE + 'release/compose.py', NATIVE_RECIPE))
         artifacts['kedra-lab'] = binaries / 'kedra-lab'
     if catalog is not None:
-        require(target == 'qemu-arm64' and isinstance(catalog, dict)
-                and set(catalog) == {'pins', 'builder_rpms'}, 'Unsupported catalog material inputs')
+        require(target == 'qemu-arm64' and isinstance(catalog, dict) and set(catalog) == {'pins'},
+                'Unsupported catalog material inputs')
         pins_data = read(catalog['pins'])
         pins = document(pins_data)
         require(isinstance(pins, dict), 'Invalid catalog material')
-        if pins.get('schema_version') == 2:
-            expected_recipes = language_material(root, source, pins, pins_data, binaries, target)
-            expected_recipes.append(IMAGE + 'catalog/prepare-sources.py')
-        else:
-            require('package_frontend' not in source, 'New-format source cannot use legacy catalog material')
-            expected_recipes = legacy_catalog_material(root, pins)
-        recipes.extend((*expected_recipes, IMAGE + 'catalog/Containerfile', IMAGE + 'catalog/builder.sh'))
+        recipes.extend((*language_material(root, source, pins, pins_data, binaries, target),
+                        IMAGE + 'catalog/prepare-sources.py', IMAGE + 'catalog/Containerfile',
+                        IMAGE + 'catalog/builder.sh'))
         artifacts['catalog-pins'] = catalog['pins']
         artifacts['catalog-author'] = binaries / 'sysroot'
     recipe_hashes = {}
@@ -173,51 +237,17 @@ def resolved_inputs(root, source, base, context, binaries, package_material, tar
                 'Build artifact must be a single-link regular file: ' + name)
         with path.open('rb') as stream:
             artifact_hashes[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+    artifact_hashes['rpm-lock'] = lock_pins_sha256(lock)
     if catalog is not None:
-        if pins.get('schema_version') == 2:
-            builder_rows = document(read(catalog['builder_rpms']))
-            require(isinstance(builder_rows, dict) and set(builder_rows) == set(pins['builders']),
-                    'Compiler role material differs from selected intent')
-            for rows in builder_rows.values():
-                require(isinstance(rows, list) and rows and packages(('\n'.join('\t'.join(row) for row in rows) + '\n').encode(), 'aarch64') == rows,
-                        'Noncanonical compiler role RPM material')
-        else:
-            builder_rows = packages(read(catalog['builder_rpms']), 'aarch64')
+        require(set(lock['builders']) == set(pins['builders']), 'Compiler roles differ from the RPM lock')
+        builder_rows = {role: value['packages'] for role, value in lock['builders'].items()}
         artifact_hashes['catalog-builder-rpms'] = sha(canonical(builder_rows))
         require(artifact_hashes['catalog-author'] == artifact_hashes['sysroot'], 'Catalog author differs from sysroot artifact')
-    rows = packages(package_material, spec['architecture'])
+    rows = lock['foundation']['packages']
     require_bootc(rows, spec['architecture'])
     return {'schema_version': 1, 'base': base,
             'source': {key: value for key, value in source.items() if key not in ('source_revision', 'input_scope')},
             'recipes': recipe_hashes, 'artifacts': artifact_hashes, 'packages': rows}
-
-
-def legacy_catalog_material(root, pins):
-    require(pins.get('schema_version') == 1 and pins.get('namespace') == 'kedra'
-            and set(pins.get('packages', {})) == {'jq', 'sqlite'},
-            'Unsupported legacy catalog pin inventory')
-    templates = pins.get('templates')
-    require(isinstance(templates, dict) and 0 < len(templates) <= 16
-            and isinstance(pins.get('bindings'), dict) and pins['bindings'],
-            'Missing catalog template or binding inventory')
-    template_root = IMAGE + 'catalog/templates/'
-    for name, destination in templates.items():
-        require(isinstance(name, str) and name.startswith(template_root),
-                'Catalog template is outside the development image tree')
-        relative = name.removeprefix(template_root)
-        require(relative and all(part not in ('', '.', '..') for part in relative.split('/'))
-                and destination == '/' + relative, 'Catalog template destination differs from its path')
-    expected_recipes = ('usr/src/kedra/crates/sysroot-catalog/lib.rs',
-                        'usr/src/kedra/crates/sysroot-catalog/recipes.rs',
-                        'usr/src/kedra/crates/sysroot/catalog.rs', *sorted(templates))
-    if 'legacy_data' in pins:
-        require(pins['legacy_data'] == 'usr/src/kedra/crates/sysroot-catalog/legacy.json',
-                'Unknown legacy catalog data boundary')
-        expected_recipes += (pins['legacy_data'],)
-    require(set(pins.get('recipes', {})) == set(expected_recipes), 'Catalog recipe inventory differs')
-    for name in expected_recipes:
-        require(pins['recipes'][name] == sha(read(root / name)), 'Compiled catalog recipe differs: ' + name)
-    return expected_recipes
 
 
 def verify_native(config, receipt_bytes, inputs, selected=None):

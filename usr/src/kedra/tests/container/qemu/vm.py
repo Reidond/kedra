@@ -710,8 +710,11 @@ def secure_boot_check(directory, state):
             break
         except subprocess.CalledProcessError as error:
             # Exit 3: the boot-time check has not published its result yet.
-            if error.returncode != 3 or time.monotonic() > deadline:
+            if error.returncode != 3:
                 raise
+            if time.monotonic() > deadline:
+                raise ValueError('the guest published no Secure Boot result for this boot; the disk predates '
+                                 'kedra-lab-secure-boot.service or the unit has not run') from None
             time.sleep(2)
     if value.get('passed') is not True:
         raise ValueError('guest Secure Boot check failed: ' + str(value.get('error')))

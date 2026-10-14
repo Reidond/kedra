@@ -1,5 +1,21 @@
 # Verified status
 
+## Local boot-level VM drivers (2026-10-14)
+
+The VM drivers under `usr/src/kedra/tests/vm` no longer require Actions. They share
+one launcher (`tests/common/qemu.py`: OVMF/AAVMF Secure Boot, KVM or TCG, QMP;
+HVF for `kedra-lab vm`) and one guest Secure Boot check
+(`tests/common/secure_boot_check.py`), and each Linux driver requires
+`--disposable-host`, which refuses hosts with bootc, ostree or Kedra state without
+calling bootc. desktop and qemu-arm64 gained `run.py` drivers; the never-executed
+HVF transfer drafts of the ARM release fixture are deleted. On the owner's Mac a
+freshly built aarch64 lab disk boots under HVF through the shared launcher and
+`kedra-lab vm check` passes the shared check. Under TCG in a disposable Ubuntu
+container the same disk reaches firmware → explicit shim entry → GRUB, but its
+userspace did not reach the check (PID 1 froze once; then a `/boot` device
+timeout). The x86_64 KVM drivers and full Linux driver runs are not-run. See
+worklog WL-20261014-VMTESTS-01.
+
 ## Local testing, sign-off and installer releases (2026-10-08)
 
 The owner moved testing out of Actions. `check.yml` and the eight `test-*.yml`

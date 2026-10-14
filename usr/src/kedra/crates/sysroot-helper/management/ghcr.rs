@@ -73,9 +73,6 @@ struct Journal {
     rollback_hold: bool,
     operation: Option<Operation>,
     last_registry_check_at: Option<u64>,
-    // Preserve the old ordering domain without pretending its sequence is a run number.
-    legacy: Option<deployment::Journal>,
-    legacy_rollback: Option<sysroot_core::protocol::SignedDocument>,
     identity_health_error: Option<String>,
 }
 
@@ -363,7 +360,7 @@ fn retain(store: &mut Store, receipt: &Receipt) -> Result<()> {
 fn recorded(store: &Store, digest: &str, trust: &Trust) -> Result<Receipt> {
     let record = store
         .read(&receipt_name(digest)?)?
-        .ok_or("signed image receipt missing; explicit enrollment/migration is required")?;
+        .ok_or("signed image receipt missing; explicit enrollment is required")?;
     let receipt: Receipt = serde_json::from_slice(&record.bytes)?;
     receipt.validate(&trust.scope, now()?)?;
     if receipt.digest != digest || serde_json::to_vec(&receipt)? != record.bytes {
@@ -372,31 +369,6 @@ fn recorded(store: &Store, digest: &str, trust: &Trust) -> Result<Receipt> {
     Ok(receipt)
 }
 
-fn legacy_rollback(
-    store: &Store,
-    digest: &str,
-    trust: &Trust,
-) -> Result<sysroot_core::protocol::SignedDocument> {
-    let mut found = None;
-    for name in store.names_with_prefix("release.")? {
-        let record = store
-            .read(&name)?
-            .ok_or("retained legacy receipt disappeared")?;
-        let document: sysroot_core::protocol::SignedDocument =
-            serde_json::from_slice(&record.bytes)?;
-        let verified = super::verify(&document, trust)?;
-        if name != format!("release.{}", verified.sha256()) {
-            return Err("legacy receipt name differs from signature".into());
-        }
-        if verified.release().image_digest == digest {
-            if found.is_some() {
-                return Err("ambiguous legacy rollback receipts".into());
-            }
-            found = Some(document);
-        }
-    }
-    found.ok_or_else(|| "native legacy rollback slot has no retained authenticated receipt".into())
-}
 fn save(store: &mut Store, revision: u64, journal: &Journal) -> Result<u64> {
     Ok(store
         .compare_exchange(RECORD, Some(revision), &serde_json::to_vec(journal)?)?
@@ -407,7 +379,7 @@ fn load(store: &Store, trust: &Trust) -> Result<(u64, Journal)> {
         .read(RECORD)?
         .ok_or("deployment journal missing; do not reset")?;
     let journal: Journal = serde_json::from_slice(&record.bytes)
-        .map_err(|_| "legacy/incompatible state requires explicit migration; do not reset")?;
+        .map_err(|_| "incompatible image deployment state; do not reset")?;
     if journal.schema_version != 2
         || journal.machine != trust.machine
         || journal.scope != trust.scope
@@ -417,15 +389,6 @@ fn load(store: &Store, trust: &Trust) -> Result<(u64, Journal)> {
         return Err("incompatible image deployment state".into());
     }
     journal.high_water.validate(&trust.scope, now()?)?;
-    if let Some(legacy) = &journal.legacy {
-        legacy.validate(&trust.machine, &trust.scope)?;
-    }
-    if let Some(document) = &journal.legacy_rollback {
-        if journal.legacy.is_none() {
-            return Err("legacy rollback receipt lacks preserved migration state".into());
-        }
-        super::verify(document, trust)?;
-    }
     if let Some(op) = &journal.operation
         && (!deployment::digest_valid(&op.target_digest)
             || !deployment::digest_valid(&op.previous_booted)
@@ -500,82 +463,29 @@ fn response(
     Ok(())
 }
 
-fn check_enrollment_preconditions(
-    trust: &Trust,
-    before: &Host,
-    migrate_legacy: bool,
-    expected_digest: Option<&str>,
-) -> Result<()> {
+fn check_enrollment_preconditions(before: &Host, expected_digest: Option<&str>) -> Result<()> {
     if before.staged.is_some() || before.rollback_queued {
         return Err("enrollment requires no pending deployment or queued rollback".into());
     }
     if expected_digest.is_some_and(|d| d != before.booted.digest) {
         return Err("booted digest differs from explicit enrollment expectation".into());
     }
-    if migrate_legacy && !trust.scope.legacy() {
-        return Err("legacy migration exists only for desktop x86_64".into());
-    }
-    if migrate_legacy && expected_digest.is_none() {
-        return Err(
-            "legacy migration requires the explicitly reviewed booted --expected-digest".into(),
-        );
-    }
     // Store::create refuses any existing entry; refuse before transferring the image
     // or pruning layers that an existing journal's operation still needs.
-    if !migrate_legacy {
-        match std::fs::symlink_metadata(STORE) {
-            Ok(_) => return Err("already enrolled; use update status or check".into()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
-            Err(error) => return Err(error.into()),
-        }
+    match std::fs::symlink_metadata(STORE) {
+        Ok(_) => return Err("already enrolled; use update status or check".into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error.into()),
     }
     Ok(())
 }
-fn migrate_legacy_journal(
-    journal: &mut Journal,
-    booted: &Receipt,
-    before: &Host,
-    trust: &Trust,
-) -> Result<()> {
-    let mut store = Store::open(Path::new(STORE))?;
-    let (revision, legacy) = super::load(&store, trust)?;
-    if legacy
-        .operation
-        .as_ref()
-        .is_some_and(|o| matches!(o.phase, Phase::Intent | Phase::AwaitingReboot))
-    {
-        return Err("legacy operation must be reconciled before migration".into());
-    }
-    journal.rollback_hold = legacy.rollback_hold;
-    if let Some(slot) = &before.rollback {
-        journal.legacy_rollback = Some(legacy_rollback(&store, &slot.digest, trust)?);
-    }
-    // Preserve the original canonical v1 record and every existing release receipt.
-    let original = serde_json::to_vec(&legacy)?;
-    if let Some(backup) = store.read("legacy-deployment-v1")? {
-        if backup.bytes != original {
-            return Err("legacy backup differs; inspect interrupted migration".into());
-        }
-    } else {
-        store.compare_exchange("legacy-deployment-v1", None, &original)?;
-    }
-    journal.legacy = Some(legacy);
-    retain(&mut store, booted)?;
-    save(&mut store, revision, journal)?;
-    Ok(())
-}
-fn enroll(
-    trust: &Trust,
-    before: &Host,
-    migrate_legacy: bool,
-    expected_digest: Option<&str>,
-) -> Result<()> {
-    check_enrollment_preconditions(trust, before, migrate_legacy, expected_digest)?;
+fn enroll(trust: &Trust, before: &Host, expected_digest: Option<&str>) -> Result<()> {
+    check_enrollment_preconditions(before, expected_digest)?;
     let booted = authenticate(&before.booted.digest, trust, true, &cached(before, None))?;
     if observe(&trust.scope)? != *before {
         return Err("native deployment changed during enrollment".into());
     }
-    let mut journal = Journal {
+    let journal = Journal {
         schema_version: 2,
         machine: trust.machine.clone(),
         scope: trust.scope.clone(),
@@ -584,20 +494,14 @@ fn enroll(
         rollback_hold: false,
         operation: None,
         last_registry_check_at: Some(now()?),
-        legacy: None,
-        legacy_rollback: None,
         identity_health_error: None,
     };
-    if migrate_legacy {
-        migrate_legacy_journal(&mut journal, &booted, before, trust)?;
-    } else {
-        let bytes = serde_json::to_vec(&journal)?;
-        let receipt = serde_json::to_vec(&booted)?;
-        Store::create(
-            Path::new(STORE),
-            &[(RECORD, &bytes), (&receipt_name(&booted.digest)?, &receipt)],
-        )?;
-    }
+    let bytes = serde_json::to_vec(&journal)?;
+    let receipt = serde_json::to_vec(&booted)?;
+    Store::create(
+        Path::new(STORE),
+        &[(RECORD, &bytes), (&receipt_name(&booted.digest)?, &receipt)],
+    )?;
     response(trust, before, Some(&journal), None, false)
 }
 fn check_unenrolled(trust: &Trust, before: &Host) -> Result<()> {
@@ -719,17 +623,7 @@ fn plan_rollback(
         return Err("explicit pending digest replacement is required".into());
     }
     // Receipt was authenticated before staging/enrollment, so retained rollback works offline.
-    if store.read(&receipt_name(&slot.digest)?)?.is_some() {
-        recorded(store, &slot.digest, trust)?;
-    } else {
-        let document = journal
-            .legacy_rollback
-            .as_ref()
-            .ok_or("retained rollback receipt missing")?;
-        if super::verify(document, trust)?.release().image_digest != slot.digest {
-            return Err("legacy receipt does not match native rollback slot".into());
-        }
-    }
+    recorded(store, &slot.digest, trust)?;
     journal.rollback_hold = true;
     Ok(Plan {
         kind: OperationKind::Rollback,
@@ -820,12 +714,8 @@ pub(super) fn run(request: Request) -> Result<()> {
         return Err("installed bootc version is not qualified".into());
     }
     let before = observe(&trust.scope)?;
-    if let Request::ChannelEnroll {
-        migrate_legacy,
-        expected_digest,
-    } = request
-    {
-        return enroll(&trust, &before, migrate_legacy, expected_digest.as_deref());
+    if let Request::ChannelEnroll { expected_digest } = request {
+        return enroll(&trust, &before, expected_digest.as_deref());
     }
     if matches!(
         request,

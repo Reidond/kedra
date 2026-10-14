@@ -47,8 +47,6 @@ pub enum VmCommand {
         image: String,
         #[arg(long)]
         output: PathBuf,
-        #[arg(long)]
-        base_image: Option<String>,
     },
     /// Create and open a separate native VM for a verified installer ISO.
     Installer {
@@ -382,11 +380,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 execute(&mut command)
             }
         }
-        VmCommand::Iso {
-            image,
-            output,
-            base_image,
-        } => {
+        VmCommand::Iso { image, output } => {
             let mut command = Command::new("uv");
             command
                 .args(["run", "--script"])
@@ -396,9 +390,6 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 .arg(image)
                 .arg("--output")
                 .arg(output);
-            if let Some(base_image) = base_image {
-                command.arg("--base-image").arg(base_image);
-            }
             execute(&mut command)
         }
         VmCommand::Installer {

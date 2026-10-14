@@ -38,4 +38,4 @@ niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl
 NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \
     NOCTALIA_STATE_HOME=/tmp/kedra-noctalia-validation noctalia config validate
 rm -rf /tmp/kedra-noctalia-validation
-sysroot status --json >/dev/null
+sysroot --version >/dev/null

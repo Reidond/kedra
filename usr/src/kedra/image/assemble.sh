@@ -134,7 +134,7 @@ rpm -qa | sort > /usr/share/sysroot/packages.txt
 # proof that a repository served identical signed package payloads.
 rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
     | LC_ALL=C sort > /usr/share/sysroot/package-material.txt
-sysroot status --json
+sysroot --version
 if test "$mode" = complete; then
     bootc container lint
 fi

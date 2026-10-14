@@ -100,5 +100,6 @@ steps:
       env: {HOME: /tmp}
       expect: {stdout: "codex-cli ${codex_version}"}
   - exec:
-      name: sysroot reports installed status
-      argv: [sysroot, status, --json]
+      name: the installed sysroot runs and reports its version
+      argv: [sysroot, --version]
+      expect: {stdout_nonempty: true}

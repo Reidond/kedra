@@ -1,5 +1,20 @@
 # Verified status
 
+## Compatibility reset (2026-10-14)
+
+No non-disposable Kedra installation exists, so backward-compatibility code and
+code without a consumer were removed: the protocol-1 release-file model
+(`sysroot release verify|assemble|channel|history|unpack`, signed checkpoints and
+the helper's four-file enroll/stage/rollback/status requests), `sysroot status`
+and its capability JSON, helper legacy migration (`--migrate-legacy`, preserved
+v1 journals, legacy rollback receipts), the `hosts/`/`packages/`/root `home/`
+source layout, the schema-1 JSON catalog with `--catalog`, `catalog list` and the
+built-in jq/SQLite collection, the independent-consumer reuse tests, the
+protocol-1 `tests/vm/signed-update` driver and `build-local.py --base-image`.
+`sysroot release key` and the signed-image channel remain. Disposable deployment
+stores written by an earlier helper are refused rather than migrated. See worklog
+COMPAT-RESET-01 for checks.
+
 ## Local testing, sign-off and installer releases (2026-10-08)
 
 The owner moved testing out of Actions. `check.yml` and the eight `test-*.yml`

@@ -221,9 +221,6 @@ fn offline_cli_exports_pinned_values_and_records_only_a_real_source_commit() {
 #[test]
 fn ordinary_text_cli_keeps_adjacent_lines_independent_through_git_publication() {
     let f = Fixture::new();
-    // The accepted baseline comes from a legacy-layout commit; the checkout then
-    // moves to the root-filesystem layout and review continues without a rebind.
-    let legacy_path = "home/.config/niri/config.kdl";
     let path = "etc/skel/.config/niri/config.kdl";
     let base = "layout {\n    gaps 12\n    width 2\n    animation 200\n}\n";
     f.git(&["init", "--template=", "-b", "fixture"]);
@@ -233,11 +230,14 @@ fn ordinary_text_cli_keeps_adjacent_lines_independent_through_git_publication() 
         "origin",
         "https://github.com/Reidond/kedra.git",
     ]);
-    f.write("hosts/desktop/host.toml", DESKTOP);
-    f.write("packages/common.list", "niri\n");
-    f.write("packages/remove.list", "# none\n");
-    f.write("hosts/desktop/packages.list", "# none\n");
-    f.write(legacy_path, base);
+    f.write(&format!("{IMAGE}/targets/desktop/target.toml"), DESKTOP);
+    f.write(&format!("{IMAGE}/packages.list"), "niri\n");
+    f.write(&format!("{IMAGE}/remove.list"), "# none\n");
+    f.write(
+        &format!("{IMAGE}/targets/desktop/packages.list"),
+        "# none\n",
+    );
+    f.write(path, base);
     f.write("unrelated", "original\n");
     f.git(&["add", "."]);
     f.git(&["commit", "-m", "generated niri source baseline"]);
@@ -251,7 +251,7 @@ fn ordinary_text_cli_keeps_adjacent_lines_independent_through_git_publication() 
     // Generated offline installed-state fixture. All assertions below use the
     // actual public CLI, ordinary file edits and real source Git operations.
     let state = serde_json::json!({"schema_version":1,"instance":&instance[..32],
-        "baseline":{"target":"desktop","source_path":legacy_path,"source_revision":initial,"contents":base},
+        "baseline":{"target":"desktop","source_path":path,"source_revision":initial,"contents":base},
         "reference":base,"selected":[],"ignored":[],"published":[]});
     drop(
         Store::create(
@@ -260,23 +260,6 @@ fn ordinary_text_cli_keeps_adjacent_lines_independent_through_git_publication() 
         )
         .unwrap(),
     );
-    for (from, to) in [
-        ("packages/common.list", format!("{IMAGE}/packages.list")),
-        ("packages/remove.list", format!("{IMAGE}/remove.list")),
-        (
-            "hosts/desktop/host.toml",
-            format!("{IMAGE}/targets/desktop/target.toml"),
-        ),
-        (
-            "hosts/desktop/packages.list",
-            format!("{IMAGE}/targets/desktop/packages.list"),
-        ),
-        ("home/.config", "etc/skel/.config".to_owned()),
-    ] {
-        fs::create_dir_all(f.repo().join(&to).parent().unwrap()).unwrap();
-        f.git(&["mv", from, &to]);
-    }
-    f.git(&["commit", "-m", "move to the root-filesystem layout"]);
     let native = f.0.join(".config/niri/config.kdl");
     fs::create_dir_all(native.parent().unwrap()).unwrap();
     fs::write(

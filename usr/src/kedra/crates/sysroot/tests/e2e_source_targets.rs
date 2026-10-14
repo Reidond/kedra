@@ -1,7 +1,7 @@
 //! Public `sysroot source` CLI over generated repositories: enabled target and
 //! architecture pairs plan and archive; mismatched, unknown and disabled targets fail.
-//! A retained legacy-layout commit and its moved root-filesystem form resolve to
-//! the same payload; mixed or unrecognized layouts are refused.
+//! The root-filesystem layout resolves shared and overlay payload; the removed
+//! hosts/, packages/ and home/ layout and other unrecognized paths are refused.
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -336,103 +336,65 @@ fn source_cli_accepts_only_enabled_target_architectures() {
     );
 }
 
-/// Payload identity of a plan: everything except where the file was committed.
-fn payload(plan: &serde_json::Value) -> Vec<(String, String, String, bool)> {
-    plan["files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|file| {
-            (
-                file["destination"].as_str().unwrap().to_owned(),
-                file["sha256"].as_str().unwrap().to_owned(),
-                file["mode"].as_str().unwrap().to_owned(),
-                file["home_baseline"].as_bool().unwrap(),
-            )
-        })
-        .collect()
-}
-
 #[test]
-fn source_cli_resolves_a_legacy_commit_and_its_moved_root_filesystem_form_alike() {
+fn source_cli_resolves_the_root_filesystem_layout_and_refuses_others() {
     let f = Fixture::new();
     f.git(&["init", "-q", "--template=", "-b", "fixture"]);
-    f.write("packages/common.list", "niri\n");
-    f.write("packages/remove.list", "# none\n");
-    f.declare("hosts/desktop/host.toml", "desktop", "x86_64", true);
-    f.write("hosts/desktop/packages.list", "greetd\n");
-    f.write("home/.config/niri/config.kdl", "layout {}\n");
+    let overlay = format!("{IMAGE}/targets/desktop");
+    f.write(&format!("{IMAGE}/packages.list"), "niri\n");
+    f.write(&format!("{IMAGE}/remove.list"), "# none\n");
+    f.host("desktop", "x86_64", true);
+    f.write(&format!("{overlay}/packages.list"), "greetd\n");
+    f.write("etc/skel/.config/niri/config.kdl", "layout {}\n");
     f.write("etc/greetd/config.toml", "[terminal]\nvt = 1\n");
     f.write("usr/lib/environment.d/60-fixture.conf", "SHARED=1\n");
     f.write(
-        "hosts/desktop/usr/lib/environment.d/60-fixture.conf",
+        &format!("{overlay}/usr/lib/environment.d/60-fixture.conf"),
         "SHARED=desktop\n",
     );
     f.write(
-        "hosts/desktop/home/.config/noctalia/config.toml",
+        &format!("{overlay}/etc/skel/.config/noctalia/config.toml"),
         "[theme]\nmode='dark'\n",
     );
-    f.commit("legacy layout");
-    let legacy = f.plan("desktop");
-
-    let overlay = format!("{IMAGE}/targets/desktop");
-    for (from, to) in [
-        ("packages/common.list", format!("{IMAGE}/packages.list")),
-        ("packages/remove.list", format!("{IMAGE}/remove.list")),
-        ("hosts/desktop/host.toml", format!("{overlay}/target.toml")),
-        (
-            "hosts/desktop/packages.list",
-            format!("{overlay}/packages.list"),
-        ),
-        ("home/.config", "etc/skel/.config".to_owned()),
-        ("hosts/desktop/usr", format!("{overlay}/usr")),
-        (
-            "hosts/desktop/home/.config",
-            format!("{overlay}/etc/skel/.config"),
-        ),
-    ] {
-        fs::create_dir_all(f.repo().join(&to).parent().unwrap()).unwrap();
-        f.git(&["mv", from, &to]);
-    }
     // Development files beside the image filesystem never become payload.
     f.write("README.md", "generated\n");
     f.write(".github/workflows/check.yml", "on: push\n");
     f.write("usr/src/kedra/crates/fixture/main.rs", "fn main() {}\n");
     f.write(&format!("{overlay}/README.md"), "generated\n");
     f.commit("root-filesystem layout");
-    let moved = f.plan("desktop");
+    let plan = f.plan("desktop");
 
-    assert_eq!(payload(&moved), payload(&legacy));
-    for key in ["target", "packages", "remove_packages"] {
-        assert_eq!(moved[key], legacy[key], "{key}");
-    }
-    let source = |plan: &serde_json::Value, destination: &str| {
+    assert_eq!(plan["packages"], serde_json::json!(["greetd", "niri"]));
+    let file = |destination: &str| {
         plan["files"]
             .as_array()
             .unwrap()
             .iter()
             .find(|file| file["destination"] == destination)
-            .unwrap()["source_path"]
+            .unwrap()
             .clone()
     };
-    let niri = "usr/share/sysroot/home/default/.config/niri/config.kdl";
-    let noctalia = "usr/share/sysroot/home/default/.config/noctalia/config.toml";
-    let environment = "usr/lib/environment.d/60-fixture.conf";
-    assert_eq!(source(&legacy, niri), "home/.config/niri/config.kdl");
-    assert_eq!(source(&moved, niri), "etc/skel/.config/niri/config.kdl");
+    let niri = file("usr/share/sysroot/home/default/.config/niri/config.kdl");
+    assert_eq!(niri["source_path"], "etc/skel/.config/niri/config.kdl");
+    assert_eq!(niri["home_baseline"], true);
     assert_eq!(
-        source(&moved, noctalia),
+        file("usr/share/sysroot/home/default/.config/noctalia/config.toml")["source_path"],
         format!("{overlay}/etc/skel/.config/noctalia/config.toml")
     );
+    let environment = file("usr/lib/environment.d/60-fixture.conf");
     assert_eq!(
-        source(&moved, environment),
+        environment["source_path"],
         format!("{overlay}/usr/lib/environment.d/60-fixture.conf")
     );
-
-    f.refused_path(
-        "hosts/desktop/host.toml",
-        "mixes the root-filesystem layout with legacy",
+    assert_eq!(
+        environment["replaces"],
+        "usr/lib/environment.d/60-fixture.conf"
     );
+    assert_eq!(file("etc/greetd/config.toml")["home_baseline"], false);
+    assert_eq!(plan["files"].as_array().unwrap().len(), 4);
+
+    f.refused_path("hosts/desktop/host.toml", "unexpected directory hosts/");
+    f.refused_path("home/.config/niri/config.kdl", "unexpected directory home/");
     f.refused_path("opt/fixture/tool", "unexpected directory opt/");
     f.refused_path("usr/src/other/main.rs", "usr/src/ holds only");
     f.refused_path(

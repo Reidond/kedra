@@ -25,11 +25,8 @@ a disposable private configuration directory; it does not create a persistent
 profile, take the checkout lock, or start an agent session. Native CLI startup can
 write runtime files even when only help/version was requested.
 
-`sysroot status --json` schema 2 reports implemented capabilities, their platform
-and runtime requirements, and separate qualification limits. It replaces the
-bootstrap availability flags and does not inspect installed runtimes, enrollment,
-home state or credentials. A checkout build therefore does not claim that the
-selected agent exists or is authenticated on the current machine.
+A checkout build does not claim that the selected agent exists or is
+authenticated on the current machine.
 
 The checkout comes from `--repo`, `SYSROOT_REPO`, or `~/src/kedra`. Its local origin
 must identify Reidond/kedra using the documented GitHub HTTPS or SSH spelling.

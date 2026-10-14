@@ -128,7 +128,8 @@ def installer_record(directory, image=None, iso_name=None):
     match = re.fullmatch(IMAGE_PATTERN, str(record.get('image', '')))
     require(match, 'installer.json does not describe {} media; this tool installs only the {} target'.format(SPEC['repository'], TARGET))
     require(image is None or record['image'] == image, 'installer.json names a different image than requested')
-    require(record.get('target', TARGET) == TARGET and record.get('uploaded') is False,
+    # Local builds record uploaded false; iso.yml's published records say true.
+    require(record.get('target', TARGET) == TARGET and isinstance(record.get('uploaded'), bool),
             'installer.json records an unexpected target or publication state')
     name = f'kedra-{TARGET}-44-{match.group(1)[:16]}.iso'
     installer = record.get('installer')

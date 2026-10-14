@@ -1,5 +1,17 @@
 # Verified status
 
+## Local testing, sign-off and installer releases (2026-10-08)
+
+The owner moved testing out of Actions. `check.yml` and the eight `test-*.yml`
+workflows are removed; changes are tested locally and merge on a `signoff` commit
+status set by `usr/src/kedra/tests/signoff.py` (AGENTS.md). `release.yml` no longer
+repeats the source checks before building, but still validates each exact candidate
+with the container harness before signing. The new owner-dispatched `iso.yml`
+publishes an installer ISO from a target's signed `stable` image as a GitHub
+Release. The new workflow has not run yet (`not-run`). Main's branch protection
+still requires the removed `rust` check until the owner switches it to `signoff`.
+See worklog CI-SIMPLIFY-01/02.
+
 ## Main-only integration (2026-10-07)
 
 The owner requests main as the sole integration branch and removal of dev.

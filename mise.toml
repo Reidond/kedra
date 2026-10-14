@@ -1,6 +1,6 @@
 # Development tools for this repository (https://mise.jdx.dev), pinned to the
-# same versions as rust-toolchain.toml and the Actions workflows; cccc is the
-# complexity gate configured by cccc.toml. mise exports
+# same versions as rust-toolchain.toml and the release workflow, for the local
+# checks in AGENTS.md; cccc is the complexity gate configured by cccc.toml. mise exports
 # RUSTUP_TOOLCHAIN for the Rust pin, which overrides a global `rust = "stable"`
 # for shells and editors (rust-analyzer) opened in this checkout. Python itself
 # runs through uv and .python-version (AGENTS.md).

@@ -60,15 +60,13 @@ jobs:
         with:
           version: 0.12.19
           enable-cache: false
-      - name: Check and build source tooling
+      # Source checks run locally before a change is signed off (AGENTS.md);
+      # this step only builds the binaries the image needs. The exact
+      # candidate is still validated in its own job before signing.
+      - name: Build source tooling
         run: |
-          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
-          cargo fmt --all -- --check
-          cargo clippy --workspace --all-targets --locked -- -D warnings
-          cargo test --workspace --test 'e2e_*' --locked
+          rustup toolchain install 1.98.1 --profile minimal
           cargo build --workspace --release --locked
-          uv run usr/src/kedra/tests/cli/release-interop.py --sysroot target/release/sysroot --workdir target/release-interop
-          uv run usr/src/kedra/tests/cli/release-material.py --workdir target/release-material
       - name: Prepare bounded image inputs and public trust
         id: trust
         run: |

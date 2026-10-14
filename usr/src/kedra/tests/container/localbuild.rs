@@ -1,6 +1,6 @@
 //! Full local OS image build of the working tree or one commit.
 //!
-//! Replays the Actions candidate build (test-desktop.yml, release-target.yml)
+//! Replays the Actions candidate build (release-target.yml)
 //! in disposable containers: Linux `sysroot` binaries and `sysroot source
 //! archive` in the Rust builder, the pinned Codex and Bitwarden inputs through
 //! the same preparation scripts in a Fedora builder, then the stage's own

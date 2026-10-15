@@ -27,6 +27,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -41,6 +42,11 @@ BASE_TAG = 'quay.io/fedora/fedora-bootc:44'
 OWNER = 'dev.kedra.lab.owner=kedra-ghcr-hvf'
 VARIANTS = ['A', 'B', 'C', 'D', 'E', 'U', 'W', 'R', 'N', 'T', 'X', 'H', 'M']
 CONSOLE = 'kargs = ["console=ttyAMA0,115200"]\nmatch-architectures = ["aarch64"]\n'
+# bootc-image-builder appends console=tty0 console=ttyS0, so /dev/console is the absent
+# ttyS0 on QEMU virt: the guest workflow writes to the PL011 the host reads instead,
+# before the serial getty starts there (its vhangup would cut the workflow's output).
+SERIAL_ORDER = '[Unit]\nBefore=serial-getty@ttyAMA0.service\n'
+SERIAL_OUTPUT = '[Service]\nStandardOutput=tty\nStandardError=tty\nTTYPath=/dev/ttyAMA0\n'
 FIXTURE_FILES = ('Containerfile', 'variant.Containerfile', 'check.py', 'check.service', 'identity-recovery.py')
 
 
@@ -118,7 +124,7 @@ class Fixture:
             time.sleep(1)
         raise SystemExit('run-hvf: the local registry did not start')
 
-    def cleanup(self):
+    def cleanup(self, keep=False):
         if self.control is not None:
             self.control.terminate()
             self.control.wait(timeout=30)
@@ -131,7 +137,8 @@ class Fixture:
                 run('docker', 'exec', name, 'chmod', '-R', 'u+rwX,go+rX', '/fixture', '/evidence', check=False)
             command = {'container': ('rm', '-f'), 'volume': ('volume', 'rm'), 'network': ('network', 'rm')}[kind]
             run('docker', *command, name, check=False, stdout=subprocess.DEVNULL)
-        shutil.rmtree(self.private, ignore_errors=True)
+        if not keep:
+            shutil.rmtree(self.private, ignore_errors=True)
 
 
 def resolve_base(fixture):
@@ -157,6 +164,9 @@ def prepare(fixture, args):
         shutil.copy2(HERE / name, context / name)
     shutil.copy2(ROOT / 'usr/src/kedra/tests/common/secure_boot_check.py', context / 'secure_boot_check.py')
     (context / 'console.toml').write_text(CONSOLE)
+    unit = (context / 'check.service').read_text().replace('StandardOutput=journal+console\nStandardError=journal+console\n', '')
+    unit = unit.replace('[Unit]\n', SERIAL_ORDER, 1).replace('[Service]\n', SERIAL_OUTPUT, 1)
+    (context / 'check.service').write_text(unit)
     shutil.copy2(args.binaries / 'sysroot', context / 'sysroot')
     shutil.copy2(args.binaries / 'sysroot-helper', context / 'helper')
     fixture.registry()
@@ -174,10 +184,12 @@ def prepare(fixture, args):
 def boot(fixture, args, phase):
     work = fixture.root / ('vm-' + phase)
     work.mkdir(mode=0o700)
+    # macOS limits Unix socket paths to 104 bytes; the QMP socket gets a short private directory.
+    sockets = Path(tempfile.mkdtemp(prefix='kedra-ghcr-', dir='/tmp'))
     serial = fixture.evidence / (phase + '.serial.log')
     argv = [args.runtime / 'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64', *qemu.machine_argv(
         'aarch64', 'hvf', code=args.runtime / 'firmware/AAVMF_CODE.secboot.fd', variables=fixture.root / 'vars.fd',
-        qmp=work / 'qmp.sock', serial=serial, cpus=4, memory_mib=4096)]
+        qmp=sockets / 'qmp.sock', serial=serial, cpus=4, memory_mib=4096)]
     argv += qemu.disk_argv('system', fixture.root / 'disk.qcow2')
     argv += qemu.disk_argv('cases', fixture.root / 'cases.raw', image_format='raw', readonly=True)
     argv += [*qemu.network_argv(True), '-display', 'none']
@@ -185,11 +197,12 @@ def boot(fixture, args, phase):
     environment = {**os.environ, 'DYLD_FALLBACK_LIBRARY_PATH': str(args.runtime / 'lib')}
     process = qemu.launch(argv, work / 'qemu.log', env=environment)
     try:
-        qemu.wait_for_socket(work / 'qmp.sock', process)
-        qemu.watch(process, work / 'qmp.sock', [serial], deadline=started + 3600,
+        qemu.wait_for_socket(sockets / 'qmp.sock', process)
+        qemu.watch(process, sockets / 'qmp.sock', [serial], deadline=started + 3600,
                    required=['KEDRA_SECUREBOOT_PASS', f'KEDRA_GHCR_{phase}_PASS'], failures=['KEDRA_GHCR_FAIL'])
     finally:
         qemu.stop(process)
+        shutil.rmtree(sockets, ignore_errors=True)
     result = {'schema_version': 1, 'phase': phase, 'accelerator': 'hvf', 'elapsed_seconds': round(time.monotonic() - started, 1)}
     (fixture.evidence / (phase + '-result.json')).write_text(json.dumps(result, sort_keys=True) + '\n')
     print(json.dumps(result, sort_keys=True), flush=True)
@@ -227,11 +240,12 @@ def main():
         print('PASS: signed A/B update, refusals and rollback hold under HVF; evidence in', fixture.evidence)
     except BaseException:
         if args.keep_on_failure:
-            print('Kept for inspection; remove with docker rm/volume rm/network rm:', fixture.started, file=sys.stderr)
+            print('Kept for inspection with the generated keys; remove with docker rm/volume rm/network rm:',
+                  fixture.started, file=sys.stderr)
             fixture.started.clear()
+        fixture.cleanup(keep=args.keep_on_failure)
         raise
-    finally:
-        fixture.cleanup()
+    fixture.cleanup()
 
 
 if __name__ == '__main__':

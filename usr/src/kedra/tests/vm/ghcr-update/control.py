@@ -78,6 +78,20 @@ def unsign(variant):
         raise AssertionError('Signature attachment is still served after deletion')
 
 
+def registry_power(online):
+    """Podman stops and starts the registry. Docker pauses it, so an unreachable
+    registry needs no second read of its TLS key and the guest's request stalls."""
+    if args.engine == 'podman':
+        subprocess.run([*ENGINE, 'start' if online else 'stop', 'kedra-ghcr-registry'],
+                       check=True, timeout=30, stdout=subprocess.DEVNULL)
+        return
+    paused = subprocess.run(['docker', 'inspect', '--format', '{{.State.Paused}}', 'kedra-ghcr-registry'],
+                            check=True, timeout=30, capture_output=True, text=True).stdout.strip() == 'true'
+    if paused == online:
+        subprocess.run(['docker', 'unpause' if online else 'pause', 'kedra-ghcr-registry'],
+                       check=True, timeout=30, stdout=subprocess.DEVNULL)
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         try:
@@ -90,8 +104,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 assert variant in cases['digests']
                 unsign(variant)
             elif operation in ('offline', 'online'):
-                subprocess.run([*ENGINE, 'stop' if operation == 'offline' else 'start', 'kedra-ghcr-registry'],
-                               check=True, timeout=30, stdout=subprocess.DEVNULL)
+                registry_power(operation == 'online')
                 if operation == 'online':
                     # start acknowledges the container before its HTTPS listener is ready.
                     # Poll only this read-only loopback endpoint; never repeat start or a PUT.

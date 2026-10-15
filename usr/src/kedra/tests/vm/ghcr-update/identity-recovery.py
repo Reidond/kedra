@@ -50,7 +50,8 @@ assert not before['rollback_hold']
 expected_rollback = before['host']['rollback']['digest']
 path = Path('/usr/share/sysroot/image-identity.json')
 identity = json.loads(path.read_bytes())
-identity['run_attempt'] += 1
+# The booted identity must name the booted image's own source; another revision breaks that binding.
+identity['source_revision'] = 'f' * 40 if identity['source_revision'] != 'f' * 40 else 'e' * 40
 mounted = False
 try:
     with tempfile.TemporaryDirectory(prefix='kedra-native-identity-') as temporary:

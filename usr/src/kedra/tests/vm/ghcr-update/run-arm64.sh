@@ -103,7 +103,7 @@ except (OSError, ValueError) as error:
 PY
 }
 cleanup() {
-    local original_exit=$? cleanup_failed=false private_removed=false registry_state=not_created resolver_state=not_created observer_state=not_created
+    local original_exit=$? cleanup_failed=false private_removed=false registry_state=not_created observer_state=not_created
     trap - EXIT
     # Cleanup must finish reporting every owned resource even if the installer
     # left root-owned files. Preserve the task failure if cleanup also fails.
@@ -121,15 +121,6 @@ cleanup() {
             else
                 cleanup_failed=true
             fi
-        else
-            cleanup_failed=true
-        fi
-    fi
-    if test -e "$root/candidate/resolver.json"; then
-        resolver_state=cleanup_failed
-        if jq --exit-status '.schema_version == 1 and .removed == true and .cleanup_failed == false' \
-            "$root/candidate/resolver-cleanup.json" >/dev/null 2>&1; then
-            resolver_state=removed
         else
             cleanup_failed=true
         fi
@@ -165,8 +156,8 @@ cleanup() {
     else
         cleanup_failed=true
     fi
-    if ! printf '{"schema_version":1,"original_exit_code":%s,"cleanup_failed":%s,"private_inputs_removed":%s,"registry":"%s","resolver":"%s","retained_observer":"%s"}\n' \
-        "$original_exit" "$cleanup_failed" "$private_removed" "$registry_state" "$resolver_state" "$observer_state" > "$evidence/cleanup.json"; then
+    if ! printf '{"schema_version":1,"original_exit_code":%s,"cleanup_failed":%s,"private_inputs_removed":%s,"registry":"%s","retained_observer":"%s"}\n' \
+        "$original_exit" "$cleanup_failed" "$private_removed" "$registry_state" "$observer_state" > "$evidence/cleanup.json"; then
         cleanup_failed=true
         echo 'Fixture cleanup receipt could not be written' >&2
     fi
@@ -227,7 +218,10 @@ else
 base=$(uv run usr/src/kedra/image/release/refresh.py resolve-base --target qemu-arm64 --work "$evidence")
 "$binaries/sysroot" source plan --host qemu-arm64 --json > "$root/source-plan.json"
 "$binaries/sysroot" source archive --host qemu-arm64 --output "$root/build-context/payload.tar"
-cp "$binaries/sysroot" "$binaries/sysroot-helper" usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh "$root/build-context/"
+# The foundation installs offline: candidate.py resolves the RPM lock and adds
+# its repository as rpms/; install-rpms.sh is the context file that installs it.
+cp "$binaries/sysroot" "$binaries/sysroot-helper" usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh \
+    usr/src/kedra/image/catalog/install-rpms.sh "$root/build-context/"
 # Existing explicit local-builder APIs use RUNNER_TEMP only as scratch; no CI
 # identity variable is invented or changed by the local workflow.
 KEDRA_LOCAL_BUILDER=1 RUNNER_TEMP="$runner_temp" bash usr/src/kedra/image/agents/prepare.sh qemu-arm64 "$root/build-context" "$private/agents" "$evidence/agent-inputs.json"

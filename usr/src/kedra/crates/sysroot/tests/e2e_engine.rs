@@ -930,9 +930,13 @@ fn active_sandbox(store: &Path) -> (Value, u32) {
         if let Ok(bytes) = fs::read(store.join("transactions/execution.json"))
             && let Ok(journal) = serde_json::from_slice::<Value>(&bytes)
             && let Some(pid) = journal["process"]["pid"].as_u64()
-            && let Some(inner) = descendants(pid as u32)
-                .into_iter()
-                .find(|child| !proc_text(*child, "comm").starts_with("bwrap"))
+            && let Some(inner) = descendants(pid as u32).into_iter().find(|child| {
+                // Settled: executed the sandboxed program (no longer bwrap) with
+                // its environment in place.
+                !proc_text(*child, "comm").starts_with("bwrap")
+                    && fs::read(format!("/proc/{child}/environ"))
+                        .is_ok_and(|environment| !environment.is_empty())
+            })
         {
             return (journal, inner);
         }

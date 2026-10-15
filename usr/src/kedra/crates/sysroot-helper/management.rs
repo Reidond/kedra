@@ -15,11 +15,8 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const TRUST: &str = "/usr/lib/sysroot/trust/release-policy.json";
 const KEY: &str = "/usr/lib/sysroot/trust/release.pub";
 const DIRECTORY: &str = "/var/lib/sysroot";
-const STORE: &str = "/var/lib/sysroot/deployment";
-const RECORD: &str = "deployment";
 mod ghcr;
 mod installer;
-mod oci_cache;
 
 fn hash(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -51,10 +48,10 @@ struct Target {
 struct Trust {
     scope: Scope,
     key: String,
-    machine: String,
     source_revision: String,
     source_manifest_hash: String,
 }
+/// Trust comes only from the booted image's /usr and the strict policy derived from it.
 fn load_trust() -> Result<Trust> {
     let policy: Policy = serde_json::from_slice(&trusted_file::read(Path::new(TRUST), 0, 16_384)?)
         .map_err(|_| "installed release policy is malformed")?;
@@ -79,6 +76,7 @@ fn load_trust() -> Result<Trust> {
     if release::public_key_fingerprint(&key)? != policy.key_fingerprint {
         return Err("installed release key differs from its policy fingerprint".into());
     }
+    // bootc enforces this file; it must be exactly the policy the image's trust implies.
     let requirement = serde_json::json!({"type":"sigstoreSigned","keyPath":KEY,
         "signedIdentity":{"type":"exactRepository","dockerRepository":policy.scope.repository}});
     let native_policy = serde_json::json!({"default":[{"type":"reject"}],"transports":{
@@ -90,19 +88,9 @@ fn load_trust() -> Result<Trust> {
             "container signature policy differs from the strict installed target policy".into(),
         );
     }
-    let machine = trusted_file::read(Path::new("/etc/machine-id"), 0, 64)?;
-    let machine = std::str::from_utf8(&machine)?.trim();
-    if machine.len() != 32
-        || !machine
-            .bytes()
-            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
-    {
-        return Err("machine identity is malformed".into());
-    }
     Ok(Trust {
         scope: policy.scope,
         key,
-        machine: hash(machine.as_bytes()),
         source_revision: source.source_revision,
         source_manifest_hash: hash(&source_bytes),
     })
@@ -141,45 +129,50 @@ fn lock() -> Result<File> {
         .map_err(|_| "another sysroot management operation is running")?;
     // A surviving trusted child retains the lock if this helper is interrupted.
     rustix::io::fcntl_setfd(&file, rustix::io::FdFlags::empty())?;
-    Ok(file)
+    // containers/image prefers $HOME/.config/containers/policy.json over
+    // /etc/containers/policy.json, and --enforce-container-sigpolicy checks only
+    // the default entry of whichever file it finds. Children run with this
+    // root-only directory as HOME, so no per-user container configuration may exist.
+    match std::fs::symlink_metadata(Path::new(DIRECTORY).join(".config")) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(file),
+        Err(error) => Err(error.into()),
+        Ok(_) => Err("unexpected /var/lib/sysroot/.config; container configuration must come only from /etc/containers".into()),
+    }
 }
 
-fn process(seconds: &str, arguments: &[&str]) -> Command {
+/// A fixed image-owned program under a timeout, with a cleared environment.
+fn process(program: &str, seconds: &str, arguments: &[&str]) -> Command {
     let mut command = Command::new("/usr/bin/timeout");
     command
         .env_clear()
         .env("PATH", "/usr/sbin:/usr/bin")
-        .env("HOME", "/root")
+        .env("HOME", DIRECTORY)
         .env("LANG", "C.UTF-8")
         .current_dir("/")
-        .args([
-            "--signal=TERM",
-            "--kill-after=10s",
-            seconds,
-            "/usr/bin/bootc",
-        ])
+        .args(["--signal=TERM", "--kill-after=10s", seconds, program])
         .args(arguments)
         .stdin(Stdio::null());
     command
 }
-fn output(arguments: &[&str], limit: usize) -> Result<Vec<u8>> {
-    let mut child = process("30s", arguments)
+/// Bounded stdout of a fixed program; its diagnostics go to the caller's terminal.
+fn output(program: &str, arguments: &[&str], limit: usize) -> Result<Vec<u8>> {
+    let mut child = process(program, "60s", arguments)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::inherit())
         .spawn()?;
     let result = (|| -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
         child
             .stdout
             .take()
-            .ok_or("bootc stdout is unavailable")?
+            .ok_or("child stdout is unavailable")?
             .take(limit as u64 + 1)
             .read_to_end(&mut bytes)?;
         if bytes.len() > limit {
-            return Err("bootc output exceeded the protocol bound".into());
+            return Err("child output exceeded its bound".into());
         }
         if !child.wait()?.success() {
-            return Err("bootc observation failed".into());
+            return Err(format!("{program} failed; nothing was changed").into());
         }
         Ok(bytes)
     })();
@@ -191,17 +184,18 @@ fn output(arguments: &[&str], limit: usize) -> Result<Vec<u8>> {
 }
 fn observe(scope: &Scope) -> Result<Host> {
     Ok(deployment::observe(
-        &output(&["status", "--json"], 262_144)?,
+        &output("/usr/bin/bootc", &["status", "--json"], 262_144)?,
         scope,
     )?)
 }
 /// Called only by the image-owned binary after parsing its bounded stdin protocol.
 pub fn run(request: Request) -> Result<()> {
-    if !matches!(request, Request::VerifyInstaller {}) {
-        return ghcr::run(request);
-    }
     if rustix::process::getuid().as_raw() != 0 || rustix::process::geteuid().as_raw() != 0 {
         return Err("the installed helper requires explicit administrator authorization".into());
     }
-    installer::verify(&load_trust()?)
+    let trust = load_trust()?;
+    if matches!(request, Request::VerifyInstaller {}) {
+        return installer::verify(&trust);
+    }
+    ghcr::run(request, &trust)
 }

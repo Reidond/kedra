@@ -24,7 +24,7 @@ args = parser.parse_args()
 workdir = args.workdir.resolve()
 workdir.mkdir(parents=True, exist_ok=False)
 cli = Path(__file__).resolve().parents[2] / 'image/release/material.py'
-qualified_bootc = json.loads(cli.with_name('compatibility.json').read_text())['bootc_version']
+minimum_bootc = json.loads(cli.with_name('compatibility.json').read_text())['minimum_bootc_version']
 private, public = workdir / 'disposable.key', workdir / 'public.pem'
 # Independent expectations for the closed target table.
 TARGETS = {'desktop': {'architecture': 'x86_64', 'oci': 'amd64', 'repository': 'ghcr.io/reidond/kedra-desktop'},
@@ -102,7 +102,7 @@ def exercise(target):
     call(*[other if value == target else value for value in verify], expected=False, reason='Image identity scope differs')
 
     bootc_inputs = copy.deepcopy(inputs)
-    bootc_inputs['packages'].append(['bootc', '0', qualified_bootc, '1.fc44', spec['architecture'], '1' * 64, '2' * 64])
+    bootc_inputs['packages'].append(['bootc', '0', minimum_bootc, '1.fc44', spec['architecture'], '1' * 64, '2' * 64])
     put('bootc-inputs.json', bootc_inputs)
     assert call('bootc', '--target', target, '--inputs', root / 'bootc-inputs.json')['compatible']
     call('bootc', '--target', other, '--inputs', root / 'bootc-inputs.json', expected=False, reason='Unqualified bootc package')
@@ -112,7 +112,10 @@ def exercise(target):
     bootc_inputs['packages'][-1][4] = spec['architecture']
     bootc_inputs['packages'][-1][2] = '1.17.0'
     put('bootc-inputs.json', bootc_inputs)
-    call('bootc', '--target', target, '--inputs', root / 'bootc-inputs.json', expected=False)
+    assert call('bootc', '--target', target, '--inputs', root / 'bootc-inputs.json')['compatible']
+    bootc_inputs['packages'][-1][2] = '0.1.0'
+    put('bootc-inputs.json', bootc_inputs)
+    call('bootc', '--target', target, '--inputs', root / 'bootc-inputs.json', expected=False, reason='Unqualified bootc package')
     put('bootc-inputs.json', inputs)
     call('bootc', '--target', target, '--inputs', root / 'bootc-inputs.json', expected=False)
 

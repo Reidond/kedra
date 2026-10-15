@@ -20,13 +20,16 @@ from fixture import add_context_argument, load_context
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_context_argument(parser)
-parser.add_argument('--root', type=Path, help='The x86_64 desktop fixture root that run.sh created')
+parser.add_argument('--root', type=Path, help='The fixture root that run.sh or run-hvf.py created')
+parser.add_argument('--engine', choices=('podman', 'docker'), default='podman',
+                    help='Engine of the kedra-ghcr-registry container: rootful Podman on Linux, Docker on macOS')
 args = parser.parse_args()
+ENGINE = ['sudo', 'podman'] if args.engine == 'podman' else ['docker']
 if args.fixture_context is not None:
     fixture = load_context(args.fixture_context)
     root = Path(fixture['runner_temp']) / 'kedra-ghcr'
 else:
-    # The x86_64 desktop fixture has no ARM-specific context; run.sh admitted its host.
+    # run.sh and run-hvf.py fixtures have no ARM release context; their drivers admitted the host.
     assert args.root is not None and args.root.name == 'kedra-ghcr' and args.root.is_dir()
     root = args.root.resolve()
 cases = json.loads((root / 'cases/cases.json').read_bytes())
@@ -51,7 +54,7 @@ def layer_gets(variant):
     """Completed registry downloads of each layer of one signed test image so far."""
     counts = dict.fromkeys((layer['digest'] for layer in manifest(cases['digests'][variant])[1]['layers']), 0)
     assert counts
-    log = subprocess.run(['sudo', 'podman', 'logs', 'kedra-ghcr-registry'], check=True, timeout=120,
+    log = subprocess.run([*ENGINE, 'logs', 'kedra-ghcr-registry'], check=True, timeout=120,
                          capture_output=True, text=True, errors='replace')
     for line in (log.stdout + log.stderr).splitlines():
         match = BLOB_GET.search(line)
@@ -87,7 +90,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 assert variant in cases['digests']
                 unsign(variant)
             elif operation in ('offline', 'online'):
-                subprocess.run(['sudo', 'podman', 'stop' if operation == 'offline' else 'start', 'kedra-ghcr-registry'],
+                subprocess.run([*ENGINE, 'stop' if operation == 'offline' else 'start', 'kedra-ghcr-registry'],
                                check=True, timeout=30, stdout=subprocess.DEVNULL)
                 if operation == 'online':
                     # start acknowledges the container before its HTTPS listener is ready.

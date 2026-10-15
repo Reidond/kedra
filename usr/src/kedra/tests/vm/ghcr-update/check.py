@@ -13,8 +13,6 @@ from pathlib import Path
 
 state = Path('/var/lib/kedra-ghcr-test')
 state.mkdir(mode=0o700, exist_ok=True)
-# The helper's persistent verified OCI layout (a transfer cache, never an authority).
-layout = Path('/var/lib/sysroot/verified-oci')
 # The one shared guest check, installed from usr/src/kedra/tests/common.
 SECURE_BOOT = Path('/usr/libexec/kedra-secure-boot-check.py')
 
@@ -82,28 +80,15 @@ def layer_gets(name):
     return counts
 
 
-def transfers(label, name, before, reused=(), downloaded=()):
-    """Layers in `reused` were not downloaded again since `before`; each in `downloaded` was."""
+def downloads(label, name, before, once=()):
+    """Layers in `once` were downloaded exactly once since `before`; every other layer not at all."""
     after = layer_gets(name)
-    again = sorted(digest for digest in reused if after[digest] != before[digest])
-    missing = sorted(digest for digest in downloaded if after[digest] == before[digest])
-    (state / ('transfers-' + label + '.json')).write_text(json.dumps({
-        'image': name, 'layers': len(after), 'reused': len(reused), 'downloaded': len(downloaded),
-        'reused_but_downloaded': again, 'expected_download_missing': missing}, indent=2) + '\n')
-    assert not again, f'{label}: cached layers were downloaded again: {again}'
-    assert not missing, f'{label}: layers were not downloaded: {missing}'
+    changed = {digest: after[digest] - before[digest] for digest in after if after[digest] != before[digest]}
+    expected = dict.fromkeys(once, 1)
+    (state / ('downloads-' + label + '.json')).write_text(json.dumps({
+        'image': name, 'layers': len(after), 'downloaded': changed, 'expected': expected}, indent=2) + '\n')
+    assert changed == expected, f'{label}: layer downloads {changed}, expected {expected}'
     return after
-
-
-def cached_blobs():
-    """Identity of each cached blob file; a downloaded blob is written as a new file."""
-    return {path.name: (path.stat().st_ino, path.stat().st_mtime_ns) for path in (layout / 'blobs/sha256').iterdir()}
-
-
-def cached_refs():
-    """Ref names of the images the verified OCI layout currently holds."""
-    index = json.loads((layout / 'index.json').read_bytes())
-    return {entry['annotations']['org.opencontainers.image.ref.name'] for entry in index.get('manifests', [])}
 
 
 def cli(label, *arguments, success=True):
@@ -163,121 +148,142 @@ def main():
             time.sleep(1)
     variant = Path('/usr/share/sysroot/test-variant').read_text().strip()
     phase_file = state / 'phase'
-    phase = phase_file.read_text() if phase_file.exists() else 'enroll-a'
+    phase = phase_file.read_text() if phase_file.exists() else 'update-a'
     print('NATIVE PHASE', variant, phase, flush=True)
-    if (variant, phase) == ('A', 'enroll-a'):
-        home_data(replacement='A preference before B\n')
-        control('A')
-        initial = cli('initial', 'status', '--json')
-        assert not initial['enrolled'] and initial['host']['booted']['digest'] == cases['digests']['A']
-        first = layer_gets('A')
-        enrolled = cli('enroll-a', 'enroll')
-        assert enrolled['enrolled'] and enrolled['journal']['high_water']['digest'] == cases['digests']['A']
-        # The first verification downloads the whole image; repeated ones reuse every cached layer.
-        a_layers = transfers('first-a', 'A', first, downloaded=first)
-        cli('repeat-enroll', 'enroll', success=False)
-        current = cli('current', 'check', '--json')
-        assert current['state'] == 'current'
-        a_layers = transfers('repeat-a', 'A', a_layers, reused=a_layers)
-        # Unexpected cache state is discarded without being followed, then downloaded again.
-        canary = state / 'canary'
-        canary.write_text('unchanged\n')
-        (layout / 'index.json').unlink()
-        (layout / 'index.json').symlink_to(canary)
-        rechecked = cli('discarded-cache', 'check', '--json')
-        assert rechecked['state'] == 'current' and rechecked['host'] == current['host']
-        assert canary.read_text() == 'unchanged\n' and not (layout / 'index.json').is_symlink()
-        assert 'discarding the verified image cache' in (state / 'discarded-cache.stderr').read_text()
-        a_layers = transfers('discarded-cache', 'A', a_layers, downloaded=a_layers)
-        for name in ('U', 'W', 'R', 'N', 'T', 'X', 'H', 'M', 'E'):
-            control(name)
-            cli('reject-' + name, 'check', '--json', success=False)
-            unchanged = cli('after-' + name, 'status', '--json')
-            assert unchanged['journal']['high_water'] == current['journal']['high_water']
-            assert unchanged['host'] == current['host']
-        control('offline')
-        cli('offline', 'check', '--json', success=False)
-        control('online')
-        control('B')
-        b_layers = layer_gets('B')
-        shared, new = sorted(set(b_layers) & set(a_layers)), sorted(set(b_layers) - set(a_layers))
-        assert shared and new, 'fixture B must share base layers with A and add its own'
-        available = cli('available-b', 'check', '--json')
-        assert available['state'] == 'available' and available['available']['digest'] == cases['digests']['B']
-        b_layers = transfers('available-b', 'B', b_layers, reused=shared, downloaded=new)
-        # Staging re-verifies the checked image without downloading its cached layers
-        # (bootc's own layer fetches go to ostree, so the cached files are compared).
-        blobs = cached_blobs()
-        assert all(digest.removeprefix('sha256:') in blobs for digest in b_layers)
-        staged = cli('stage-b', 'stage', '--expected-digest', cases['digests']['B'])
-        assert staged['host']['staged']['digest'] == cases['digests']['B']
-        assert staged['journal']['operation']['phase'] == 'awaiting_reboot'
-        restaged = cached_blobs()
-        rewritten = sorted(d for d in b_layers if restaged.get(d.removeprefix('sha256:')) != blobs[d.removeprefix('sha256:')])
-        (state / 'transfers-stage-b.json').write_text(json.dumps({'layers': len(b_layers), 'rewritten': rewritten}, indent=2) + '\n')
-        assert not rewritten, f'stage downloaded cached layers again: {rewritten}'
-        control('C')
-        cli('preserve-pending', 'stage', success=False)
-        pending = cli('pending-unchanged', 'status', '--json')
-        assert pending['host'] == staged['host'] and pending['journal']['high_water'] == staged['journal']['high_water']
-        # The refused stage verified and cached C. Once C's signature is withdrawn, its
-        # cached layers must not authorize it: every run re-verifies the registry signature.
-        c_ref = 'sha256-' + cases['digests']['C'].removeprefix('sha256:')
-        assert c_ref in cached_refs(), 'the refused stage must leave verified C cached'
-        c_layers = layer_gets('C')
-        control('unsign/C')
-        cli('cached-unsigned-c', 'check', '--json', success=False)
-        assert 'Source image rejected' in (state / 'cached-unsigned-c.stderr').read_text()
-        withdrawn = cli('after-unsigned-c', 'status', '--json')
-        assert withdrawn['host'] == staged['host'] and withdrawn['journal']['high_water'] == staged['journal']['high_water']
-        assert c_ref in cached_refs(), 'C must still be cached when its signature is refused'
-        transfers('cached-unsigned-c', 'C', c_layers, reused=c_layers)
-        control('B')
-        b_layers = layer_gets('B')
-        again = cli('idempotent-stage', 'stage')
-        assert again['host'] == staged['host']
-        transfers('idempotent-stage', 'B', b_layers, reused=b_layers)
-        (state / 'personal-data').write_text('A data before B\n')
+    if (variant, phase) == ('A', 'update-a'):
+        marker = update_a(cases)
         phase_file.write_text('boot-b')
-        return 'KEDRA_GHCR_A_PASS'
     elif (variant, phase) == ('B', 'boot-b'):
-        home_data(expected='A preference before B\n', replacement='B preference survives rollback\n')
-        booted = cli('booted-b', 'status', '--json')
-        assert booted['host']['booted']['digest'] == cases['digests']['B']
-        assert booted['journal']['operation']['phase'] == 'booted'
-        assert (state / 'personal-data').read_text() == 'A data before B\n'
-        control('A')
-        a_layers = layer_gets('A')
-        cli('lower-replay', 'check', success=False)
-        # The cache persists across reboot for the retained rollback image.
-        transfers('lower-replay', 'A', a_layers, reused=a_layers)
-        control('B')
-        (state / 'personal-data').write_text('B data survives rollback\n')
-        subprocess.run(['/usr/bin/python3', '/usr/libexec/kedra-ghcr-identity-recovery.py',
-                        '--output', str(state / 'identity-recovery')], check=True, timeout=2400)
-        held = cli('rollback-queued', 'status', '--json')
-        assert held['journal']['rollback_hold'] and held['host']['rollback_queued']
-        assert held['journal']['high_water'] == booted['journal']['high_water']
+        marker = boot_b(cases)
         phase_file.write_text('rollback-a')
-        return 'KEDRA_GHCR_B_PASS'
     elif (variant, phase) == ('A', 'rollback-a'):
-        home_data(expected='B preference survives rollback\n')
-        rolled = cli('rolled-a', 'status', '--json')
-        assert rolled['host']['booted']['digest'] == cases['digests']['A']
-        assert rolled['journal']['high_water']['digest'] == cases['digests']['B']
-        assert rolled['journal']['rollback_hold'] and rolled['journal']['operation']['phase'] == 'booted'
-        assert (state / 'personal-data').read_text() == 'B data survives rollback\n'
-        control('B')
-        b_layers = layer_gets('B')
-        assert cli('held-check', 'check')['state'] == 'held'
-        transfers('held-check', 'B', b_layers, reused=b_layers)
-        cli('held-stage', 'stage', success=False)
-        resumed = cli('resume', 'stage', '--resume')
-        assert not resumed['journal']['rollback_hold'] and resumed['host']['staged']['digest'] == cases['digests']['B']
+        marker = rollback_a(cases)
         phase_file.write_text('complete')
-        return 'KEDRA_GHCR_ROLLBACK_PASS'
     else:
         raise RuntimeError('Unexpected image/phase')
+    return marker
+
+
+def unchanged(label, before):
+    """A refused operation left native deployments and the rollback hold as they were."""
+    after = cli(label, 'status', '--json')
+    assert after['host'] == before['host'] and after['rollback_hold'] == before['rollback_hold']
+    return after
+
+
+# Each refused signature names the reason bootc's policy check gave, before any layer download.
+SIGNATURE_REFUSALS = {
+    'U': 'A signature was required, but no signature exists',
+    'W': 'cryptographic signature verification failed',
+    'R': 'is not accepted',
+    'N': 'A signature was required, but no signature exists',
+}
+
+
+def update_a(cases):
+    home_data(replacement='A preference before B\n')
+    digests = cases['digests']
+    control('A')
+    initial = cli('initial', 'status', '--json')
+    assert initial['schema_version'] == 3 and initial['state'] == 'booted' and not initial['rollback_hold']
+    assert initial['host']['booted']['digest'] == digests['A'] and initial['installed_identity_error'] is None
+    current = cli('current', 'check', '--json')
+    assert current['state'] == 'current' and current['available']['digest'] == digests['A']
+    assert current['signature_verified'] and current['registry_checked']
+    # Identity refusals: the helper reads only the digest-bound label, before bootc runs.
+    for name in ('T', 'X', 'H', 'M', 'E', 'D'):
+        control(name)
+        before = layer_gets(name)
+        cli('check-' + name, 'check', '--json', success=False)
+        cli('stage-' + name, 'stage', success=False)
+        downloads('refused-' + name, name, before)
+        unchanged('after-' + name, initial)
+    assert 'below the booted image' in (state / 'check-D.stderr').read_text()
+    # Signature refusals: the label is in scope and newer, so check reports it;
+    # bootc's policy refuses it at staging before fetching any layer.
+    for name, reason in SIGNATURE_REFUSALS.items():
+        control(name)
+        before = layer_gets(name)
+        reported = cli('check-' + name, 'check', '--json')
+        assert reported['state'] == 'available' and not reported['signature_verified']
+        cli('stage-' + name, 'stage', success=False)
+        assert reason in (state / ('stage-' + name + '.stderr')).read_text(), name
+        downloads('refused-' + name, name, before)
+        unchanged('after-' + name, initial)
+    control('offline')
+    cli('offline', 'check', '--json', success=False)
+    control('online')
+    control('B')
+    a_layers, b_layers = layer_gets('A'), layer_gets('B')
+    new = sorted(set(b_layers) - set(a_layers))
+    assert new and set(b_layers) & set(a_layers), 'fixture B must share base layers with A and add its own'
+    available = cli('available-b', 'check', '--json')
+    assert available['state'] == 'available' and available['available']['digest'] == digests['B']
+    assert not available['signature_verified']
+    cli('expected-other', 'stage', '--expected-digest', digests['A'], success=False)
+    unchanged('after-expected-other', initial)
+    # bootc verifies B and fetches only its new layers, once; no separate verification copy.
+    staged = cli('stage-b', 'stage', '--expected-digest', digests['B'])
+    assert staged['state'] == 'staged' and staged['host']['staged']['digest'] == digests['B']
+    assert staged['signature_verified'] and staged['host']['booted']['digest'] == digests['A']
+    b_layers = downloads('stage-b', 'B', b_layers, once=new)
+    control('C')
+    pending = cli('pending-c', 'check', '--json')
+    assert pending['state'] == 'pending_other_deployment' and pending['host'] == staged['host']
+    cli('preserve-pending', 'stage', success=False)
+    unchanged('pending-unchanged', staged)
+    control('B')
+    again = cli('idempotent-stage', 'stage')
+    assert again['host'] == staged['host'] and again['state'] == 'staged'
+    downloads('idempotent-stage', 'B', b_layers)
+    (state / 'personal-data').write_text('A data before B\n')
+    return 'KEDRA_GHCR_A_PASS'
+
+
+def boot_b(cases):
+    home_data(expected='A preference before B\n', replacement='B preference survives rollback\n')
+    digests = cases['digests']
+    booted = cli('booted-b', 'status', '--json')
+    assert booted['state'] == 'booted' and booted['host']['booted']['digest'] == digests['B']
+    assert booted['host']['rollback']['digest'] == digests['A'] and not booted['rollback_hold']
+    assert (state / 'personal-data').read_text() == 'A data before B\n'
+    control('A')
+    cli('lower-replay', 'check', success=False)
+    assert 'below the booted image' in (state / 'lower-replay.stderr').read_text()
+    cli('lower-replay-stage', 'stage', success=False)
+    unchanged('after-lower-replay', booted)
+    control('B')
+    assert cli('current-b', 'check')['state'] == 'current'
+    (state / 'personal-data').write_text('B data survives rollback\n')
+    subprocess.run(['/usr/bin/python3', '/usr/libexec/kedra-ghcr-identity-recovery.py',
+                    '--output', str(state / 'identity-recovery')], check=True, timeout=2400)
+    held = cli('rollback-queued', 'status', '--json')
+    assert held['state'] == 'held' and held['rollback_hold'] and held['host']['rollback_queued']
+    cli('queued-stage', 'stage', '--resume', success=False)
+    unchanged('after-queued-stage', held)
+    return 'KEDRA_GHCR_B_PASS'
+
+
+def rollback_a(cases):
+    home_data(expected='B preference survives rollback\n')
+    digests = cases['digests']
+    rolled = cli('rolled-a', 'status', '--json')
+    assert rolled['host']['booted']['digest'] == digests['A'] and rolled['host']['rollback']['digest'] == digests['B']
+    assert rolled['state'] == 'held' and rolled['rollback_hold'] and not rolled['host']['rollback_queued']
+    assert (state / 'personal-data').read_text() == 'B data survives rollback\n'
+    control('B')
+    b_layers = layer_gets('B')
+    held = cli('held-check', 'check')
+    assert held['state'] == 'held' and held['available']['digest'] == digests['B']
+    cli('held-stage', 'stage', success=False)
+    unchanged('after-held-stage', rolled)
+    resumed = cli('resume', 'stage', '--resume')
+    assert not resumed['rollback_hold'] and resumed['host']['staged']['digest'] == digests['B']
+    assert resumed['state'] == 'staged' and resumed['signature_verified']
+    # The retained B deployment already holds every layer.
+    downloads('resume', 'B', b_layers)
+    assert not cli('after-resume', 'status', '--json')['rollback_hold']
+    return 'KEDRA_GHCR_ROLLBACK_PASS'
 
 
 phase_marker = None

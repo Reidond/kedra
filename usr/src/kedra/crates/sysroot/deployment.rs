@@ -9,18 +9,13 @@ pub struct Options {
 }
 #[derive(Subcommand)]
 enum Operation {
-    /// Verify fixed GHCR stable and record replay high-water without staging.
+    /// Report whether fixed GHCR stable is a newer image in scope; never stages.
+    /// Its signature is verified by bootc when it is staged.
     Check {
         #[arg(long)]
         json: bool,
     },
-    /// Enroll only the exact running signed image; never overwrite enrollment.
-    Enroll {
-        /// Require this exact booted digest; never accepts a repository or tag.
-        #[arg(long)]
-        expected_digest: Option<String>,
-    },
-    /// Observe native bootc and reconcile an existing deployment journal.
+    /// Observe native bootc, the booted image identity and the rollback hold.
     Status {
         /// Emit structured installed status (currently also the default).
         #[arg(long)]
@@ -32,7 +27,8 @@ enum Operation {
         #[arg(long, requires = "home")]
         home_state: Option<PathBuf>,
     },
-    /// Verify fixed GHCR stable and stage its exact signed digest, without rebooting.
+    /// Stage fixed GHCR stable's exact digest without rebooting; bootc verifies its
+    /// signature and the helper refuses an image older than the booted one.
     Stage {
         /// Exact currently staged digest to replace after reviewing that change.
         #[arg(long)]
@@ -44,7 +40,7 @@ enum Operation {
         #[arg(long)]
         expected_digest: Option<String>,
     },
-    /// Queue the native retained signed rollback image; preserve trust high-water state.
+    /// Queue the retained rollback deployment and hold forward updates.
     Rollback {
         #[arg(long)]
         replace_staged: Option<String>,
@@ -63,7 +59,6 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                 let _ = json;
                 Request::ChannelCheck {}
             }
-            Operation::Enroll { expected_digest } => Request::ChannelEnroll { expected_digest },
             Operation::Status {
                 home,
                 home_state,
@@ -102,7 +97,7 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
             return Err("run channel management as the ordinary owner; the installed helper requests authorization".into());
         }
         let bytes = serde_json::to_vec(&Envelope {
-            schema_version: 2,
+            schema_version: sysroot_core::protocol::PROTOCOL,
             request,
         })?;
         if bytes.len() > sysroot_core::protocol::MAX_REQUEST {
@@ -154,12 +149,11 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
                 let object = response
                     .as_object_mut()
                     .ok_or("installed helper status is not an object")?;
-                if !matches!(
-                    object
-                        .get("schema_version")
-                        .and_then(serde_json::Value::as_u64),
-                    Some(2)
-                ) || object.contains_key("caller_home")
+                if object
+                    .get("schema_version")
+                    .and_then(serde_json::Value::as_u64)
+                    != Some(sysroot_core::protocol::PROTOCOL.into())
+                    || object.contains_key("caller_home")
                 {
                     return Err("installed helper status is incompatible".into());
                 }

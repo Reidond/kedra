@@ -1,5 +1,23 @@
 # Verified status
 
+## Signed updates through bootc (2026-10-15)
+
+Branch claude/helper-bootc-d6bc61 makes the installed helper rely on bootc's own
+signature enforcement: `sysroot update stage` stages the exact digest with
+`bootc switch --enforce-container-sigpolicy` under the installed strict policy, and
+the helper's Skopeo pre-copy into `/var/lib/sysroot/verified-oci`, enrollment, the
+high-water journal and retained receipts are removed. The helper still refuses an
+image whose signed identity is out of scope or older than the booted image (bootc
+deploys any validly signed digest), keeps staging and reboot explicit, and holds
+updates after a rollback; the hold is its only root state. It runs bootc with
+`HOME=/var/lib/sysroot` and refuses `/var/lib/sysroot/.config`, because a per-user
+`~/.config/containers/policy.json` overrides `/etc` and admitted an unsigned image
+in a local experiment. `compatibility.json` is now a minimum bootc version
+(1.16.13). `sysroot update check` no longer verifies signatures. See
+[UPDATES](UPDATES.md#how-an-update-is-verified) and worklog
+WL-20261015-HELPER-BOOTC-01 for the checks and the aarch64 HVF update run; x86_64
+KVM runs are not-run.
+
 ## Local boot-level VM drivers (2026-10-14)
 
 The VM drivers under `usr/src/kedra/tests/vm` no longer require Actions. They share
@@ -767,7 +785,7 @@ source revisions.
 - **Production.** `ghcr.io/reidond/kedra-desktop:stable` resolves to `sha256:3fb355b4151ca5741fb5cfb53689eaade6ea262dabdfb7f74fd124f9ecaae85f`, published by push release run [36132498983](https://github.com/Reidond/kedra/actions/runs/36132498983) (run #26) from main `664ffc1088cef1a3374f665b61bc261cfcb0c673` (PR #15, bootc 1.16.13, Fedora base 44.20260925.0). Anonymous registry readback on 2026-09-25 confirms the digest and identity (run 26, attempt 1). Fourteen signed stable publications exist in total; see the table below.
 - **Desktop source.** PR #14 (Adwaita desktop, adw-gtk3, Noctalia 5.1 compatibility, right-side clock) merged on 2026-09-14 as `17105c5`. On that exact commit, workspace [34820938028](https://github.com/Reidond/kedra/actions/runs/34820938028), desktop [34820938007](https://github.com/Reidond/kedra/actions/runs/34820938007), signed home [34820938085](https://github.com/Reidond/kedra/actions/runs/34820938085), direct GHCR [34820938156](https://github.com/Reidond/kedra/actions/runs/34820938156) and signed updates [34820938031](https://github.com/Reidond/kedra/actions/runs/34820938031) pass. Push release [34820938097](https://github.com/Reidond/kedra/actions/runs/34820938097) published it.
 - **Daily images are not VM-tested at their exact digests.** Publication does not wait for the VM workflows; each nightly image differs from the tested source build only in refreshed Fedora inputs.
-- **bootc compatibility.** Fedora 44 moved `bootc-1.16.13-1.fc44` to stable on 2026-09-25. The shared contract still qualifies 1.16.10, so builds that resolve 1.16.13 fail closed before signing until the contract is deliberately updated and requalified. PR #15 bumped the contract to 1.16.13; it passed every workflow at `89edf80` and again on main at `664ffc1` (workspace 36132498938, RPM refresh 36132499073, agents 36132499274, signed updates 36132499148, direct GHCR 36132498767, signed home 36132499008, desktop 36132498749). A fresh Anaconda installation with 1.16.13 is not-run.
+- **bootc compatibility.** Fedora 44 moved `bootc-1.16.13-1.fc44` to stable on 2026-09-25. The shared contract still qualifies 1.16.10, so builds that resolve 1.16.13 fail closed before signing until the contract is deliberately updated and requalified. PR #15 bumped the contract to 1.16.13; it passed every workflow at `89edf80` and again on main at `664ffc1` (workspace 36132498938, RPM refresh 36132499073, agents 36132499274, signed updates 36132499148, direct GHCR 36132498767, signed home 36132499008, desktop 36132498749). A fresh Anaconda installation with 1.16.13 is not-run. Since 2026-10-15 the contract is a minimum version, so a newer bootc no longer stops the build.
 - **In progress (WL-20260925-02, `codex/secure-boot-utm`):** product-wide UEFI Secure Boot enforcement (installer refusal, required `secure_boot` doctor check, every VM workflow on Secure Boot firmware with a snakeoil-key negative case) and the separately signed aarch64 `utm` target for UTM 5.0.6 on Apple Silicon. The `kedra-utm-signing` environment, secrets and public variables exist (fingerprint `76ca7a65915adb1907acbe0885af83c5c569dd2964b87decbfb67059dee366c6`); `ghcr.io/reidond/kedra-utm` and `kedra-utm-builds` exist, public and linked to the repository, holding only an unsigned `bootstrap` placeholder. No utm image is built, signed or published yet, and no Secure Boot VM run has happened in Actions.
 - **utm on the owner's Mac (2026-09-26, manual):** the first signed `kedra-utm` image (`sha256:b9a5c32e…`, run 28) was built into local installer media, installed encrypted into a UTM 5.0.6 VM and booted with UEFI Secure Boot enforced (NVRAM Fedora entry, lockdown integrity), SELinux enforcing, `sysroot doctor` all OK, VirGL OpenGL ES 3.0 and Vulkan through `Virtio-GPU Venus (Apple M2 Pro)` API 1.4.334, no failed units. UTM Shared Network gave the guest no IPv4 on that Mac; Emulated VLAN works and is now the tooling default. Enrollment, signed forward update, clipboard/resize and aarch64 Bitwarden/Codex are not yet qualified there (WL-20260926-01).
 - **Container tests and lab (2026-09-27, PR #21 merged as `490e13a`):** `usr/src/kedra/tests/container` implements the owner's Testcontainers harness specification. Scenarios and native tests boot the image under test with systemd as PID 1 and run the real Kedra session nested in headless sway: image contents, the session, Noctalia, portals and keyring, doctor, Bitwarden, Codex, R03/R04 home review and recovery, and GTK 3/libadwaita choosers. On the owner's Mac (utm, working tree over stable `sha256:45fe5f72…`) all 13 tests pass locally. A full local build of the working tree built in 8 min. `kedra-lab` runs the desktop from any stage and takes 2560×1600 screenshots; `kedra-lab up --live` shows it in cocoa-way built from pinned sources. On main at `490e13a`, test-container.yml passes on both targets ([36323569209](https://github.com/Reidond/kedra/actions/runs/36323569209)), with every VM workflow, check, agents and RPM refresh. test-desktop.yml and test-utm-image.yml keep only boot-level checks. Push release [36323569281](https://github.com/Reidond/kedra/actions/runs/36323569281) (run 34) published both targets: desktop `sha256:b6b017fab000f30338e6be84eb4b400da9f0c97397799e9c74ea65a41e4ab614`, utm `sha256:f3230ed446ccc500ac5db6fd2e57c99d26bd31e4395ca3bc22b1e6494dbd2129`.
@@ -1177,7 +1195,7 @@ command passes with zero cases, providing no new Linux behavioral coverage.
 
 At the owner’s explicit direction, GitHub Release IDs 385117864 (r1), 385328126 (r2) and 385128562 (legacy channel), including all 31 uploaded assets, were deleted. The remote Releases list is empty. Their source Git tags remain; no source tag was removed. Historical signed-image/installation results remain in Git history and worklog, not as current download availability.
 
-The owner confirmed on 2026-09-13 that nobody installed r1/r2. No deployed-system migration is required; earlier migration blockers assumed installations that do not exist. Fresh installations enroll directly in the signed GHCR workflow. Historical disposable-VM results remain valid only within their recorded scope.
+The owner confirmed on 2026-09-13 that nobody installed r1/r2. No deployed-system migration is required; earlier migration blockers assumed installations that do not exist. Fresh installations need no enrollment since 2026-10-15 (see "Signed updates through bootc"). Historical disposable-VM results remain valid only within their recorded scope.
 
 ### Verified implementation and remaining qualification
 

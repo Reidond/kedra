@@ -294,7 +294,7 @@ done
 curl --silent --fail --cacert "$root/context/tls.crt" https://127.0.0.1/v2/ >/dev/null
 sudo podman build --pull=never --network=none -f "$root/context/arm64.Containerfile" \
     -t localhost/kedra-ghcr-arm:base "$root/context" > "$evidence/fixture-base-build.log" 2>&1
-for variant in A B C E U W R N T X H M; do
+for variant in A B C D E U W R N T X H M; do
     identity=$(cat "$root/context/$variant/image-identity.json")
     sudo podman build --pull=never --network=none --build-arg "KEDRA_IDENTITY=$identity" --build-arg "VARIANT=$variant" \
         -f "$root/context/arm64-variant.Containerfile" -t "localhost/kedra-ghcr-arm:$variant" "$root/context" \
@@ -341,7 +341,7 @@ cases={'schema_version':1,'target':'qemu-arm64','require_fresh_installation':Tru
        'native_receipt_sha256':authority['native_receipt_sha256'],
        'native_observer_sha256':authority['native_observer_sha256'],
        'digests':{v:(root/(v+'.digest')).read_text().strip()
-                  for v in ['A','B','C','E','U','W','R','N','T','X','H','M']}}
+                  for v in ['A','B','C','D','E','U','W','R','N','T','X','H','M']}}
 (root/'cases/cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 (Path(fixture['evidence'])/'cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 PY

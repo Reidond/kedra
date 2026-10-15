@@ -13,10 +13,14 @@ updates after a rollback; the hold is its only root state. It runs bootc with
 `HOME=/var/lib/sysroot` and refuses `/var/lib/sysroot/.config`, because a per-user
 `~/.config/containers/policy.json` overrides `/etc` and admitted an unsigned image
 in a local experiment. `compatibility.json` is now a minimum bootc version
-(1.16.13). `sysroot update check` no longer verifies signatures. See
-[UPDATES](UPDATES.md#how-an-update-is-verified) and worklog
-WL-20261015-HELPER-BOOTC-01 for the checks and the aarch64 HVF update run; x86_64
-KVM runs are not-run.
+(1.16.13). `sysroot update check` no longer verifies signatures. On the owner's Mac
+(8fd9c95) the ghcr-update test passes under HVF (`run-hvf.py`): signed A→B update,
+rollback with hold and resume, refusal of unsigned, wrong-key, wrong-repository,
+missing-signature (by bootc, before any layer download), out-of-scope and downgraded
+images (by the helper), with each new layer downloaded once; Linux checks and the
+container harness (13/13) pass. x86_64 KVM and the full composed ARM fixture are
+not-run. See [UPDATES](UPDATES.md#how-an-update-is-verified) and worklog
+WL-20261015-HELPER-BOOTC-01.
 
 ## Local boot-level VM drivers (2026-10-14)
 

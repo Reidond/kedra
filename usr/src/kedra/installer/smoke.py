@@ -2,31 +2,22 @@
 import hashlib
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
-# Debian/Ubuntu firmware: Secure Boot code plus a variable store with Microsoft
-# UEFI CAs enrolled and Secure Boot enabled. The guest probe independently
-# reports the firmware state; the smoke fails unless that report is present.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/common'))
+import qemu
+import secure_boot
+
+# Debian/Ubuntu firmware through the shared VM launcher: Secure Boot code plus
+# a variable store with Microsoft UEFI CAs enrolled and Secure Boot enabled.
+# The guest probe independently reports the firmware state; the smoke fails
+# unless that report is present.
 MACHINES = {
-    'x86_64': {
-        'qemu': 'qemu-system-x86_64', 'package': 'ovmf',
-        'code': Path('/usr/share/OVMF/OVMF_CODE_4M.secboot.fd'),
-        'vars': Path('/usr/share/OVMF/OVMF_VARS_4M.ms.fd'),
-        # OVMF Secure Boot builds require SMM and a secure pflash varstore.
-        'arguments': ['-machine', 'q35,smm=on,accel=kvm', '-cpu', 'host',
-                      '-global', 'driver=cfi.pflash01,property=secure,value=on',
-                      '-global', 'ICH9-LPC.disable_s3=1', '-vga', 'std',
-                      '-device', 'ide-cd,drive=installer,bootindex=0'],
-    },
-    'aarch64': {
-        'qemu': 'qemu-system-aarch64', 'package': 'qemu-efi-aarch64',
-        'code': Path('/usr/share/AAVMF/AAVMF_CODE.secboot.fd'),
-        'vars': Path('/usr/share/AAVMF/AAVMF_VARS.ms.fd'),
-        'arguments': ['-machine', 'virt,gic-version=max,accel=kvm', '-cpu', 'host',
-                      '-device', 'virtio-gpu-pci', '-device', 'virtio-scsi-pci,id=scsi',
-                      '-device', 'scsi-cd,bus=scsi.0,drive=installer,bootindex=0'],
-    },
+    architecture: {'qemu': qemu.qemu_binary(architecture), 'package': spec['packages'][0],
+                   'code': spec['code'], 'vars': spec['templates']['microsoft']}
+    for architecture, spec in secure_boot.FIRMWARE.items()
 }
 MARKERS = ('KEDRA_INSTALLER_SECUREBOOT_ENABLED', 'KEDRA_INSTALLER_SIGNED_PAYLOAD_PASS',
            'KEDRA_INSTALLER_ANACONDA_STARTED')
@@ -40,57 +31,55 @@ def identity(path):
                 'sha256': hashlib.file_digest(stream, 'sha256').hexdigest()}
 
 
-def command(machine, qemu, iso, variables, events, serial):
+def command(architecture, qemu_path, iso, variables, events, work):
+    machine = qemu.machine_argv(architecture, 'kvm', code=MACHINES[architecture]['code'], variables=variables,
+                                qmp=work / 'qmp.sock', serial=work / 'serial.log', cpus=2, memory_mib=6144)
+    if architecture == 'x86_64':
+        media = ['-global', 'ICH9-LPC.disable_s3=1', '-vga', 'std', '-device', 'ide-cd,drive=installer,bootindex=0']
+    else:
+        media = ['-device', 'virtio-gpu-pci', '-device', 'virtio-scsi-pci,id=scsi',
+                 '-device', 'scsi-cd,bus=scsi.0,drive=installer,bootindex=0']
     return [
-        qemu, *machine['arguments'], '-smp', '2', '-m', '6144', '-device', 'virtio-rng-pci',
-        '-drive', f'if=pflash,format=raw,unit=0,readonly=on,file={machine["code"]}',
-        '-drive', f'if=pflash,format=raw,unit=1,file={variables}',
-        '-drive', f'if=none,id=installer,media=cdrom,format=raw,readonly=on,file={iso}',
+        qemu_path, *machine, *media,
+        '-drive', f'if=none,id=installer,media=cdrom,format=raw,readonly=on,file={qemu.option_path(iso)}',
         # Explicit research trigger without editing the media's boot menu.
         '-smbios', 'type=11,value=io.systemd.credential:kedra.research=1',
-        '-device', 'virtio-serial-pci', '-chardev', f'file,id=events,path={events}',
-        '-device', 'virtserialport,chardev=events,name=org.kedra.events',
-        '-display', 'none', '-nic', 'none', '-monitor', 'none', '-no-reboot',
-        '-serial', f'file:{serial}',
+        *qemu.events_argv(events), *qemu.network_argv(False), '-display', 'none', '-no-reboot',
     ]
 
 
-def run(architecture, qemu, iso, work, environment):
+def wait(process, events):
+    deadline = time.monotonic() + DEADLINE
+    while process.poll() is None and time.monotonic() < deadline:
+        text = events.read_text(errors='replace') if events.exists() else ''
+        if 'KEDRA_INSTALLER_PROBE_FAIL' in text:
+            raise RuntimeError('Installer boot probe failed; see ' + str(events))
+        if 'KEDRA_INSTALLER_ANACONDA_STARTED' in text:
+            if not all(marker in text for marker in MARKERS):
+                raise RuntimeError('Anaconda started without Secure Boot or embedded-payload verification')
+            print('PASS: UEFI Secure Boot, offline signed payload verification and Anaconda startup; '
+                  'no disks attached')
+            return
+        time.sleep(1)
+    raise RuntimeError('Secure Boot installer smoke did not pass; see ' + str(events.parent))
+
+
+def run(architecture, qemu_path, iso, work, environment):
     machine = MACHINES[architecture]
     work.mkdir(mode=0o700)
     variables = work / 'efi-vars.fd'
     shutil.copyfile(machine['vars'], variables)
     events = work / 'events.log'
-    version = subprocess.run([qemu, '--version'], check=False, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                             env=environment, timeout=30)
+    version = subprocess.run([qemu_path, '--version'], check=False, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, env=environment, timeout=30)
     if version.returncode != 0:
-        raise RuntimeError('Command failed: ' + qemu)
-    with (work / 'qemu.log').open('w') as log:
-        process = subprocess.Popen(command(machine, qemu, iso, variables, events, work / 'serial.log'),
-                                   stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, env=environment)
-        try:
-            deadline = time.monotonic() + DEADLINE
-            while process.poll() is None and time.monotonic() < deadline:
-                text = events.read_text(errors='replace') if events.exists() else ''
-                if 'KEDRA_INSTALLER_PROBE_FAIL' in text:
-                    raise RuntimeError('Installer boot probe failed; see ' + str(events))
-                if 'KEDRA_INSTALLER_ANACONDA_STARTED' in text:
-                    if not all(marker in text for marker in MARKERS):
-                        raise RuntimeError('Anaconda started without Secure Boot or embedded-payload verification')
-                    print('PASS: UEFI Secure Boot, offline signed payload verification and Anaconda startup; '
-                          'no disks attached')
-                    break
-                time.sleep(1)
-            else:
-                raise RuntimeError('Secure Boot installer smoke did not pass; see ' + str(work))
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+        raise RuntimeError('Command failed: ' + qemu_path)
+    process = qemu.launch(command(architecture, qemu_path, iso, variables, events, work), work / 'qemu.log',
+                          env=environment)
+    try:
+        wait(process, events)
+    finally:
+        qemu.stop(process, timeout=10)
     return {'architecture': architecture, 'qemu': version.stdout.decode().splitlines()[0],
             'firmware_code': identity(machine['code']), 'firmware_variables_template': identity(machine['vars']),
             'markers': list(MARKERS)}

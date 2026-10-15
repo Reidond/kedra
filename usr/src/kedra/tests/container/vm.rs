@@ -105,6 +105,8 @@ pub enum VmCommand {
     },
     /// Save native VM logs and desktop state.
     Logs(Instance),
+    /// Require the shared guest UEFI Secure Boot check's pass for the running boot.
+    Check(Instance),
     /// Send virtual hardware keys using QEMU qcodes (e.g. meta_l ret).
     Key {
         #[command(flatten)]
@@ -439,6 +441,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
         VmCommand::Status(instance) => execute(&mut instance_script(&instance, "status")?),
         VmCommand::Remove(instance) => execute(&mut instance_script(&instance, "remove")?),
         VmCommand::Logs(instance) => execute(&mut instance_script(&instance, "logs")?),
+        VmCommand::Check(instance) => execute(&mut instance_script(&instance, "check")?),
         VmCommand::Key { instance, keys } => execute(instance_script(&instance, "key")?.args(keys)),
         VmCommand::Down { instance, force } => {
             let mut command = instance_script(&instance, "down")?;

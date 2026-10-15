@@ -3,13 +3,15 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Ubuntu OVMF UEFI Secure Boot firmware for disposable x86_64 VM tests.
+"""Ubuntu OVMF/AAVMF UEFI Secure Boot firmware for disposable Linux VM tests.
 
-Every CI VM boots Ubuntu's SMM-enforced Secure Boot build with a private copy
-of its Microsoft-enrolled variable template. The snakeoil template trusts only
-Ubuntu's test key; it exists solely for the negative case in which firmware
-must refuse Fedora's Microsoft-signed shim. Nothing here writes outside the
-explicit disposable output or evidence paths.
+Every Linux VM boots Ubuntu's Secure Boot firmware build with a private copy of
+its Microsoft-enrolled variable template: OVMF with SMM on x86_64, AAVMF on
+aarch64. The x86_64 snakeoil template trusts only Ubuntu's test key; it exists
+solely for negative cases in which firmware must refuse Fedora's
+Microsoft-signed shim. Nothing here writes outside the explicit disposable
+output or evidence paths. The native macOS lab checks its own runtime firmware
+(usr/src/kedra/tests/container/qemu/check-runtime.py).
 """
 import argparse
 import hashlib
@@ -23,10 +25,8 @@ import tempfile
 import uuid
 
 OVMF = pathlib.Path("/usr/share/OVMF")
-CODE = OVMF / "OVMF_CODE_4M.secboot.fd"
-TEMPLATES = {"microsoft": OVMF / "OVMF_VARS_4M.ms.fd", "snakeoil": OVMF / "OVMF_VARS_4M.snakeoil.fd"}
+AAVMF = pathlib.Path("/usr/share/AAVMF")
 DESCRIPTORS = pathlib.Path("/usr/share/qemu/firmware")
-PACKAGES = ("ovmf", "qemu-system-x86", "python3-virt-firmware")
 GLOBAL = "8be4df61-93ca-11d2-aa0d-00e098032b8c"
 SECURITY_DATABASE = "d719b2cb-3d3a-4596-a3bc-dad00e67656f"
 # Variables that establish Secure Boot trust and enforcement, by vendor GUID.
@@ -39,13 +39,40 @@ TRUST = {
 X509 = uuid.UUID("a5c059a1-94e4-4aa7-87b5-ab155c2bf072")
 # SHA-256 of the DER certificates; their SHA-1 thumbprints (46def63b... and
 # b5eeb4a6...) are Microsoft's published values. Fedora 44 shim-x64 16.1-5 is
-# signed only through the 2011 CA, so the Microsoft template must contain it.
+# signed only through the 2011 CA, shimaa64 only through the 2023 CA, so each
+# architecture's Microsoft template must contain its CA.
 MICROSOFT_2011 = "48e99b991f57fc52f76149599bff0a58c47154229b9f8d603ac40d3500248507"
 MICROSOFT_2023 = "f6124e34125bee3fe6d79a574eaa7b91c0e7bd9d929c1a321178efd611dad901"
+FIRMWARE = {
+    "x86_64": {
+        "code": OVMF / "OVMF_CODE_4M.secboot.fd",
+        "templates": {"microsoft": OVMF / "OVMF_VARS_4M.ms.fd", "snakeoil": OVMF / "OVMF_VARS_4M.snakeoil.fd"},
+        "ca": MICROSOFT_2011,
+        "features": {"secure-boot", "requires-smm", "enrolled-keys"},
+        "packages": ("ovmf", "qemu-system-x86", "python3-virt-firmware"),
+    },
+    "aarch64": {
+        "code": AAVMF / "AAVMF_CODE.secboot.fd",
+        "templates": {"microsoft": AAVMF / "AAVMF_VARS.ms.fd"},
+        "ca": MICROSOFT_2023,
+        "features": {"secure-boot", "enrolled-keys"},
+        "packages": ("qemu-efi-aarch64", "qemu-system-arm", "python3-virt-firmware"),
+    },
+}
+# Unqualified names keep meaning x86_64 for existing callers.
+CODE = FIRMWARE["x86_64"]["code"]
+TEMPLATES = FIRMWARE["x86_64"]["templates"]
+PACKAGES = FIRMWARE["x86_64"]["packages"]
 
 
 class FirmwareError(RuntimeError):
     pass
+
+
+def firmware(architecture):
+    if architecture not in FIRMWARE:
+        raise FirmwareError(f"no Secure Boot firmware for {architecture}")
+    return FIRMWARE[architecture]
 
 
 def variables(path):
@@ -91,46 +118,52 @@ def certificates(data):
     return found
 
 
-def template(kind):
+def template(kind, architecture="x86_64"):
     """Trust variables of an installed template, after checking its purpose."""
-    values = trust(TEMPLATES[kind])
+    spec = firmware(architecture)
+    if kind not in spec["templates"]:
+        raise FirmwareError(f"no {kind} variable template for {architecture}")
+    path = spec["templates"][kind]
+    values = trust(path)
     missing = [name for name in ("PK", "KEK", "db", "SecureBootEnable") if name not in values]
-    if missing or values["SecureBootEnable"][1] != b"\x01":
-        raise FirmwareError(f"{TEMPLATES[kind]} does not enable Secure Boot with enrolled keys")
+    if missing or values["SecureBootEnable"][1] != b"\x01" or not values["PK"][1] or not values["KEK"][1]:
+        raise FirmwareError(f"{path} does not enable Secure Boot with enrolled keys")
     db = set(certificates(values["db"][1]))
-    if kind == "microsoft" and MICROSOFT_2011 not in db:
-        raise FirmwareError(f"{TEMPLATES[kind]} db lacks Microsoft Corporation UEFI CA 2011")
+    if kind == "microsoft" and spec["ca"] not in db:
+        raise FirmwareError(f"{path} db lacks the Microsoft UEFI CA that signs Fedora's {architecture} shim")
     if kind == "snakeoil" and db & {MICROSOFT_2011, MICROSOFT_2023}:
-        raise FirmwareError(f"{TEMPLATES[kind]} db unexpectedly trusts a Microsoft UEFI CA")
+        raise FirmwareError(f"{path} db unexpectedly trusts a Microsoft UEFI CA")
     return values
 
 
-def verify(path):
+def verify(path, architecture="x86_64"):
     """Refuse a store whose Secure Boot trust differs from the Microsoft template."""
     path = pathlib.Path(path)
-    expected = template("microsoft")
-    if not path.is_file() or path.stat().st_size != TEMPLATES["microsoft"].stat().st_size:
-        raise FirmwareError(f"{path} is not a raw OVMF variable store of the template's size")
+    microsoft = firmware(architecture)["templates"]["microsoft"]
+    expected = template("microsoft", architecture)
+    if not path.is_file() or path.stat().st_size != microsoft.stat().st_size:
+        raise FirmwareError(f"{path} is not a raw variable store of the template's size")
     actual = trust(path)
     changed = [name for name in TRUST if actual.get(name) != expected.get(name)]
     if changed:
-        raise FirmwareError(f"{path} is not derived from {TEMPLATES['microsoft']}; changed: {', '.join(changed)}")
+        raise FirmwareError(f"{path} is not derived from {microsoft}; changed: {', '.join(changed)}")
 
 
-def create(kind, output):
+def create(kind, output, architecture="x86_64"):
     """Copy a checked template to a new private store; never overwrite."""
-    template(kind)
+    template(kind, architecture)
     try:
-        with TEMPLATES[kind].open("rb") as source, pathlib.Path(output).open("xb") as target:
+        with firmware(architecture)["templates"][kind].open("rb") as source, pathlib.Path(output).open("xb") as target:
             shutil.copyfileobj(source, target)
     except FileExistsError:
         raise FirmwareError(f"{output} already exists; VM firmware state is never overwritten") from None
     if kind == "microsoft":
-        verify(output)
+        verify(output, architecture)
 
 
-def enrolled_descriptor():
+def enrolled_descriptor(architecture="x86_64"):
     """Ubuntu's own QEMU descriptor declaring this code/template pairing."""
+    spec = firmware(architecture)
     matches = []
     for path in sorted(DESCRIPTORS.glob("*.json")):
         document = json.loads(path.read_bytes())
@@ -138,12 +171,13 @@ def enrolled_descriptor():
         mapping = document.get("mapping", {})
         executable = mapping.get("executable", {}).get("filename")
         variables_template = mapping.get("nvram-template", {}).get("filename")
-        if (executable and variables_template and {"secure-boot", "requires-smm", "enrolled-keys"} <= features
-                and os.path.realpath(executable) == os.path.realpath(CODE)
-                and os.path.realpath(variables_template) == os.path.realpath(TEMPLATES["microsoft"])):
+        targets = {target.get("architecture") for target in document.get("targets", [])}
+        if (executable and variables_template and spec["features"] <= features and architecture in targets
+                and os.path.realpath(executable) == os.path.realpath(spec["code"])
+                and os.path.realpath(variables_template) == os.path.realpath(spec["templates"]["microsoft"])):
             matches.append(path)
     if len(matches) != 1:
-        raise FirmwareError(f"expected one enrolled Secure Boot descriptor for {CODE}, found {len(matches)}")
+        raise FirmwareError(f"expected one enrolled Secure Boot descriptor for {spec['code']}, found {len(matches)}")
     return matches[0]
 
 
@@ -151,20 +185,22 @@ def sha256(path):
     return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
 
 
-def provenance(evidence):
+def provenance(evidence, architecture="x86_64"):
+    spec = firmware(architecture)
     evidence.mkdir(parents=True, exist_ok=True)
-    packages = subprocess.run(["dpkg-query", "--show", "--showformat=${Package}\t${Version}\t${Architecture}\n", *PACKAGES],
+    packages = subprocess.run(["dpkg-query", "--show", "--showformat=${Package}\t${Version}\t${Architecture}\n", *spec["packages"]],
                               check=True, capture_output=True, text=True, timeout=60).stdout
-    descriptor = enrolled_descriptor()
+    descriptor = enrolled_descriptor(architecture)
     record = {
         "schema_version": 1,
+        "architecture": architecture,
         "packages": [dict(zip(("package", "version", "architecture"), line.split("\t"))) for line in packages.splitlines()],
         "descriptor": {"path": str(descriptor), "sha256": sha256(descriptor)},
-        "code": {"path": str(CODE), "resolved": os.path.realpath(CODE), "sha256": sha256(CODE)},
+        "code": {"path": str(spec["code"]), "resolved": os.path.realpath(spec["code"]), "sha256": sha256(spec["code"])},
         "templates": {},
     }
-    for kind, path in TEMPLATES.items():
-        values = template(kind)
+    for kind, path in spec["templates"].items():
+        values = template(kind, architecture)
         listing = subprocess.run(["virt-fw-vars", "--input", str(path), "--print", "--verbose"],
                                  check=True, capture_output=True, text=True, timeout=60)
         (evidence / f"secure-boot-vars-{kind}.txt").write_text(listing.stdout + listing.stderr)
@@ -177,20 +213,21 @@ def provenance(evidence):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--architecture", choices=sorted(FIRMWARE), default="x86_64")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("provenance").add_argument("--evidence", type=pathlib.Path, required=True)
     copy = commands.add_parser("vars")
-    copy.add_argument("--template", choices=sorted(TEMPLATES), required=True)
+    copy.add_argument("--template", choices=("microsoft", "snakeoil"), required=True)
     copy.add_argument("--output", type=pathlib.Path, required=True)
     commands.add_parser("verify").add_argument("--vars", type=pathlib.Path, required=True)
     args = parser.parse_args()
     try:
         if args.command == "provenance":
-            provenance(args.evidence)
+            provenance(args.evidence, args.architecture)
         elif args.command == "vars":
-            create(args.template, args.output)
+            create(args.template, args.output, args.architecture)
         else:
-            verify(args.vars)
+            verify(args.vars, args.architecture)
     except FirmwareError as error:
         raise SystemExit(f"Secure Boot firmware refused: {error}") from None
 

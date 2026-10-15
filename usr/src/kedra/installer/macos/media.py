@@ -27,7 +27,6 @@ if TABLE.get('schema_version') != 1:
 TARGET = 'qemu-arm64'
 SPEC = TABLE['targets'][TARGET]
 IMAGE_PATTERN = re.escape(SPEC['repository']) + r'@sha256:([a-f0-9]{64})'
-BASE_PATTERN = r'quay\.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}'
 TOOLS = {'shasum': '/usr/bin/shasum'}
 STORAGE_VOLUME = 'kedra-macos-media-storage'
 LABEL = 'dev.kedra.macos-media'
@@ -150,8 +149,6 @@ def build_iso(args):
     require_mac()
     require(re.fullmatch(IMAGE_PATTERN, args.image),
             'An exact reviewed {}@sha256:... digest is required, not a mutable tag'.format(SPEC['repository']))
-    require(args.base_image is None or re.fullmatch(BASE_PATTERN, args.base_image),
-            'Invalid reviewed Fedora base digest')
     pins = load_pins()
     engine = docker_engine(docker_cli())
     docker = engine['cli']
@@ -190,7 +187,7 @@ def build_iso(args):
              '--mount', f'type=bind,source={ROOT},target=/kedra,readonly',
              '--mount', f'type=bind,source={output.resolve()},target=/export',
              pins['build_container'], '/bin/bash', '/kedra/usr/src/kedra/installer/macos/build-in-container.sh',
-             args.image, args.base_image or ''], timeout=4 * 3600)
+             args.image], timeout=4 * 3600)
         record, iso = installer_record(output, image=args.image)
         names = sorted(entry.name for entry in output.iterdir())
         require(names == sorted([iso.name, 'installer.json', 'SHA256SUMS']),
@@ -228,7 +225,6 @@ def main():
     build = sub.add_parser('build')
     build.add_argument('--image', required=True)
     build.add_argument('--output', required=True, type=Path)
-    build.add_argument('--base-image')
     verify = sub.add_parser('verify')
     verify.add_argument('--iso', required=True, type=Path)
     args = parser.parse_args()

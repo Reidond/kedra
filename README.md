@@ -12,7 +12,7 @@ The repository root is the image's Linux filesystem. Edit root `etc/` and `usr/`
 
 Actions checks packages at **00:00 UTC**, with optional on-demand runs. A changed image passes build and exact-candidate validation, isolated automatic OCI signing and strict verification before `stable` advances. No approval or manual signing step is required. No-change does nothing: it creates no image, metadata release or renewal. Runner queues affect delivery time; installed machines never reboot automatically.
 
-Home files stay writable. Review selected [Noctalia settings](usr/src/kedra/docs/HOME-REVIEW.md) and [niri changes](usr/src/kedra/docs/TEXT-REVIEW.md) independently of local edits. [Private agent launchers](usr/src/kedra/docs/AGENT-LAUNCHERS.md) preserve personal runtimes, profiles, MCP, skills and credentials.
+Home files stay writable. [Managed home files](usr/src/kedra/docs/HOME.md) follow image baseline changes through a three-way merge that keeps local edits; capture a live file into the checkout and stage it by line. [Private agent launchers](usr/src/kedra/docs/AGENT-LAUNCHERS.md) preserve personal runtimes, profiles, MCP, skills and credentials.
 
 ## Develop
 

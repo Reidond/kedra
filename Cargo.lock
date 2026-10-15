@@ -2376,7 +2376,6 @@ dependencies = [
  "sysroot-linux",
  "tar",
  "toml",
- "toml_edit",
 ]
 
 [[package]]
@@ -2393,12 +2392,10 @@ dependencies = [
 name = "sysroot-core"
 version = "0.1.0"
 dependencies = [
- "base64 0.23.1",
  "p256",
  "serde",
  "serde_json",
  "sha2",
- "toml",
 ]
 
 [[package]]
@@ -2629,19 +2626,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3165f65f62e28e0115a00b2ebdd37eb6f3b641855f9d636d3cd4103767159ad7"
 dependencies = [
  "serde_core",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.25.13+spec-1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6975367e4d2ef766d86af01ffad14b622fecc8d4357a998fbc4deb6e9bacaf9b"
-dependencies = [
- "indexmap 2.14.2",
- "toml_datetime",
- "toml_parser",
- "toml_writer",
- "winnow",
 ]
 
 [[package]]
@@ -3060,9 +3044,6 @@ name = "winnow"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "wnaf"

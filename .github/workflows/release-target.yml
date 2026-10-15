@@ -79,7 +79,7 @@ jobs:
           fi
           context="output/$KEDRA_TARGET-context"
           mkdir -p output/image-evidence "$context" output/release-context output/release-binaries
-          cp target/release/sysroot target/release/sysroot-helper target/release/kedra-lab output/release-binaries/
+          cp target/release/sysroot target/release/sysroot-helper output/release-binaries/
           if test "$KEDRA_TARGET" = qemu-arm64; then
             output/release-binaries/sysroot catalog pins \
               --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
@@ -256,7 +256,7 @@ jobs:
           export KEDRA_LAB_ARTIFACTS="$RUNNER_TEMP/kedra-release-store.release-lab"
           evidence=output/image-evidence/catalog-installed
           mkdir -p "$evidence"
-          test -d "$KEDRA_LAB_ARTIFACTS/native"
+          test -d "$KEDRA_LAB_ARTIFACTS/derive"
           test ! -e "$KEDRA_LAB_ARTIFACTS/runs"
           jq -e --slurpfile selected "$native_root/candidate.json" '. == $selected[0]' \
             output/image-evidence/native-candidate.json > /dev/null
@@ -268,8 +268,7 @@ jobs:
           [[ "$expected_image" =~ ^sha256:[a-f0-9]{64}$ ]]
           jq -e --arg identity "$composition" '.identity == $identity' \
             "$native_root/composition/composition.json" > /dev/null
-          jq -e --arg identity "$composition" '.parent_identity == $identity' \
-            "$native_root/native-definition.json" > /dev/null
+          cmp "$native_root/native-steps.json" usr/src/kedra/image/release/native-steps.json
           jq -e --arg identity "$derivation" --arg parent "$composition" \
             '.identity == $identity and .definition.parent_identity == $parent' \
             "$native_root/native-plan.json" > /dev/null
@@ -277,7 +276,7 @@ jobs:
           test "$(docker --host "$endpoint" info --format '{{.ID}}')" = \
             "$(jq -er .engine "$native_root/candidate.json")"
           cp "$native_root/candidate.json" "$evidence/composer-candidate.json"
-          sha256sum "$native_root/composition/composition.json" "$native_root/native-definition.json" \
+          sha256sum "$native_root/composition/composition.json" "$native_root/native-steps.json" \
             "$native_root/native-plan.json" > "$evidence/selected-inputs.sha256"
           # Match the established Ubuntu-host setup used by validate-candidate.
           sudo aa-status > "$evidence/apparmor-before.txt" 2>&1 || true
@@ -293,7 +292,8 @@ jobs:
             KEDRA_LAB_TARGET=qemu-arm64 KEDRA_LAB_OVERLAY=none KEDRA_LAB_KEEP=never \
             KEDRA_LAB_IMAGE="composition:$native_root/composition" \
             KEDRA_LAB_COMPOSITION_IDENTITY="$composition" \
-            KEDRA_LAB_NATIVE_PLAN="$native_root/native-definition.json" \
+            KEDRA_LAB_NATIVE_PLAN="$native_root/native-steps.json" \
+            KEDRA_LAB_SYSROOT="$GITHUB_WORKSPACE/output/release-binaries/sysroot" \
             KEDRA_LAB_DERIVATION_IDENTITY="$derivation" \
             rustup run 1.98.1 cargo test -p kedra-container-tests --test container --release --locked \
               -- native::catalog --exact --test-threads 1 2>&1 | tee "$evidence/harness.log"

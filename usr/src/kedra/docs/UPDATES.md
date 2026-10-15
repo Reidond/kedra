@@ -33,7 +33,7 @@ sysroot update status --home
 sysroot doctor
 ```
 
-Home baseline acceptance remains explicit through the [Noctalia](HOME-REVIEW.md) and [niri](TEXT-REVIEW.md) workflows. It does not discard local changes automatically.
+Home baseline acceptance remains explicit: run `sysroot home update` after the new image boots ([managed home files](HOME.md)). It merges baseline changes into local edits and never discards them.
 
 Use `sysroot update rollback` to select the retained verified deployment. Rollback preserves persistent data and places forward updates on hold. A later reviewed `sysroot update stage --resume` clears that hold after normal verification. Never remove journals or trust state to bypass a refusal.
 

@@ -9,7 +9,6 @@
 set -euo pipefail
 
 image=${1:?reviewed payload digest required}
-base=${2-}
 output=/var/tmp/kedra-out
 destination=/export
 
@@ -51,12 +50,9 @@ printf 'kedra-build ALL=(root) NOPASSWD: ALL\n' > /etc/sudoers.d/kedra-build
 chmod 0440 /etc/sudoers.d/kedra-build
 chown kedra-build:kedra-build "$output"
 
-arguments=(--image "$image" --output-dir "$output/iso")
-if test -n "$base"; then
-    arguments+=(--base-image "$base")
-fi
 sudo --user=kedra-build -- /usr/bin/env -i HOME=/home/kedra-build PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-    LANG=C.UTF-8 /usr/bin/python3 /kedra/usr/src/kedra/installer/build-local.py "${arguments[@]}" < /dev/null
+    LANG=C.UTF-8 /usr/bin/python3 /kedra/usr/src/kedra/installer/build-local.py \
+    --image "$image" --output-dir "$output/iso" < /dev/null
 
 # Hand the ISO and its records to macOS; media.py verifies them again there.
 for file in "$output/iso"/*; do

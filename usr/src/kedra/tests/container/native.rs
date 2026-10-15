@@ -38,14 +38,6 @@ pub struct NativeTest {
 
 pub const TESTS: &[NativeTest] = &[
     NativeTest {
-        source: SourceApplicability::Composition,
-        name: "home_artifact_record",
-        profile: Profile::System,
-        fixtures: &[Fixture::TestUser],
-        targets: &["qemu-arm64"],
-        run: crate::home_artifact_tests::installed_record,
-    },
-    NativeTest {
         source: SourceApplicability::Derivation,
         name: "catalog",
         profile: Profile::System,
@@ -71,11 +63,11 @@ pub const TESTS: &[NativeTest] = &[
     },
     NativeTest {
         source: SourceApplicability::Ordinary,
-        name: "home_review_cycle",
+        name: "home_files_update",
         profile: Profile::Desktop,
         fixtures: &[],
         targets: &[],
-        run: home_review_cycle,
+        run: crate::home_files_tests::home_files_update,
     },
     NativeTest {
         source: SourceApplicability::Ordinary,
@@ -87,11 +79,11 @@ pub const TESTS: &[NativeTest] = &[
     },
 ];
 
-fn fail(message: impl Into<String>) -> Error {
+pub(crate) fn fail(message: impl Into<String>) -> Error {
     Error::Invalid(message.into())
 }
 
-fn ensure(condition: bool, message: impl FnOnce() -> String) -> Result<()> {
+pub(crate) fn ensure(condition: bool, message: impl FnOnce() -> String) -> Result<()> {
     if condition {
         Ok(())
     } else {
@@ -106,13 +98,13 @@ enum Toolkit {
 }
 
 /// Session-scoped helpers for one native test.
-struct Desk<'a, 'b> {
-    context: &'a Context<'b>,
-    session: &'a Session,
+pub(crate) struct Desk<'a, 'b> {
+    pub(crate) context: &'a Context<'b>,
+    pub(crate) session: &'a Session,
 }
 
 impl<'a, 'b> Desk<'a, 'b> {
-    fn new(context: &'a Context<'b>) -> Result<Self> {
+    pub(crate) fn new(context: &'a Context<'b>) -> Result<Self> {
         let session = context
             .session
             .as_ref()
@@ -124,19 +116,19 @@ impl<'a, 'b> Desk<'a, 'b> {
         self.session.exec(argv.iter().copied())
     }
 
-    fn try_run(&self, argv: &[&str]) -> Result<Output> {
+    pub(crate) fn try_run(&self, argv: &[&str]) -> Result<Output> {
         self.context
             .environment
             .exec(self.context.docker, &self.exec(argv))
     }
 
-    fn run(&self, argv: &[&str]) -> Result<Output> {
+    pub(crate) fn run(&self, argv: &[&str]) -> Result<Output> {
         self.context
             .environment
             .run(self.context.docker, &self.exec(argv))
     }
 
-    fn json(&self, argv: &[&str]) -> Result<Value> {
+    pub(crate) fn json(&self, argv: &[&str]) -> Result<Value> {
         let output = self.run(argv)?;
         serde_json::from_slice(&output.stdout).map_err(|error| {
             fail(format!(
@@ -146,13 +138,7 @@ impl<'a, 'b> Desk<'a, 'b> {
         })
     }
 
-    fn noctalia(&self, argv: &[&str]) -> Result<()> {
-        let mut command = vec!["noctalia", "msg"];
-        command.extend_from_slice(argv);
-        self.run(&command).map(|_| ())
-    }
-
-    fn wait(
+    pub(crate) fn wait(
         &self,
         what: &str,
         limit: Duration,
@@ -215,242 +201,6 @@ fn text<'v>(value: &'v Value, pointer: &str) -> &'v str {
         .pointer(pointer)
         .and_then(Value::as_str)
         .unwrap_or_default()
-}
-
-fn flag(value: &Value, pointer: &str) -> Option<bool> {
-    value.pointer(pointer).and_then(Value::as_bool)
-}
-
-/// R03/R04 against the live Noctalia writer: durable field review, local-only
-/// and app-owned choices, writer stop/start, stale-plan refusal, native
-/// discard with preserved file metadata, killed-CLI recovery and niri line
-/// review. Formerly the middle of the desktop VM's check.sh.
-fn home_review_cycle(context: &Context<'_>) -> Result<()> {
-    let desk = Desk::new(context)?;
-    let home = &desk.session.user.home;
-    let state = format!("{home}/kedra-noctalia-review");
-    let review = |args: &[&str]| -> Result<Value> {
-        let mut argv = vec!["sysroot", "home", "--state", state.as_str()];
-        argv.extend_from_slice(args);
-        desk.json(&argv)
-    };
-    desk.run(&["sysroot", "home", "--state", &state, "init"])?;
-    let live = |review: &dyn Fn(&[&str]) -> Result<Value>| -> Result<String> {
-        Ok(text(&review(&["status"])?, "/fields/0/live/value").to_owned())
-    };
-    let original = live(&review)?;
-    let (selected, later) = match original.as_str() {
-        "light" => ("dark", "auto"),
-        "dark" => ("light", "auto"),
-        "auto" => ("light", "dark"),
-        other => return Err(fail(format!("unexpected native theme mode {other:?}"))),
-    };
-    let set_and_observe = |mode: &str| -> Result<()> {
-        desk.noctalia(&["theme-mode-set", mode])?;
-        desk.wait(
-            &format!("theme mode {mode} in the review"),
-            Duration::from_secs(20),
-            || Ok(live(&review)? == mode),
-        )
-    };
-
-    // Durable review of a GUI-written value.
-    set_and_observe(selected)?;
-    review(&["stage", "theme.mode"])?;
-    set_and_observe(later)?;
-    let status = review(&["status"])?;
-    ensure(
-        text(&status, "/fields/0/selected/value") == selected,
-        || format!("staged value lost: {status}"),
-    )?;
-    let selection = review(&["selection"])?;
-    ensure(
-        text(&selection, "/selection/0/after/value") == selected
-            && flag(&selection, "/activation_performed") == Some(false)
-            && flag(&selection, "/checkout_changed") == Some(false),
-        || format!("unexpected selection: {selection}"),
-    )?;
-    review(&["unstage", "theme.mode"])?;
-    let kept = review(&["keep-local", "theme.mode"])?;
-    ensure(
-        flag(&kept, "/fields/0/local_only") == Some(true)
-            && flag(&kept, "/fields/0/visible_change") == Some(false),
-        || format!("keep-local did not hide the change: {kept}"),
-    )?;
-    set_and_observe(selected)?;
-    let status = review(&["status"])?;
-    ensure(
-        flag(&status, "/fields/0/visible_change") == Some(true)
-            && flag(&status, "/fields/0/local_only") == Some(false),
-        || format!("a new edit after keep-local stayed hidden: {status}"),
-    )?;
-    let owned = review(&["app-own", "theme.mode"])?;
-    ensure(
-        flag(&owned, "/fields/0/app_owned") == Some(true)
-            && flag(&owned, "/fields/0/visible_change") == Some(false),
-        || format!("app-own did not hide the change: {owned}"),
-    )?;
-    review(&["clear-local", "theme.mode"])?;
-    set_and_observe(&original)?;
-
-    // The review reads the persisted value while the writer is stopped.
-    set_and_observe(selected)?;
-    desk.run(&["systemctl", "--user", "stop", "kedra-noctalia.service"])?;
-    let uid = desk.session.user.uid.to_string();
-    let lingering = context.environment.exec(
-        context.docker,
-        &Exec::new(["pgrep", "-u", uid.as_str(), "-x", "noctalia"]),
-    )?;
-    ensure(lingering.exit == 1, || {
-        "Noctalia kept running after its service stopped".into()
-    })?;
-    ensure(live(&review)? == selected, || {
-        "stopped-writer review lost the persisted value".into()
-    })?;
-    desk.run(&["systemctl", "--user", "start", "kedra-noctalia.service"])?;
-    desk.wait(
-        "Noctalia IPC after restart",
-        Duration::from_secs(30),
-        || Ok(desk.try_run(&["noctalia", "msg", "log-level-status"])?.exit == 0),
-    )?;
-    set_and_observe(&original)?;
-
-    // Stale plans are refused; a current discard keeps native file metadata.
-    set_and_observe(selected)?;
-    review(&["stage", "theme.mode"])?;
-    set_and_observe(later)?;
-    let plan = review(&["plan", "--discard", "theme.mode"])?;
-    let plan_id = text(&plan, "/plan_id").to_owned();
-    ensure(
-        !plan_id.is_empty()
-            && text(&plan, "/plan/observed/theme_mode") == later
-            && text(&plan, "/plan/desired/theme_mode") == selected,
-        || format!("unexpected activation plan: {plan}"),
-    )?;
-    set_and_observe(&original)?;
-    let stale = desk.try_run(&[
-        "sysroot",
-        "home",
-        "--state",
-        &state,
-        "discard",
-        "theme.mode",
-        "--plan",
-        &plan_id,
-    ])?;
-    ensure(stale.exit != 0, || "a stale home plan was applied".into())?;
-    set_and_observe(later)?;
-    let settings = format!("{home}/.local/state/noctalia/settings.toml");
-    // Ownership and mode; SELinux label preservation needs the VM (no labels here).
-    let metadata = || -> Result<String> {
-        Ok(desk
-            .run(&["stat", "-c", "%u:%g:%a", &settings])?
-            .stdout_text())
-    };
-    let before = metadata()?;
-    let discarded = review(&["discard", "theme.mode", "--plan", &plan_id])?;
-    ensure(
-        flag(&discarded, "/operation_completed") == Some(true)
-            && discarded.pointer("/pending") == Some(&Value::Null)
-            && text(&discarded, "/fields/0/live/value") == selected
-            && text(&discarded, "/fields/0/selected/value") == selected,
-        || format!("unexpected discard result: {discarded}"),
-    )?;
-    ensure(metadata()? == before, || {
-        "native discard changed settings.toml ownership or mode".into()
-    })?;
-    desk.run(&["systemctl", "--user", "is-active", "kedra-noctalia.service"])?;
-    let recovered = review(&["recover"])?;
-    ensure(
-        recovered.pointer("/pending") == Some(&Value::Null)
-            && text(&recovered, "/journal/phase") == "completed"
-            && flag(&recovered, "/native_file_contents_stored") == Some(false),
-        || format!("unexpected recovery state: {recovered}"),
-    )?;
-    let leftovers = desk.run(&[
-        "find",
-        &format!("{home}/.local/state/noctalia"),
-        "-maxdepth",
-        "1",
-        "-name",
-        ".sysroot-activation-*",
-    ])?;
-    ensure(leftovers.stdout_text().trim().is_empty(), || {
-        "activation temporaries were left behind".into()
-    })?;
-    review(&["unstage", "theme.mode"])?;
-    set_and_observe(&original)?;
-
-    // A CLI killed at a real file publication, then its recovery UI.
-    let probe = "/usr/libexec/kedra-lab/probes/recovery.py";
-    let recovery = context.environment.run(
-        context.docker,
-        &desk
-            .exec(&["python3", probe, &state, selected, later, &original])
-            .timeout(Duration::from_secs(300)),
-    )?;
-    for marker in [
-        "KEDRA_R04_KILLED_CLI_ABORT",
-        "KEDRA_R04_KILLED_CLI_RESUME",
-        "KEDRA_R04_KILLED_CLI_KEEP_CURRENT",
-    ] {
-        ensure(recovery.stdout_text().contains(marker), || {
-            format!("recovery probe did not report {marker}")
-        })?;
-    }
-    set_and_observe(&original)?;
-
-    // niri line review against the account's actual niri file, reconciled
-    // with the exact source revision the image records.
-    let bundle =
-        kedra_container_tests::image::source_bundle(context.docker, &context.environment.id)?;
-    let bundle_path = "/var/lib/kedra-lab/source.bundle";
-    context.docker.write_file(
-        &context.environment.id,
-        bundle_path,
-        &std::fs::read(&bundle)?,
-        "root",
-        "0644",
-    )?;
-    let niri = context.environment.run(
-        context.docker,
-        &desk
-            .exec(&[
-                "python3",
-                "/usr/libexec/kedra-lab/probes/niri-review.py",
-                &state,
-                bundle_path,
-            ])
-            .timeout(Duration::from_secs(300)),
-    )?;
-    for marker in [
-        "KEDRA_HOME_NIRI_WITHOUT_NOCTALIA_ADOPTION_PASS",
-        "KEDRA_R04_NATIVE_NIRI_DISCARD_PASS",
-        "KEDRA_R04_NATIVE_NIRI_RECOVERY_PASS",
-        "KEDRA_R04_NIRI_INSTALLED_BASELINE_PASS",
-        "KEDRA_R03_NATIVE_NIRI_LINES_PASS",
-        "KEDRA_HOME_ARTIFACT_PRIVATE_SELECTION_PASS",
-    ] {
-        ensure(niri.stdout_text().contains(marker), || {
-            format!("niri review probe did not report {marker}")
-        })?;
-    }
-    let default = desk.json(&["sysroot", "home", "status"])?;
-    ensure(
-        default.pointer("/pending_activation") == Some(&Value::Null)
-            && flag(&default, "/activation_performed") == Some(false),
-        || format!("unexpected default home state: {default}"),
-    )?;
-    for directory in [
-        format!("{home}/.local/state/sysroot"),
-        format!("{home}/.local/state/sysroot/home"),
-    ] {
-        let mode = desk.run(&["stat", "-c", "%a", &directory])?.stdout_text();
-        ensure(mode.trim() == "700", || {
-            format!("{directory} has mode {}", mode.trim())
-        })?;
-    }
-    Ok(())
 }
 
 /// Real GTK 3 and libadwaita (portal) file choosers on Wayland, driven by

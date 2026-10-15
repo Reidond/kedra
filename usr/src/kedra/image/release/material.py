@@ -213,7 +213,6 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
     artifacts = {name: context / name for name in ('sysroot', 'sysroot-helper', 'agents.tar', 'bitwarden.tar')}
     if target == 'qemu-arm64':
         recipes.extend((IMAGE + 'release/compose.py', NATIVE_RECIPE))
-        artifacts['kedra-lab'] = binaries / 'kedra-lab'
     if catalog is not None:
         require(target == 'qemu-arm64' and isinstance(catalog, dict) and set(catalog) == {'pins'},
                 'Unsupported catalog material inputs')

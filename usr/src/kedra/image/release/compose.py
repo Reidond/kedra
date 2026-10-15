@@ -30,7 +30,7 @@ IMAGE = 'usr/src/kedra/image/'
 NATIVE_RECIPE = IMAGE + 'release/native-steps.json'
 ENGINE_PLATFORM = 'aarch64-linux'
 OCI_PLATFORM = 'linux/arm64'
-PROGRAMS = ('sysroot', 'sysroot-helper', 'kedra-lab')
+PROGRAMS = ('sysroot', 'sysroot-helper')
 CONTEXT_FILES = frozenset(('Containerfile', 'assemble.sh', 'install-rpms.sh', 'sysroot', 'sysroot-helper',
                            'payload.tar', 'agents.tar', 'bitwarden.tar', 'rpms'))
 CONTEXT_RECIPES = {'Containerfile': IMAGE + 'Containerfile', 'assemble.sh': IMAGE + 'assemble.sh',
@@ -62,14 +62,6 @@ INSPECT_ONLY_DEFAULTS = {
     'Tty': False, 'OpenStdin': False, 'StdinOnce': False,
     'Volumes': None, 'Entrypoint': None, 'OnBuild': None,
 }
-NATIVE_STEPS = [
-    {'kind': 'glib_schemas'},
-    {'kind': 'systemd', 'enable': ['NetworkManager.service', 'bluetooth.service', 'greetd.service'],
-     'disable': [], 'mask': ['bootc-fetch-apply-updates.service', 'bootc-fetch-apply-updates.timer'],
-     'default_target': 'graphical.target'},
-    {'kind': 'initial_skel'},
-    {'kind': 'qemu_initramfs', 'required_modules': ['virtio_dma_buf', 'virtio_gpu', 'virtio_input']},
-]
 
 
 def digest(value, label='SHA-256'):
@@ -249,7 +241,7 @@ def failure_diagnostic(operation, error, progress):
     return {'schema_version': 1, 'operation': operation,
             'last_step': step if step is None or re.fullmatch('[a-z-]{1,64}', step) else 'unknown',
             'tool': tool if tool in ('git', 'docker', 'sudo', 'skopeo', 'sysroot',
-                                    'sysroot-helper', 'kedra-lab', 'uv') else None,
+                                    'sysroot-helper', 'uv') else None,
             'exit_code': progress.get('exit_code'), 'exception_category': category,
             'exception_type': exception_type,
             'os_errno': error.errno if isinstance(error, OSError) else None,
@@ -350,13 +342,14 @@ class Runner:
         for name in ('tools', 'home', 'logs'):
             private_directory(self.output / name, create=True)
         private_directory(self.output / 'home/.docker', create=True)
+        # Shared with the release's installed catalog case (KEDRA_LAB_ARTIFACTS).
         artifacts = self.store.with_name(self.store.name + '.release-lab')
         private_directory(artifacts, create=not artifacts.exists())
+        self.derive_state = artifacts / 'derive'
         self.environment = {
             'PATH': '/usr/bin:/bin', 'HOME': str(self.output / 'home'), 'LC_ALL': 'C',
             'DOCKER_HOST': 'unix://' + str(self.docker_socket),
             'DOCKER_CONFIG': str(self.output / 'home/.docker'),
-            'KEDRA_LAB_ARTIFACTS': str(artifacts),
             'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null',
             'GIT_TERMINAL_PROMPT': '0', 'GIT_OPTIONAL_LOCKS': '0',
             'BUILDX_NO_DEFAULT_ATTESTATIONS': '1',
@@ -451,11 +444,8 @@ class Runner:
                 'cat-file', 'blob', self.args.source_revision + ':' + name])
             m.require(data == committed, 'Recipe differs from committed source: ' + name)
             if name == NATIVE_RECIPE:
-                steps = m.document(data)
-                m.require(isinstance(steps, dict) and type(steps.get('schema_version')) is int
-                          and steps == {'schema_version': 1, 'steps': NATIVE_STEPS},
-                          'Unsupported native step policy')
-                data = m.canonical(steps)
+                # Preflight hashes the canonical form; sysroot validates the steps.
+                data = m.canonical(m.document(data))
             m.require(m.sha(data) == expected, 'Recipe differs from preflight: ' + name)
         m.require(Path(__file__).resolve() == self.repo / (IMAGE + 'release/compose.py'),
                   'Invoke the runner from the selected checkout')
@@ -638,15 +628,19 @@ class Runner:
         self.command_json('verify-composition', [self.programs['sysroot'], 'system', 'verify',
             '--context', context, '--expected-identity', identity, '--workdir', verification],
             BUILD_TIMEOUT)
-        native = self.output / 'native-definition.json'
-        write_json(native, {'schema': 1, 'parent_identity': identity, 'steps': NATIVE_STEPS})
-        common = ['--target', 'qemu-arm64', '--image', 'composition:' + str(context), '--overlay', 'none',
-                  '--composition-identity', identity, '--native-plan', native]
-        plan = self.command_json('native-plan', [self.programs['kedra-lab'], 'derive-plan', *common], BUILD_TIMEOUT)
+        steps = self.native_steps()
+        common = ['--context', context, '--expected-identity', identity, '--steps', steps,
+                  '--state', self.derive_state]
+        plan = self.command_json('native-plan', [self.programs['sysroot'], 'derive', 'plan', *common],
+                                 BUILD_TIMEOUT)
         native_identity = digest(plan.get('identity'), 'native identity')
+        # The executor admitted into the offline build is the pinned sysroot itself.
+        m.require(plan.get('definition', {}).get('parent_identity') == identity
+                  and plan.get('driver_sha256') == self.inputs['artifacts']['sysroot'],
+                  'Native plan differs from the selected composition or pinned executor')
         write_json(self.output / 'native-plan.json', plan)
-        derived = self.command_json('native-derive', [self.programs['kedra-lab'], 'derive', *common,
-            '--derivation-identity', native_identity], BUILD_TIMEOUT)
+        derived = self.command_json('native-derive', [self.programs['sysroot'], 'derive', 'build', *common,
+            '--expected-derivation', native_identity], BUILD_TIMEOUT)
         m.require(set(derived) == {'image', 'engine', 'parent_image', 'material'} and derived['engine'] == self.engine,
                   'Unexpected derived image receipt')
         generated = image_id(derived['image'])
@@ -666,6 +660,15 @@ class Runner:
                   'rpm_sha256': rpm_hash, 'outputs': outputs, 'transfer': transfer}
         write_json(self.output / 'candidate.json', result)
         return result
+
+    def native_steps(self):
+        """Snapshot the committed step declaration that preflight hashed."""
+        data = m.read(ordinary(self.repo / NATIVE_RECIPE), MAX_JSON)
+        m.require(m.sha(m.canonical(m.document(data))) == self.inputs['recipes'][NATIVE_RECIPE],
+                  'Native steps differ from preflight')
+        path = self.output / 'native-steps.json'
+        write_new(path, data)
+        return path
 
     def transfer(self, image):
         self.same_engine()

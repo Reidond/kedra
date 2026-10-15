@@ -127,16 +127,17 @@ fn substitute_command(
 }
 
 #[test]
-#[ignore = "requires native ARM Docker, retained builder/runtime and OpenSSL; executes real signed package transfer"]
+#[ignore = "requires bubblewrap user namespaces, retained builder/runtime and OpenSSL; executes real signed package transfer"]
 fn signed_closure_refuses_untrusted_changes_then_runs_without_producer() {
     let f = Fixture::new();
     let producer = f.path("producer");
     let receiver = f.path("receiver");
     f.images(&producer);
+    let builder = f.root(&producer, super::BUILDER);
     let author = authoring_consumer(&f);
     let source = c_source(&f, "signed-cache");
     let source_id = f.source(&producer, &source);
-    let graph = authored_plan(&f, &author, &source_id, "cache-plan.json");
+    let graph = authored_plan(&f, &author, &builder, &source_id, "cache-plan.json");
     let output = app_id(&f.build(&producer, &graph, &[]).json());
     let root = f.store("verify", &producer, &["--object", &output]).json();
     let bundle = f.path("cache.tar");
@@ -267,6 +268,10 @@ fn signed_closure_refuses_untrusted_changes_then_runs_without_producer() {
     let regenerated_source = c_source(&f, "signed-cache");
     assert_eq!(f.source(&receiver, &regenerated_source), source_id);
     f.images(&receiver);
+    // Roots are not transferred: the receiver creates the same input-addressed root.
+    f.build(&receiver, &graph, &["--rebuild"])
+        .refused("no root");
+    assert_eq!(f.root(&receiver, super::BUILDER), builder);
     let reproduced = f.build(&receiver, &graph, &["--rebuild"]).json();
     assert_eq!(reproduced["reproduced"].as_array().unwrap().len(), 2);
     assert_version(f.program(&receiver, &output, &[]), "signed-cache");

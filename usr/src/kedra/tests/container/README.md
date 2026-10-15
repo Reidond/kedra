@@ -93,6 +93,15 @@ static-composition cases remain separate selections. It runs directly on the der
 a lab-tools adaptation. TLS Docker endpoints use the already locked ring provider;
 retained archive import allows600s while ordinary requests keep120s.
 
+The ordinary `native::engine_sandbox` System-profile case (qemu-arm64) runs the
+engine's Nix-style commands as the test user on the installed image, which carries
+no Docker: it saves a small pinned Ubuntu image on the harness engine, copies the
+archive in, and checks `store add-image --archive`, `add-root`, `build`, `run`,
+`profile switch|run`, `develop` isolation (no network, read-only root and store, no
+host home or Docker socket, cleared environment) and `store recover` after the
+controller of a running build is killed. The harness container is privileged, so
+bubblewrap's user namespaces and `/proc` mount are available.
+
 The composition-only `native::composition_unit` System-profile case consumes the
 static image and validates/starts a generated unit. Ordinary scenario discovery
 omits it. Lab desktop adaptation still runs its normal networked tools layer, and

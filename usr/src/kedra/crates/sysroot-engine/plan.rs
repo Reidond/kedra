@@ -21,6 +21,12 @@ pub(crate) fn image_id(id: &str) -> Result<()> {
     }
     Ok(())
 }
+pub(crate) fn root_id(id: &str) -> Result<()> {
+    if id.strip_prefix("root-").is_none_or(|s| !hex(s)) {
+        return Err(Error::Invalid(format!("invalid root identity {id}")));
+    }
+    Ok(())
+}
 pub(crate) fn hex(s: &str) -> bool {
     s.len() == 64
         && s.bytes()
@@ -79,7 +85,7 @@ pub fn plan(graph: &BuildGraph, root: &str) -> Result<Plan> {
     }
     for (key, node) in &graph.nodes {
         name(key)?;
-        image_id(&node.builder_image)?;
+        root_id(&node.builder_root)?;
         image_id(&node.runtime_image)?;
         if node.inputs.len() > 256
             || node.argv.is_empty()
@@ -211,8 +217,8 @@ fn resolve(
         schema: 1,
         platform: PLATFORM.into(),
         prefix: LOGICAL_PREFIX.into(),
-        policy: "v1:uid-owner:memory1GiB:pids256:tmp256MiB:netnone:ro:timeout".into(),
-        builder_image: node.builder_image.clone(),
+        policy: "v2:bwrap:uid-owner:userns:netnone:ro-root:ro-inputs:timeout".into(),
+        builder_root: node.builder_root.clone(),
         runtime_image: node.runtime_image.clone(),
         inputs,
         argv: node.argv.clone(),

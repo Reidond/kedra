@@ -152,45 +152,33 @@ jobs:
               > output/image-evidence/foundation.json
             foundation_hash=$(sha256sum "$RUNNER_TEMP/kedra-release-foundation/foundation.json" | cut -d ' ' -f 1)
             # Build tools only after changed preflight, offline from the run's RPM lock.
+            # Packages build in the engine's unprivileged bubblewrap sandbox, as on an
+            # installed Kedra. Ubuntu 24.04 confines unprivileged user namespaces through
+            # AppArmor; this disposable runner lifts that for the sandbox.
+            sudo apt-get install -y --no-install-recommends bubblewrap
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+            bwrap --unshare-all --unshare-user --disable-userns --ro-bind / / /bin/true
             catalog_root="$RUNNER_TEMP/kedra-catalog"
             mkdir -m 700 "$catalog_root"
             foundation=$(jq -er .foundation_image "$RUNNER_TEMP/kedra-release-foundation/foundation.json")
-            foundation_alias="localhost/kedra-catalog-foundation:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-            docker tag "$foundation" "$foundation_alias"
-            test "$(docker image inspect "$foundation_alias" --format '{{.Id}}')" = "$foundation"
             printf '{"foundation":"%s","builders":{}}\n' "$foundation" > "$catalog_root/resolution.json"
             mapfile -t roles < <(jq -r '.builders | keys[]' output/release-binaries/catalog-pins.json)
             test "${#roles[@]}" -gt 0
             index=0
             for role in "${roles[@]}"; do
-              builder_context="$catalog_root/builder-$index"
-              mkdir "$builder_context"
-              cp usr/src/kedra/image/catalog/Containerfile usr/src/kedra/image/catalog/builder.sh \
-                usr/src/kedra/image/catalog/install-rpms.sh "$builder_context/"
-              output/release-binaries/sysroot catalog lock repo --store "$RUNNER_TEMP/kedra-release-store" \
-                --lock output/image-evidence/rpm-lock.json --builder "$role" --output "$builder_context/rpms" \
-                > "$builder_context/repository.json"
-              docker build --platform linux/arm64 --pull=false --no-cache --build-arg "BASE_IMAGE=$foundation_alias" \
-                --build-arg "BUILDER_ROLE=$role" \
-                --iidfile "$builder_context/builder.iid" --file "$builder_context/Containerfile" \
-                --tag "localhost/kedra-catalog-builder:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$index" "$builder_context"
-              rm -rf -- "$builder_context/rpms"
-              builder=$(cat "$builder_context/builder.iid")
-              test "$(docker image inspect "$foundation_alias" --format '{{.Id}}')" = "$foundation"
-              test "$(docker image inspect "$builder" --format '{{.Architecture}} {{.Os}}')" = 'arm64 linux'
-              output/release-binaries/sysroot store add-image --store "$RUNNER_TEMP/kedra-release-store" --image "$builder" > "$builder_context/retention.json"
-              observer=$(docker create --network none --read-only --cap-drop ALL --user 65534:65534 --entrypoint /usr/bin/false "$builder")
-              trap 'docker rm "$observer" >/dev/null' EXIT
-              docker cp "$observer:/usr/share/kedra/catalog-builder-rpms.txt" "$builder_context/observed-rpms.txt"
-              docker cp "$observer:/usr/share/kedra/catalog-builder-tools.txt" "$builder_context/observed-tools.txt"
-              docker rm "$observer" >/dev/null
-              trap - EXIT
-              jq --arg role "$role" --arg image "$builder" '.builders[$role]=$image' "$catalog_root/resolution.json" > "$catalog_root/resolution.next.json"
+              # The retained foundation's root plus this role's locked RPMs, installed
+              # offline by the root's own rpm in the sandbox; refused unless the result
+              # equals the role's locked inventory.
+              output/release-binaries/sysroot store add-root --store "$RUNNER_TEMP/kedra-release-store" \
+                --image "$foundation" --lock output/image-evidence/rpm-lock.json --builder "$role" \
+                > "$catalog_root/builder-$index.json"
+              builder=$(jq -er .root "$catalog_root/builder-$index.json")
+              jq --arg role "$role" --arg root "$builder" '.builders[$role]=$root' "$catalog_root/resolution.json" > "$catalog_root/resolution.next.json"
               mv "$catalog_root/resolution.next.json" "$catalog_root/resolution.json"
               index=$((index+1))
             done
             jq --slurpfile resolution "$catalog_root/resolution.json" \
-              '{namespace:.namespace,packages:(.packages|keys),builder_images:($resolution[0].builders|[.[]]|unique),runtime_images:[$resolution[0].foundation],source_objects:(.archives|keys)}' \
+              '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_images:[$resolution[0].foundation],source_objects:(.archives|keys)}' \
               output/release-binaries/catalog-pins.json > "$catalog_root/policy.json"
             uv run usr/src/kedra/image/catalog/prepare-sources.py \
               --pins output/release-binaries/catalog-pins.json --output "$catalog_root/sources"
@@ -218,7 +206,6 @@ jobs:
             contribution_hash=$(jq -er .contribution_receipt_sha256 "$catalog_root/contribution-result.json")
             mkdir output/image-evidence/catalog
             cp "$catalog_root/"*.json output/image-evidence/catalog/
-            cp -R "$catalog_root/"builder-* output/image-evidence/catalog/
             cp "$catalog_root/contribution/"*.json output/image-evidence/catalog/
             uv run usr/src/kedra/image/release/compose.py compose \
               --target qemu-arm64 --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \

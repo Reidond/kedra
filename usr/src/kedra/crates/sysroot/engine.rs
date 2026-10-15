@@ -18,7 +18,7 @@ pub struct BuildOptions {
     plan: PathBuf,
     #[arg(long)]
     root: String,
-    /// Resolve identities without opening the store or invoking Docker.
+    /// Resolve identities without opening the store or running a sandbox.
     #[arg(long, conflicts_with = "rebuild")]
     dry_run: bool,
     /// Independently rebuild every required node and compare its existing winner.
@@ -43,12 +43,35 @@ enum StoreCommand {
         #[arg(long)]
         source: PathBuf,
     },
-    /// Retain an exact existing Docker image, including its archive evidence.
+    /// Retain an exact image with its archive: from the local Docker daemon, or
+    /// without a daemon from an archive `docker image save` wrote.
     AddImage {
         #[command(flatten)]
         path: StorePath,
         #[arg(long)]
         image: String,
+        #[arg(long)]
+        archive: Option<PathBuf>,
+    },
+    /// Create or reuse and pin the root filesystem of a retained image,
+    /// optionally with one RPM lock builder role installed offline over it.
+    AddRoot {
+        #[command(flatten)]
+        path: StorePath,
+        #[arg(long)]
+        image: String,
+        /// RPM lock whose builder role objects the store already holds.
+        #[arg(long, requires = "builder")]
+        lock: Option<PathBuf>,
+        #[arg(long, requires = "lock")]
+        builder: Option<String>,
+    },
+    /// Remove one explicit root filesystem pin.
+    UnpinRoot {
+        #[command(flatten)]
+        path: StorePath,
+        #[arg(long)]
+        root: String,
     },
     /// Verify an object's immutable bytes and metadata before use.
     Verify(ObjectOptions),
@@ -190,7 +213,7 @@ enum ProfileCommand {
 pub struct DevelopOptions {
     #[command(flatten)]
     profile: ProfilePath,
-    /// Absolute program from the declared runtime image; default is profile program.
+    /// Absolute program from the runtime image's root; default is profile program.
     #[arg(long)]
     program: Option<String>,
     #[arg(long, default_value_t = 60)]
@@ -236,8 +259,25 @@ fn store_command(command: StoreCommand) -> Result<ExitCode> {
         StoreCommand::AddSource { path, source } => {
             json(&Store::open(&path.store)?.import_source(&source)?)
         }
-        StoreCommand::AddImage { path, image } => {
-            json(&Store::open(&path.store)?.import_image(&image)?)
+        StoreCommand::AddImage {
+            path,
+            image,
+            archive: None,
+        } => json(&Store::open(&path.store)?.import_image(&image)?),
+        StoreCommand::AddImage {
+            path,
+            image,
+            archive: Some(archive),
+        } => json(&Store::open(&path.store)?.import_image_archive(&image, &archive)?),
+        StoreCommand::AddRoot {
+            path,
+            image,
+            lock,
+            builder,
+        } => add_root(&path.store, &image, lock.as_deref(), builder.as_deref()),
+        StoreCommand::UnpinRoot { path, root } => {
+            Store::open(&path.store)?.unpin_root(&root)?;
+            json(&serde_json::json!({"unpinned_root": root}))
         }
         StoreCommand::Verify(options) => {
             json(&Store::open(&options.path.store)?.verify(&options.object)?)
@@ -269,6 +309,38 @@ fn store_command(command: StoreCommand) -> Result<ExitCode> {
         StoreCommand::Gc { path, delete } => json(&Store::open(&path.store)?.gc(delete)?),
         StoreCommand::Recover(path) => json(&Store::recover(&path.store)?),
     }
+}
+
+fn add_root(
+    store: &Path,
+    image: &str,
+    lock: Option<&Path>,
+    builder: Option<&str>,
+) -> Result<ExitCode> {
+    let layer = match (lock, builder) {
+        (Some(lock), Some(builder)) => {
+            let (lock, _) = crate::catalog_lock::read_lock(lock)?;
+            if lock.architecture != "aarch64" {
+                return Err(Error::Invalid(
+                    "engine roots are native aarch64 only".into(),
+                ));
+            }
+            let role = lock.role(Some(builder))?;
+            Some(sysroot_engine::RootLayer {
+                role: builder.into(),
+                fedora_release: lock.fedora_release,
+                files: lock.files(role).into_iter().cloned().collect(),
+                remove: role.remove.clone(),
+                packages: role.packages.clone(),
+            })
+        }
+        _ => None,
+    };
+    let receipt = Store::open(store)?.add_root(image, layer)?;
+    json(&serde_json::json!({
+        "root": receipt.root, "recipe": receipt.recipe, "rpm_sha256": receipt.rpm_sha256,
+        "entries": receipt.entries, "bytes": receipt.bytes,
+    }))
 }
 
 fn cache_bytes(path: &Path, limit: u64) -> Result<Vec<u8>> {

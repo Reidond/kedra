@@ -75,7 +75,7 @@ fn emit(value: &serde_json::Value) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn read_lock(path: &Path) -> Result<(RpmLock, Vec<u8>)> {
+pub(crate) fn read_lock(path: &Path) -> Result<(RpmLock, Vec<u8>)> {
     let mut bytes = Vec::new();
     File::open(path)?
         .take(MAX_LOCK_BYTES + 1)

@@ -2,16 +2,16 @@
 
 | Runtime | Profile | Checkout | Update owner |
 |---|---|---|---|
-| Bundled | Dedicated management | Verified Kedra source | Signed OS release |
-| User | Separate management | Verified Kedra source | User installer |
-| User | Personal (explicit) | Verified Kedra source | User installer |
+| Bundled | Dedicated management | Kedra work tree | Signed OS release |
+| User | Separate management | Kedra work tree | User installer |
+| User | Personal (explicit) | Kedra work tree | User installer |
 | Plain codex/claude | Personal normal behavior | Current directory | User installer |
 
 For each case record actual executable/version, discovery roots, credential-store
 identity, MCP/hooks invoked, files written and inherited environment. Do not put
 credential values or full transcripts in reports. Repeat with empty profiles,
 synthetic conflicting personal skills, moved/dirty/offline checkout, nested crate
-working directory, concurrent sessions and missing executable.
+working directory, concurrent sessions in separate worktrees and missing executable.
 
 Test a newer personal runtime while the bundled runtime stays old, then upgrade
 and roll back the image. Personal installation remains unchanged. Management

@@ -1,5 +1,30 @@
 # Verified status
 
+## One engine image pipeline (2026-10-15)
+
+Both targets build through the engine, natively on their own runner: lock →
+foundation → packages → compose → derive → trust layer
+([one image pipeline](SYSTEM.md#one-image-pipeline)). `image/Containerfile` and
+`assemble.sh` build only the foundation; the complete desktop assembly mode is
+removed. Each target declares its image steps (systemd units and default target,
+GLib schemas, skeleton with the applied home baseline, initramfs) in its
+`catalog.kedra` block, `source.json` carries them and `sysroot derive` reads them
+from the verified composition; `image/release/native-steps.json` is removed.
+Desktop regenerates a generic hardware initramfs (bootc, ostree, LUKS and TPM2
+modules) instead of the QEMU one, may select source packages, and the engine
+builds natively on x86_64 as well as aarch64. See [NATIVE](NATIVE.md) and worklog
+WL-20261015-ENGINE-UNIFY-01 for the local evidence. On the owner's Mac (native
+arm64): a `KEDRA_LAB_IMAGE=build` qemu-arm64 image passes the full container
+harness (13/13); a local replay of the release build job for qemu-arm64
+(foundation, catalog packages, compose, derive, transfer) passes the installed
+`native::catalog` case, `bootc container lint` and the full harness (13/13); the
+ignored `e2e_native` fixture and `native::native_artifacts` pass. Desktop on
+x86_64 is partial: under qemu-user emulation an x86_64 engine resolves the
+desktop RPM lock, but the foundation's RPM install failed there, so the desktop
+image, its derivation and harness are `not-run` until the first release run on
+the native x86_64 runner. No release run, boot, installation or publication
+follows from these results.
+
 ## Local boot-level VM drivers (2026-10-14)
 
 The VM drivers under `usr/src/kedra/tests/vm` no longer require Actions. They share
@@ -42,9 +67,10 @@ The qemu-arm64 native image is derived by `sysroot derive plan|build`, no longer
 the test harness (`kedra-lab derive*` and its embedded Python driver are removed).
 The steps are implemented in Rust and run in the offline BuildKit build as the
 running `sysroot` binary, whose hash is the plan's `driver_sha256`;
-`image/release/native-steps.json` is the single declaration on that path. The
-release composer and its installed catalog case call `sysroot`; desktop still uses
-`assemble.sh`. See [NATIVE](NATIVE.md). Local Linux qualification
+`image/release/native-steps.json` was the single declaration on that path until
+the [one engine image pipeline](#one-engine-image-pipeline-2026-10-15) moved the
+steps into the targets' `.kedra` blocks and desktop onto the engine. The release
+composer and its installed catalog case call `sysroot`. See [NATIVE](NATIVE.md). Local Linux qualification
 on the owner's Mac (rust:1.98.1 linux/arm64, OrbStack Docker29.4/BuildKit0.29):
 public `e2e_native` (plan, refusals, build, binding reuse) and `e2e_context` pass;
 container harness `native::native_artifacts` on the `sysroot`-derived image and

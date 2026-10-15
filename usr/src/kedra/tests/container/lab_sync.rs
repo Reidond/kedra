@@ -14,7 +14,8 @@ struct File {
     mode: u32,
 }
 
-/// The guest validates this against its installed source before changing any file.
+/// The guest validates this against its installed source, then merges the files
+/// its image declares as managed with `sysroot home update`.
 #[derive(Serialize)]
 struct Request {
     schema_version: u32,
@@ -34,11 +35,7 @@ pub fn request(target: &str) -> Result<Vec<u8>> {
             return Err(invalid("source payload contains a non-regular entry"));
         }
         let home = path.strip_prefix("usr/share/sysroot/home/default/");
-        if path != "usr/share/sysroot/source.json"
-            && !home.is_some_and(|p| {
-                p.starts_with(".config/niri/") || p.starts_with(".config/noctalia/")
-            })
-        {
+        if path != "usr/share/sysroot/source.json" && home.is_none() {
             continue;
         }
         if entry.size() > 16 * 1024 * 1024 {
@@ -63,9 +60,7 @@ pub fn request(target: &str) -> Result<Vec<u8>> {
     }
     let source = source.ok_or_else(|| invalid("source payload has no manifest"))?;
     if files.is_empty() {
-        return Err(invalid(
-            "source payload has no supported desktop configuration",
-        ));
+        return Err(invalid("source payload has no home baseline files"));
     }
     serde_json::to_vec(&Request {
         schema_version: 1,

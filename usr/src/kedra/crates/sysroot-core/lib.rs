@@ -1,4 +1,4 @@
-//! Pure release/home models shared by the CLI and the installed helper.
+//! Pure release models shared by the CLI and the installed helper.
 
 /// Reviewed build/runtime compatibility, embedded from the shared repository contract.
 pub mod compatibility;
@@ -6,10 +6,8 @@ pub mod compatibility;
 pub mod deployment;
 /// Identity authenticated by an OCI image signature.
 pub mod image;
-/// Committed source layout and home-baseline provenance.
+/// Committed source layout.
 pub mod layout;
-/// Narrow Noctalia effective-settings review and disposition transitions.
-pub mod noctalia;
 /// Bounded requests shared by the ordinary CLI and the installed helper.
 pub mod protocol;
 /// Installed release scope and release-key identity.

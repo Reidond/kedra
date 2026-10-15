@@ -16,8 +16,6 @@ mod doctor;
 #[cfg(unix)]
 mod engine;
 mod home;
-#[cfg(unix)]
-mod home_artifact;
 mod setup;
 mod source;
 mod source_packages;
@@ -70,7 +68,7 @@ enum Commands {
     },
     /// Manage a signed installed release through the independently verifying helper.
     Update(deployment::Options),
-    /// Review, select and reconcile supported Noctalia settings and niri text.
+    /// Show, capture and update the home files the image declares as managed.
     Home(home::Options),
     /// One-time setup of this installed machine, such as TPM disk unlock (Linux).
     Setup(setup::Options),

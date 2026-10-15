@@ -42,7 +42,6 @@ These drivers cover what a container cannot host. Their workflows were removed o
 |---|---|---|
 | `usr/src/kedra/tests/agents/run.py` | Real agent launcher/runtime/profile behavior with generated profiles | Native x86_64 or aarch64, offline, after `image/agents/fetch.py` and `package.py` |
 | `vm/ghcr-update/run.sh`, `run-arm64.sh` | Direct signed registry v2 enrollment/check/stage, A/B/rollback, identity recovery and critical refusals, under UEFI Secure Boot | x86_64 with KVM; aarch64 under TCG |
-| `vm/home-transition/run.sh` | Actual signed A/B/A home-baseline acceptance and rollback under UEFI Secure Boot | x86_64 with KVM, after `compose-artifact.py` on aarch64 |
 | `vm/desktop/` | tuigreet password login on VT 1, PAM login-keyring unlock, the session on the virtio GPU, doctor's full session gate and the Xwayland and Qt 5/6 file choosers, under Secure Boot with SELinux enforcing | x86_64 with KVM |
 | `vm/qemu-arm64/boot.sh` | The bootc contract of the `qemu-arm64` candidate and a TCG UEFI Secure Boot boot through an explicit `\EFI\fedora\shimaa64.efi` NVRAM entry ([vm/qemu-arm64](vm/qemu-arm64/README.md)); `kedra-lab vm` covers interactive use | aarch64 |
 | `rpm-refresh/run.py` | Native signed-RPM change/no-change and failure cases | x86_64 with Podman |

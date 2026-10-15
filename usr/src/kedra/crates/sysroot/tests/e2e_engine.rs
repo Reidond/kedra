@@ -8,7 +8,7 @@ mod cache_recovery;
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -1213,6 +1213,192 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
     f.build(&store, &short, &["--rebuild"]).refused("no root");
     eprintln!(
         "engine faults exercised: divergent winner, offline and failing/timed-out/noisy builders, live isolation, concurrent GC, killed-controller and surviving-sandbox recovery, foreign-owner refusal and root collection"
+    );
+}
+
+fn hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// One uncompressed layer: (path, type, contents, link target).
+fn layer(entries: &[(&str, tar::EntryType, &[u8], Option<&str>)]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, kind, bytes, link) in entries {
+        let mut header = tar::Header::new_ustar();
+        header.set_entry_type(*kind);
+        header.set_path(path).unwrap();
+        header.set_mode(if kind.is_dir() { 0o755 } else { 0o644 });
+        header.set_size(bytes.len() as u64);
+        if let Some(link) = link {
+            header.set_link_name(link).unwrap();
+        }
+        header.set_cksum();
+        builder.append(&header, *bytes).unwrap();
+    }
+    builder.into_inner().unwrap()
+}
+
+/// A Docker 29 OCI save archive of native layers (blob, media type, diff ID);
+/// returns the image identity, the digest of its single manifest.
+fn oci_archive(path: &Path, layers: &[(Vec<u8>, &str, String)]) -> String {
+    let config = serde_json::to_vec(&json!({
+        "architecture":"arm64","os":"linux","config":{},
+        "rootfs":{"type":"layers","diff_ids":layers.iter().map(|l| l.2.clone()).collect::<Vec<_>>()},
+    }))
+    .unwrap();
+    let manifest = serde_json::to_vec(&json!({
+        "schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json",
+        "config":{"mediaType":"application/vnd.oci.image.config.v1+json",
+            "digest":format!("sha256:{}", hex(&config)),"size":config.len()},
+        "layers":layers.iter().map(|(blob, media, _)| json!({"mediaType":media,
+            "digest":format!("sha256:{}", hex(blob)),"size":blob.len()})).collect::<Vec<_>>(),
+    }))
+    .unwrap();
+    let image = format!("sha256:{}", hex(&manifest));
+    let index = serde_json::to_vec(&json!({
+        "schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json",
+        "manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json",
+            "digest":image,"size":manifest.len()}],
+    }))
+    .unwrap();
+    let docker = serde_json::to_vec(&json!([{
+        "Config":format!("blobs/sha256/{}", hex(&config)),
+        "Layers":layers.iter().map(|(blob, _, _)| format!("blobs/sha256/{}", hex(blob))).collect::<Vec<_>>(),
+    }]))
+    .unwrap();
+    let mut builder = tar::Builder::new(File::create(path).unwrap());
+    for directory in ["blobs/", "blobs/sha256/"] {
+        let mut header = tar::Header::new_ustar();
+        header.set_entry_type(tar::EntryType::Directory);
+        header.set_path(directory).unwrap();
+        header.set_mode(0o755);
+        header.set_size(0);
+        header.set_cksum();
+        builder.append(&header, &[][..]).unwrap();
+    }
+    let mut blobs = vec![config, manifest];
+    blobs.extend(layers.iter().map(|(blob, _, _)| blob.clone()));
+    for blob in &blobs {
+        append_tar_bytes(&mut builder, &format!("blobs/sha256/{}", hex(blob)), blob);
+    }
+    append_tar_bytes(&mut builder, "index.json", &index);
+    append_tar_bytes(&mut builder, "manifest.json", &docker);
+    append_tar_bytes(
+        &mut builder,
+        "oci-layout",
+        br#"{"imageLayoutVersion":"1.0.0"}"#,
+    );
+    builder.finish().unwrap();
+    image
+}
+
+fn plain(blob: Vec<u8>) -> (Vec<u8>, &'static str, String) {
+    let diff = format!("sha256:{}", hex(&blob));
+    (blob, "application/vnd.oci.image.layer.v1.tar", diff)
+}
+
+#[test]
+fn image_roots_unpack_saved_archives_without_a_daemon() {
+    use tar::EntryType::{Char, Directory, Link, Regular, Symlink};
+    let f = Fixture::new();
+    let store = f.path("store");
+    let lower = layer(&[
+        ("etc/", Directory, b"", None),
+        ("etc/keep", Regular, b"lower", None),
+        ("etc/gone", Regular, b"lower", None),
+        ("bin/", Directory, b"", None),
+        ("bin/tool", Regular, b"replaced by a device", None),
+        ("opaque/", Directory, b"", None),
+        ("opaque/old", Regular, b"hidden by opaque", None),
+        ("data/", Directory, b"", None),
+        ("data/x", Regular, b"linked", None),
+        ("data/y", Link, b"", Some("data/x")),
+        ("alias", Symlink, b"", Some("etc")),
+    ]);
+    // Whiteouts and the opaque marker follow same-layer entries they must keep.
+    let upper = layer(&[
+        ("etc/new", Regular, b"added", None),
+        ("etc/.wh.new", Regular, b"", None),
+        ("etc/.wh.gone", Regular, b"", None),
+        ("bin/tool", Char, b"", None),
+        ("opaque/fresh", Regular, b"same layer", None),
+        ("opaque/.wh..wh..opq", Regular, b"", None),
+    ]);
+    let archive = f.path("image.tar");
+    let image = oci_archive(&archive, &[plain(lower.clone()), plain(upper)]);
+    let admitted = f
+        .store(
+            "add-image",
+            &store,
+            &["--image", &image, "--archive", text(&archive)],
+        )
+        .json();
+    assert_eq!(admitted["image"], image);
+    let root = f.root(&store, &image);
+    assert_eq!(f.root(&store, &image), root, "image root was not reused");
+    let tree = store.join("rootfs").join(&root).join("tree");
+    let read = |path: &str| fs::read(tree.join(path)).ok();
+    assert_eq!(read("etc/keep").as_deref(), Some(&b"lower"[..]));
+    assert_eq!(read("etc/new").as_deref(), Some(&b"added"[..]));
+    assert_eq!(read("opaque/fresh").as_deref(), Some(&b"same layer"[..]));
+    for absent in ["etc/gone", "bin/tool", "opaque/old", "etc/.wh.gone"] {
+        assert!(
+            fs::symlink_metadata(tree.join(absent)).is_err(),
+            "{absent} survived its layer"
+        );
+    }
+    let x = fs::metadata(tree.join("data/x")).unwrap();
+    let y = fs::metadata(tree.join("data/y")).unwrap();
+    assert_eq!((x.dev(), x.ino()), (y.dev(), y.ino()));
+    assert_eq!(fs::read_link(tree.join("alias")).unwrap(), Path::new("etc"));
+    for point in ["dev", "proc", "tmp", "build", "usr/lib/sysroot/store"] {
+        assert!(tree.join(point).is_dir(), "missing mount point {point}");
+    }
+
+    // A later layer may not write through a lower symlink.
+    let escape = layer(&[("alias/escape", Regular, b"outside", None)]);
+    let archive = f.path("escape.tar");
+    let image = oci_archive(&archive, &[plain(lower.clone()), plain(escape)]);
+    f.store(
+        "add-image",
+        &store,
+        &["--image", &image, "--archive", text(&archive)],
+    )
+    .json();
+    f.store("add-root", &store, &["--image", &image])
+        .refused("traverses a non-directory");
+
+    // A compressed layer must decompress to its configured DiffID.
+    let compressed = f.path("lower.tar.gz");
+    fs::write(f.path("lower.tar"), &lower).unwrap();
+    let gzip = run(Command::new("gzip")
+        .args(["-n", "-k", "-f"])
+        .arg(f.path("lower.tar")))
+    .success();
+    assert!(gzip.stdout.is_empty());
+    let blob = fs::read(&compressed).unwrap();
+    let wrong = format!("sha256:{}", "0".repeat(64));
+    let archive = f.path("wrong-diff.tar");
+    let image = oci_archive(
+        &archive,
+        &[(blob, "application/vnd.oci.image.layer.v1.tar+gzip", wrong)],
+    );
+    f.store(
+        "add-image",
+        &store,
+        &["--image", &image, "--archive", text(&archive)],
+    )
+    .json();
+    f.store("add-root", &store, &["--image", &image])
+        .refused("uncompressed layer differs");
+    let collected = f.store("gc", &store, &[]).json();
+    assert_eq!(
+        collected["roots"],
+        json!([]),
+        "a refused root was published"
     );
 }
 

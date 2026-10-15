@@ -657,7 +657,18 @@ fn apply_entry<R: Read>(
         return clear_opaque(&parent, directory, added);
     }
     if let Some(hidden) = name.strip_prefix(".wh.") {
+        // A whiteout hides lower layers only: an entry this layer added stays,
+        // whichever order the archive lists them in.
         entry_path(Path::new(hidden))?;
+        let directory = path.rsplit_once('/').map_or("", |(p, _)| p);
+        let hidden_path = if directory.is_empty() {
+            hidden.to_owned()
+        } else {
+            format!("{directory}/{hidden}")
+        };
+        if added.contains(&hidden_path) {
+            return Ok(());
+        }
         return remove_existing(&parent.join(hidden), false);
     }
     let target = parent.join(name);
@@ -706,10 +717,13 @@ fn apply_entry<R: Read>(
         }
         remove_existing(&target, false)?;
         fs::hard_link(&source, &target)?;
-    } else if !matches!(
+    } else if matches!(
         kind,
         tar::EntryType::Char | tar::EntryType::Block | tar::EntryType::Fifo
     ) {
+        // Roots omit special nodes, but the node still replaces the lower entry.
+        remove_existing(&target, false)?;
+    } else {
         return Err(Error::Invalid(format!("unsupported layer entry: {path}")));
     }
     added.insert(path);

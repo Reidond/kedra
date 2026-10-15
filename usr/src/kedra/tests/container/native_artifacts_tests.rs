@@ -7,7 +7,7 @@ use kedra_container_tests::scenario::Context;
 use kedra_container_tests::session::TestUser;
 use kedra_container_tests::{Error, Result};
 use sha2::{Digest, Sha256};
-use sysroot_engine::{NativeArtifactKind, NativeReceipt};
+use sysroot_engine::{NativeArtifactKind, NativeReceipt, NativeStep, SKEL_APPLIED};
 
 const SCHEMA: &str = "org.kedra.NativeFixture";
 const HOME_FILE: &str = ".native-fixture";
@@ -199,12 +199,40 @@ fn defaults_and_accounts(context: &Context<'_>) -> Result<()> {
         "user customization changed the image skeleton",
     )?;
     ensure(
+        docker.read_file(
+            container,
+            &format!("{second_home}/{SKEL_APPLIED}{HOME_FILE}"),
+        )? == SEEDED,
+        "fresh account did not record its applied home baseline",
+    )?;
+    ensure(
         gsettings(context, user, &["get", SCHEMA, "greeting"])? == b"'explicit-preference'\n",
         "fresh-account creation overwrote the existing preference",
     )?;
     std::fs::write(context.artifacts.join("native-defaults-and-home.txt"),
         b"fresh GLib default=derived-default\npersisted dconf override=explicit-preference\nfresh homes=derived-home-v1\nexisting modified home=existing-user-edit\n")?;
     Ok(())
+}
+
+/// The initramfs modules and drivers the installed source manifest declares.
+fn declared_initramfs(context: &Context<'_>) -> Result<(Vec<String>, Vec<String>)> {
+    #[derive(serde::Deserialize)]
+    struct Manifest {
+        native_steps: Vec<NativeStep>,
+    }
+    let bytes = context
+        .docker
+        .read_file(&context.environment.id, "/usr/share/sysroot/source.json")?;
+    let manifest: Manifest =
+        serde_json::from_slice(&bytes).map_err(|error| fail(error.to_string()))?;
+    manifest
+        .native_steps
+        .into_iter()
+        .find_map(|step| match step {
+            NativeStep::Initramfs { modules, drivers } => Some((modules, drivers)),
+            _ => None,
+        })
+        .ok_or_else(|| fail("installed source declares no initramfs step"))
 }
 
 fn artifact_material(context: &Context<'_>, receipt: &NativeReceipt) -> Result<()> {
@@ -253,6 +281,7 @@ fn artifact_material(context: &Context<'_>, receipt: &NativeReceipt) -> Result<(
         !receipt.kernels.is_empty(),
         "native fixture generated no kernel initramfs",
     )?;
+    let (modules, drivers) = declared_initramfs(context)?;
     for kernel in &receipt.kernels {
         let root = format!("/usr/lib/modules/{}", kernel.version);
         let digest = docker.run(
@@ -272,15 +301,15 @@ fn artifact_material(context: &Context<'_>, receipt: &NativeReceipt) -> Result<(
             "actual initramfs listing differs",
         )?;
         let listing_text = listing.stdout_text();
-        for module in ["qemu", "crypt", "dm", "rootfs-block"] {
+        for module in &modules {
             ensure(
                 listing_text.lines().any(|line| line.trim() == module),
-                format!("generic initramfs lacks required dracut module {module}"),
+                format!("generic initramfs lacks declared dracut module {module}"),
             )?;
         }
-        for driver in ["virtio_dma_buf", "virtio_gpu", "virtio_input"] {
+        for driver in &drivers {
             let path = kernel
-                .required_modules
+                .drivers
                 .get(driver)
                 .ok_or_else(|| fail(format!("kernel receipt omits {driver}")))?;
             ensure(

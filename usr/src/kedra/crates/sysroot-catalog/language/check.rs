@@ -506,7 +506,12 @@ impl Checker {
         }
         if !steps.is_empty() {
             sysroot_engine::normalize_native_steps(&mut steps).map_err(|error| {
-                fail(module, definition.declaration.span, "image", &error.to_string())
+                fail(
+                    module,
+                    definition.declaration.span,
+                    "image",
+                    &error.to_string(),
+                )
             })?;
         }
         Ok(steps)

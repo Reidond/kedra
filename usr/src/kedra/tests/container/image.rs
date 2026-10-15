@@ -296,6 +296,7 @@ fn unapplied_build_inputs(from: &str, to: Option<&str>) -> Vec<String> {
         "--",
         "usr/src/kedra/image/Containerfile",
         "usr/src/kedra/image/assemble.sh",
+        "usr/src/kedra/image/packages",
         "usr/src/kedra/image/inputs.json",
         "usr/src/kedra/image/agents",
         "usr/src/kedra/image/bitwarden",
@@ -356,10 +357,9 @@ pub fn prepare_system(docker: &Docker, request: &Request) -> Result<LabImage> {
 pub fn prepare_native_system(
     docker: &Docker,
     request: &Request,
-    specification: &std::path::Path,
     identity: &str,
 ) -> Result<LabImage> {
-    let derived = crate::native_derivation::prepare(docker, request, specification, identity)?;
+    let derived = crate::native_derivation::prepare(docker, request, identity)?;
     Ok(LabImage {
         name: "sha256".into(),
         tag: derived.image.trim_start_matches("sha256:").into(),
@@ -379,10 +379,9 @@ pub fn prepare_vm(docker: &Docker, request: &Request) -> Result<LabImage> {
 pub fn prepare_derived_vm(
     docker: &Docker,
     request: &Request,
-    specification: &std::path::Path,
     identity: &str,
 ) -> Result<(LabImage, crate::native_derivation::Derived, String)> {
-    let derived = crate::native_derivation::prepare(docker, request, specification, identity)?;
+    let derived = crate::native_derivation::prepare(docker, request, identity)?;
     if derived.material.kernels.is_empty() {
         return Err(invalid(
             "derived VM requires generated native kernel/initramfs material",

@@ -1,9 +1,9 @@
-# Published images build in Actions; authorized local fixtures stay unsigned.
+# Foundation of every target's engine pipeline (lock → foundation → packages →
+# compose → derive → trust layer), built by release/compose.py and the lab's
+# full local build. Published images build in Actions; local fixtures stay unsigned.
 # Use a generated, reviewed context; no whole-repo COPY.
-# Target payload (desktop or qemu-arm64); public trust and signed update identity are added by release builds.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
-ARG KEDRA_ASSEMBLY_MODE=complete
 COPY sysroot /usr/bin/sysroot
 COPY sysroot-helper /usr/libexec/sysroot/helper
 ADD payload.tar /
@@ -14,8 +14,4 @@ COPY install-rpms.sh /tmp/kedra-install-rpms.sh
 # rpms/ is the offline repository of this run's RPM lock: bound for this step
 # only, so no RPM file enters an image layer.
 RUN --mount=type=bind,source=rpms,target=/run/kedra-rpms,ro \
-    case "$KEDRA_ASSEMBLY_MODE" in \
-      complete) /bin/bash /tmp/kedra-assemble.sh ;; \
-      foundation) /bin/bash /tmp/kedra-assemble.sh --foundation ;; \
-      *) echo "Unsupported Kedra assembly mode" >&2; exit 1 ;; \
-    esac && rm /tmp/kedra-assemble.sh /tmp/kedra-install-rpms.sh
+    /bin/bash /tmp/kedra-assemble.sh && rm /tmp/kedra-assemble.sh /tmp/kedra-install-rpms.sh

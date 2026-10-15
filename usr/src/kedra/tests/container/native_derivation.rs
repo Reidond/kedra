@@ -1,7 +1,7 @@
 //! Native images come from the public `sysroot derive build` command; the
 //! harness only selects inputs and checks the result against its own engine.
+//! The steps are the ones the composition's committed source declares.
 
-use std::path::Path;
 use std::process::Command;
 
 use crate::docker::Docker;
@@ -11,7 +11,7 @@ use crate::{Result, invalid};
 /// `sysroot derive build` output: image, engine, parent image and material.
 pub use sysroot_engine::DerivedImage as Derived;
 
-/// Linux aarch64 `sysroot` binary that runs the derivation; it is also the
+/// Native Linux `sysroot` binary that runs the derivation; it is also the
 /// executor admitted into the offline build, so it must match the plan's.
 fn sysroot() -> Result<std::path::PathBuf> {
     std::env::var_os("KEDRA_LAB_SYSROOT")
@@ -22,14 +22,9 @@ fn sysroot() -> Result<std::path::PathBuf> {
         })
 }
 
-/// Derive through the public command with the selected steps and identities.
+/// Derive through the public command with the selected identities.
 /// State is shared with the release composer through the artifact root.
-pub fn prepare(
-    docker: &Docker,
-    request: &Request,
-    steps: &Path,
-    expected_identity: &str,
-) -> Result<Derived> {
+pub fn prepare(docker: &Docker, request: &Request, expected_identity: &str) -> Result<Derived> {
     let Source::Composition(context) = &request.source else {
         return Err(invalid(
             "native derivation requires --image composition:<directory>",
@@ -37,11 +32,10 @@ pub fn prepare(
     };
     if request.overlay != Overlay::None
         || request.binaries.is_some()
-        || request.target.id != "qemu-arm64"
-        || request.target.oci_architecture != "arm64"
+        || request.target.architecture != docker.architecture()?
     {
         return Err(invalid(
-            "native derivation requires qemu-arm64 without overlays or binary overrides",
+            "native derivation requires the engine's native target without overlays or binary overrides",
         ));
     }
     let composition = request
@@ -52,8 +46,7 @@ pub fn prepare(
     let output = Command::new(sysroot()?)
         .args(["derive", "build", "--context"])
         .arg(context)
-        .args(["--expected-identity", composition, "--steps"])
-        .arg(steps)
+        .args(["--expected-identity", composition])
         .args(["--expected-derivation", expected_identity, "--state"])
         .arg(crate::composition::derive_state()?)
         .stderr(std::process::Stdio::inherit())

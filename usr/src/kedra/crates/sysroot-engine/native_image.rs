@@ -1068,10 +1068,9 @@ pub fn plan_derivation(
     let executor = Executor::current()?;
     let state = State::open(state)?;
     let verified = VerifiedComposition::open(context, expected_identity, &state.path)?;
-    let planned =
-        native::native_definition(verified.composition(), steps).and_then(|definition| {
-            native::plan_native(&verified, &definition, &executor.implementation())
-        });
+    let planned = native::native_definition(verified.composition(), steps).and_then(|definition| {
+        native::plan_native(&verified, &definition, &executor.implementation())
+    });
     let finished = verified.finish();
     let planned = planned?;
     finished?;

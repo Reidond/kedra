@@ -16,6 +16,15 @@ if ! diff <(jq -S '{packages: (.packages | sort), remove_packages: (.remove_pack
     echo 'Use KEDRA_LAB_IMAGE=build (full local image build) instead.' >&2
     exit 1
 fi
+# Units, the default target and the initramfs come from `sysroot derive`. A base
+# built before targets declared their steps applied its own; it is not compared.
+derived='(.native_steps // []) | map(select(.kind == "systemd" or .kind == "initramfs"))'
+if jq -e 'has("native_steps")' "$base" >/dev/null \
+        && ! diff <(jq -S "$derived" "$base") <(jq -S "$derived" "$next"); then
+    echo 'The working tree changes the target'"'"'s systemd or initramfs steps; an overlay cannot derive them.' >&2
+    echo 'Use KEDRA_LAB_IMAGE=build (full local image build) instead.' >&2
+    exit 1
+fi
 # Remove files the base image shipped from its payload that this payload no
 # longer ships, including their account-baseline copies in /etc/skel.
 while IFS= read -r destination; do
@@ -29,7 +38,9 @@ while IFS= read -r destination; do
     esac
 done < <(LC_ALL=C comm -23 <(jq -r '.files[].destination' "$base" | LC_ALL=C sort) \
                            <(jq -r '.files[].destination' "$next" | LC_ALL=C sort))
-# The payload half of usr/src/kedra/image/assemble.sh.
+# The payload half of the engine image: assemble.sh's permissions and
+# validations, and the derive steps that read the payload (GLib schemas and
+# the skeleton with its applied home baseline; see sysroot derive).
 chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper /usr/libexec/kedra-session
 glib-compile-schemas --strict /usr/share/glib-2.0/schemas
 mkdir -p /etc/skel

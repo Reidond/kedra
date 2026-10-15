@@ -118,7 +118,7 @@ def verify_material(value, installed=False):
         require(digest(root / 'vmlinuz') == kernel['kernel_sha256'], 'native kernel changed')
         listing = run(['/usr/bin/lsinitrd', str(root / 'initramfs.img')])
         require(hashlib.sha256(listing.encode()).hexdigest() == kernel['listing_sha256'], 'native initramfs listing changed')
-        for path in kernel['required_modules'].values():
+        for path in kernel['drivers'].values():
             require(path.startswith(str(root) + '/') and path.lstrip('/') in listing, 'native initramfs lost driver')
 
 
@@ -216,7 +216,7 @@ def boot_artifacts(value):
     initrd_journal = run(['/usr/bin/journalctl', '-b', '--no-pager', '-o', 'short-monotonic', '-u', 'initrd-switch-root.service'])
     require('Switch' in initrd_journal or 'switch' in initrd_journal, 'initrd switch-root evidence absent')
     drivers = {}
-    for driver in kernel['required_modules']:
+    for driver in kernel['drivers']:
         name = driver.replace('-', '_')
         require((Path('/sys/module') / name).is_dir(), 'required native driver is not loaded: ' + name)
         drivers[name] = True

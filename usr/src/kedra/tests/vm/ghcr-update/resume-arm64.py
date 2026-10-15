@@ -126,8 +126,6 @@ def main():
         data = m.read(compose.ordinary(ROOT / path))
         m.require(data == git('cat-file', 'blob', fixture['source_revision'] + ':' + name),
                   'Production recipe differs from original candidate source: ' + name)
-        if name == m.NATIVE_RECIPE:
-            data = m.canonical(m.document(data))
         m.require(m.sha(data) == expected, 'Production recipe differs from retained material: ' + name)
     for name, expected in fixture['binary_sha256'].items():
         m.require(inputs['artifacts'].get(name) == expected, 'Candidate executable provenance differs: ' + name)
@@ -218,7 +216,7 @@ def main():
     m.require(source.get('source_revision') == fixture['source_revision']
               and {key: value for key, value in source.items() if key not in ('source_revision', 'input_scope')}
               == inputs['source'], 'Retained source identity differs')
-    m.verify_native(config, m.read(work / 'native-receipt.json'), inputs, selected)
+    m.verify_native(config, m.read(work / 'native-receipt.json'), inputs, 'qemu-arm64', selected)
     packages = m.packages(m.read(work / 'package-material.txt'), 'aarch64')
     m.require(packages == inputs['packages'] and m.sha(compose.package_bytes(packages)) == selected['rpm_sha256'],
               'Retained RPM closure differs')

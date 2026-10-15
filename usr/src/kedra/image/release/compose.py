@@ -3,8 +3,11 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Build unsigned ARM composition inputs through the existing public engine APIs.
+"""Build one target's unsigned engine image through the public engine APIs.
 
+Both release targets use it natively on their own architecture: `foundation`
+builds the RPM-locked foundation, `compose` composes it with the catalog
+contribution and derives the image steps the target's .kedra block declares.
 The release and disposable-fixture workflows share this unsigned producer. It
 has no signing, publication, installation or candidate-root execution interface.
 The release workflow validates and signs its final public-trust derivative.
@@ -27,9 +30,6 @@ sys.dont_write_bytecode = True
 import material as m
 
 IMAGE = 'usr/src/kedra/image/'
-NATIVE_RECIPE = IMAGE + 'release/native-steps.json'
-ENGINE_PLATFORM = 'aarch64-linux'
-OCI_PLATFORM = 'linux/arm64'
 PROGRAMS = ('sysroot', 'sysroot-helper')
 CONTEXT_FILES = frozenset(('Containerfile', 'assemble.sh', 'install-rpms.sh', 'sysroot', 'sysroot-helper',
                            'payload.tar', 'agents.tar', 'bitwarden.tar', 'rpms'))
@@ -160,13 +160,13 @@ def image_config_matches(exported, inspected):
     return exported == actual
 
 
-def transfer_comparison(config, observed):
+def transfer_comparison(config, observed, oci_architecture):
     """Fixed-field metadata only; never emit image config values or unknown keys."""
     exported, inspected = config.get('config'), observed.get('Config')
     exported_ids = config.get('rootfs', {}).get('diff_ids')
     inspected_ids = observed.get('RootFS', {}).get('Layers')
     report = {'os_matches': config.get('os') == 'linux',
-              'architecture_matches': config.get('architecture') == 'arm64',
+              'architecture_matches': config.get('architecture') == oci_architecture,
               'config_matches': exported == inspected,
               'config_matches_inspect_defaults': image_config_matches(exported, inspected),
               'diff_ids_match': exported_ids == inspected_ids,
@@ -296,7 +296,7 @@ def package_bytes(rows):
     return ('\n'.join('\t'.join(row) for row in rows) + '\n').encode()
 
 
-def validate_inputs(value, data):
+def validate_inputs(value, data, architecture):
     m.require(isinstance(value, dict)
               and set(value) == {'schema_version', 'base', 'source', 'artifacts', 'recipes', 'packages'}
               and type(value['schema_version']) is int and value['schema_version'] == 1
@@ -314,23 +314,27 @@ def validate_inputs(value, data):
     rows = value['packages']
     m.require(isinstance(rows, list) and rows and all(isinstance(row, list) and len(row) == 7
               and all(isinstance(field, str) for field in row) for row in rows), 'Invalid RPM material')
-    m.require(m.packages(package_bytes(rows), 'aarch64') == rows, 'Noncanonical RPM material')
-    m.require_bootc(rows, 'aarch64')
+    m.require(m.packages(package_bytes(rows), architecture) == rows, 'Noncanonical RPM material')
+    m.require_bootc(rows, architecture)
 
 
 class Runner:
     def __init__(self, args, progress):
         self.progress = progress
-        m.require(sys.platform == 'linux' and platform.machine() == 'aarch64'
+        self.spec = m.target_spec(args.target)
+        self.architecture = self.spec['architecture']
+        self.oci_architecture = self.spec['oci_architecture']
+        self.engine_platform = self.architecture + '-linux'
+        m.require(sys.platform == 'linux' and platform.machine() == self.architecture
                   and os.getuid() != 0 and os.geteuid() == os.getuid(),
-                  'Run as an ordinary user on native Linux ARM; this does not install an OS')
+                  'Run as an ordinary user on native Linux of the target architecture; this does not install an OS')
         m.require(re.fullmatch('[a-f0-9]{40}', args.source_revision), 'Invalid committed source revision')
         self.args = args
         self.repo = ordinary(args.repo, directory=True)
         self.store = Path(os.path.abspath(args.store))
         ordinary(self.store.parent, directory=True)
         self.inputs, input_bytes = read_json(args.inputs, args.expected_inputs_sha256, m.LIMIT)
-        validate_inputs(self.inputs, input_bytes)
+        validate_inputs(self.inputs, input_bytes, self.architecture)
         self.input_hash = m.sha(input_bytes)
         self.output = private_directory(args.output_dir, create=True)
         self.sequence = 0
@@ -367,9 +371,9 @@ class Runner:
         self.check_source_manifest(self.source)
         self.engine = self.command_json('docker-info', ['/usr/bin/docker', 'info', '--format', '{{json .}}'])
         m.require(isinstance(self.engine, dict) and self.engine.get('OSType') == 'linux'
-                  and self.engine.get('Architecture') in ('aarch64', 'arm64')
+                  and self.engine.get('Architecture') in (self.architecture, self.oci_architecture)
                   and isinstance(self.engine.get('ID'), str) and self.engine['ID'],
-                  'Docker must be an identified native Linux ARM engine')
+                  'Docker must be an identified native Linux engine of the target architecture')
         self.engine = self.engine['ID']
 
     def run(self, label, arguments, timeout=INSPECT_TIMEOUT, maximum=MAX_JSON):
@@ -431,7 +435,7 @@ class Runner:
         m.require(current == self.args.source_revision, 'Committed HEAD differs from selected source')
 
     def check_recipes(self):
-        required = {IMAGE + 'Containerfile', IMAGE + 'assemble.sh', NATIVE_RECIPE,
+        required = {IMAGE + 'Containerfile', IMAGE + 'assemble.sh',
                     IMAGE + 'release/compose.py', IMAGE + 'release/material.py'}
         m.require(required <= self.inputs['recipes'].keys(), 'Preflight lacks composition recipes')
         for name, expected in self.inputs['recipes'].items():
@@ -443,9 +447,6 @@ class Runner:
             committed = self.run('committed-recipe', ['/usr/bin/git', '--no-replace-objects', '-C', self.repo,
                 'cat-file', 'blob', self.args.source_revision + ':' + name])
             m.require(data == committed, 'Recipe differs from committed source: ' + name)
-            if name == NATIVE_RECIPE:
-                # Preflight hashes the canonical form; sysroot validates the steps.
-                data = m.canonical(m.document(data))
             m.require(m.sha(data) == expected, 'Recipe differs from preflight: ' + name)
         m.require(Path(__file__).resolve() == self.repo / (IMAGE + 'release/compose.py'),
                   'Invoke the runner from the selected checkout')
@@ -453,10 +454,10 @@ class Runner:
     def check_source_manifest(self, source):
         m.require(isinstance(source, dict) and source.get('schema_version') == 1
                   and source.get('source_revision') == self.args.source_revision
-                  and source.get('target', {}).get('id') == 'qemu-arm64'
-                  and source['target'].get('architecture') == 'aarch64'
+                  and source.get('target', {}).get('id') == self.args.target
+                  and source['target'].get('architecture') == self.architecture
                   and source['target'].get('fedora_release') == 44
-                  and source['target'].get('image') == 'ghcr.io/reidond/kedra-qemu-arm64'
+                  and source['target'].get('image') == self.spec['repository']
                   and source['target'].get('candidate_target') is True
                   and {key: value for key, value in source.items() if key not in ('source_revision', 'input_scope')}
                   == self.inputs['source'], 'Source manifest differs from selected material')
@@ -470,7 +471,8 @@ class Runner:
         m.require(isinstance(values, list) and len(values) == 1, 'Expected one local image')
         value = values[0]
         image_id(value.get('Id'))
-        m.require(value.get('Os') == 'linux' and value.get('Architecture') == 'arm64', 'Wrong candidate platform')
+        m.require(value.get('Os') == 'linux' and value.get('Architecture') == self.oci_architecture,
+                  'Wrong candidate platform')
         config = value.get('Config') or {}
         m.require(not config.get('Volumes') and not config.get('OnBuild'), 'Image declares volumes or ONBUILD')
         return value
@@ -499,7 +501,7 @@ class Runner:
         source, source_bytes = read_json(directory / 'source.json', limit=1024**2)
         self.check_source_manifest(source)
         m.require(source == self.source, 'Image source differs from the current committed source plan')
-        rows = m.packages(m.read(ordinary(directory / 'package-material.txt')), 'aarch64')
+        rows = m.packages(m.read(ordinary(directory / 'package-material.txt')), self.architecture)
         m.require(rows == self.inputs['packages'], 'Image RPM material differs from the RPM lock')
         return directory, m.sha(source_bytes), m.sha(package_bytes(rows))
 
@@ -510,7 +512,7 @@ class Runner:
             '--store', self.store, '--image', image_id(image)], BUILD_TIMEOUT)
         m.require(set(retained) == {'schema', 'image', 'platform', 'sha256', 'bytes'}
                   and retained['schema'] == 1 and retained['image'] == image
-                  and retained['platform'] == ENGINE_PLATFORM and type(retained['bytes']) is int
+                  and retained['platform'] == self.engine_platform and type(retained['bytes']) is int
                   and 0 < retained['bytes'] <= MAX_FILE, 'Invalid complete-image retention receipt')
         digest(retained['sha256'])
         return retained
@@ -525,18 +527,17 @@ class Runner:
             copy_pinned(context / name, snapshot / name, expected, 0o500 if name in PROGRAMS else 0o600)
         self.snapshot_rpms(context / 'rpms', snapshot / 'rpms')
         self.run('source-archive', [self.programs['sysroot'], 'source', 'archive', '--repo', self.repo,
-            '--host', 'qemu-arm64', '--output', snapshot / 'payload.tar'], BUILD_TIMEOUT)
+            '--host', self.args.target, '--output', snapshot / 'payload.tar'], BUILD_TIMEOUT)
         m.require(hash_file(snapshot / 'payload.tar') == hash_file(context / 'payload.tar'),
                   'Context payload differs from freshly frozen committed source')
         tag = 'localhost/kedra-compose-foundation:' + self.nonce
         write_json(self.output / 'resources.json', {'schema_version': 1, 'engine': self.engine,
                    'invocation': self.nonce, 'foundation_tag': tag, 'store': str(self.store)})
-        self.run('foundation-build', ['/usr/bin/docker', 'build', '--platform', OCI_PLATFORM, '--pull',
-            '--no-cache', '--iidfile', self.output / 'foundation.iid', '--tag', tag,
+        self.run('foundation-build', ['/usr/bin/docker', 'build', '--platform', 'linux/' + self.oci_architecture,
+            '--pull', '--no-cache', '--iidfile', self.output / 'foundation.iid', '--tag', tag,
             '--label', 'dev.kedra.release.invocation=' + self.nonce,
             '--build-arg', 'BASE_IMAGE=' + self.inputs['base'],
-            '--build-arg', 'KEDRA_ASSEMBLY_MODE=foundation', '--file', snapshot / 'Containerfile', snapshot],
-            BUILD_TIMEOUT)
+            '--file', snapshot / 'Containerfile', snapshot], BUILD_TIMEOUT)
         image = image_id(m.read(ordinary(self.output / 'foundation.iid'), 128).decode().strip())
         observed = self.inspect_image(tag)
         m.require(observed['Id'] == image
@@ -546,7 +547,7 @@ class Runner:
         retention_hash = write_json(self.output / 'retention.json', retained)
         _, source_hash, rpm_hash = self.observed_material(image, 'foundation-material')
         self.finish()
-        result = {'schema_version': 1, 'target': 'qemu-arm64', 'source_revision': self.args.source_revision,
+        result = {'schema_version': 1, 'target': self.args.target, 'source_revision': self.args.source_revision,
                   'input_material_sha256': self.input_hash, 'foundation_image': image, 'engine': self.engine,
                   'rpm_sha256': rpm_hash, 'source_manifest_sha256': source_hash,
                   'retention_receipt_sha256': retention_hash}
@@ -588,7 +589,7 @@ class Runner:
                       'Contribution differs from preflight ' + artifact)
         outputs = definition.get('outputs')
         m.require(type(definition.get('schema')) is int and definition.get('schema') == 1
-                  and definition.get('platform') == ENGINE_PLATFORM
+                  and definition.get('platform') == self.engine_platform
                   and definition.get('foundation') == foundation and isinstance(outputs, dict) and outputs
                   and outputs == receipt['outputs'], 'Contribution definition/foundation/output differs')
         for alias, identity in outputs.items():
@@ -602,7 +603,8 @@ class Runner:
         foundation, _ = read_json(self.args.foundation_receipt, self.args.expected_foundation_receipt_sha256)
         m.require(isinstance(foundation, dict) and set(foundation) == FOUNDATION_FIELDS
                   and type(foundation['schema_version']) is int and foundation['schema_version'] == 1
-                  and foundation['target'] == 'qemu-arm64' and foundation['source_revision'] == self.args.source_revision
+                  and foundation['target'] == self.args.target
+                  and foundation['source_revision'] == self.args.source_revision
                   and foundation['input_material_sha256'] == self.input_hash and foundation['engine'] == self.engine,
                   'Foundation receipt differs from selected build')
         image = image_id(foundation['foundation_image'])
@@ -616,7 +618,7 @@ class Runner:
         definition, outputs = self.contribution(image)
         context = self.output / 'composition'
         arguments = [self.programs['sysroot'], 'system', 'compose', '--repo', self.repo,
-                     '--target', 'qemu-arm64', '--store', self.store, '--foundation', image,
+                     '--target', self.args.target, '--store', self.store, '--foundation', image,
                      '--output-dir', context]
         if definition is not None:
             arguments.extend(['--definition', definition])
@@ -628,9 +630,9 @@ class Runner:
         self.command_json('verify-composition', [self.programs['sysroot'], 'system', 'verify',
             '--context', context, '--expected-identity', identity, '--workdir', verification],
             BUILD_TIMEOUT)
-        steps = self.native_steps()
-        common = ['--context', context, '--expected-identity', identity, '--steps', steps,
-                  '--state', self.derive_state]
+        # The composition's committed source manifest carries the target's
+        # declared image steps; sysroot derive reads them from the verified context.
+        common = ['--context', context, '--expected-identity', identity, '--state', self.derive_state]
         plan = self.command_json('native-plan', [self.programs['sysroot'], 'derive', 'plan', *common],
                                  BUILD_TIMEOUT)
         native_identity = digest(plan.get('identity'), 'native identity')
@@ -653,22 +655,13 @@ class Runner:
         self.retain(generated)
         transfer = self.transfer(generated)
         self.finish()
-        result = {'schema_version': 1, 'target': 'qemu-arm64', 'source_revision': self.args.source_revision,
+        result = {'schema_version': 1, 'target': self.args.target, 'source_revision': self.args.source_revision,
                   'input_material_sha256': self.input_hash, 'foundation_image': image, 'engine': self.engine,
                   'composition_identity': identity, 'native_identity': native_identity, 'native_image': generated,
                   'native_receipt_sha256': m.sha(raw_receipt), 'source_manifest_sha256': source_hash,
                   'rpm_sha256': rpm_hash, 'outputs': outputs, 'transfer': transfer}
         write_json(self.output / 'candidate.json', result)
         return result
-
-    def native_steps(self):
-        """Snapshot the committed step declaration that preflight hashed."""
-        data = m.read(ordinary(self.repo / NATIVE_RECIPE), MAX_JSON)
-        m.require(m.sha(m.canonical(m.document(data))) == self.inputs['recipes'][NATIVE_RECIPE],
-                  'Native steps differ from preflight')
-        path = self.output / 'native-steps.json'
-        write_new(path, data)
-        return path
 
     def transfer(self, image):
         self.same_engine()
@@ -694,10 +687,10 @@ class Runner:
         config = m.document(source_config)
         # A diagnostic error must not change the existing strict admission result.
         try:
-            self.progress['transfer_comparison'] = transfer_comparison(config, observed)
+            self.progress['transfer_comparison'] = transfer_comparison(config, observed, self.oci_architecture)
         except (TypeError, ValueError, KeyError, AttributeError, MemoryError):
             self.progress['transfer_comparison'] = {'available': False}
-        m.require(config.get('os') == 'linux' and config.get('architecture') == 'arm64'
+        m.require(config.get('os') == 'linux' and config.get('architecture') == self.oci_architecture
                   and image_config_matches(config.get('config'), observed.get('Config'))
                   and config.get('rootfs', {}).get('diff_ids') == observed.get('RootFS', {}).get('Layers'),
                   'Exported image differs from native filesystem lineage')
@@ -714,7 +707,7 @@ class Runner:
         loaded = self.command_json('podman-image', ['/usr/bin/sudo', '--non-interactive',
             '/usr/bin/podman', 'image', 'inspect', tag])
         m.require(isinstance(loaded, list) and len(loaded) == 1
-                  and loaded[0].get('Os') == 'linux' and loaded[0].get('Architecture') == 'arm64',
+                  and loaded[0].get('Os') == 'linux' and loaded[0].get('Architecture') == self.oci_architecture,
                   'Loaded image has an unexpected platform')
         loaded_id = loaded[0].get('Id', '')
         if not loaded_id.startswith('sha256:'):
@@ -739,7 +732,7 @@ def arguments():
     sub = parser.add_subparsers(dest='operation', required=True)
     for operation in ('foundation', 'compose'):
         command = sub.add_parser(operation)
-        command.add_argument('--target', required=True, choices=('qemu-arm64',))
+        command.add_argument('--target', required=True, choices=sorted(m.TARGETS))
         command.add_argument('--repo', required=True, type=Path)
         command.add_argument('--source-revision', required=True)
         command.add_argument('--inputs', required=True, type=Path)

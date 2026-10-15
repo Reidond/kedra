@@ -42,7 +42,7 @@ pub const TESTS: &[NativeTest] = &[
         name: "catalog",
         profile: Profile::System,
         fixtures: &[Fixture::TestUser],
-        targets: &["qemu-arm64"],
+        targets: &[],
         run: crate::catalog_tests::installed_catalog,
     },
     NativeTest {
@@ -50,7 +50,7 @@ pub const TESTS: &[NativeTest] = &[
         name: "native_artifacts",
         profile: Profile::System,
         fixtures: &[Fixture::TestUser],
-        targets: &["qemu-arm64"],
+        targets: &[],
         run: crate::native_artifacts_tests::native_artifacts,
     },
     NativeTest {

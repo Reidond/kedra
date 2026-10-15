@@ -1,20 +1,13 @@
 #!/usr/bin/env bash
-# Image-build entrypoint, not a host package installer.
+# Foundation build step of the Containerfile, not a host package installer.
+# Image steps (GLib schemas, systemd units, skeleton, initramfs) are declared in
+# each target's .kedra block and applied later by `sysroot derive`.
 set -euo pipefail
-case "$#:${1:-}" in
-    0:) mode=complete ;;
-    1:--foundation) mode=foundation ;;
-    *) echo 'Unsupported Kedra assembly arguments' >&2; exit 1 ;;
-esac
+test "$#" -eq 0 || { echo 'Unsupported Kedra assembly arguments' >&2; exit 1; }
 # Podman marks its build containers; a BuildKit build (the local lab build in
 # usr/src/kedra/tests/container) runs the Containerfile RUN line as PID 1.
 test -f /run/.containerenv || grep -qF /tmp/kedra-assemble.sh /proc/1/cmdline
 manifest=/usr/share/sysroot/source.json
-target=$(jq -r '.target.id' "$manifest")
-if test "$mode" = foundation && test "$target" != qemu-arm64; then
-    echo 'Native composition foundations support only qemu-arm64' >&2
-    exit 1
-fi
 # Build natively: the target's architecture must be this build's machine, and
 # only the closed (target, architecture) pairs are accepted.
 architecture=$(uname -m)
@@ -36,38 +29,6 @@ jq -e --slurpfile manifest "$manifest" '
     and .intent_sha256 == $manifest[0].package_frontend.intent_sha256' "$repository/lock.json" >/dev/null
 /bin/bash /tmp/kedra-install-rpms.sh "$repository" foundation
 install -D -m 0644 "$repository/lock.json" /usr/share/sysroot/rpm-lock.json
-if test "$target" = qemu-arm64 && test "$mode" = complete; then
-    shopt -s nullglob
-    module_dirs=(/usr/lib/modules/*)
-    test "${#module_dirs[@]}" -gt 0
-    for module_dir in "${module_dirs[@]}"; do
-        test -d "$module_dir" && test ! -L "$module_dir"
-        version=${module_dir##*/}
-        kernel="$module_dir/vmlinuz"
-        initramfs="$module_dir/initramfs.img"
-        test -f "$kernel" && test ! -L "$kernel"
-        test -f "$initramfs" && test ! -L "$initramfs"
-        expected=()
-        for driver in virtio_gpu virtio_input virtio_dma_buf; do
-            module=$(readlink -e "$(modinfo -k "$version" -n "$driver")")
-            test -n "$module" && test -f "$module" && test ! -L "$module"
-            case "$module" in
-                "$module_dir"/*) expected+=("${module#/}") ;;
-                *) echo "Driver $driver resolved outside $module_dir: $module" >&2; exit 1 ;;
-            esac
-        done
-        temporary=$(mktemp "/tmp/kedra-initramfs-$version.XXXXXX")
-        listing=$(mktemp "/tmp/kedra-initramfs-list-$version.XXXXXX")
-        dracut --force "$temporary" "$version"
-        lsinitrd "$temporary" > "$listing"
-        for module in "${expected[@]}"; do
-            grep -Fq -- "$module" "$listing"
-        done
-        chmod --reference="$initramfs" "$temporary"
-        mv -f -- "$temporary" "$initramfs"
-        rm -f -- "$listing"
-    done
-fi
 # Its invisible capture window becomes a focused black tile under niri.
 # Keep the native launcher, but exclude this session from bridge autostart.
 bridge_autostart=/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop
@@ -96,10 +57,6 @@ awk '
 ' "$bridge_autostart" > "$bridge_updated"
 cat "$bridge_updated" > "$bridge_autostart"
 rm "$bridge_updated"
-# Compile image-owned defaults after RPM installation; never write user dconf.
-if test "$mode" = complete; then
-    glib-compile-schemas --strict /usr/share/glib-2.0/schemas
-fi
 # Recomputable build-time caches/logs are not installed machine state.
 rm -rf /var/lib/dnf /var/cache/swcatalog /var/cache/ldconfig
 rm -f /var/log/dnf5.log /var/log/dnf5.log.1
@@ -113,22 +70,10 @@ if printf '%s\n' "$runtime_dependencies" | grep 'not found'; then
     exit 1
 fi
 getent passwd greetd
-if test "$mode" = complete; then
-    systemctl enable greetd.service NetworkManager.service bluetooth.service
-    systemctl set-default graphical.target
-    systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service
-    # Initial-account seeding only; no existing live home is updated here.
-    mkdir -p /etc/skel
-    cp -a /usr/share/sysroot/home/default/. /etc/skel/
-    # A new account records the baseline it was created from, so its first
-    # `sysroot home update` merges later image changes into its edits.
-    install -d -m 0700 /etc/skel/.local/state/kedra /etc/skel/.local/state/kedra/home \
-        /etc/skel/.local/state/kedra/home/applied
-    cp -a /usr/share/sysroot/home/default/. /etc/skel/.local/state/kedra/home/applied/
-fi
 niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl
 NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \
     NOCTALIA_STATE_HOME=/tmp/kedra-noctalia-validation noctalia config validate
+rm -rf /tmp/kedra-noctalia-validation
 sed -i 's/^NAME=.*/NAME="Kedra"/; s/^PRETTY_NAME=.*/PRETTY_NAME="Kedra (Fedora 44)"/' /usr/lib/os-release
 rpm -qa | sort > /usr/share/sysroot/packages.txt
 # Keep RPM content identity as well as display names: identical NEVRA is not
@@ -136,6 +81,3 @@ rpm -qa | sort > /usr/share/sysroot/packages.txt
 rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
     | LC_ALL=C sort > /usr/share/sysroot/package-material.txt
 sysroot --version
-if test "$mode" = complete; then
-    bootc container lint
-fi

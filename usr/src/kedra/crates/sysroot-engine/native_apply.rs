@@ -526,7 +526,9 @@ fn directory(path: &str, mode: u32) -> Result<()> {
     parents(path)?;
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.is_dir() => Ok(()),
-        Ok(_) => Err(fail(format!("skeleton directory is not a directory: {path}"))),
+        Ok(_) => Err(fail(format!(
+            "skeleton directory is not a directory: {path}"
+        ))),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             DirBuilder::new().mode(mode).create(path)?;
             Ok(())

@@ -21,7 +21,9 @@ live files as `home_file:<path>`.
 `$XDG_STATE_HOME/kedra/home/applied/`), L (live) and N (installed baseline). Check
 the candidate beside the live file (`replace_file::Directory::validate_bytes`),
 replace atomically (`prepare`/`publish`/`finish`, keeps mode/group/label, refuses
-links), run each distinct reload once, then record N. A conflict writes
+links), run each distinct reload once, then record N. While the record is
+missing or outdated, an L that already equals the result is still checked and
+reloaded before recording, so a failed reload is retried (PR48 review). A conflict writes
 `<file>.kedra-new` and `pending/<path>`; deleting the conflict file resolves it.
 Never write conflict markers into a live file, never overwrite a `.kedra-new` an
 update did not write, never record N before check and reload succeed. New

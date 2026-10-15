@@ -26,14 +26,15 @@ deletes the conflict file, the next update checks and reloads L and records B=N.
 ## Cases to keep covered
 
 - N equals B: nothing changes even when L differs (local edits persist).
-- L equals B: fast-forward. L equals N: record only.
-- No B: equal L is recorded, missing L is created, different L is a conflict with
+- L equals B: fast-forward. L equals N with B outdated: check, reload, record.
+- No B: equal L is checked, reloaded and recorded, missing L is created, different L is a conflict with
   N as the conflict file. Never treat an unknown base as "adopt L".
 - L deleted by the owner and N changed: conflict, the deletion is not undone.
 - N absent: report it, leave L alone.
 - Check failure: L unchanged, B unchanged, nonzero exit.
-- Reload failure: L already written, B unchanged; the rerun merges to the same
-  content and retries the reload.
+- Reload failure: L already written, B unchanged; the rerun finds L equal to the
+  result with B outdated, so it checks and reloads L before recording. Never
+  record an outdated B for an L the application has not loaded.
 - Links, hard links, devices, group/world-writable files and symlinked directories
   are refused; nothing is followed.
 - An existing `<file>.kedra-new` not written by an update is never overwritten.

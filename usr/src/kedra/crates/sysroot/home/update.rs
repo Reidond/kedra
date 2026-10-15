@@ -6,6 +6,9 @@
 //! marked merge to `<file>.kedra-new`; deleting that file marks it resolved. A
 //! candidate passes its declared check before it replaces L, declared reloads
 //! run once afterwards, and N is recorded as applied only when all succeeded.
+//! While the record is missing or outdated, an L that already holds the result
+//! is still checked and reloaded before N is recorded: L may have been written
+//! by a run whose reload failed, and the application has not loaded it yet.
 use super::files::{self, Image, ManagedFile, Result};
 use super::linux::{
     APPLIED, Home, Observed, PENDING, State, conflict_path, git, observe, replace, split, token,
@@ -21,7 +24,7 @@ enum Kind {
     BaselineAbsent,
     /// A previous conflict file still exists.
     Unresolved,
-    /// The live file already matched; only the record changed.
+    /// The live file already held the result; it was checked and reloaded.
     Recorded,
     /// The file was missing and now holds the baseline.
     Created,
@@ -81,12 +84,13 @@ fn conflict(content: Vec<u8>, baseline: Vec<u8>) -> Action {
     Action::Conflict { content, baseline }
 }
 
-/// No applied baseline: a matching or missing file is recorded or created; a
-/// different one cannot be merged without a base and becomes a conflict.
+/// No applied baseline: a missing file is created and a matching one is
+/// checked, reloaded and recorded; a different one cannot be merged without a
+/// base and becomes a conflict.
 fn unrecorded(live: Option<Vec<u8>>, new: Vec<u8>) -> Action {
     match live {
         None => apply(Some(new.clone()), false, Kind::Created, new),
-        Some(live) if live == new => apply(None, false, Kind::Recorded, new),
+        Some(live) if live == new => apply(None, true, Kind::Recorded, new),
         Some(_) => conflict(new.clone(), new),
     }
 }
@@ -103,8 +107,9 @@ fn three_way(
     } else {
         Kind::Recorded
     };
+    // The record is outdated here, so an unchanged result is still verified.
     if live == new {
-        return Ok(apply(None, resolving, unchanged, new));
+        return Ok(apply(None, true, unchanged, new));
     }
     if live == base {
         return Ok(apply(Some(new.clone()), false, Kind::Updated, new));
@@ -117,7 +122,7 @@ fn three_way(
     Ok(if conflicted {
         conflict(merged, new)
     } else if merged == live {
-        apply(None, resolving, unchanged, new)
+        apply(None, true, unchanged, new)
     } else {
         apply(Some(merged), false, Kind::Merged, new)
     })

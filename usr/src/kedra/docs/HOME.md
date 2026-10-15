@@ -64,7 +64,7 @@ merged (recorded per user); L, the live file; and N, the installed baseline.
 |---|---|
 | N equals B | `up_to_date`: nothing changes, local edits stay |
 | L equals B | `updated`: L becomes N |
-| L equals N | `recorded`: only the record moves to N |
+| L equals N | `recorded`: L is checked and reloaded, then N is recorded |
 | both changed | `git merge-file` merges them: `merged` |
 | both changed the same lines | `conflict`: see below |
 | L missing and no record | `created` from N |
@@ -73,9 +73,12 @@ A merged or new file passes its `check` before it replaces L, through an atomic
 replacement that keeps the file's mode, group and SELinux label and refuses
 symbolic links, hard links, devices and group- or world-writable files. If the
 check fails, L stays as it was (`check_failed`). Reloads run after all writes;
-N is recorded as applied only after its write, check and reload succeeded, so a
-failed run is simply retried. `update` exits nonzero when any file needs
-attention.
+N is recorded as applied only after its write, check and reload succeeded. If a
+reload fails (`reload_failed`), L already holds the new content but the record
+stays outdated, and the next `update` checks and reloads L again before
+recording N: whenever the record is missing or outdated and L already holds
+the result, the application is made to load it. `update` exits nonzero when any
+file needs attention.
 
 On a conflict, L and the running application stay as they were and the merge
 with conflict markers (`<<<<<<< live`, `||||||| last applied baseline`,
@@ -89,7 +92,7 @@ conflict file exists, `update` reports `unresolved` for that file. An existing
 New accounts record their baseline at creation: the image copies the baseline
 into `/etc/skel/.local/state/kedra/home/applied/`. Without a record (another
 `XDG_STATE_HOME`, or an account from before this change) B is unknown: a live
-file equal to N is recorded, a missing one is created, and a different one gets
+file equal to N is checked, reloaded and recorded, a missing one is created, and a different one gets
 N beside it as `<file>.kedra-new` to merge by hand.
 
 ### capture
@@ -139,7 +142,8 @@ account, so the lab exercises the same merge, check and reload.
 
 - `cargo test -p sysroot --test e2e_home`: the public CLI over a generated image
   root, home and Kedra checkout, with real Git: record, fast-forward, merge,
-  failing check, shared reload, conflict, resolution, the no-record conflict,
+  failing check, shared reload, a failed reload retried by the next update,
+  conflict, resolution, the no-record conflict,
   link refusal and capture into the shared and overlay paths without staging.
 - `native::home_files_update` in the container harness: in the real nested
   session, the account starts recorded, niri loads a merged file by itself,

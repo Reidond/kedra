@@ -12,7 +12,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const MAIN: &str = ".config/app/main.conf";
 const THEME: &str = ".config/app/theme.json";
 const PLAIN: &str = ".config/tool/plain.txt";
-const RELOAD: &str = r#"["/bin/sh", "-c", "echo reload >> \"$HOME/reloads\""]"#;
+/// Counts successful reloads; fails once while `$HOME/fail-reload` exists.
+const RELOAD: &str = r#"["/bin/sh", "-c", "if [ -e \"$HOME/fail-reload\" ]; then rm \"$HOME/fail-reload\"; exit 1; fi; echo reload >> \"$HOME/reloads\""]"#;
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 struct Fixture(PathBuf);
@@ -184,7 +185,11 @@ fn update_merges_baseline_changes_and_leaves_conflicts_beside_live_files() {
     }
     let report = f.json(&["update", "--json"], true);
     assert_eq!(results(&report), ["recorded", "recorded", "recorded"]);
-    assert_eq!(f.reloads(), 0, "nothing changed, so nothing reloads");
+    assert_eq!(
+        f.reloads(),
+        1,
+        "an unrecorded file is reloaded once before recording"
+    );
     let report = f.json(&["update", "--json"], true);
     assert_eq!(results(&report), ["up_to_date", "up_to_date", "up_to_date"]);
 
@@ -212,7 +217,7 @@ fn update_merges_baseline_changes_and_leaves_conflicts_beside_live_files() {
         "alpha image\nbeta\ngamma\ndelta\nepsilon local\n"
     );
     assert_eq!(f.read(THEME), "{\"mode\": \"dark\"}\n");
-    assert_eq!(f.reloads(), 1);
+    assert_eq!(f.reloads(), 2);
 
     // A candidate that fails its check never replaces the live file.
     f.baseline(MAIN, "alpha image\nbeta\nINVALID\ngamma\ndelta\nepsilon\n");
@@ -222,7 +227,7 @@ fn update_merges_baseline_changes_and_leaves_conflicts_beside_live_files() {
         f.read(MAIN),
         "alpha image\nbeta\ngamma\ndelta\nepsilon local\n"
     );
-    assert_eq!(f.reloads(), 1);
+    assert_eq!(f.reloads(), 2);
     assert_eq!(
         file(&f.json(&["status", "--json"], true), MAIN)["applied"],
         "outdated"
@@ -234,7 +239,7 @@ fn update_merges_baseline_changes_and_leaves_conflicts_beside_live_files() {
         f.read(MAIN),
         "alpha image\nbeta two\ngamma\ndelta\nepsilon local\n"
     );
-    assert_eq!(f.reloads(), 2);
+    assert_eq!(f.reloads(), 3);
 
     // Both sides change one line: the live file stays, the marked merge goes
     // beside it, and deleting that file marks the conflict resolved.
@@ -276,10 +281,36 @@ fn update_merges_baseline_changes_and_leaves_conflicts_beside_live_files() {
         f.read(MAIN),
         "alpha image\nbeta two\ngamma both\ndelta\nepsilon local\n"
     );
-    assert_eq!(f.reloads(), 3, "a resolved file is checked and reloaded");
+    assert_eq!(f.reloads(), 4, "a resolved file is checked and reloaded");
     let report = f.json(&["update", "--json"], true);
     assert_eq!(results(&report), ["up_to_date", "up_to_date", "up_to_date"]);
     assert!(!f.read(MAIN).contains("<<<<<<<"));
+
+    // A failed reload leaves the record outdated; the retry reloads the file
+    // that is already in place before recording the baseline.
+    fs::write(f.home().join("fail-reload"), "").unwrap();
+    f.baseline(THEME, "{\"mode\": \"auto\"}\n");
+    let report = f.json(&["update", "--json"], false);
+    assert_eq!(
+        results(&report),
+        ["up_to_date", "reload_failed", "up_to_date"]
+    );
+    assert_eq!(f.read(THEME), "{\"mode\": \"auto\"}\n");
+    assert_eq!(f.reloads(), 4);
+    assert_eq!(
+        file(&f.json(&["status", "--json"], true), THEME)["applied"],
+        "outdated"
+    );
+    let report = f.json(&["update", "--json"], true);
+    assert_eq!(results(&report), ["up_to_date", "recorded", "up_to_date"]);
+    assert_eq!(f.reloads(), 5, "the retry ran the reload");
+    assert_eq!(
+        file(&f.json(&["status", "--json"], true), THEME)["applied"],
+        "current"
+    );
+    let report = f.json(&["update", "--json"], true);
+    assert_eq!(results(&report), ["up_to_date", "up_to_date", "up_to_date"]);
+    assert_eq!(f.reloads(), 5);
 
     // Without a recorded baseline a differing file cannot be merged: the new
     // baseline goes beside it. A missing file is created.
@@ -289,7 +320,7 @@ fn update_merges_baseline_changes_and_leaves_conflicts_beside_live_files() {
     fs::remove_file(f.home().join(THEME)).unwrap();
     let report = f.json(&["--state", fresh, "update", "--json", PLAIN, THEME], false);
     assert_eq!(results(&report), ["created", "conflict"]);
-    assert_eq!(f.read(THEME), "{\"mode\": \"dark\"}\n");
+    assert_eq!(f.read(THEME), "{\"mode\": \"auto\"}\n");
     assert_eq!(f.read(PLAIN), "plain\n");
     assert_eq!(f.read(&format!("{PLAIN}.kedra-new")), "plain two\n");
     fs::remove_file(f.home().join(format!("{PLAIN}.kedra-new"))).unwrap();

@@ -13,8 +13,9 @@ freshly built aarch64 lab disk boots under HVF through the shared launcher and
 `kedra-lab vm check` passes the shared check. Under TCG in a disposable Ubuntu
 container the same disk reaches firmware → explicit shim entry → GRUB, but its
 userspace did not reach the check (PID 1 froze once; then a `/boot` device
-timeout). The x86_64 KVM drivers and full Linux driver runs are not-run. See
-worklog WL-20261014-VMTESTS-01.
+timeout). The complete `qemu-arm64/run.py` passes under TCG in a privileged disposable
+Ubuntu container, with its fixture admitted through a generated signing key. The x86_64
+KVM drivers and a full `run-arm64.sh` run are not-run. See worklog WL-20261014-VMTESTS-01.
 
 ## Local testing, sign-off and installer releases (2026-10-08)
 

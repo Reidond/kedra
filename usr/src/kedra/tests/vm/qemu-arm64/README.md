@@ -12,14 +12,16 @@ It replaces `boot.sh` and the removed `test-qemu-arm64.yml` (last present at `3e
 | File | Role |
 |---|---|
 | (moved) | The read-only candidate checks formerly in `image-check.sh` are container scenarios: [qemu-arm64-image.yaml](../../container/scenarios/qemu-arm64-image.yaml) with the [qemu-ga probe](../../container/lab/probes/qemu-ga.py), and [image-contents.yaml](../../container/scenarios/image-contents.yaml). `run.py` keeps the bootc contract check before booting. |
-| `Containerfile`, `check.sh`, `check.service` | Non-promotable observer layer over `localhost/kedra-qemu-arm64:research`, tagged `localhost/kedra-qemu-arm64-test:secureboot`, with the shared guest check `../../common/secure_boot_check.py` |
+| `Containerfile`, `check.sh`, `check.service` | Non-promotable observer layer over `localhost/kedra-qemu-arm64:research`, tagged `localhost/kedra-qemu-arm64-test:secureboot`, with the shared guest check `../../common/secure_boot_check.py`. `run.py` signs it with a generated key before the disk build (see below) |
 | `run.py` | Candidate import and bootc contract, fixture and disk build (`../../common/disk.py`), firmware validation, fresh NVRAM with one explicit boot entry, bounded boot through the shared launcher (`../../common/qemu.py`), marker verification |
+
+The candidate's inherited `enforce-container-sigpolicy` makes bootc-image-builder refuse an unsigned fixture. `common/disk.py` admits it as the native lab does: a generated key signs the fixture as `localhost/kedra-vm-fixture/<token>:boot`; a buildroot passed with `--build-container` adds exactly two exact-image-ID rules for that key (ordinary and builder storage) to the candidate's own policy; unsigned and wrong-key copies must be refused and the signed one admitted (`evidence/signing.json`, `verify-*.txt`); the private keys are removed before the build. The production trust in the fixture is unchanged.
 
 The disk comes from the arm64 bootc-image-builder pin (`usr/src/kedra/image/inputs.json` `.platforms.arm64.builder`), with a generated account whose password is never stored. The account exists only so the observer can run `sysroot doctor` as a non-root user.
 
 ## Guest markers
 
-The observer writes markers to the virtio-serial port `org.kedra.events` (host `evidence/events.log`) and, best effort, to `ttyAMA0` (`evidence/serial.log`). `run.py` requires `KEDRA_SECUREBOOT_PASS` from the shared guest check, all four markers below, a `KEDRA_QEMU_ARM64_IMAGE_DIGEST=` line equal to podman's `.Digest` for the observer image, no `KEDRA_QEMU_ARM64_FAIL`, and a firmware line showing that the explicit entry was booted:
+The observer writes markers to the virtio-serial port `org.kedra.events` (host `evidence/events.log`) and, best effort, to `ttyAMA0` (`evidence/serial.log`). `run.py` requires `KEDRA_SECUREBOOT_PASS` from the shared guest check, all four markers below, `KEDRA_QEMU_ARM64_IMAGE_DIGEST=` and `KEDRA_QEMU_ARM64_IMAGE_REFERENCE=` lines equal to the signed fixture digest and boot reference it gave bootc-image-builder, no `KEDRA_QEMU_ARM64_FAIL`, and a firmware line showing that the explicit entry was booted:
 
 - `KEDRA_SECUREBOOT_PASS` (the shared guest check with `--boot-entry shimaa64.efi`) requires:
   - `mokutil --sb-state` is exactly `SecureBoot enabled`;
@@ -28,7 +30,7 @@ The observer writes markers to the virtio-serial port `org.kedra.events` (host `
   - the kernel journal has `secureboot: Secure boot enabled`;
   - `BootCurrent` is the `shimaa64.efi` entry.
 - `KEDRA_QEMU_ARM64_SECUREBOOT_PASS` follows it and requires the doctor `secure_boot` check to pass.
-- `KEDRA_QEMU_ARM64_BOOTC_PASS`: `bootc status` shows the booted `localhost/kedra-qemu-arm64-test:secureboot`, `arm64`, and no staged or rollback deployment; `source.json` is `qemu-arm64`/`aarch64`.
+- `KEDRA_QEMU_ARM64_BOOTC_PASS`: `bootc status` shows the booted signed fixture reference, `arm64`, and no staged or rollback deployment; `source.json` is `qemu-arm64`/`aarch64`.
 - `KEDRA_QEMU_ARM64_SELINUX_PASS`: Enforcing, the targeted policy, and no `enforcing=0` or `selinux=0` on the command line. AVC listings are evidence only.
 - `KEDRA_QEMU_ARM64_UNITS_PASS`: `systemctl is-system-running --wait` reports `running` with zero failed system units, and `qemu-guest-agent.service` is active on the host-provided channel with the `usr/src/kedra/image/targets/qemu-arm64` `--block-rpcs` list on its command line.
 

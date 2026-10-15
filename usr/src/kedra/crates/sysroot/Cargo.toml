@@ -44,6 +44,10 @@ path = "tests/e2e_native.rs"
 name = "e2e_catalog"
 path = "tests/e2e_catalog.rs"
 
+[[test]]
+name = "e2e_rpm_lock"
+path = "tests/e2e_rpm_lock.rs"
+
 [dependencies]
 sysroot-core.workspace = true
 clap.workspace = true

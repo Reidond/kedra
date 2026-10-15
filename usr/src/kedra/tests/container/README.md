@@ -114,7 +114,7 @@ The overlay refuses package-list changes. It warns about image-build inputs (`Co
 
 1. Linux binaries and `sysroot source archive` in the Rust builder.
 2. The pinned Codex and Bitwarden inputs through `image/agents/prepare.sh` and `image/bitwarden/prepare.py`, in a Fedora 44 builder with the pinned uv. The scripts accept `KEDRA_LOCAL_BUILDER=1` inside a container.
-3. The stage's own `Containerfile` and `assemble.sh` on `quay.io/fedora/fedora-bootc:44`, pinned to its platform digest.
+3. The stage's own `Containerfile` and `assemble.sh` on `quay.io/fedora/fedora-bootc:44`, pinned to its platform digest. A stage with `image/catalog/install-rpms.sh` installs offline from an RPM lock: the host `sysroot catalog lock resolve` (the prepared host archiver, store `cache/rpm-store`) resolves it once per stage and base digest, and `lock repo` adds the foundation repository as `rpms/` ([package delivery](../../docs/PACKAGES.md#fedora-rpm-lock)). An interrupted resolution leaves staging that `sysroot store recover --store <artifacts>/cache/rpm-store` removes.
 
 The result is an unsigned `kedra-local-<target>:<key>`. It is never pushed, signed or installed, and it has no release identity layers. `build:<revision>` needs the root-filesystem layout (PR #20 or later).
 

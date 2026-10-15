@@ -19,6 +19,12 @@ mod native_image;
 mod plan;
 mod resources;
 pub use resources::{SourceFile, source_identity};
+mod rpm;
+pub use rpm::*;
+#[cfg(unix)]
+mod rpm_resolver;
+#[cfg(unix)]
+pub use rpm_resolver::image_file;
 #[cfg(unix)]
 mod profile;
 #[cfg(unix)]

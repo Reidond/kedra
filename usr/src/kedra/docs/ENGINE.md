@@ -56,8 +56,7 @@ with an immutable original input and a fixed admitted driver.
 executor and records Fedora 44 `/usr/lib/os-release` plus sorted RPM rows containing
 name, epoch, version, release, architecture, header SHA-256 and payload SHA-256.
 The language adapter compares authored requests to this actual material before
-resource admission/build. DNF resolution remains in isolated foundation/compiler
-builders; it never targets the workstation.
+resource admission/build.
 
 Bundle import requires an independently expected whole-bundle hash, validates
 allowlisted members and complete references, then registers dependencies first.
@@ -71,6 +70,30 @@ scope, policy revision and recipe. `ManagedSnapshot` leases protect composition,
 native and catalog packet temporary state; `sysroot system recover` collects only
 recognized abandoned snapshots. These mechanisms grant neither OS signing nor
 installed helper authority.
+
+## Fedora RPM lock
+
+Fedora RPMs are input-addressed. `Store::resolve_rpms` is the only networked
+package step: it runs DNF once, as root inside disposable containers of the exact
+base image on a native local Docker engine, never on the host. The foundation
+transaction (upgrade, install, remove) runs first. The last builder role installs
+in that container itself and any earlier role in a container from one commit of
+it, so every role sees the same repository metadata and an untouched foundation.
+Every
+RPM the transactions downloaded becomes a fixed-output single-file `src-` object:
+its identity is predicted from file name, size and SHA-256 before any byte is read
+(`rpm_object`), and admission (`import_rpm`, `fetch_rpm`) refuses any other bytes.
+A resolution of the same store removes containers an interrupted predecessor left,
+which the store lock makes safe; leftover staging is ordinary `store recover` work.
+
+`materialize_rpms` copies exactly one role's verified objects into a new offline
+repository. Images then install from it with all repositories disabled and Fedora
+signature checks on (`image/catalog/install-rpms.sh`), and refuse any installed
+inventory other than the locked one. `fetch_rpm` downloads with `curl` from the
+recorded mirror, then from Koji's signed copy. The per-file bound is 256 MiB, the
+store's tree file bound. RPM objects are pinned; unpin them to let `gc` collect
+them. The lock document itself is `sysroot-catalog::rpm_lock`; see
+[package delivery](PACKAGES.md#fedora-rpm-lock).
 
 ## Boundaries
 

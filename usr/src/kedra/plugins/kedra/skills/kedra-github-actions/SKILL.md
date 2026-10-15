@@ -16,7 +16,7 @@ Owner decision (2026-10-08): Actions produces releases; testing of changes is lo
 
 Machine bundles and release metadata signatures are not published.
 
-The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure. Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
+The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure, resolved once per run into an RPM lock that every build installs offline from (references/fedora-refresh.md). Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
 
 Build jobs have public trust. Automatic isolated signing executes no checkout/candidate/repository code while production keys exist. The main-only environment has no human approval gate. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
 

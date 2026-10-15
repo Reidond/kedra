@@ -1,5 +1,24 @@
 # Verified status
 
+## Fedora RPM lock (2026-10-14)
+
+Branch claude/engine-rpm-lock-c6df90 makes the Fedora foundation input-addressed.
+`sysroot catalog lock resolve` resolves a target's `.kedra` foundation and builder
+sets once per release run into an RPM lock. Every RPM becomes a fixed-output engine
+store object, and the desktop image, the qemu-arm64 foundation and the catalog
+builders install offline from it (`image/catalog/install-rpms.sh`). The image carries
+the lock at `/usr/share/sysroot/rpm-lock.json`; `artifacts["rpm-lock"]` in the signed
+resolved inputs is the hash of its pins (the lock without mirror URLs), and no-change
+compares those. The preflight/build double resolution and
+`assemble.sh --resolve-packages` are removed. Locally on the owner's Mac (OrbStack,
+native arm64): two real qemu-arm64 resolutions on base `5c837051…` give 916 RPMs
+(894 foundation, 22 `c_tools`, 993 MB) with identical pins `da8954f8…` although 419
+mirror URLs differ; the fixture-repository, real-Fedora and default `e2e_rpm_lock`
+cases pass; `kedra-lab build` installs a qemu-arm64 image offline from its own lock.
+Desktop resolution and the podman desktop build on native x86_64 and the release run
+are `not-run`. See [package delivery](PACKAGES.md#fedora-rpm-lock) and worklog
+WL-20261014-RPM-LOCK-01.
+
 ## Native derivation in sysroot (2026-10-14)
 
 The qemu-arm64 native image is derived by `sysroot derive plan|build`, no longer by

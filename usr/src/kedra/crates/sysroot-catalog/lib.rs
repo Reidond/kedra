@@ -4,6 +4,7 @@
 //! An allowlisted source identity authorizes bytes, not an upstream publisher.
 
 pub mod language;
+pub mod rpm_lock;
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};

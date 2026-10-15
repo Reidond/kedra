@@ -174,7 +174,15 @@ jobs:
               --iidfile "$builder_context/builder.iid" --file "$builder_context/Containerfile" \
               --tag "localhost/kedra-catalog-builder:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$index" "$builder_context"
             rm -rf -- "$builder_context/rpms"
-            builder=$(cat "$builder_context/builder.iid")
+            # Docker 29's containerd store can write the config digest to --iidfile and
+            # name the image by its manifest digest: take the tag's ID and accept the
+            # iidfile only as that ID or as the config its own descriptor records.
+            docker image inspect "localhost/kedra-catalog-builder:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$index" \
+              > "$builder_context/builder-inspect.json"
+            builder=$(jq -er '.[0].Id' "$builder_context/builder-inspect.json")
+            jq -e --arg built "$(cat "$builder_context/builder.iid")" '.[0] | .Id == $built
+              or (.Descriptor.digest == .Id and .Descriptor.annotations["config.digest"] == $built)' \
+              "$builder_context/builder-inspect.json" > /dev/null
             test "$(docker image inspect "$foundation_alias" --format '{{.Id}}')" = "$foundation"
             test "$(docker image inspect "$builder" --format '{{.Architecture}} {{.Os}}')" = "$oci_architecture linux"
             output/release-binaries/sysroot store add-image --store "$RUNNER_TEMP/kedra-release-store" --image "$builder" > "$builder_context/retention.json"

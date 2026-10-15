@@ -20,11 +20,11 @@ gh run list --workflow release.yml --limit 5
 
 `release.yml` holds the single `release-44` concurrency group and calls the reusable `release-target.yml` once per target. The two callers are independent: a failed `qemu-arm64` run never blocks `desktop`. Each call runs build, exact-candidate validation, isolated signing and stable publication natively on the target's runner, with target-named artifacts (`image-build-<target>-<run>-<attempt>`, `stable-publication-<target>-<run>-<attempt>`).
 
-Runner queues affect delivery time. For each target the workflow resolves the reviewed official Fedora 44 base index to that target's no-variant platform and full native RPM closure, then compares source, package header/payload identities, artifacts and recipes against the signature-verified stable image of the same repository. Recipes include both workflow files and the target's own authority files, so changing them rebuilds that target once.
+Runner queues affect delivery time. For each target the workflow resolves the reviewed official Fedora 44 base index to that target's no-variant platform, then resolves the full native RPM closure once into the run's RPM lock (`sysroot catalog lock resolve`), and compares source, the lock's pins, artifacts and recipes against the signature-verified stable image of the same repository. Recipes include both workflow files and the target's own authority files, so changing them rebuilds that target once.
 
-No-change does nothing: no new image or freshness renewal. Changed inputs build one candidate whose actual RPM material must match preflight. Failures never become a successful no-change result. Allowed RPM architectures are the target architecture and `noarch`, plus `i686` only for x86_64; the bootc RPM architecture must equal the target architecture.
+No-change does nothing: no new image or freshness renewal. Changed inputs build one candidate offline from the lock's fixed-output RPM objects; its installed RPM material must equal the lock. Failures never become a successful no-change result. Allowed RPM architectures are the target architecture and `noarch`, plus `i686` only for x86_64; the bootc RPM architecture must equal the target architecture.
 
-`usr/src/kedra/image/release/compatibility.json` is shared with the compiled helper and currently qualifies bootc 1.16.13. Preflight and actual-image checks reject an unsupported bootc RPM before signing; publication repeats the compatibility check. A version change requires deliberately updating the contract/helper compatibility and passing native qualification, not bypassing the gate.
+`usr/src/kedra/image/release/compatibility.json` is shared with the compiled helper and currently qualifies bootc 1.16.13. Lock and actual-image checks reject an unsupported bootc RPM before signing; publication repeats the compatibility check. A version change requires deliberately updating the contract/helper compatibility and passing native qualification, not bypassing the gate.
 
 ## Automatic image signing
 
@@ -49,7 +49,7 @@ Never relax the absence check or treat `DENIED` as absent to bootstrap a reposit
 
 Build one local ISO from a reviewed exact signed digest, or download an owner-dispatched installer release, with [INSTALL.md](../../docs/INSTALL.md). Offline payload verification, deliberate disk selection, encryption and account creation remain mandatory. Nothing uploads from the local builder.
 
-Fresh installations enroll directly in the signed GHCR update workflow of their own target. Nobody installed the removed r1/r2 releases, so no deployed-system migration is required. The legacy protocol-1 `sysroot release channel|history|unpack` paths stay desktop/x86_64 only.
+Fresh installations enroll directly in the signed GHCR update workflow of their own target. Nobody installed the removed r1/r2 releases, so no deployed-system migration is required. The protocol-1 release-metadata commands and helper requests were removed on 2026-10-14; `prepare-trust.py` uses only `sysroot release key`.
 
 Changing the concurrency group from `release-desktop-44-x86_64` to `release-44` lets one already-queued run under the old group overlap the first run under the new one. Deploy that change when no release run is queued or in progress.
 

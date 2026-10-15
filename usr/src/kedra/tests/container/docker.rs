@@ -410,24 +410,15 @@ impl Docker {
     /// unless it already exists. Step names and `RUN` output stream to stderr;
     /// a failure carries the tail of the step output.
     pub fn build(&self, build: &Build<'_>) -> Result<()> {
-        self.build_internal(build, None, true)
+        self.build_internal(build, true)
     }
 
     /// Re-run the controller-owned networked fixture recipe instead of adopting a tag.
     pub(crate) fn build_fixture(&self, build: &Build<'_>) -> Result<()> {
-        self.build_internal(build, None, false)
+        self.build_internal(build, false)
     }
 
-    pub fn build_static(&self, build: &Build<'_>, labels: HashMap<String, String>) -> Result<()> {
-        self.build_internal(build, Some(labels), false)
-    }
-
-    fn build_internal(
-        &self,
-        build: &Build<'_>,
-        labels: Option<HashMap<String, String>>,
-        reuse_tag: bool,
-    ) -> Result<()> {
+    fn build_internal(&self, build: &Build<'_>, reuse_tag: bool) -> Result<()> {
         if reuse_tag && self.image(build.tag)?.is_some() {
             eprintln!("kedra-lab: {} is cached", build.tag);
             return Ok(());
@@ -447,11 +438,6 @@ impl Docker {
         append("Dockerfile", &std::fs::read(build.containerfile)?, 0o644)?;
         for (name, path) in build.files {
             let metadata = std::fs::metadata(path)?;
-            if labels.is_some() && metadata.len() > 1024 * 1024 * 1024 {
-                return Err(invalid(
-                    "static replay payload exceeds 1 GiB in-memory build limit",
-                ));
-            }
             #[cfg(unix)]
             let mode = std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o777;
             #[cfg(not(unix))]
@@ -461,9 +447,6 @@ impl Docker {
         let context = archive.into_inner().map_err(Error::Io)?;
         let session = format!("kedra-lab-{}", crate::execution_id());
         let options = bollard::query_parameters::BuildImageOptions {
-            networkmode: labels.as_ref().map(|_| "none".into()),
-            pull: labels.as_ref().map(|_| "false".into()),
-            labels,
             dockerfile: "Dockerfile".into(),
             t: Some(build.tag.to_owned()),
             rm: true,
@@ -534,151 +517,8 @@ impl Docker {
         })
     }
 
-    /// Load every byte of a retained archive without collecting it in memory.
-    pub fn load_archive(&self, path: &std::path::Path, expected_bytes: u64) -> Result<()> {
-        use std::io::Read;
-        let archive_api = self.api.clone().with_timeout(Duration::from_secs(600));
-        let file = std::fs::File::open(path)?;
-        if expected_bytes > 8 * 1024 * 1024 * 1024 || file.metadata()?.len() != expected_bytes {
-            return Err(invalid("foundation archive size changed or exceeds 8 GiB"));
-        }
-        let chunks = futures_util::stream::try_unfold(
-            (file, expected_bytes),
-            |(mut file, left)| async move {
-                if left == 0 {
-                    return Ok::<_, std::io::Error>(None);
-                }
-                let mut chunk = vec![0; left.min(1024 * 1024) as usize];
-                file.read_exact(&mut chunk)?;
-                let remaining = left - chunk.len() as u64;
-                Ok(Some((bytes::Bytes::from(chunk), (file, remaining))))
-            },
-        );
-        self.runtime.block_on(crate::cancel::interrupt(async {
-            let stream = archive_api.import_image_stream(
-                bollard::query_parameters::ImportImageOptions {
-                    quiet: true,
-                    ..Default::default()
-                },
-                chunks,
-                None,
-            );
-            futures_util::pin_mut!(stream);
-            while let Some(item) = stream.next().await {
-                item?;
-            }
-            Ok::<_, Error>(())
-        }))?
-    }
-
     pub fn inspect_image(&self, reference: &str) -> Result<bollard::models::ImageInspect> {
         Ok(self.runtime.block_on(self.api.inspect_image(reference))?)
-    }
-
-    /// Pin only our digest-derived namespace, refusing a poisoned existing tag.
-    pub fn pin_foundation(&self, id: &str) -> Result<String> {
-        let hex = id
-            .strip_prefix("sha256:")
-            .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
-            .ok_or_else(|| invalid("invalid foundation ID"))?;
-        let tag = format!("sysroot-foundation:{hex}");
-        if let Some((actual, _)) = self.image(&tag)? {
-            if actual != id {
-                return Err(invalid("foundation tag points at another image"));
-            }
-        } else {
-            self.runtime.block_on(self.api.tag_image(
-                id,
-                Some(bollard::query_parameters::TagImageOptions {
-                    repo: Some("sysroot-foundation".into()),
-                    tag: Some(hex.into()),
-                }),
-            ))?;
-        }
-        if self.image(&tag)?.map(|v| v.0).as_deref() != Some(id) {
-            return Err(invalid("foundation pin changed"));
-        }
-        Ok(tag)
-    }
-
-    /// Publish one replay tag only when absent or already bound to the exact image.
-    pub fn publish_composition(&self, id: &str, tag: &str) -> Result<()> {
-        self.publish_derived(id, tag, "kedra-composition")
-    }
-
-    pub(crate) fn publish_native(&self, id: &str, tag: &str) -> Result<()> {
-        self.publish_derived(id, tag, "kedra-native")
-    }
-
-    fn publish_derived(&self, id: &str, tag: &str, repository: &str) -> Result<()> {
-        let hex = tag
-            .strip_prefix(&format!("{repository}:"))
-            .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
-            .ok_or_else(|| invalid("invalid composition tag"))?;
-        if let Some((actual, _)) = self.image(tag)? {
-            if actual != id {
-                return Err(invalid(
-                    "composition cache image ID/provenance binding mismatch",
-                ));
-            }
-        } else {
-            self.runtime.block_on(self.api.tag_image(
-                id,
-                Some(bollard::query_parameters::TagImageOptions {
-                    repo: Some(repository.into()),
-                    tag: Some(hex.into()),
-                }),
-            ))?;
-        }
-        if self.image(tag)?.map(|value| value.0).as_deref() != Some(id) {
-            return Err(invalid("composition tag changed during publication"));
-        }
-        Ok(())
-    }
-
-    /// Remove only the exact temporary tag whose ownership was checked by replay.
-    pub fn remove_composition_pending(&self, tag: &str, id: &str, nonce: &str) -> Result<()> {
-        self.remove_derived_pending(tag, id, nonce, "composition")
-    }
-
-    pub(crate) fn remove_native_pending(&self, tag: &str, id: &str, nonce: &str) -> Result<()> {
-        self.remove_derived_pending(tag, id, nonce, "native")
-    }
-
-    fn remove_derived_pending(&self, tag: &str, id: &str, nonce: &str, kind: &str) -> Result<()> {
-        if tag != format!("kedra-{kind}-pending:{nonce}") {
-            return Err(invalid("invalid temporary composition tag"));
-        }
-        let Some((actual, _)) = self.image(tag)? else {
-            return Ok(());
-        };
-        let labels = self
-            .inspect_image(&actual)?
-            .config
-            .and_then(|config| config.labels)
-            .unwrap_or_default();
-        if actual != id
-            || labels.get(OWNER_LABEL).map(String::as_str) != Some(OWNER)
-            || labels.get(KIND_LABEL).map(String::as_str) != Some(kind)
-            || labels
-                .get(&format!("dev.kedra.{kind}.transaction"))
-                .map(String::as_str)
-                != Some(nonce)
-        {
-            return Err(invalid(
-                "temporary composition tag is not owned by this transaction",
-            ));
-        }
-        self.runtime.block_on(self.api.remove_image(
-            tag,
-            Some(bollard::query_parameters::RemoveImageOptions {
-                force: false,
-                noprune: true,
-                ..Default::default()
-            }),
-            None,
-        ))?;
-        Ok(())
     }
 
     /// Direct isolated process on this exact API endpoint; no pull or entrypoint inheritance.

@@ -17,6 +17,69 @@ timeout). The complete `qemu-arm64/run.py` passes under TCG in a privileged disp
 Ubuntu container, with its fixture admitted through a generated signing key. The x86_64
 KVM drivers and a full `run-arm64.sh` run are not-run. See worklog WL-20261014-VMTESTS-01.
 
+## Fedora RPM lock (2026-10-14)
+
+Branch claude/engine-rpm-lock-c6df90 makes the Fedora foundation input-addressed.
+`sysroot catalog lock resolve` resolves a target's `.kedra` foundation and builder
+sets once per release run into an RPM lock. Every RPM becomes a fixed-output engine
+store object, and the desktop image, the qemu-arm64 foundation and the catalog
+builders install offline from it (`image/catalog/install-rpms.sh`). The image carries
+the lock at `/usr/share/sysroot/rpm-lock.json`; `artifacts["rpm-lock"]` in the signed
+resolved inputs is the hash of its pins (the lock without mirror URLs), and no-change
+compares those. The preflight/build double resolution and
+`assemble.sh --resolve-packages` are removed. Locally on the owner's Mac (OrbStack,
+native arm64): two real qemu-arm64 resolutions on base `5c837051…` give 916 RPMs
+(894 foundation, 22 `c_tools`, 993 MB) with identical pins `da8954f8…` although 419
+mirror URLs differ; the fixture-repository, real-Fedora and default `e2e_rpm_lock`
+cases pass; `kedra-lab build` installs a qemu-arm64 image offline from its own lock.
+Desktop resolution and the podman desktop build on native x86_64 and the release run
+are `not-run`. See [package delivery](PACKAGES.md#fedora-rpm-lock) and worklog
+WL-20261014-RPM-LOCK-01.
+
+## Native derivation in sysroot (2026-10-14)
+
+The qemu-arm64 native image is derived by `sysroot derive plan|build`, no longer by
+the test harness (`kedra-lab derive*` and its embedded Python driver are removed).
+The steps are implemented in Rust and run in the offline BuildKit build as the
+running `sysroot` binary, whose hash is the plan's `driver_sha256`;
+`image/release/native-steps.json` is the single declaration on that path. The
+release composer and its installed catalog case call `sysroot`; desktop still uses
+`assemble.sh`. See [NATIVE](NATIVE.md). Local Linux qualification
+on the owner's Mac (rust:1.98.1 linux/arm64, OrbStack Docker29.4/BuildKit0.29):
+public `e2e_native` (plan, refusals, build, binding reuse) and `e2e_context` pass;
+container harness `native::native_artifacts` on the `sysroot`-derived image and
+`native::composition_unit` pass; this branch composed over the published
+qemu-arm64 `stable` image and derived with the committed steps yields twelve
+recorded artifacts. The release workflow change is `not-run` on Actions; no
+signed image, boot, installation or publication follows from these results.
+
+## Compatibility reset (2026-10-14)
+
+No non-disposable Kedra installation exists, so backward-compatibility code and
+code without a consumer were removed: the protocol-1 release-file model
+(`sysroot release verify|assemble|channel|history|unpack`, signed checkpoints and
+the helper's four-file enroll/stage/rollback/status requests), `sysroot status`
+and its capability JSON, helper legacy migration (`--migrate-legacy`, preserved
+v1 journals, legacy rollback receipts), the `hosts/`/`packages/`/root `home/`
+source layout, the schema-1 JSON catalog with `--catalog`, `catalog list` and the
+built-in jq/SQLite collection, the independent-consumer reuse tests, the
+protocol-1 `tests/vm/signed-update` driver and `build-local.py --base-image`.
+`sysroot release key` and the signed-image channel remain. Disposable deployment
+stores written by an earlier helper are refused rather than migrated. See worklog
+COMPAT-RESET-01 for checks.
+## Managed home files (2026-10-14)
+
+The niri- and Noctalia-specific home review is replaced by the data-driven
+[managed home files](HOME.md): `usr/share/kedra/home-files.toml` and
+`sysroot home status|capture|update`. The Noctalia field projection and version
+allow-list, the niri review store and IPC client, the home SQLite state and the
+qemu-arm64 niri artifact record (`home-artifacts.json`) are gone, so earlier
+sections about them describe retired code. Locally, `e2e_home` and the container
+case `native::home_files_update` pass on the working tree (worklog
+HOME-FILES-01); exact-head results are recorded there. Killed-process recovery
+of an update and the native-derivation skeleton seeding are not qualified. Not
+merged, not released, not installed.
+
 ## Local testing, sign-off and installer releases (2026-10-08)
 
 The owner moved testing out of Actions. `check.yml` and the eight `test-*.yml`
@@ -739,6 +802,7 @@ Each nightly rebuild is driven by a new `quay.io/fedora/fedora-bootc:44` base di
 
 - **Codex** 0.153.4 (x86_64) is bundled under `/usr/libexec/sysroot/agents/codex` from the pinned official archive with Sigstore verification. [test-agents 34695674783](https://github.com/Reidond/kedra/actions/runs/34695674783) and the desktop VM (`KEDRA_R05_IMAGE_RUNTIME_PASS`) pass for runtime selection, profiles and `--version`/`--help`. Authenticated model use, MCP, skills and hooks are not qualified.
 - **Claude** is not bundled: `public_preinstallation_approved` remains false pending the owner's Commercial Terms decision. `sysroot claude --runtime user` is the only path.
+- **Launcher and TPM setup simplification (2026-10-14, branch claude/cli-small-cleanups-260fbc, not merged):** the launchers no longer check the origin remote, take the advisory checkout lock or restore nested configuration variables; runtime selection, version-specific profiles, the keyring-only Codex config, `--host` target check, `--` passthrough and `--print-plan` fields read by the probes remain ([AGENT-LAUNCHERS](AGENT-LAUNCHERS.md)). `sysroot setup tpm-unlock` takes the volume from the single `rd.luks.uuid`, still refuses a reset SHA-256 PCR 7, enrolls with `--tpm2-device=auto` and lists the key slots once before the change instead of before and after ([INSTALL](INSTALL.md#optional-unlock-the-disk-with-the-tpm)). Local Linux CLI checks with stand-in runtimes, `sudo` and `systemd-cryptenroll` pass; the image's real Codex runtime, enrollment through `auto` and boot unlock are not-run on this branch.
 - **Repository skill discovery (R11):** on 2026-09-07 Codex CLI 0.153.4 marketplace and fresh-profile probes found no Kedra skills at the root or crate cwd. On 2026-09-27 the owner chose project registration (AGENTS.md): checked-in `.codex/config.toml` and `.claude/settings.json` enable `kedra@kedra-local` and `rust-skills@kedra-local`. On the owner's Mac, Codex CLI 0.156.1 lists both as installed and enabled, and its cache matches the working tree. Claude Code 2.1.282 there lists both as enabled at project scope from the repository root (disabled from a subdirectory) and offers their 30 skills in session; the checked-in marketplace path is the relative `./`, whose resolution in a fresh clone is unverified. A model session invoking them is not-run.
 - **Bitwarden Desktop** 2026.8.0 is bundled at `/usr/lib/bitwarden`. The desktop VM covers native sandbox startup while logged out (`KEDRA_R06_LOGGED_OUT_PASS`) and `SSH_AUTH_SOCK` propagation. Vault login/unlock, key serving, signing approval and Git over SSH are not-run.
 

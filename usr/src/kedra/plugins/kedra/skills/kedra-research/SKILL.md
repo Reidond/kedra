@@ -25,15 +25,8 @@ and independent-daemon results are recorded separately in native qualification.
 Boot/signature deployment remains a separate gate.
 Evidence: `.specs/nix-context-replay/verification.md`. No new runner/root authority.
 
-The composition home-artifact case provisions its own retained Linux CLI through
-the existing disposable builder (2026-10-07, Rust1.98.1), pinned to pre-artifact
-main46b4fe2 so it also understands the current package source language. Do not
-require an undocumented caller executable or silently skip old/new readback.
-The source commit must exist locally and normal builder network prerequisites
-apply; missing source/build failures fail the case. The image under test remains
-the verified static composition without a worktree overlay. Record the retained
-source and binary hash in the case artifacts. Source: container/README.md,
-home_artifact_tests.rs and worklog WL-20261007-MERGE39-01.
+The composition home-artifact case and its niri artifact record were removed on
+2026-10-14 with the data-driven managed home files (WL-20261014-HOME-FILES-01).
 
 Fresh empty mutual-TLS Docker29.8.1 replay and same-binding cache repeat pass
 (2026-10-01). Four actual static publication SIGKILL windows also pass: temporary
@@ -45,9 +38,12 @@ temporary copy after exit, preserving journal/tag/binding for public retry.
 Evidence: `.specs/nix-native-artifacts/verification.md`. Native-cache interruption,
 kernel boot/signing and power-loss/ENOSPC remain separate gates.
 
-Native generation uses `kedra-lab derive-plan`/`derive` with separate composition
-and derivation identities. Installed checks use the existing container test's
-`KEDRA_LAB_NATIVE_PLAN`/`KEDRA_LAB_DERIVATION_IDENTITY`, composition source and
+Native generation is product code since 2026-10-14: `sysroot derive plan|build`
+(steps file, separate composition and derivation identities, `--state`); the
+in-image executor is the running `sysroot` binary, bound by `driver_sha256`, and
+`kedra-lab derive*` no longer exists (docs/NATIVE.md). Installed checks use the
+existing container test's `KEDRA_LAB_NATIVE_PLAN` (steps file),
+`KEDRA_LAB_DERIVATION_IDENTITY`, `KEDRA_LAB_SYSROOT`, composition source and
 `native_artifacts` filter. Actual fresh-user GLib default/explicit dconf override,
 unit start/mask/default, initial skeleton/preserved existing home and generated
 initramfs content pass (2026-10-01). Start the fixture's existing systemd user bus;

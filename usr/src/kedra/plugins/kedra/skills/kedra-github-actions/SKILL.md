@@ -16,7 +16,7 @@ Owner decision (2026-10-08): Actions produces releases; testing of changes is lo
 
 Machine bundles and release metadata signatures are not published.
 
-The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure. Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
+The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure, resolved once per run into an RPM lock that every build installs offline from (references/fedora-refresh.md). Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
 
 Build jobs have public trust. Automatic isolated signing executes no checkout/candidate/repository code while production keys exist. The main-only environment has no human approval gate. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
 
@@ -27,7 +27,7 @@ Per-target releases (implemented 2026-09-25; release 36617035503 passes both tar
 
 Historical, from the test workflows removed on 2026-10-08 (their drivers remain):
 - Hosted arm64 runners expose no `/dev/kvm`, so test-qemu-arm64.yml booted its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. Main run 36617035132 attempt 2 at `bafd1884` powered off with every security/bootc marker in 300 s.
-- The x86 VM drivers boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd` and require the guest's `KEDRA_SECUREBOOT_PASS`. The signed-update driver adds a snakeoil-keys refusal case. Since 2026-10-14 the machine comes from the shared launcher and the marker from the shared guest check.
+- The x86 VM drivers boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd` and require the guest's `KEDRA_SECUREBOOT_PASS`. The protocol-1 signed-update driver, removed on 2026-10-14, added a snakeoil-keys refusal case; that case now runs as `qemu.py refuse` in ghcr-update's run.sh. Since 2026-10-14 the machine comes from the shared launcher and the marker from the shared guest check.
 - test-container.yml (main run 36617035048 passes both architectures on 2026-09-29) built each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`) and ran every container scenario. The same harness now runs locally and in the release's `validate-candidate` job.
 Image-content and session checks live in container scenarios. No unit/model/mock/doctests or repository scanners.
 

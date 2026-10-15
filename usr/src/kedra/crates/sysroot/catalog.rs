@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use sysroot_catalog::{Catalog, Policy, ResolvedPackage, builtin};
+use sysroot_catalog::{Policy, ResolvedPackage};
 use sysroot_engine::{
     Argument, Error, Result, Segment, Store, SystemContent, SystemDefinition, SystemFile,
 };
@@ -43,12 +43,7 @@ enum Command {
         files: Vec<PathBuf>,
     },
     /// Emit deterministic source pins and author recipe metadata for preflight.
-    Pins(LanguageSelection),
-    /// List the built-in collection or an independently authored Rust catalog.
-    List {
-        #[arg(long)]
-        catalog: Option<PathBuf>,
-    },
+    Pins(crate::catalog_language::Inputs),
     /// Emit an authorized graph for sysroot build without opening a store.
     Plan {
         #[command(flatten)]
@@ -70,17 +65,22 @@ enum Command {
     },
     /// Author installed configuration and receipts from already verified packages.
     Contribute(Contribution),
+    /// Per-run Fedora RPM lock: resolve once, fetch, and materialize offline repositories.
+    Lock {
+        #[command(subcommand)]
+        command: crate::catalog_lock::Command,
+    },
 }
 
 #[derive(Args)]
 struct Contribution {
     #[command(flatten)]
-    language: LanguageSelection,
+    language: crate::catalog_language::Inputs,
     #[arg(long)]
     store: PathBuf,
     #[arg(long, conflicts_with = "resolution")]
     builder: Option<String>,
-    #[arg(long, requires = "entry")]
+    #[arg(long)]
     resolution: Option<PathBuf>,
     #[arg(long)]
     foundation: String,
@@ -112,76 +112,32 @@ struct ContributionReceipt {
 
 #[derive(Args)]
 struct Selection {
-    /// Serialized Catalog produced by independent Rust authoring; omit for Kedra.
-    #[arg(long, conflicts_with_all = ["builder", "runtime", "entry"])]
-    catalog: Option<PathBuf>,
     #[command(flatten)]
-    language: LanguageSelection,
+    language: crate::catalog_language::Inputs,
     /// Exact independently approved image identities per symbolic builder role.
-    #[arg(long, requires = "entry", conflicts_with_all = ["builder", "runtime"])]
+    #[arg(long, conflicts_with_all = ["builder", "runtime"])]
     resolution: Option<PathBuf>,
     #[arg(long)]
     package: String,
     /// Independently selected exact package/image/source allowlists.
     #[arg(long)]
     policy: PathBuf,
-    /// Exact admitted builder image for the built-in collection.
+    /// Exact admitted builder image for every builder role.
     #[arg(long, requires = "runtime")]
     builder: Option<String>,
-    /// Exact admitted runtime image for the built-in collection.
+    /// Exact admitted foundation (runtime) image.
     #[arg(long, requires = "builder")]
     runtime: Option<String>,
-}
-
-#[derive(Args, Default)]
-struct LanguageSelection {
-    #[arg(long, requires_all = ["input_root", "target", "lock", "target_policy"])]
-    entry: Option<String>,
-    #[arg(long, requires = "entry")]
-    input_root: Option<PathBuf>,
-    #[arg(long, requires = "entry")]
-    target: Option<String>,
-    #[arg(long, requires = "entry")]
-    lock: Option<String>,
-    #[arg(long, requires = "entry")]
-    target_policy: Option<PathBuf>,
-}
-
-impl LanguageSelection {
-    fn inputs(&self) -> Result<Option<crate::catalog_language::Inputs>> {
-        let Some(entry) = &self.entry else {
-            return Ok(None);
-        };
-        Ok(Some(crate::catalog_language::Inputs {
-            entry: entry.clone(),
-            input_root: self
-                .input_root
-                .clone()
-                .ok_or_else(|| Error::Invalid("--input-root required".into()))?,
-            target: self
-                .target
-                .clone()
-                .ok_or_else(|| Error::Invalid("--target required".into()))?,
-            lock: self
-                .lock
-                .clone()
-                .ok_or_else(|| Error::Invalid("--lock required".into()))?,
-            target_policy: self
-                .target_policy
-                .clone()
-                .ok_or_else(|| Error::Invalid("--target-policy required".into()))?,
-        }))
-    }
 }
 
 struct Authorized {
     package: ResolvedPackage,
     resources: BTreeMap<String, BTreeMap<String, sysroot_engine::SourceFile>>,
-    roles: Option<(
+    roles: (
         sysroot_catalog::language::Intent,
         sysroot_catalog::language::Images,
-    )>,
-    frontend: Option<serde_json::Value>,
+    ),
+    frontend: serde_json::Value,
 }
 
 fn read<T: DeserializeOwned>(path: &Path) -> Result<T> {
@@ -211,69 +167,48 @@ fn emit(value: &impl Serialize) -> Result<ExitCode> {
 
 fn resolve(selection: Selection) -> Result<Authorized> {
     let mut policy: Policy = read(&selection.policy)?;
-    let mut resources = BTreeMap::new();
-    let mut roles = None;
-    let mut frontend = None;
-    let catalog = if let Some(path) = selection.catalog {
-        read::<Catalog>(&path)?
-    } else if let Some(inputs) = selection.language.inputs()? {
-        let loaded = crate::catalog_language::load(&inputs)?;
-        if loaded.intent.namespace == "kedra"
-            && inputs.target == "desktop"
-            && !loaded.intent.selected.is_empty()
-        {
-            return Err(Error::Invalid(
-                "native x86 source package realization is not supported".into(),
-            ));
-        }
-        let images = if let Some(path) = &selection.resolution {
-            read::<sysroot_catalog::language::Images>(path)?
-        } else {
-            sysroot_catalog::language::Images {
-                foundation: selection.runtime.clone().ok_or_else(|| {
-                    Error::Invalid(
-                        "language lowering requires exact --runtime or --resolution".into(),
-                    )
-                })?,
-                builders: loaded
-                    .intent
-                    .builders
-                    .keys()
-                    .map(|role| {
-                        Ok((
-                            role.clone(),
-                            selection.builder.clone().ok_or_else(|| {
-                                Error::Invalid(
-                                    "language lowering requires exact --builder or --resolution"
-                                        .into(),
-                                )
-                            })?,
-                        ))
-                    })
-                    .collect::<Result<_>>()?,
-            }
-        };
-        let lowered =
-            sysroot_catalog::language::lower(&loaded.intent, &loaded.resources, &images, &policy)
-                .map_err(|e| Error::Invalid(e.to_string()))?;
-        resources = lowered.resources;
-        frontend = Some(
-            serde_json::json!({"frontend_version":1,"inputs":loaded.inventory,"intent_sha256":hash(&serde_json::to_vec(&serde_json::to_value(&loaded.intent)?)?),"images":images,"policy_sha256":hash(&serde_json::to_vec(&serde_json::to_value(&policy)?)?),"binary_sha256":hash(&read_bytes(&std::env::current_exe()?,64*1024*1024)?)}),
-        );
-        policy.source_objects.extend(resources.keys().cloned());
-        roles = Some((loaded.intent, images));
-        lowered.catalog
+    let inputs = &selection.language;
+    let loaded = crate::catalog_language::load(inputs)?;
+    if loaded.intent.namespace == "kedra"
+        && inputs.target == "desktop"
+        && !loaded.intent.selected.is_empty()
+    {
+        return Err(Error::Invalid(
+            "native x86 source package realization is not supported".into(),
+        ));
+    }
+    let images = if let Some(path) = &selection.resolution {
+        read::<sysroot_catalog::language::Images>(path)?
     } else {
-        builtin(
-            selection.builder.as_deref().ok_or_else(|| {
-                Error::Invalid("built-in catalog requires --builder and --runtime".into())
+        sysroot_catalog::language::Images {
+            foundation: selection.runtime.clone().ok_or_else(|| {
+                Error::Invalid("language lowering requires exact --runtime or --resolution".into())
             })?,
-            selection.runtime.as_deref().ok_or_else(|| {
-                Error::Invalid("built-in catalog requires --builder and --runtime".into())
-            })?,
-        )
+            builders: loaded
+                .intent
+                .builders
+                .keys()
+                .map(|role| {
+                    Ok((
+                        role.clone(),
+                        selection.builder.clone().ok_or_else(|| {
+                            Error::Invalid(
+                                "language lowering requires exact --builder or --resolution".into(),
+                            )
+                        })?,
+                    ))
+                })
+                .collect::<Result<_>>()?,
+        }
     };
-    let package = catalog
+    let lowered =
+        sysroot_catalog::language::lower(&loaded.intent, &loaded.resources, &images, &policy)
+            .map_err(|e| Error::Invalid(e.to_string()))?;
+    let resources = lowered.resources;
+    let frontend = serde_json::json!({"frontend_version":1,"inputs":loaded.inventory,"intent_sha256":hash(&serde_json::to_vec(&serde_json::to_value(&loaded.intent)?)?),"images":images,"policy_sha256":hash(&serde_json::to_vec(&serde_json::to_value(&policy)?)?),"binary_sha256":hash(&read_bytes(&std::env::current_exe()?,64*1024*1024)?)});
+    policy.source_objects.extend(resources.keys().cloned());
+    let package = lowered
+        .catalog
         .resolve(&selection.package, &policy)
         .map_err(|error| match error {
             sysroot_catalog::Error::Engine(error) => error,
@@ -282,7 +217,7 @@ fn resolve(selection: Selection) -> Result<Authorized> {
     Ok(Authorized {
         package,
         resources,
-        roles,
+        roles: (loaded.intent, images),
         frontend,
     })
 }
@@ -297,28 +232,7 @@ pub fn run(options: Options) -> Result<ExitCode> {
             crate::catalog_language::fmt(files, check)?;
             Ok(ExitCode::SUCCESS)
         }
-        Command::Pins(language) => match language.inputs()? {
-            Some(inputs) => emit(&language_pins(&crate::catalog_language::load(&inputs)?)?),
-            None => emit(&pins()),
-        },
-        Command::List { catalog } => {
-            let catalog = match catalog {
-                Some(path) => read::<Catalog>(&path)?,
-                None => builtin("", ""),
-            };
-            let packages: Vec<_> = catalog
-                .packages
-                .iter()
-                .map(|(name, package)| {
-                    serde_json::json!({
-                        "name": name, "version": package.version, "summary": package.summary,
-                        "license": package.license, "sources": package.sources,
-                        "program": package.recipe.program,
-                    })
-                })
-                .collect();
-            emit(&serde_json::json!({"namespace": catalog.namespace, "packages": packages}))
-        }
+        Command::Pins(inputs) => emit(&language_pins(&crate::catalog_language::load(&inputs)?)?),
         Command::Plan { selection, output } => {
             let authorized = resolve(selection)?;
             match output {
@@ -335,11 +249,8 @@ pub fn run(options: Options) -> Result<ExitCode> {
             let authorized = resolve(selection)?;
             let resolved = authorized.package;
             let store = Store::open(&store)?;
-            let material = authorized
-                .roles
-                .as_ref()
-                .map(|(intent, images)| observe_roles(&store, intent, images))
-                .transpose()?;
+            let (intent, images) = &authorized.roles;
+            let material = observe_roles(&store, intent, images)?;
             for (expected, files) in &authorized.resources {
                 if store.import_resources(files)?.object != *expected {
                     return Err(Error::Invalid("admitted resource identity differs".into()));
@@ -354,6 +265,7 @@ pub fn run(options: Options) -> Result<ExitCode> {
             }))
         }
         Command::Contribute(options) => contribute(options),
+        Command::Lock { command } => crate::catalog_lock::run(command),
     }
 }
 
@@ -477,123 +389,6 @@ fn json_bytes(value: &impl Serialize) -> Result<Vec<u8>> {
     let mut bytes = serde_json::to_vec(value)?;
     bytes.push(b'\n');
     Ok(bytes)
-}
-
-const TEMPLATE_ROOT: &str = "usr/src/kedra/image/catalog/templates/";
-
-struct ConfigTemplate {
-    relative_path: &'static str,
-    contents: &'static str,
-}
-
-impl ConfigTemplate {
-    fn source_path(&self) -> String {
-        format!("{TEMPLATE_ROOT}{}", self.relative_path)
-    }
-
-    fn destination(&self) -> String {
-        format!("/{}", self.relative_path)
-    }
-}
-
-macro_rules! config_template {
-    ($path:literal) => {
-        ConfigTemplate {
-            relative_path: $path,
-            contents: include_str!(concat!("../../image/catalog/templates/", $path)),
-        }
-    };
-}
-
-const CONFIG_TEMPLATES: &[ConfigTemplate] = &[
-    config_template!("etc/profile.d/kedra-catalog.sh"),
-    config_template!("usr/lib/environment.d/60-kedra-catalog.conf"),
-    config_template!("usr/lib/systemd/system/kedra-catalog-history.service"),
-];
-
-#[derive(Clone, Copy, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum ConfigBinding {
-    Input {
-        name: &'static str,
-        path: &'static str,
-    },
-    SourceRevision,
-}
-
-const CONFIG_BINDINGS: &[(&str, ConfigBinding)] = &[
-    (
-        "${KEDRA_CATALOG_JQ_BIN}",
-        ConfigBinding::Input {
-            name: "jq",
-            path: "bin",
-        },
-    ),
-    (
-        "${KEDRA_CATALOG_SQLITE_BIN}",
-        ConfigBinding::Input {
-            name: "sqlite",
-            path: "bin",
-        },
-    ),
-    (
-        "${KEDRA_CATALOG_SQLITE}",
-        ConfigBinding::Input {
-            name: "sqlite",
-            path: "bin/sqlite3",
-        },
-    ),
-    (
-        "${KEDRA_CATALOG_SOURCE_REVISION}",
-        ConfigBinding::SourceRevision,
-    ),
-];
-
-fn pins() -> serde_json::Value {
-    let catalog = builtin("", "");
-    let packages: BTreeMap<_, _> = catalog
-        .packages
-        .into_iter()
-        .map(|(name, package)| {
-            (
-                name,
-                serde_json::json!({"version": package.version, "license": package.license,
-            "sources": package.sources, "program": package.recipe.program}),
-            )
-        })
-        .collect();
-    let mut recipes = BTreeMap::from([
-        (
-            "usr/src/kedra/crates/sysroot-catalog/lib.rs".to_owned(),
-            hash(include_bytes!("../sysroot-catalog/lib.rs")),
-        ),
-        (
-            "usr/src/kedra/crates/sysroot-catalog/recipes.rs".to_owned(),
-            hash(include_bytes!("../sysroot-catalog/recipes.rs")),
-        ),
-        (
-            "usr/src/kedra/crates/sysroot-catalog/legacy.json".to_owned(),
-            hash(include_bytes!("../sysroot-catalog/legacy.json")),
-        ),
-        (
-            "usr/src/kedra/crates/sysroot/catalog.rs".to_owned(),
-            hash(include_bytes!("catalog.rs")),
-        ),
-    ]);
-    let templates: BTreeMap<_, _> = CONFIG_TEMPLATES
-        .iter()
-        .map(|template| {
-            let path = template.source_path();
-            recipes.insert(path.clone(), hash(template.contents.as_bytes()));
-            (path, template.destination())
-        })
-        .collect();
-    let bindings: BTreeMap<_, _> = CONFIG_BINDINGS.iter().copied().collect();
-    serde_json::json!({
-        "schema_version": 1, "namespace": catalog.namespace, "packages": packages,
-        "recipes": recipes, "templates": templates, "bindings": bindings,
-        "legacy_data":"usr/src/kedra/crates/sysroot-catalog/legacy.json",
-    })
 }
 
 fn language_pins(loaded: &crate::catalog_language::Loaded) -> Result<serde_json::Value> {
@@ -862,97 +657,6 @@ fn literal(value: impl Into<String>) -> Segment {
     }
 }
 
-// Only catalog-owned tokens are bound here. Native runtime expressions such as
-// ${PATH:-...} remain literal configuration; no environment lookup occurs.
-fn bind_template(template: &ConfigTemplate, source_revision: &str) -> Result<Argument> {
-    if template.contents.contains("$KEDRA_CATALOG_") {
-        return Err(Error::Invalid(
-            "catalog configuration tokens require braces".into(),
-        ));
-    }
-    let mut remaining = template.contents;
-    let mut segments = Vec::new();
-    while let Some(start) = remaining.find("${KEDRA_CATALOG_") {
-        if start != 0 {
-            segments.push(literal(&remaining[..start]));
-        }
-        let token_start = &remaining[start..];
-        let end = token_start
-            .find('}')
-            .ok_or_else(|| Error::Invalid("unterminated catalog configuration token".into()))?;
-        let token = &token_start[..=end];
-        let binding = CONFIG_BINDINGS
-            .iter()
-            .find_map(|(name, binding)| (*name == token).then_some(*binding))
-            .ok_or_else(|| {
-                Error::Invalid(format!("unknown catalog configuration token {token}"))
-            })?;
-        segments.push(match binding {
-            ConfigBinding::Input { name, path } => Segment::Input {
-                name: name.into(),
-                path: path.into(),
-            },
-            ConfigBinding::SourceRevision => literal(source_revision),
-        });
-        remaining = &token_start[end + 1..];
-    }
-    if !remaining.is_empty() {
-        segments.push(literal(remaining));
-    }
-    Ok(Argument(segments))
-}
-
-fn system_file(template: &ConfigTemplate, source_revision: &str) -> Result<SystemFile> {
-    let path = template.destination();
-    sysroot_engine::validate_system_path(&path)?;
-    Ok(SystemFile {
-        path,
-        mode: 0o644,
-        provenance: "catalog:kedra:1".into(),
-        priority: 10,
-        replaces: None,
-        content: SystemContent::Template(bind_template(template, source_revision)?),
-    })
-}
-
-fn definition(
-    foundation: &str,
-    source_revision: &str,
-    namespace: &str,
-    outputs: BTreeMap<String, String>,
-    versions: BTreeMap<String, String>,
-) -> Result<SystemDefinition> {
-    let inventory = json_bytes(&serde_json::json!({
-        "schema_version": 1, "namespace": namespace, "source_revision": source_revision,
-        "foundation": foundation, "outputs": outputs, "versions": versions,
-    }))?;
-    let mut files = CONFIG_TEMPLATES
-        .iter()
-        .map(|template| system_file(template, source_revision))
-        .collect::<Result<Vec<_>>>()?;
-    files.push(SystemFile {
-        path: "/usr/share/kedra/catalog.json".into(),
-        mode: 0o644,
-        provenance: "catalog:kedra:1".into(),
-        priority: 10,
-        replaces: None,
-        content: SystemContent::Bytes(inventory),
-    });
-    Ok(SystemDefinition {
-        schema: 1,
-        platform: sysroot_engine::PLATFORM.into(),
-        foundation: foundation.into(),
-        provenance: BTreeMap::from([
-            ("catalog.namespace".into(), namespace.into()),
-            ("catalog.source_revision".into(), source_revision.into()),
-        ]),
-        outputs,
-        required_packages: vec![],
-        removed_packages: vec![],
-        files,
-    })
-}
-
 struct Preflight {
     material: serde_json::Value,
     input_material_sha256: String,
@@ -971,28 +675,10 @@ struct RealizedPackages {
 
 fn contribute(options: Contribution) -> Result<ExitCode> {
     validate_source_revision(&options.source_revision)?;
-    let loaded = options
-        .language
-        .inputs()?
-        .map(|inputs| crate::catalog_language::load(&inputs))
-        .transpose()?;
+    let loaded = crate::catalog_language::load(&options.language)?;
     let mut policy: Policy = read(&options.policy)?;
-    let (catalog, names, contribution_images) = match &loaded {
-        Some(loaded) => {
-            let (lowered, images) = lower_contribution(&options, loaded, &mut policy)?;
-            (lowered.catalog, lowered.names, Some(images))
-        }
-        None => (
-            builtin(
-                options.builder.as_deref().ok_or_else(|| {
-                    Error::Invalid("legacy contribution requires --builder".into())
-                })?,
-                &options.foundation,
-            ),
-            BTreeMap::new(),
-            None,
-        ),
-    };
+    let (lowered, images) = lower_contribution(&options, &loaded, &mut policy)?;
+    let catalog = lowered.catalog;
     let selected = catalog
         .packages
         .keys()
@@ -1002,31 +688,18 @@ fn contribute(options: Contribution) -> Result<ExitCode> {
                 .map_err(|error| Error::Invalid(error.to_string()))
         })
         .collect::<Result<Vec<_>>>()?;
-    let preflight = check_preflight(&options, loaded.as_ref())?;
+    let preflight = check_preflight(&options, &loaded)?;
     let store = Store::open(&options.store)?;
-    if let (Some(loaded), Some(images)) = (&loaded, &contribution_images) {
-        verify_observed_rpms(&store, &loaded.intent, images, &preflight.material)?;
-    }
+    verify_observed_rpms(&store, &loaded.intent, &images, &preflight.material)?;
     let mut realized = verify_realized_packages(&store, selected, &options.foundation)?;
-    if let Some(loaded) = &loaded {
-        alias_runtime_outputs(&loaded.intent, &names, &mut realized)?;
-    }
-    let definition = match &loaded {
-        Some(loaded) => language_definition(
-            loaded,
-            &options.foundation,
-            &options.source_revision,
-            realized.outputs.clone(),
-            realized.versions,
-        )?,
-        None => definition(
-            &options.foundation,
-            &options.source_revision,
-            &catalog.namespace,
-            realized.outputs.clone(),
-            realized.versions,
-        )?,
-    };
+    alias_runtime_outputs(&loaded.intent, &lowered.names, &mut realized)?;
+    let definition = language_definition(
+        &loaded,
+        &options.foundation,
+        &options.source_revision,
+        realized.outputs.clone(),
+        realized.versions,
+    )?;
     let definition_bytes = json_bytes(&definition)?;
     let receipt = ContributionReceipt {
         schema_version: 1,
@@ -1121,13 +794,10 @@ fn contribution_images(
 
 fn check_preflight(
     options: &Contribution,
-    loaded: Option<&crate::catalog_language::Loaded>,
+    loaded: &crate::catalog_language::Loaded,
 ) -> Result<Preflight> {
-    let (material, input_material_sha256) = read_input_material(options, loaded.is_some())?;
-    let pins_value = match loaded {
-        Some(loaded) => language_pins(loaded)?,
-        None => pins(),
-    };
+    let (material, input_material_sha256) = read_input_material(options)?;
+    let pins_value = language_pins(loaded)?;
     let pins_bytes = json_bytes(&pins_value)?;
     let catalog_pins_sha256 = hash(&pins_bytes);
     let author_sha256 = hash(&read_bytes(&std::env::current_exe()?, 64 * 1024 * 1024)?);
@@ -1142,9 +812,7 @@ fn check_preflight(
             "catalog pins/author/target differ from preflight".into(),
         ));
     }
-    if loaded.is_some()
-        && material["source"]["package_frontend"]["intent_sha256"] != pins_value["intent_sha256"]
-    {
+    if material["source"]["package_frontend"]["intent_sha256"] != pins_value["intent_sha256"] {
         return Err(Error::Invalid(
             "selected frontend differs from committed source intent".into(),
         ));
@@ -1158,21 +826,13 @@ fn check_preflight(
     })
 }
 
-fn read_input_material(
-    options: &Contribution,
-    language: bool,
-) -> Result<(serde_json::Value, String)> {
+fn read_input_material(options: &Contribution) -> Result<(serde_json::Value, String)> {
     let material_bytes = read_bytes(&options.input_material, sysroot_engine::MAX_JSON)?;
     let material_hash = hash(&material_bytes);
     if material_hash != options.expected_input_material_sha256 {
         return Err(Error::Invalid("input material hash differs".into()));
     }
     let material: serde_json::Value = serde_json::from_slice(&material_bytes)?;
-    if !language && !material["source"]["package_frontend"].is_null() {
-        return Err(Error::Invalid(
-            "new-format source requires explicit language contribution".into(),
-        ));
-    }
     if serde_json::to_vec(&material)? != material_bytes {
         return Err(Error::Invalid(
             "input material must be canonical without duplicate members".into(),

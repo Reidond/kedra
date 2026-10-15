@@ -6,20 +6,18 @@
 set -euo pipefail
 registry_volume=
 registry_volume_created_at=
-installer_base=
 supervised_admission=false
 while test "$#" -gt 0; do
     case "$1" in
         --supervised-admission) test "$supervised_admission" = false; supervised_admission=true; shift; continue ;;
         --registry-volume) test "$#" -ge 2 && test -z "$registry_volume"; registry_volume=$2 ;;
         --registry-volume-created-at) test "$#" -ge 2 && test -z "$registry_volume_created_at"; registry_volume_created_at=$2 ;;
-        --installer-base-image) test "$#" -ge 2 && test -z "$installer_base"; installer_base=$2 ;;
         *) break ;;
     esac
     shift 2
 done
 if test "$#" -eq 1 && test "$1" = --help; then
-    echo 'Wrapper options: --registry-volume NAME --registry-volume-created-at TIME; --installer-base-image EXACT_FEDORA_REFERENCE; --supervised-admission (local fixture only)'
+    echo 'Wrapper options: --registry-volume NAME --registry-volume-created-at TIME; --supervised-admission (local fixture only)'
     uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py --help
     exit 0
 fi
@@ -30,15 +28,12 @@ if test -n "$registry_volume$registry_volume_created_at" && { test -z "$registry
     echo '--registry-volume and --registry-volume-created-at are required together' >&2
     exit 1
 fi
-test -z "$installer_base" || [[ "$installer_base" =~ ^quay[.]io/fedora/fedora-bootc@sha256:[a-f0-9]{64}$ ]]
 if test -n "$registry_volume" && test "$supervised_admission" != true; then
     echo 'Local retained-registry execution requires --supervised-admission and an owning supervisor' >&2
     exit 1
 fi
-installer_options=()
-if test -n "$installer_base"; then installer_options=(--base-image "$installer_base"); fi
 fixture_context=$(uv run usr/src/kedra/tests/vm/ghcr-update/fixture.py "$@")
-if test -n "$registry_volume$installer_base"; then
+if test -n "$registry_volume"; then
     test "$(jq -er .mode "$fixture_context")" = local
 fi
 if test "$supervised_admission" = true; then
@@ -370,7 +365,7 @@ run_installer() (
     # umask inside the already-private 0700 fixture tree; credential files were
     # created separately with explicit 0600 permissions.
     umask 022
-    uv run "$checkout/usr/src/kedra/installer/build-local.py" "${installer_options[@]}" "$@"
+    uv run "$checkout/usr/src/kedra/installer/build-local.py" "$@"
 )
 for variant in U W; do
     admit_phase "$variant"

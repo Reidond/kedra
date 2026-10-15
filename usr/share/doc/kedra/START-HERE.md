@@ -31,14 +31,16 @@ The source checkout is separate from the installed OS. In a Kedra checkout:
     sysroot source plan --host desktop --json
 
 Those commands inspect committed build inputs and do not modify your machine.
-`sysroot status` reports which management capabilities this build implements.
 `sysroot doctor` checks the installed desktop session without changing it or
 requesting administrator access. Use `sysroot doctor --json` for structured output.
-Managed updates require configured release trust and enrollment. Home review and
-reconciliation support three Noctalia fields and explicit niri line/hunk review,
-discard and installed-baseline acceptance. Use `sysroot home file --help` for the
-niri workflow and review the file for secrets before adopting it. Wider file
-groups remain unfinished.
+Managed updates require configured release trust and enrollment.
+
+The niri and Noctalia configuration files are managed home files, listed in
+/usr/share/kedra/home-files.toml. After an OS update, `sysroot home update`
+merges the new defaults into your edits, validates them and restarts Noctalia.
+If both changed the same lines it leaves your file alone and writes
+`<file>.kedra-new`: merge it into your file, delete it, and run the command
+again. `sysroot home status` shows each file's difference from the defaults.
 Do not run image-building scripts as a workstation package installer.
 
 Signed OS images are published per target: ghcr.io/reidond/kedra-desktop
@@ -55,9 +57,8 @@ stable image and `sysroot update stage` after review. The installed helper
 verifies the exact GHCR digest independently.
 Keep known-good signed images and local recovery media. Staging does not reboot,
 and a reboot does not automatically accept a changed home baseline.
-If `sysroot update status --home` is available in this build, it reports the
-caller's adopted Noctalia/niri baseline and pending recovery state without
-applying changes. Use the explicit home review/plan/recovery commands to act on it.
+`sysroot update status --home` also reports whether your managed home files
+need `sysroot home update`, without changing them.
 
 To stop typing the disk passphrase at every boot, run
 `sysroot setup tpm-unlock --dry-run` to check this system and print the exact

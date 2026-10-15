@@ -49,10 +49,9 @@ homes or claims to detect every secret; public input review remains necessary.
 
 Record each home file's source path/revision/host/content hash/mode/app group.
 Shared keybindings normally export to etc/skel/, monitor settings to
-usr/src/kedra/image/targets/<target>/etc/skel/. Retained commits in the earlier
-layout (hosts/, packages/, root home/) still resolve, selected per commit; a
-commit mixing both layouts is refused. Provenance compares layer and
-home-relative path, so a baseline recorded before the move stays valid.
+usr/src/kedra/image/targets/<target>/etc/skel/. Commits in the earlier layout
+(hosts/, packages/, root home/) are no longer read (removed 2026-10-14, no
+installation depended on them). Provenance compares layer and home-relative path.
 Do not infer ownership from the deployed filename alone. A host override can hide
 a common file; show scope and all affected targets before publication. Ambiguous
 scope requires an explicit reviewed choice, not silently rewriting shared defaults.

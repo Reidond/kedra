@@ -1,423 +1,589 @@
-use super::{Command, Key, Options, export};
-use rustix::fs::{self, Mode, OFlags, ResolveFlags};
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
-use std::io::Read;
-use std::path::{Component, Path, PathBuf};
+//! Live home files, the private applied-baseline state, `status` and `capture`.
+use super::files::{self, CONFLICT_SUFFIX, Image, MAX_FILE, ManagedFile, Result};
+use super::{Command, Options};
+use rustix::fs::{self as rfs, Mode, OFlags, ResolveFlags};
+use serde::Serialize;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::os::fd::OwnedFd;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
 use std::process::{Command as Process, Stdio};
-use sysroot_core::noctalia::{self, Baseline, Settings, State};
-use sysroot_linux::storage::Store;
+use sysroot_linux::replace_file::Directory;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-pub(super) const RECORD: &str = "noctalia";
-const DESTINATION: &str = "usr/share/sysroot/home/default/.config/noctalia/config.toml";
+/// Last baseline merged into each live file.
+pub(super) const APPLIED: &str = "applied";
+/// Baseline an update could not merge; its conflict file awaits the owner.
+pub(super) const PENDING: &str = "pending";
 
-fn hash(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+/// 32 lowercase hex characters from the kernel's random source.
+pub(super) fn token() -> Result<String> {
+    let mut bytes = [0u8; 16];
+    File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
-impl From<Key> for noctalia::Key {
-    fn from(key: Key) -> Self {
-        match key {
-            Key::Theme => Self::ThemeMode,
-            Key::ButtonBorders => Self::ButtonBorders,
-            Key::InputBorders => Self::InputBorders,
+/// Parent directory and file name of a validated relative path.
+pub(super) fn split(path: &str) -> (&str, &str) {
+    path.rsplit_once('/').unwrap_or(("", path))
+}
+
+fn open_directory(base: &OwnedFd, name: &str) -> rustix::io::Result<OwnedFd> {
+    rfs::openat2(
+        base,
+        name,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        Mode::empty(),
+        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS | ResolveFlags::BENEATH,
+    )
+}
+
+/// Walk `relative` below `base` through real directories only, creating missing
+/// ones when asked. False when a directory is missing and `create` is false.
+fn open_components(base: &Path, relative: &str, create: bool) -> Result<bool> {
+    let mut current = rfs::openat2(
+        rfs::CWD,
+        base,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+        Mode::empty(),
+        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
+    )?;
+    for component in relative.split('/').filter(|part| !part.is_empty()) {
+        current = match open_directory(&current, component) {
+            Ok(descriptor) => descriptor,
+            Err(rustix::io::Errno::NOENT) if create => {
+                match rfs::mkdirat(&current, component, Mode::from_raw_mode(0o755)) {
+                    Ok(()) | Err(rustix::io::Errno::EXIST) => (),
+                    Err(error) => return Err(format!("{relative}: {error}").into()),
+                }
+                open_directory(&current, component)?
+            }
+            Err(rustix::io::Errno::NOENT) => return Ok(false),
+            Err(error) => {
+                return Err(format!("{relative}: {error}; directories must not be links").into());
+            }
+        };
+    }
+    Ok(true)
+}
+
+/// The invoking user's home, resolved once (bootc's /home -> /var/home alias).
+pub(super) struct Home {
+    root: PathBuf,
+}
+
+impl Home {
+    pub fn open() -> Result<Self> {
+        let owner = rustix::process::geteuid().as_raw();
+        if owner == 0 || rustix::process::getuid().as_raw() != owner {
+            return Err("home files are managed as the ordinary desktop user, never root".into());
+        }
+        let requested = PathBuf::from(std::env::var_os("HOME").ok_or("HOME is unavailable")?);
+        if !requested.is_absolute() {
+            return Err("HOME must be an absolute path".into());
+        }
+        let root = requested.canonicalize()?;
+        if std::fs::metadata(&root)?.uid() != owner {
+            return Err("HOME is not owned by the invoking user".into());
+        }
+        Ok(Self { root })
+    }
+
+    pub fn path(&self, relative: &str) -> PathBuf {
+        self.root.join(relative)
+    }
+
+    /// The real directory holding a managed file, or `None` when it is missing.
+    pub fn directory(&self, relative: &str, create: bool) -> Result<Option<Directory>> {
+        let (parent, _) = split(relative);
+        if !open_components(&self.root, parent, create)? {
+            return Ok(None);
+        }
+        Ok(Some(Directory::open(&self.root.join(parent))?))
+    }
+
+    /// An ordinary owned file; links, devices and shared modes are refused.
+    pub fn read(&self, relative: &str) -> Result<Option<Vec<u8>>> {
+        let Some(directory) = self.directory(relative, false)? else {
+            return Ok(None);
+        };
+        directory
+            .read(split(relative).1)
+            .map_err(|error| format!("~/{relative}: {error}").into())
+    }
+}
+
+/// Private per-user record of applied and conflicted baselines (mode 0700).
+pub(super) struct State {
+    root: PathBuf,
+}
+
+/// Owned scratch directory removed on drop; live bytes never leave it.
+pub(super) struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+impl Scratch {
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+
+    pub fn write(&self, relative: &str, bytes: &[u8]) -> Result<()> {
+        let path = self.0.join(relative);
+        if let Some(parent) = path.parent() {
+            std::fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(parent)?;
+        }
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)?
+            .write_all(bytes)?;
+        Ok(())
+    }
+}
+
+fn private_directory(path: &Path) -> Result<()> {
+    let metadata = std::fs::symlink_metadata(path)?;
+    if !metadata.is_dir()
+        || metadata.uid() != rustix::process::geteuid().as_raw()
+        || metadata.mode() & 0o077 != 0
+    {
+        return Err(format!(
+            "{} must be a directory owned by this user with mode 0700",
+            path.display()
+        )
+        .into());
+    }
+    Ok(())
+}
+
+impl State {
+    /// `--state`, else `$XDG_STATE_HOME/kedra/home`, else `~/.local/state/kedra/home`.
+    pub fn locate(explicit: Option<&Path>, home: &Home) -> Result<PathBuf> {
+        let path = match explicit {
+            Some(path) => path.to_path_buf(),
+            None => match std::env::var_os("XDG_STATE_HOME").filter(|value| !value.is_empty()) {
+                Some(base) => PathBuf::from(base).join("kedra/home"),
+                None => home.path(".local/state/kedra/home"),
+            },
+        };
+        if !path.is_absolute() {
+            return Err("the home state directory must be an absolute path".into());
+        }
+        Ok(path)
+    }
+
+    /// The state directory, created when asked; `None` when absent otherwise.
+    pub fn open(path: &Path, create: bool) -> Result<Option<Self>> {
+        if create {
+            std::fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(path)?;
+        } else if !path.try_exists()? {
+            return Ok(None);
+        }
+        let root = path.canonicalize()?;
+        private_directory(&root)?;
+        Ok(Some(Self { root }))
+    }
+
+    pub fn read(&self, kind: &str, path: &str) -> Result<Option<Vec<u8>>> {
+        let owner = rustix::process::geteuid().as_raw();
+        let file = self.root.join(kind).join(path);
+        match sysroot_linux::trusted_file::read(&file, owner, MAX_FILE) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error)
+                if error.downcast_ref::<rustix::io::Errno>() == Some(&rustix::io::Errno::NOENT) =>
+            {
+                Ok(None)
+            }
+            Err(error) => Err(format!("{}: {error}", file.display()).into()),
         }
     }
-}
 
-/// Pin a regular inode without opening a device or following a path symlink.
-/// Raw unprojected bytes never enter the review store or diagnostics.
-pub(super) fn read_regular(path: &Path, owner: u32, limit: usize) -> Result<Vec<u8>> {
-    sysroot_linux::trusted_file::read(path, owner, limit)
-}
+    /// Replace one record atomically; a crash leaves the old record or the new one.
+    pub fn write(&self, kind: &str, path: &str, bytes: &[u8]) -> Result<()> {
+        let file = self.root.join(kind).join(path);
+        let parent = file.parent().ok_or("state record has no parent")?;
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(parent)?;
+        let temporary = parent.join(format!(".{}.tmp", token()?));
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&temporary)?;
+        output.write_all(bytes)?;
+        output.sync_all()?;
+        std::fs::rename(&temporary, &file)?;
+        File::open(parent)?.sync_all()?;
+        Ok(())
+    }
 
-pub(super) fn private_parent(path: &Path, owner: u32) -> Result<PathBuf> {
-    if !path.is_absolute()
-        || path
-            .components()
-            .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
-        || path.file_name().is_none()
-    {
-        return Err("state path must be absolute and have an existing private parent".into());
-    }
-    // bootc normally exposes /home through /var/home. Resolve that directory
-    // alias, then require the actual parent to be protected and user-owned.
-    // The store itself still must not be a symlink (enforced by Store).
-    let parent = path
-        .parent()
-        .ok_or("state path has no parent")?
-        .canonicalize()?;
-    let descriptor = fs::openat2(
-        fs::CWD,
-        &parent,
-        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
-        Mode::empty(),
-        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
-    )?;
-    let stat = fs::fstat(&descriptor)?;
-    if stat.st_uid != owner || stat.st_mode & 0o022 != 0 {
-        return Err("state parent must be owned by this user and not writable by others".into());
-    }
-    Ok(parent.join(path.file_name().ok_or("state path has no name")?))
-}
-
-fn default_state(owner: u32, initialize: bool) -> Result<PathBuf> {
-    let base = match std::env::var_os("XDG_STATE_HOME").filter(|v| !v.is_empty()) {
-        Some(path) => PathBuf::from(path),
-        None => PathBuf::from(std::env::var_os("HOME").ok_or("HOME is unavailable")?)
-            .canonicalize()?
-            .join(".local/state"),
-    };
-    if !base.is_absolute()
-        || base
-            .components()
-            .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
-    {
-        return Err("XDG_STATE_HOME must be an absolute path without traversal".into());
-    }
-    let path = base.join("sysroot/home");
-    // The desktop already uses this state directory. Do not recursively
-    // create through unknown ancestors or silently follow profile symlinks.
-    let directory = fs::openat2(
-        fs::CWD,
-        &base,
-        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
-        Mode::empty(),
-        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
-    )?;
-    let stat = fs::fstat(&directory)?;
-    if stat.st_uid != owner || stat.st_mode & 0o022 != 0 {
-        return Err("default state parent is not safely owned by this user".into());
-    }
-    if initialize {
-        match fs::mkdirat(&directory, "sysroot", Mode::from_raw_mode(0o700)) {
-            Ok(()) | Err(rustix::io::Errno::EXIST) => (),
-            Err(error) => return Err(error.into()),
+    pub fn remove(&self, kind: &str, path: &str) -> Result<()> {
+        match std::fs::remove_file(self.root.join(kind).join(path)) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.into()),
+            _ => Ok(()),
         }
-        fs::fsync(&directory)?;
     }
-    let private = fs::openat2(
-        &directory,
-        "sysroot",
-        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
-        Mode::empty(),
-        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
-    )?;
-    let stat = fs::fstat(&private)?;
-    if stat.st_uid != owner || stat.st_mode & 0o7777 != 0o700 {
-        return Err("sysroot state parent must be a user-owned private directory (0700)".into());
+
+    /// Serialize updates; the lock is released when the returned file closes.
+    pub fn lock(&self) -> Result<File> {
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .open(self.root.join("lock"))?;
+        file.try_lock()
+            .map_err(|_| "another sysroot home update is running")?;
+        Ok(file)
     }
-    Ok(path)
+
+    pub fn scratch(&self) -> Result<Scratch> {
+        let path = self.root.join(format!("scratch-{}", token()?));
+        std::fs::DirBuilder::new().mode(0o700).create(&path)?;
+        Ok(Scratch(path))
+    }
 }
 
-#[derive(Deserialize)]
-struct Manifest {
-    schema_version: u32,
-    source_revision: String,
-    target: Target,
-    files: Vec<Payload>,
-}
-#[derive(Deserialize)]
-struct Target {
-    id: String,
-}
-#[derive(Deserialize)]
-struct Payload {
-    source_path: String,
-    destination: String,
-    sha256: String,
-    home_baseline: bool,
+/// Run Git with no inherited Git environment; returns its exit code and stdout.
+pub(super) fn git(directory: &Path, arguments: &[&str]) -> Result<(i32, Vec<u8>)> {
+    let mut command = Process::new("git");
+    for (name, _) in std::env::vars_os() {
+        if name.to_string_lossy().starts_with("GIT_") {
+            command.env_remove(name);
+        }
+    }
+    let output = command
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .args(["-c", "core.quotePath=false", "-c", "diff.noprefix=false"])
+        .args([
+            "-c",
+            "diff.mnemonicPrefix=false",
+            "-c",
+            "diff.relative=false",
+        ])
+        .args(arguments)
+        .current_dir(directory)
+        .stdin(Stdio::null())
+        .output()?;
+    let code = output.status.code().unwrap_or(-1);
+    if !(0..=127).contains(&code) {
+        return Err(format!(
+            "git {} failed: {}",
+            arguments.first().unwrap_or(&""),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )
+        .into());
+    }
+    Ok((code, output.stdout))
 }
 
-pub(super) fn installed_baseline(root: &Path, owner: u32) -> Result<Baseline> {
-    let manifest: Manifest = serde_json::from_slice(&read_regular(
-        &root.join("usr/share/sysroot/source.json"),
-        owner,
-        1024 * 1024,
-    )?)
-    .map_err(|_| "installed source manifest is malformed")?;
-    if manifest.schema_version != 1 {
-        return Err("installed source manifest version is unsupported".into());
-    }
-    let candidates: Vec<_> = manifest
-        .files
-        .iter()
-        .filter(|f| f.destination == DESTINATION && f.home_baseline)
-        .collect();
-    if candidates.len() != 1 {
-        return Err("installed Noctalia baseline has no unique source provenance".into());
-    }
-    let payload = candidates[0];
-    let bytes = read_regular(&root.join(DESTINATION), owner, noctalia::MAX_EXPORT)?;
-    let digest = hash(&bytes);
-    if digest != payload.sha256 {
-        return Err("installed Noctalia baseline differs from its source manifest".into());
-    }
-    let text = std::str::from_utf8(&bytes).map_err(|_| "installed baseline is not UTF-8")?;
-    Ok(Baseline {
-        target: manifest.target.id,
-        source_path: payload.source_path.clone(),
-        source_revision: manifest.source_revision,
-        settings: noctalia::project(noctalia::APP_VERSION, text)?,
+/// Everything known about one managed file before an operation.
+pub(super) struct Observed {
+    pub live: Option<Vec<u8>>,
+    pub baseline: Option<Vec<u8>>,
+    pub applied: Option<Vec<u8>>,
+    pub pending: Option<Vec<u8>>,
+    pub conflict_file: bool,
+}
+
+pub(super) fn conflict_path(path: &str) -> String {
+    format!("{path}{CONFLICT_SUFFIX}")
+}
+
+pub(super) fn observe(
+    image: &Image,
+    home: &Home,
+    state: Option<&State>,
+    path: &str,
+) -> Result<Observed> {
+    let record = |kind| state.map(|state| state.read(kind, path)).transpose();
+    Ok(Observed {
+        live: home.read(path)?,
+        baseline: image.baseline(path)?,
+        applied: record(APPLIED)?.flatten(),
+        pending: record(PENDING)?.flatten(),
+        conflict_file: home.read(&conflict_path(path))?.is_some(),
     })
 }
 
-pub(super) fn output(arguments: &[&str], limit: usize) -> Result<Vec<u8>> {
-    output_in(arguments, limit, &[])
+#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum Applied {
+    /// The recorded baseline is the installed one.
+    Current,
+    /// The installed baseline changed since the last update.
+    Outdated,
+    /// No update has recorded a baseline for this file.
+    None,
 }
-pub(super) fn output_in(
-    arguments: &[&str],
-    limit: usize,
-    environment: &[(&str, &str)],
-) -> Result<Vec<u8>> {
-    let mut child = Process::new("/usr/bin/timeout")
-        .args([
-            "--signal=TERM",
-            "--kill-after=2s",
-            "10s",
-            "/usr/bin/noctalia",
-        ])
-        .args(arguments)
-        .envs(environment.iter().copied())
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .stdout(Stdio::piped())
-        .spawn()?;
-    let result = (|| -> Result<Vec<u8>> {
-        let mut bytes = Vec::new();
-        child
-            .stdout
-            .take()
-            .ok_or("Noctalia output is unavailable")?
-            .take(limit as u64 + 1)
-            .read_to_end(&mut bytes)?;
-        if bytes.len() > limit {
-            return Err("Noctalia output exceeded the capture bound".into());
+
+#[derive(Serialize)]
+struct FileStatus {
+    path: String,
+    live: bool,
+    baseline: bool,
+    live_matches_baseline: bool,
+    applied: Applied,
+    conflict: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    diff: Option<String>,
+}
+
+impl FileStatus {
+    fn new(path: &str, observed: &Observed) -> Self {
+        let applied = match (&observed.applied, &observed.baseline) {
+            (None, _) => Applied::None,
+            (Some(applied), baseline) if Some(applied) == baseline.as_ref() => Applied::Current,
+            _ => Applied::Outdated,
+        };
+        Self {
+            path: path.to_owned(),
+            live: observed.live.is_some(),
+            baseline: observed.baseline.is_some(),
+            live_matches_baseline: observed.live.is_some() && observed.live == observed.baseline,
+            applied,
+            conflict: observed.pending.is_some(),
+            diff: None,
         }
-        if !child.wait()?.success() {
-            return Err("Noctalia export failed; no review state was changed".into());
+    }
+
+    fn summary(&self) -> String {
+        let contents = match (self.live, self.baseline) {
+            (false, _) => "live file is absent",
+            (true, false) => "the image has no baseline",
+            (true, true) if self.live_matches_baseline => "matches the installed baseline",
+            _ => "differs from the installed baseline",
+        };
+        let applied = match self.applied {
+            Applied::Current => "installed baseline applied",
+            Applied::Outdated => "baseline changed since the last update; run sysroot home update",
+            Applied::None => "no baseline recorded; run sysroot home update",
+        };
+        let mut summary = format!("{}: {contents}; {applied}", self.path);
+        if self.conflict {
+            summary.push_str(&format!(
+                "; conflict: merge ~/{} into the live file, delete it, then run sysroot home update",
+                conflict_path(&self.path)
+            ));
         }
-        Ok(bytes)
-    })();
-    if result.is_err() {
-        let _ = child.kill();
-        let _ = child.wait();
+        summary
     }
-    result
 }
 
-pub(super) fn live() -> Result<Settings> {
-    let bytes = output(&["--version"], 256)?;
-    let version = std::str::from_utf8(&bytes).map_err(|_| "Noctalia version is malformed")?;
-    // Exact native Fedora outputs; qualify each runtime independently of the
-    // persisted projection identity so existing records survive image rollback.
-    let runtime_version = match version.trim() {
-        "noctalia v5.0.1 (v5.0.1)" => "5.0.1",
-        "noctalia v5.1.0" => "5.1.0",
-        "noctalia v5.2.0" => "5.2.0",
-        "noctalia v5.2.1" => "5.2.1",
-        _ => return Err("installed Noctalia version is not qualified for home review".into()),
-    };
-    let bytes = output(&["config", "export", "full"], noctalia::MAX_EXPORT)?;
-    let text = std::str::from_utf8(&bytes).map_err(|_| "Noctalia export is not UTF-8")?;
-    Ok(noctalia::project(runtime_version, text)?)
+/// Unified diff from the installed baseline to the live file, via Git.
+fn diff(state: &State, path: &str, baseline: &[u8], live: &[u8]) -> Result<String> {
+    let scratch = state.scratch()?;
+    let (before, after) = (format!("baseline/{path}"), format!("live/{path}"));
+    scratch.write(&before, baseline)?;
+    scratch.write(&after, live)?;
+    let (_, output) = git(
+        scratch.path(),
+        &[
+            "diff",
+            "--no-index",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--",
+            &before,
+            &after,
+        ],
+    )?;
+    Ok(String::from_utf8_lossy(&output).into_owned())
 }
 
-pub(super) fn load_optional(store: &Store, instance: &str) -> Result<Option<(u64, State)>> {
-    let record = store.read(RECORD)?;
-    let Some(record) = record else {
-        if store.history(RECORD, 1)?.is_some() {
-            return Err("Noctalia adoption record is missing but retained history exists; preserve the store".into());
-        }
-        super::activation::linux::assessment_pending(store, instance, None)?;
-        return Ok(None);
-    };
-    Ok(Some((
-        record.revision,
-        State::from_bytes(&record.bytes, instance)?,
-    )))
-}
-
-pub(super) fn load(store: &Store, instance: &str) -> Result<(u64, State)> {
-    load_optional(store, instance)?
-        .ok_or_else(|| "Noctalia is not adopted; use sysroot home init".into())
-}
-
-fn change(store: &mut Store, instance: &str, command: &Command) -> Result<State> {
-    let (revision, mut state) = load(store, instance)?;
-    let before = state.to_bytes()?;
-    state.capture(live()?)?;
-    match command {
-        Command::Stage { key } => state.stage((*key).into())?,
-        Command::Unstage { key } => state.unstage((*key).into())?,
-        Command::KeepLocal { key } => state.ignore_exact((*key).into())?,
-        Command::AppOwn { key } => state.own((*key).into())?,
-        Command::ClearLocal { key } => state.clear_local_policy((*key).into())?,
-        Command::Status {
-            last_capture: false,
-        } => (),
-        _ => return Err("this operation does not capture live settings".into()),
-    }
-    let bytes = state.to_bytes()?;
-    if bytes != before {
-        store.compare_exchange(RECORD, Some(revision), &bytes)?;
-    }
-    Ok(state)
-}
-
-pub(super) fn instance(owner: u32) -> Result<String> {
-    let machine = read_regular(Path::new("/etc/machine-id"), 0, 64)?;
-    let machine_text = std::str::from_utf8(&machine)
-        .map_err(|_| "machine identity is malformed")?
-        .trim();
-    if machine_text.len() != 32
-        || !machine_text
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+fn file_status(
+    image: &Image,
+    home: &Home,
+    state: &State,
+    file: &ManagedFile,
+) -> Result<FileStatus> {
+    let observed = observe(image, home, Some(state), &file.path)?;
+    let mut status = FileStatus::new(&file.path, &observed);
+    if let (Some(live), Some(baseline)) = (&observed.live, &observed.baseline)
+        && live != baseline
     {
-        return Err(
-            "machine identity is not initialized; home review cannot be bound safely".into(),
-        );
+        status.diff = Some(diff(state, &file.path, baseline, live)?);
     }
-    Ok(hash(&[machine, owner.to_le_bytes().to_vec()].concat())[..32].to_owned())
+    Ok(status)
+}
+
+fn status(image: &Image, home: &Home, state: &State, paths: &[String], json: bool) -> Result<()> {
+    let files = files::select(image.files()?, paths)?;
+    let rows = files
+        .iter()
+        .map(|file| file_status(image, home, state, file))
+        .collect::<Result<Vec<_>>>()?;
+    if json {
+        let report = serde_json::json!({"schema_version": 1, "files": rows});
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+    for row in rows {
+        println!("{}", row.summary());
+        if let Some(diff) = row.diff {
+            print!("{diff}");
+        }
+    }
+    Ok(())
+}
+
+/// Read-only summary for `sysroot update status --home`; never creates state.
+pub(super) fn assess(state: Option<&Path>) -> serde_json::Value {
+    assessment(state).unwrap_or_else(|error| {
+        serde_json::json!({
+            "schema_version": 2, "scope": "invoking_user", "status": "unavailable",
+            "detail": error.to_string(), "live_files_changed": false
+        })
+    })
+}
+
+fn assessment(explicit: Option<&Path>) -> Result<serde_json::Value> {
+    let home = Home::open()?;
+    let image = Image::open(Path::new("/"))?;
+    let path = State::locate(explicit, &home)?;
+    let state = State::open(&path, false)?;
+    if explicit.is_some() && state.is_none() {
+        return Err("the selected home state directory does not exist".into());
+    }
+    let rows = image
+        .files()?
+        .iter()
+        .map(|file| {
+            observe(&image, &home, state.as_ref(), &file.path)
+                .map(|observed| FileStatus::new(&file.path, &observed))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let (status, next) = if rows.iter().any(|row| row.conflict) {
+        ("conflict", Some("sysroot home status"))
+    } else if rows.iter().any(|row| row.applied != Applied::Current) {
+        ("update_available", Some("sysroot home update"))
+    } else {
+        ("up_to_date", None)
+    };
+    Ok(serde_json::json!({
+        "schema_version": 2, "scope": "invoking_user", "status": status,
+        "files": rows, "next_command": next, "live_files_changed": false
+    }))
+}
+
+fn installed_target(image: &Image) -> Result<String> {
+    let bytes = image
+        .read(files::SOURCE, 1_048_576)?
+        .ok_or("the image has no source manifest")?;
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|_| "the image source manifest is malformed")?;
+    let target = manifest["target"]["id"]
+        .as_str()
+        .filter(|id| {
+            !id.is_empty()
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        })
+        .ok_or("the image source manifest names no valid target")?;
+    Ok(target.to_owned())
+}
+
+/// The checkout's top level, refused unless it declares the installed target.
+fn checkout(repo: &Path, target: &str) -> Result<PathBuf> {
+    let (code, output) = git(repo, &["rev-parse", "--show-toplevel"])?;
+    let top = String::from_utf8(output).map_err(|_| "checkout path is not UTF-8")?;
+    let top = PathBuf::from(top.trim()).canonicalize()?;
+    let declaration = top.join(format!("usr/src/kedra/image/targets/{target}/target.toml"));
+    if code != 0 || !declaration.is_file() {
+        return Err(format!("{} is not a Kedra checkout for {target}", repo.display()).into());
+    }
+    Ok(top)
+}
+
+/// The target overlay's copy when the checkout has one, else the shared skeleton.
+fn source_path(top: &Path, target: &str, path: &str) -> String {
+    let overlay = format!("usr/src/kedra/image/targets/{target}/etc/skel/{path}");
+    if std::fs::symlink_metadata(top.join(&overlay)).is_ok() {
+        overlay
+    } else {
+        format!("etc/skel/{path}")
+    }
+}
+
+/// Atomically replace one file in a real directory, keeping its mode and label.
+pub(super) fn replace(
+    directory: &Directory,
+    name: &str,
+    expected: Option<&[u8]>,
+    bytes: &[u8],
+) -> Result<()> {
+    let receipt = directory.prepare(name, &token()?, expected, bytes)?;
+    directory.publish(&receipt)?;
+    directory.finish(&receipt)
+}
+
+fn capture(image: &Image, home: &Home, path: &str, repo: &Path, json: bool) -> Result<()> {
+    files::select(image.files()?, &[path.to_owned()])?;
+    let live = home
+        .read(path)?
+        .ok_or_else(|| format!("~/{path} does not exist"))?;
+    let target = installed_target(image)?;
+    let top = checkout(repo, &target)?;
+    let relative = source_path(&top, &target, path);
+    let (parent, name) = split(&relative);
+    open_components(&top, parent, true)?;
+    let directory = Directory::open(&top.join(parent))?;
+    let current = directory
+        .read(name)
+        .map_err(|error| format!("{relative}: {error}"))?;
+    let written = current.as_deref() != Some(live.as_slice());
+    if written {
+        replace(&directory, name, current.as_deref(), &live)?;
+    }
+    if json {
+        let report = serde_json::json!({
+            "schema_version": 1, "path": path, "checkout": top, "source_path": relative,
+            "written": written, "staged": false, "committed": false
+        });
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else if written {
+        println!("Copied ~/{path} to {relative}.");
+        println!(
+            "Pick the lines to keep with: git -C {} add -p -- {relative}",
+            top.display()
+        );
+    } else {
+        println!("{relative} already matches ~/{path}; nothing was written.");
+    }
+    Ok(())
 }
 
 pub(super) fn run(options: Options) -> Result<()> {
-    let owner = rustix::process::geteuid().as_raw();
-    if owner == 0 || rustix::process::getuid().as_raw() != owner {
-        return Err("home review runs as the ordinary desktop user, never root".into());
-    }
-    // Resolve the closed path allowlist before creating any state directories.
-    let managed = match &options.command {
-        Command::File { path, .. } => Some(super::text::ManagedText::from_path(path)?),
-        _ => None,
-    };
-    let initializing = matches!(options.command, Command::Init)
-        || matches!(
-            options.command,
-            Command::File {
-                command: super::TextCommand::Init {
-                    reviewed_safe: true
-                },
-                ..
-            }
-        );
-    let requested = match &options.state {
-        Some(path) => path.clone(),
-        None => default_state(owner, initializing)?,
-    };
-    let path = private_parent(&requested, owner)?;
-    let instance = instance(owner)?;
-    let (mut store, created) = match std::fs::symlink_metadata(&path) {
-        Ok(_) => {
-            // A present, incomplete or unsafe store is never treated as absent.
-            (Store::open(&path)?, false)
+    let home = Home::open()?;
+    let image = Image::open(&options.root)?;
+    let path = State::locate(options.state.as_deref(), &home)?;
+    match options.command {
+        Command::Status { json, paths } => {
+            let state = State::open(&path, true)?.ok_or("home state is unavailable")?;
+            status(&image, &home, &state, &paths, json)
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound && initializing => {
-            let (record, bytes) = match managed {
-                Some(managed) => (
-                    managed.record(),
-                    super::text::initial_record(&instance, managed)?,
-                ),
-                None => {
-                    let baseline = installed_baseline(Path::new("/"), 0)?;
-                    let state = State::new(instance.clone(), baseline, live()?)?;
-                    (RECORD, state.to_bytes()?)
-                }
-            };
-            // Concurrent first adoptions may race; exclusive creation refuses
-            // the loser. A later explicit retry may add its still-missing group.
-            (Store::create(&path, &[(record, &bytes)])?, true)
-        }
-        Err(error) => return Err(error.into()),
-    };
-    let _coordination = store.coordinate()?;
-    if initializing && !created {
-        let noctalia = load_optional(&store, &instance)?;
-        if let Some((_, state)) = &noctalia {
-            super::activation::linux::assessment_pending(&store, &instance, Some(state))?;
-        }
-        let text_adopted =
-            super::text::is_adopted(&store, &instance, super::text::ManagedText::Niri)?;
-        if noctalia.is_none() && !text_adopted {
-            return Err(
-                "existing home store has no valid adopted group; preserve it for recovery".into(),
-            );
+        Command::Capture { path, repo, json } => capture(&image, &home, &path, &repo, json),
+        Command::Update { json, paths } => {
+            let state = State::open(&path, true)?.ok_or("home state is unavailable")?;
+            super::update::run(&image, &home, &state, &paths, json)
         }
     }
-    if let (Some(managed), Command::File { command, .. }) = (managed, &options.command) {
-        // A new store already contains its explicitly adopted text record.
-        // Status produces the existing init response without a second insertion.
-        let command = if created {
-            &super::TextCommand::Status
-        } else {
-            command
-        };
-        return super::text::run(&mut store, &path, &instance, managed, command);
-    }
-    let mut source_result = None;
-    let state = if matches!(options.command, Command::Init) {
-        if !created {
-            if load_optional(&store, &instance)?.is_some() {
-                return Err("Noctalia is already adopted; existing state is never reset".into());
-            }
-            let baseline = installed_baseline(Path::new("/"), 0)?;
-            let state = State::new(instance.clone(), baseline, live()?)?;
-            store.compare_exchange(RECORD, None, &state.to_bytes()?)?;
-        }
-        load(&store, &instance)?.1
-    } else {
-        if super::activation::linux::handles(&options.command) {
-            return super::activation::linux::run(&mut store, &instance, &options.command);
-        }
-        match &options.command {
-            Command::Selection | Command::Status { last_capture: true } => {
-                load(&store, &instance)?.1
-            }
-            Command::Export { repo, output } => {
-                let (_, state) = load(&store, &instance)?;
-                if state.pending_activation().is_some() {
-                    return Err("home activation is pending; inspect home recover first".into());
-                }
-                let prepared = export::prepare(repo, &path, &state)?;
-                prepared.write_new(output)?;
-                source_result = Some(serde_json::json!({
-                    "patch_file": output, "base_revision": prepared.source_revision,
-                    "source_path": prepared.source_path, "patch_sha256": hash(&prepared.patch),
-                    "patch_bytes": prepared.patch.len(), "already_in_source": prepared.patch.is_empty(),
-                    "source_objects_may_be_added": !prepared.patch.is_empty(), "commit_created": false
-                }));
-                state
-            }
-            Command::RecordSource { repo, commit } => {
-                let (revision, mut state) = load(&store, &instance)?;
-                let settings = export::verify_commit(repo, commit, &state)?;
-                state.record_source_commit(commit, settings)?;
-                store.compare_exchange(RECORD, Some(revision), &state.to_bytes()?)?;
-                source_result = Some(serde_json::json!({
-                    "recorded_commit": commit, "commit_created": false,
-                    "registry_publication_verified": false, "deployment_performed": false
-                }));
-                state
-            }
-            _ => change(&mut store, &instance, &options.command)?,
-        }
-    };
-    let mut response = if matches!(options.command, Command::Selection | Command::Export { .. }) {
-        serde_json::json!({"schema_version": 1, "application": "noctalia", "accepted_baseline": state.accepted_baseline(),
-            "selection": state.selection()?, "activation_performed": false, "checkout_changed": false})
-    } else {
-        serde_json::json!({"schema_version": 1, "application": "noctalia", "accepted_baseline": state.accepted_baseline(),
-            "fields": state.rows()?, "activation_performed": false, "checkout_changed": false})
-    };
-    if let Some(result) = source_result {
-        response["source"] = result;
-    }
-    response["pending_activation"] = serde_json::json!(state.pending_activation());
-    println!("{}", serde_json::to_string_pretty(&response)?);
-    Ok(())
 }

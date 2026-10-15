@@ -23,9 +23,10 @@ inputs, release tooling and the closed `release/targets.json`), `installer/`,
 `CLAUDE.md`, `worklog.md`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`,
 `rustfmt.toml`, `.python-version`, `mise.toml`, `ruff.toml`, `cccc.toml` and dot directories. The source plan refuses any
 other top-level directory, other `usr/src/` content and unknown files in a target
-overlay. Retained commits in the earlier layout (`hosts/`, `packages/`, root `home/`)
-must stay readable by the resolver and by home review. `.github/workflows/release.yml`
-is bound into signed image identity; never rename it.
+overlay. Commits in the earlier layout (`hosts/`, `packages/`, root `home/`) are no
+longer read: no installation depends on them, so the resolver refuses them like any
+other top-level directory. `.github/workflows/release.yml` is bound into signed image
+identity; never rename it.
 
 ## Settled choices
 

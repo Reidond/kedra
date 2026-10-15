@@ -78,11 +78,10 @@ shortcut and appearance settings.
 
 Noctalia 5.0.1 stores GUI overrides separately from curated `config.toml`. An
 existing override can continue to win over a new source default. Do not erase
-the override file to force the appearance. The [home review workflow](HOME-REVIEW.md)
-still manages only `theme.mode`, `shell.button_borders` and `shell.input_borders`;
-the appearance work does not expand that safe projection to palette, typography,
-bar layout or GTK settings. Niri's adopted main file has its own
-[line review and activation workflow](TEXT-REVIEW.md).
+the override file to force the appearance. The niri and Noctalia files are
+[managed home files](HOME.md): `sysroot home update` merges a new image's
+baseline into local edits, validates the result with the application's own
+checker and restarts Noctalia; the GUI override file is not managed.
 
 ## GTK and Qt applications
 

@@ -6,7 +6,7 @@ selected commands, libraries and configuration to the composed image.
 
 | Kind | Authored form | Materialization | Delivery |
 |---|---|---|---|
-| Fedora foundation packages | Current `.kedra` inputs: `foundation`, `set` and `target` declarations in `.kedra` | DNF resolves, installs, upgrades and removes RPMs in isolated Fedora 44 image builders | Complete signed Kedra image through bootc |
+| Fedora foundation packages | Current `.kedra` inputs: `foundation`, `set` and `target` declarations in `.kedra` | Resolved once per release run into an RPM lock of fixed-output store objects; image and builder builds install offline from it | Complete signed Kedra image through bootc |
 | Source packages | Versioned `.kedra` `package`/`library` declarations, or the retained typed Rust/JSON `Catalog` API | Exact builder images produce immutable objects below `/usr/lib/sysroot/store` | Selected runtime closure and typed configuration enter composition |
 
 The `.kedra` frontend is an owner-approved, narrow language exception. Rust parses,
@@ -21,8 +21,8 @@ language or grant deployment authority.
 
 The frontend, resource lowering, typed APIs and release adapters are implemented.
 `package-inputs.json` now selects the authored package catalog, replacing shared
-and target list authority. The old schema-1 catalog remains immutable JSON for
-compatibility rather than embedded Rust owner scripts. Fedora C/API/build/rebuild,
+and target list authority. The old schema-1 JSON catalog was removed on
+2026-10-14. Fedora C/API/build/rebuild,
 resource preparation, migrated jq/SQLite/library builds and the installed
 catalog/alias/PATH/service workflow pass their recorded local scopes. Final
 both-target native request/full-RPM parity and source CI pass at2d44c7e; protected
@@ -54,6 +54,57 @@ package-list reader. A commit containing `.kedra` package inputs without the
 descriptor is refused. A descriptor cannot coexist with authoritative shared,
 target or removal lists, and an invalid new-format source never falls back to the
 legacy reader. Retained legacy commits stay readable.
+
+## Fedora RPM lock
+
+The committed `packages.lock.json` holds only the author's source pins. Fedora
+RPMs are locked per release run instead: Fedora repositories are not snapshotted,
+the nightly run is what notices an `updates` push, and CI cannot commit under the
+local sign-off policy. A committed RPM lock would also be stale for the next run.
+
+`sysroot catalog lock resolve` reads the selected `.kedra` foundation, target and
+builder sets and resolves them once against the exact Fedora 44 base, in
+disposable containers on a native Docker engine (upgrade, install, remove; each
+builder role over the resolved foundation). Every downloaded RPM becomes a
+fixed-output engine store object. The canonical JSON lock records:
+
+- target, architecture, base image, repositories and the SHA-256 of the selected
+  intent (`package_frontend.intent_sha256` of the source plan);
+- per RPM file: name, epoch, version, release, architecture, size, SHA-256, header
+  and payload SHA-256, source RPM, repository, the Koji signed-copy URL, the
+  mirror URL this run used, and the predicted `src-` object;
+- per role (`foundation`, each builder): requests, removals, the files installed
+  over its parent, and its complete seven-column installed inventory.
+
+Koji's `packages/<srpm>/<version>/<release>/<arch>/<file>` is the unsigned build
+output, with another SHA-256 than mirrors serve. The durable URL is the signed copy
+`packages/<srpm>/<version>/<release>/data/signed/<key id>/<arch>/<file>`, which is
+byte-identical to the mirrors. Koji can prune signed copies of untagged builds;
+fetching then fails rather than admitting other bytes.
+
+The image Containerfile and the catalog builder bind-mount one role's offline
+repository and install it with every repository disabled and Fedora signature
+checks on (`image/catalog/install-rpms.sh`). The result must equal the role's
+locked inventory. Each image carries its lock at `/usr/share/sysroot/rpm-lock.json`;
+its signed resolved inputs record `artifacts["rpm-lock"]`, the SHA-256 of the lock
+pins (the lock without mirror URLs). A run is a no-change when the source, the base
+and these pins equal the signed stable image's.
+
+To rebuild locally from an image's lock:
+
+```sh
+sysroot catalog lock extract --image <local image> --output rpm-lock.json
+sysroot catalog lock fetch --store /private/rpm-store --lock rpm-lock.json
+sysroot catalog lock repo --store /private/rpm-store --lock rpm-lock.json \
+  --foundation --output <context>/rpms
+```
+
+Then build the context as the release does: `image/Containerfile` with
+`image/catalog/install-rpms.sh` next to it, on the lock's `base`. Builder roles use
+`--builder <role>`, `image/catalog/Containerfile` and `--build-arg BUILDER_ROLE=<role>`.
+`fetch` downloads from the recorded mirror, then from Koji, and admits only the
+locked bytes. `kedra-lab build` resolves a lock with the host `sysroot` and
+installs from it in the same way.
 
 ## Language v1
 

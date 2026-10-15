@@ -5,11 +5,14 @@
 //! archive` in the Rust builder, the pinned Codex and Bitwarden inputs through
 //! the same preparation scripts in a Fedora builder, then the stage's own
 //! usr/src/kedra/image/Containerfile and assemble.sh on the resolved Fedora
-//! bootc base. The result is a local, unsigned candidate: never pushed,
-//! signed or installed; release identity layers are not added.
+//! bootc base. Stages that install from an RPM lock get one resolved by the
+//! host `sysroot catalog lock` and its offline foundation repository. The
+//! result is a local, unsigned candidate: never pushed, signed or installed;
+//! release identity layers are not added.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::Duration;
 
 use testcontainers::core::{AccessMode, Mount};
@@ -35,6 +38,97 @@ fn inputs_image(docker: &Docker, platform: &str) -> Result<GenericImage> {
         platform,
     })?;
     Ok(GenericImage::new("kedra-lab-inputs", &key))
+}
+
+/// Run the host `sysroot` with explicit arguments.
+fn host_sysroot(sysroot: &Path, args: &[&std::ffi::OsStr]) -> Result<()> {
+    let output = Command::new(sysroot).args(args).output()?;
+    if !output.status.success() {
+        return Err(invalid(format!(
+            "sysroot {} failed: {}",
+            args.first()
+                .map_or_else(String::new, |a| a.to_string_lossy().into_owned()),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    Ok(())
+}
+
+/// Resolve (or reuse, per base digest) the stage's RPM lock, then materialize
+/// the foundation's offline repository as context files under `rpms/`.
+fn locked_rpms(
+    cache: &Path,
+    snapshot: &Path,
+    target: &Target,
+    base: &str,
+    context: &Path,
+) -> Result<Vec<(String, PathBuf)>> {
+    let sysroot = builder::prepare_archiver(cache)?;
+    let store = cache.join("rpm-store");
+    let digest = base.rsplit(':').next().unwrap_or_default();
+    let lock = context.join(format!("rpm-lock-{}.json", &digest[..digest.len().min(16)]));
+    let image = snapshot.join("usr/src/kedra/image");
+    if !lock.is_file() {
+        eprintln!(
+            "kedra-lab: resolving the RPM lock for {} on {base}",
+            target.id
+        );
+        host_sysroot(
+            &sysroot,
+            &[
+                "catalog".as_ref(),
+                "lock".as_ref(),
+                "resolve".as_ref(),
+                "--input-root".as_ref(),
+                image.join("packages").as_os_str(),
+                "--entry".as_ref(),
+                "catalog.kedra".as_ref(),
+                "--lock".as_ref(),
+                "packages.lock.json".as_ref(),
+                "--target".as_ref(),
+                target.id.as_ref(),
+                "--target-policy".as_ref(),
+                image.join("package-policy.json").as_os_str(),
+                "--base".as_ref(),
+                base.as_ref(),
+                "--store".as_ref(),
+                store.as_os_str(),
+                "--output".as_ref(),
+                lock.as_os_str(),
+            ],
+        )?;
+    }
+    let repository = context.join("rpms");
+    if repository.exists() {
+        fs::remove_dir_all(&repository)?;
+    }
+    host_sysroot(
+        &sysroot,
+        &[
+            "catalog".as_ref(),
+            "lock".as_ref(),
+            "repo".as_ref(),
+            "--store".as_ref(),
+            store.as_os_str(),
+            "--lock".as_ref(),
+            lock.as_os_str(),
+            "--foundation".as_ref(),
+            "--output".as_ref(),
+            repository.as_os_str(),
+        ],
+    )?;
+    let mut files = vec![("rpms/lock.json".to_owned(), repository.join("lock.json"))];
+    let mut packages: Vec<_> = fs::read_dir(repository.join("packages"))?
+        .map(|entry| entry.map(|entry| entry.file_name().to_string_lossy().into_owned()))
+        .collect::<std::io::Result<_>>()?;
+    packages.sort();
+    for name in packages {
+        files.push((
+            format!("rpms/packages/{name}"),
+            repository.join("packages").join(&name),
+        ));
+    }
+    Ok(files)
 }
 
 /// Build the stage's OS image and return its local reference.
@@ -68,6 +162,11 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
             )));
         }
         fs::copy(&source, context.join(name))?;
+    }
+    let installer = snapshot.join("usr/src/kedra/image/catalog/install-rpms.sh");
+    let locked = installer.is_file();
+    if locked {
+        fs::copy(&installer, context.join("install-rpms.sh"))?;
     }
     fs::copy(&outputs.sysroot, context.join("sysroot"))?;
     fs::copy(&outputs.helper, context.join("sysroot-helper"))?;
@@ -132,7 +231,6 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
         }
         container.rm()?;
     }
-    fs::remove_dir_all(&snapshot)?;
 
     // 4. Resolve the Fedora bootc base to one platform digest, then build.
     docker.pull(BASE_TAG, &platform)?;
@@ -143,17 +241,26 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
         .into_iter()
         .find(|digest| digest.starts_with("quay.io/fedora/fedora-bootc@"))
         .unwrap_or(image_id);
-    let files: Vec<(String, PathBuf)> = [
+    let mut names = vec![
         "sysroot",
         "sysroot-helper",
         "payload.tar",
         "agents.tar",
         "bitwarden.tar",
         "assemble.sh",
-    ]
-    .iter()
-    .map(|name| ((*name).to_owned(), context.join(name)))
-    .collect();
+    ];
+    if locked {
+        names.push("install-rpms.sh");
+    }
+    let mut files: Vec<(String, PathBuf)> = names
+        .iter()
+        .map(|name| ((*name).to_owned(), context.join(name)))
+        .collect();
+    // 5. Stages that install offline get the run's RPM lock and foundation repository.
+    if locked {
+        files.extend(locked_rpms(&cache, &snapshot, target, &base, &context)?);
+    }
+    fs::remove_dir_all(&snapshot)?;
     let mut key_parts: Vec<Vec<u8>> = vec![
         base.as_bytes().to_vec(),
         fs::read(context.join("Containerfile"))?,

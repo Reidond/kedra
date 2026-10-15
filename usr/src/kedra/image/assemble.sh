@@ -3,7 +3,6 @@
 set -euo pipefail
 case "$#:${1:-}" in
     0:) mode=complete ;;
-    1:--resolve-packages) mode=resolve-packages ;;
     1:--foundation) mode=foundation ;;
     *) echo 'Unsupported Kedra assembly arguments' >&2; exit 1 ;;
 esac
@@ -25,21 +24,18 @@ case "$architecture" in
     *) echo "Unsupported image architecture: $architecture" >&2; exit 1 ;;
 esac
 jq -e --arg architecture "$architecture" '.schema_version == 1 and .target.fedora_release == 44 and .target.architecture == $architecture and .target.candidate_target == true and ([.target.id, .target.architecture] | IN(["desktop", "x86_64"], ["qemu-arm64", "aarch64"]))' "$manifest" >/dev/null
-jq -e '(.packages + .remove_packages) | all(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9+._-]*$"))' "$manifest" >/dev/null
-mapfile -t packages < <(jq -r '.packages[]' "$manifest")
-mapfile -t remove < <(jq -r '.remove_packages[]' "$manifest")
-test "${#packages[@]}" -gt 0
-repos=(--repo=fedora --repo=updates '--setopt=*.skip_if_unavailable=False' '--setopt=*.gpgcheck=True')
-dnf -y --best --refresh "${repos[@]}" upgrade
-dnf -y --best --refresh "${repos[@]}" install "${packages[@]}"
-if test "${#remove[@]}" -gt 0; then dnf -y "${repos[@]}" remove "${remove[@]}"; fi
-dnf clean all
-dnf check
-if test "$mode" = resolve-packages; then
-    rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
-        | LC_ALL=C sort > /resolution/package-material.txt
-    exit 0
-fi
+# Fedora RPMs come only from this run's RPM lock. The Containerfile bind-mounts
+# the offline repository `sysroot catalog lock repo` made from fixed-output store
+# objects; catalog/install-rpms.sh installs exactly the locked foundation and
+# refuses any other result. The lock must belong to this committed source.
+repository=/run/kedra-rpms
+jq -e --slurpfile manifest "$manifest" '
+    .target == $manifest[0].target.id
+    and .foundation.requests == ($manifest[0].packages | unique)
+    and .foundation.remove == ($manifest[0].remove_packages | unique)
+    and .intent_sha256 == $manifest[0].package_frontend.intent_sha256' "$repository/lock.json" >/dev/null
+/bin/bash /tmp/kedra-install-rpms.sh "$repository" foundation
+install -D -m 0644 "$repository/lock.json" /usr/share/sysroot/rpm-lock.json
 if test "$target" = qemu-arm64 && test "$mode" = complete; then
     shopt -s nullglob
     module_dirs=(/usr/lib/modules/*)
@@ -124,6 +120,11 @@ if test "$mode" = complete; then
     # Initial-account seeding only; no existing live home is updated here.
     mkdir -p /etc/skel
     cp -a /usr/share/sysroot/home/default/. /etc/skel/
+    # A new account records the baseline it was created from, so its first
+    # `sysroot home update` merges later image changes into its edits.
+    install -d -m 0700 /etc/skel/.local/state/kedra /etc/skel/.local/state/kedra/home \
+        /etc/skel/.local/state/kedra/home/applied
+    cp -a /usr/share/sysroot/home/default/. /etc/skel/.local/state/kedra/home/applied/
 fi
 niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl
 NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \
@@ -134,7 +135,7 @@ rpm -qa | sort > /usr/share/sysroot/packages.txt
 # proof that a repository served identical signed package payloads.
 rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
     | LC_ALL=C sort > /usr/share/sysroot/package-material.txt
-sysroot status --json
+sysroot --version
 if test "$mode" = complete; then
     bootc container lint
 fi

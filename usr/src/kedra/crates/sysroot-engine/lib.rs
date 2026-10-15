@@ -12,9 +12,19 @@ mod image_archive;
 mod model;
 #[cfg(unix)]
 mod native;
+#[cfg(unix)]
+mod native_apply;
+#[cfg(unix)]
+mod native_image;
 mod plan;
 mod resources;
 pub use resources::{SourceFile, source_identity};
+mod rpm;
+pub use rpm::*;
+#[cfg(unix)]
+mod rpm_resolver;
+#[cfg(unix)]
+pub use rpm_resolver::image_file;
 #[cfg(unix)]
 mod profile;
 #[cfg(unix)]
@@ -35,6 +45,12 @@ pub use model::unique_map as deserialize_unique_map;
 pub use model::*;
 #[cfg(unix)]
 pub use native::*;
+#[cfg(unix)]
+pub use native_apply::{apply as apply_native, observe as observe_native};
+#[cfg(unix)]
+pub use native_image::{
+    ComposedImage, DerivedImage, derive_native, plan_derivation, realize_composition,
+};
 pub use plan::{plan, read_graph};
 #[cfg(unix)]
 pub use snapshot::{

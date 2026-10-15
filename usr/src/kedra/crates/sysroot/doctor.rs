@@ -31,11 +31,11 @@ mod linux {
     }
     #[derive(Serialize)]
     struct Check {
-        name: &'static str,
+        name: String,
         passed: bool,
         required_for_session: bool,
         detail: String,
-        next_action: Option<&'static str>,
+        next_action: Option<String>,
     }
     fn query(binary: &str, arguments: &[&str]) -> Result<(bool, String)> {
         let mut child = Command::new("/usr/bin/timeout")
@@ -78,7 +78,7 @@ mod linux {
         let passed = query(binary, arguments)
             .is_ok_and(|(ok, value)| ok && expected.is_none_or(|wanted| value == wanted));
         Check {
-            name,
+            name: name.into(),
             passed,
             required_for_session: true,
             detail: if passed {
@@ -86,8 +86,37 @@ mod linux {
             } else {
                 failure.into()
             },
-            next_action: if passed { None } else { Some(next) },
+            next_action: (!passed).then(|| next.into()),
         }
+    }
+    /// The declared check of each managed home file, run on the live file.
+    fn home_files() -> Result<Vec<Check>> {
+        let home = std::env::var_os("HOME").ok_or("HOME is unavailable")?;
+        let files = crate::home::files::Image::open(Path::new("/"))?.files()?;
+        Ok(files
+            .into_iter()
+            .filter_map(|file| {
+                let check = file.check?;
+                let live = Path::new(&home).join(&file.path);
+                let (passed, detail) = if !live.exists() {
+                    (true, "Absent; application defaults apply".to_owned())
+                } else {
+                    match crate::home::files::execute(&check, Some(&live)) {
+                        Ok(outcome) if outcome.success => (true, "Valid".to_owned()),
+                        Ok(outcome) => (false, outcome.output),
+                        Err(error) => (false, error.to_string()),
+                    }
+                };
+                Some(Check {
+                    name: format!("home_file:{}", file.path),
+                    passed,
+                    required_for_session: true,
+                    detail,
+                    next_action: (!passed)
+                        .then(|| format!("Fix ~/{}, then run sysroot doctor again.", file.path)),
+                })
+            })
+            .collect())
     }
     fn secure_boot() -> Check {
         use sysroot_linux::firmware;
@@ -96,18 +125,14 @@ mod linux {
             Err(error) => (false, error.to_string()),
         };
         Check {
-            name: "secure_boot",
+            name: "secure_boot".into(),
             passed,
             required_for_session: true,
             detail: match firmware::lockdown() {
                 Some(mode) => format!("{observed}; kernel lockdown: {mode}"),
                 None => format!("{observed}; kernel lockdown mode is not readable"),
             },
-            next_action: if passed {
-                None
-            } else {
-                Some(firmware::GUIDANCE)
-            },
+            next_action: (!passed).then(|| firmware::GUIDANCE.into()),
         }
     }
     pub(super) fn run(json: bool) -> Result<bool> {
@@ -153,24 +178,6 @@ mod linux {
                 "Run systemctl --user --failed in the desktop session.",
             ),
             check(
-                "niri_configuration",
-                "/usr/bin/niri",
-                &["validate"],
-                None,
-                "Configuration is valid",
-                "Niri configuration did not validate",
-                "Run niri validate and review its diagnostics.",
-            ),
-            check(
-                "noctalia_configuration",
-                "/usr/bin/noctalia",
-                &["config", "validate"],
-                None,
-                "Configuration is valid",
-                "Noctalia configuration did not validate",
-                "Run noctalia config validate and review its diagnostics.",
-            ),
-            check(
                 "login_keyring",
                 "/usr/bin/busctl",
                 &[
@@ -187,6 +194,16 @@ mod linux {
                 "Log in with the account password and inspect the login keyring.",
             ),
         ];
+        match home_files() {
+            Ok(home_checks) => checks.extend(home_checks),
+            Err(error) => checks.push(Check {
+                name: "home_files".into(),
+                passed: false,
+                required_for_session: true,
+                detail: error.to_string(),
+                next_action: Some("Inspect /usr/share/kedra/home-files.toml.".into()),
+            }),
+        }
         checks.push(check(
             "desktop_portal_response",
             "/usr/bin/busctl",
@@ -228,7 +245,7 @@ mod linux {
             .is_ok();
         let research = Path::new("/usr/share/sysroot/research-only").try_exists()?;
         checks.push(Check {
-            name: "release_setup",
+            name: "release_setup".into(),
             passed: release_trust && !research,
             required_for_session: false,
             detail: if research {
@@ -239,9 +256,9 @@ mod linux {
                 "Release trust is not configured in this development image".into()
             },
             next_action: Some(if release_trust && !research {
-                "Run sysroot update status to inspect the signed deployment."
+                "Run sysroot update status to inspect the signed deployment.".into()
             } else {
-                "Install from local media built from a signed image; see docs/INSTALL.md."
+                "Install from local media built from a signed image; see docs/INSTALL.md.".into()
             }),
         });
         let passed = checks

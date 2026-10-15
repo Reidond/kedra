@@ -49,7 +49,7 @@ Never relax the absence check or treat `DENIED` as absent to bootstrap a reposit
 
 Build one local ISO from a reviewed exact signed digest, or download an owner-dispatched installer release, with [INSTALL.md](../../docs/INSTALL.md). Offline payload verification, deliberate disk selection, encryption and account creation remain mandatory. Nothing uploads from the local builder.
 
-Fresh installations enroll directly in the signed GHCR update workflow of their own target. Nobody installed the removed r1/r2 releases, so no deployed-system migration is required. The legacy protocol-1 `sysroot release channel|history|unpack` paths stay desktop/x86_64 only.
+Fresh installations enroll directly in the signed GHCR update workflow of their own target. Nobody installed the removed r1/r2 releases, so no deployed-system migration is required. The protocol-1 release-metadata commands and helper requests were removed on 2026-10-14; `prepare-trust.py` uses only `sysroot release key`.
 
 Changing the concurrency group from `release-desktop-44-x86_64` to `release-44` lets one already-queued run under the old group overlap the first run under the new one. Deploy that change when no release run is queued or in progress.
 

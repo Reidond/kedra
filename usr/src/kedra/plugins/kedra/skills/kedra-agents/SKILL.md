@@ -24,12 +24,23 @@ profile by default. `--config-scope personal`: explicitly choose personal settin
 options from upstream arguments with a documented delimiter/forwarding rule.
 Read references/launch-matrix.md for the R05 matrix.
 
-Resolve a configurable user-owned checkout (proposed default ~/src/kedra), verify
-its expected remote, preserve staged/unstaged/untracked work, and coordinate
-concurrent sessions without silently stashing/resetting. Offline use of an existing
-checkout should work. Report selected executable/version/profile and executing
-host versus editing target. Never silently fall back to the bundled binary when
-a requested personal runtime is missing. Launch as the ordinary user.
+Resolve a configurable user-owned checkout (default ~/src/kedra) and preserve
+staged/unstaged/untracked work without fetching, stashing or resetting. Offline use
+of an existing checkout should work. Report selected executable/version/profile and
+executing host versus editing target. Never silently fall back to the bundled binary
+when a requested personal runtime is missing. Launch as the ordinary user.
+
+Settled 2026-10-14 (launcher simplification): the launcher no longer checks the
+origin remote or takes an advisory checkout lock. Neither was a security boundary:
+the remote string refused legitimate clones (a local clone's origin is a path) and
+the lock was advisory, inherited by agent children and ignored by other tools. Any
+work tree is accepted; concurrent sessions use separate worktrees. Nested launches
+no longer restore saved outer configuration variables: personal scope inherits the
+environment as is. Kept: the ordinary-user refusal, version-specific management
+profiles, the keyring-only Codex config, the disposable `--version` probe, the
+declared-target check for `--host`, `BW_SESSION` removal and bundled-only Claude
+`DISABLE_UPDATES=1`. `--print-plan` keeps `version` and `deployment_authorized`,
+which the container and native agent probes read.
 
 ## Config and credentials
 

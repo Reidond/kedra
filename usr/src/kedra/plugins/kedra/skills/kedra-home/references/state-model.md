@@ -1,67 +1,53 @@
 # State model and adversarial examples
 
-Supported Noctalia/niri workflows use independent review, publication and recovery
-state. See usr/src/kedra/docs/HOME-REVIEW.md, usr/src/kedra/docs/TEXT-REVIEW.md and usr/src/kedra/docs/STATUS.md for actual scope.
+See usr/src/kedra/docs/HOME.md for the workflow and usr/src/kedra/docs/STATUS.md
+for actual results.
 
-## Separate state dimensions
+## State
 
-B: baseline accepted by the current home application group.
-L: latest captured/live configuration.
-N: next image baseline, with source/host/version provenance.
-S: selected publishable snapshot/index state.
-I: local-only hunk decisions and explicit app-owned fields.
-P: content published to source but not yet deployed.
-J: activation/recovery journal and checkpoints.
+B: last baseline merged into the live file, per user (`applied/<path>`).
+L: the live file.
+N: the installed image baseline.
+P: a baseline whose merge conflicted (`pending/<path>`), beside `<file>.kedra-new`.
 
-A merge(B,L,N) does not by itself preserve S/I/P or prove safe application. Do not
-pretend these are all branches that can be merged without a policy. Preserve
-activation and backward-compatible state. Avoid
-a prematurely fixed database/schema based only on these letters.
+Selection for source is not stored: `capture` copies L into the checkout and Git's
+index (`git add -p`) holds what the owner picked. Local-only lines simply stay
+unstaged. There is no activation journal; replacement is atomic per file.
 
 ## Minimal fixture
 
 B: font=12, border=2, animation=200.
 L: font=14, border=2, animation=150.
 N: font=12, border=3, animation=250.
-Expected content: retain font=14, take border=3, flag animation conflict. Keep the
-whole app group live on its previous configuration until a safe coherent apply.
-Do not put conflict markers in a compositor config or advance B prematurely.
+Expected: font=14 and border=3 merge; animation conflicts. L stays untouched and
+live, `<file>.kedra-new` holds the marked merge, P=N. After the owner fixes L and
+deletes the conflict file, the next update checks and reloads L and records B=N.
 
-Now select only font=14 for publication while animation=150 stays visible, then
-change font to 16 from an app. S stays the reviewed 14; the new difference is
-unstaged. A public source commit must contain exactly the selected change, not L.
-If font=14 was instead ignored as a hunk, changing it to 16 becomes visible again.
-If font is explicitly app-owned, local changes remain suppressed and never export.
+## Cases to keep covered
 
-## Export cases
+- N equals B: nothing changes even when L differs (local edits persist).
+- L equals B: fast-forward. L equals N with B outdated: check, reload, record.
+- No B: equal L is checked, reloaded and recorded, missing L is created, different L is a conflict with
+  N as the conflict file. Never treat an unknown base as "adopt L".
+- L deleted by the owner and N changed: conflict, the deletion is not undone.
+- N absent: report it, leave L alone.
+- Check failure: L unchanged, B unchanged, nonzero exit.
+- Reload failure: L already written, B unchanged; the rerun finds L equal to the
+  result with B outdated, so it checks and reloads L before recording. Never
+  record an outdated B for an L the application has not loaded.
+- Links, hard links, devices, group/world-writable files and symlinked directories
+  are refused; nothing is followed.
+- An existing `<file>.kedra-new` not written by an update is never overwritten.
 
-Source HEAD may advance between review and export. Rebase/apply the approved
-patch against known source provenance; stop on conflicts. Do not force-push the
-review repo or copy the entire captured file. A desktop host file exports to its
-host path, not accidentally shared configuration. A value already published but
-awaiting the image is tracked as P, not continuously offered as a new change.
+## Hazards
 
-Local-only ignored settings are local to a machine. Shared behavior must be
-intentionally committed; local review/ignore state is not cross-machine sync.
-
-## Activation hazards
-
-Recheck a file after capture AND coordinate writers. A hash match before write
-alone cannot stop an app from saving stale in-memory state afterward. Use a
-researched stop/restart contract where necessary. A file deletion from N must not
-delete locally modified L silently. A rename, file/directory swap, mode change,
-symlink/hardlink, newline/encoding difference, or full disk has explicit behavior.
-Open/validate paths relative to trusted roots without following unsafe traversal;
-resolve race resistance in R10 rather than claim canonicalize alone makes it safe.
-
-Home review and activation run with user privileges. Candidate validators must
-not execute untrusted checkout code as root. Store schema versions: rollback may
-boot an older sysroot that cannot read new journal/state. Fail recoverably instead
-of silently treating unknown versions as an empty configuration.
+A merge result can be syntactically valid and still wrong; the declared check is
+the application's own validator, not a semantic proof. Inspect visible changes
+(kedra-lab shot). Reloads run as the user and must not need privilege. A writable
+GUI override can still win over a merged file.
 
 ## Privacy
 
-A local Git object can retain a deleted secret. Exclude credential paths before
-capture; do not rely on later .gitignore, display masking or removal from the
-latest commit. Synthetic secret fixtures are allowed; real secrets never enter
-fixtures/logs, even when reports will later be redacted.
+Only declared files are read. A local Git object can retain a deleted secret:
+review a captured diff before staging; do not rely on later removal. Synthetic
+secret fixtures are allowed; real secrets never enter fixtures or logs.

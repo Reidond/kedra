@@ -99,23 +99,6 @@ omits it. Lab desktop adaptation still runs its normal networked tools layer, an
 is separate from the offline static replay. See [system composition](../../docs/SYSTEM.md)
 and [actual replay evidence](../../../../../.specs/nix-context-replay/verification.md).
 
-The composition-only `native::home_artifact_record` case requires a context
-produced by the current composer with the niri baseline and its artifact record.
-It builds the pre-artifact Linux CLI from pinned source
-`46b4fe2c0d25e3129fc0297ff40d5a43baabed1b` through the existing disposable lab
-builder, then checks old/new state readback in the static System-profile image.
-No caller-supplied old executable is required. The source commit must be available
-locally (`git fetch origin 46b4fe2c0d25e3129fc0297ff40d5a43baabed1b` if absent); the builder needs the normal
-image/dependency network access. The test records the retained source commit and
-binary SHA256 in its `old-cli.json` artifact. It does not rebuild or overlay the
-image under test.
-
-```sh
-KEDRA_LAB_IMAGE=composition:/absolute/context \
-KEDRA_LAB_COMPOSITION_IDENTITY=<independently-retained-identity> \
-cargo test -p kedra-container-tests --test container --locked -- home_artifact_record
-```
-
 For an already cached `ref:` image, BuildKit receives a harness-owned
 `kedra-lab-base:<image-id>` tag because a bare local `sha256:...` in FROM is parsed
 as a Docker Hub image name. The report retains the actual immutable local image ID.
@@ -149,7 +132,7 @@ cargo run -p kedra-container-tests --bin kedra-lab -- up
 |---|---|
 | `shot [label]` | Saves a PNG and JSON source/display/timing receipt to `target/kedra-lab/shots/`; scale comes from actual niri IPC. |
 | `prepare-sync` | Builds/caches the host-native source archiver once per relevant Rust/Cargo/toolchain input. `up` also prepares it. |
-| `sync [--shot LABEL]` | Validates and applies changed niri/Noctalia home files and managed deletions, then optionally captures the result. No Rust build, image pull or reboot in the hot path. |
+| `sync [--shot LABEL]` | Merges the working tree's managed home files into the running account with `sysroot home update`, then optionally captures the result. No Rust build, image pull or reboot in the hot path. |
 | `exec [--root] -- CMD…` | Runs a command in the session, as the test account unless `--root`. |
 | `logs` | Saves the journal, unit, session and process state. |
 | `ls`, `down`, `clean --all` | List and remove harness-owned containers only. Selection is by the `dev.kedra.lab.owner` label. |
@@ -158,26 +141,26 @@ cargo run -p kedra-container-tests --bin kedra-lab -- up
 
 A typical desktop change:
 
-1. Edit `etc/skel/.config/niri/config.kdl` or a Noctalia file.
+1. Edit `etc/skel/.config/niri/config.kdl` or another managed home file.
 2. Run `kedra-lab sync --shot changed` and inspect the PNG.
 3. Open a panel with `kedra-lab exec -- noctalia msg settings-toggle`.
 4. Run `kedra-lab shot settings` and look at the PNG.
 
 Timings on an M2 Pro with OrbStack, cached layers: environment and session ready in about 3–7 s; a full `up` in about 16 s.
 
-Sync manages only image-declared `.config/niri/` and `.config/noctalia/` files in
-the disposable `kedra-test` account. It refuses package/rootfs/target changes and
-guest-edited managed files. GUI overrides remain intact and conflicting setting
-names are reported. Staged configuration is checked by the installed applications;
-Noctalia 5.1 accepts some unknown enum-like strings, so validation is not a claim
-that every setting has its intended visible effect. Inspect the screenshot.
-
-The lab keeps backups and a transaction under
-`~/.local/state/kedra-lab/sync` inside the guest. A subsequent sync recovers an
-interrupted write when current files still match its own writes; it refuses to
-overwrite newer guest edits. This is separate from production `sysroot home`.
-If the source archiver becomes stale, run `prepare-sync` explicitly. Other home
-groups, OS packages and system files require an overlay/full image rebuild.
+Sync stages the working tree's home baselines as a private image root inside the
+disposable `kedra-test` account and runs the production
+`sysroot home update --root` there, so only the files that
+`usr/share/kedra/home-files.toml` declares change. Guest edits are merged, not
+overwritten; a conflict leaves the live file and writes `<file>.kedra-new`
+([managed home files](../../docs/HOME.md)). Each file's declared check runs
+before it is written and its reload afterwards (niri reloads itself; Noctalia
+restarts). Sync refuses package and rootfs changes, including the data file, and
+a removed baseline leaves its live file alone. Validation is not a claim that
+every setting has its intended visible effect: Noctalia accepts some unknown
+enum-like strings with a warning. Inspect the screenshot. If the source archiver
+becomes stale, run `prepare-sync` explicitly. OS packages and system files
+require an overlay or full image rebuild.
 
 Measured local working-tree results on 2026-09-28 (M2 Pro, OrbStack/Docker 29.4.0,
 cached ARM image plus overlay; software rendering): five edit+capture samples had

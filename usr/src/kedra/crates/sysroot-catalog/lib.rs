@@ -4,24 +4,19 @@
 //! An allowlisted source identity authorizes bytes, not an upstream publisher.
 
 pub mod language;
-mod recipes;
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use sysroot_engine::{BuildGraph, Input, Plan};
 
-pub use recipes::{JQ_SOURCE, SQLITE_SOURCE, builtin};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// A package collection lowered from `.kedra` definitions; never read from callers.
+#[derive(Clone, Debug, Serialize)]
 pub struct Catalog {
     pub namespace: String,
-    #[serde(deserialize_with = "unique_packages")]
     pub packages: BTreeMap<String, Package>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Package {
     pub version: String,
     pub summary: String,
@@ -30,22 +25,20 @@ pub struct Package {
     pub recipe: Recipe,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Source {
     pub object: String,
     pub origin: SourceOrigin,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SourceOrigin {
     Archive { url: String, sha256: String },
     Local { description: String },
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Recipe {
     pub graph: BuildGraph,
     pub root: String,
@@ -271,34 +264,4 @@ fn program(value: &str) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn unique_packages<'de, D>(
-    deserializer: D,
-) -> std::result::Result<BTreeMap<String, Package>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct Packages;
-    impl<'de> serde::de::Visitor<'de> for Packages {
-        type Value = BTreeMap<String, Package>;
-        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str("up to 256 uniquely named packages")
-        }
-        fn visit_map<A: serde::de::MapAccess<'de>>(
-            self,
-            mut access: A,
-        ) -> std::result::Result<Self::Value, A::Error> {
-            let mut values = BTreeMap::new();
-            while let Some((key, value)) = access.next_entry()? {
-                if values.len() >= 256 || values.insert(key, value).is_some() {
-                    return Err(serde::de::Error::custom(
-                        "duplicate package or catalog limit exceeded",
-                    ));
-                }
-            }
-            Ok(values)
-        }
-    }
-    deserializer.deserialize_map(Packages)
 }

@@ -124,6 +124,11 @@ if test "$mode" = complete; then
     # Initial-account seeding only; no existing live home is updated here.
     mkdir -p /etc/skel
     cp -a /usr/share/sysroot/home/default/. /etc/skel/
+    # A new account records the baseline it was created from, so its first
+    # `sysroot home update` merges later image changes into its edits.
+    install -d -m 0700 /etc/skel/.local/state/kedra /etc/skel/.local/state/kedra/home \
+        /etc/skel/.local/state/kedra/home/applied
+    cp -a /usr/share/sysroot/home/default/. /etc/skel/.local/state/kedra/home/applied/
 fi
 niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl
 NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \
@@ -134,7 +139,7 @@ rpm -qa | sort > /usr/share/sysroot/packages.txt
 # proof that a repository served identical signed package payloads.
 rpm -qa --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' \
     | LC_ALL=C sort > /usr/share/sysroot/package-material.txt
-sysroot status --json
+sysroot --version
 if test "$mode" = complete; then
     bootc container lint
 fi

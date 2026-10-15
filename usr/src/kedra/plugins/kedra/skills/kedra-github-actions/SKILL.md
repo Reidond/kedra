@@ -27,7 +27,7 @@ Per-target releases (implemented 2026-09-25; release 36617035503 passes both tar
 
 Historical, from the test workflows removed on 2026-10-08 (their drivers remain):
 - Hosted arm64 runners expose no `/dev/kvm`, so test-qemu-arm64.yml booted its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. Main run 36617035132 attempt 2 at `bafd1884` powered off with every security/bootc marker in 300 s.
-- The four x86 VM drivers boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd` and require the guest's `KEDRA_SECUREBOOT_PASS`. The signed-update driver adds a snakeoil-keys refusal case.
+- The x86 VM drivers boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd` and require the guest's `KEDRA_SECUREBOOT_PASS`. The protocol-1 signed-update driver, removed on 2026-10-14, added a snakeoil-keys refusal case.
 - test-container.yml (main run 36617035048 passes both architectures on 2026-09-29) built each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`) and ran every container scenario. The same harness now runs locally and in the release's `validate-candidate` job.
 Image-content and session checks live in container scenarios. No unit/model/mock/doctests or repository scanners.
 

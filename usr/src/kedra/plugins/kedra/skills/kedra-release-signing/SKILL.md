@@ -16,7 +16,8 @@ The owner authorized retiring `utm` on 2026-09-28. The replacement `qemu-arm64`
 authority has fingerprint `80551368…1a515` and its own main-only environment.
 See STATUS for actual first publication/retirement. Never relabel an old signed
 image: target, repository and source are part of its signed identity. Ranks and
-high-water marks are per repository; legacy protocol-1 remains desktop-only.
+high-water marks are per repository. The protocol-1 release-file commands were
+removed on 2026-10-14; `sysroot release key` only fingerprints a public key.
 
 Use the dedicated OS-image authority, separate from SSH keys. The isolated automatic signer runs no checkout, candidate or repository code while private keys are available. There is no human-review/signing gate; main-only environment restrictions, exact current-main/rank checks and strict signature verification remain. Preserve signatures and native OCI digest through copies.
 
@@ -28,7 +29,7 @@ Authentication transfer cache (2026-09-26; Fedora 44 `skopeo-1.22.3-1.fc44` vend
 
 In a local Fedora 44 test against registry 3.1.1, a repeat copy downloaded only the config and signature blobs. Unsigned and wrong-key images were still rejected with `--remove-signatures`. A repeat on 2026-09-26 against registry 3.1.2 deleted the signature attachment of a digest the cache already held. The next copy failed with "Source image rejected: A signature was required, but no signature exists", fetched no blob, and left the cache unchanged. A cached digest is never trusted without its current registry signature. Code: `usr/src/kedra/crates/sysroot-helper/management/{ghcr,oci_cache}.rs`. VM coverage: `usr/src/kedra/tests/vm/ghcr-update`.
 
-Changed inputs require a signed image before stable advances. No-change publishes nothing and does not renew checkpoints. The owner confirmed on 2026-09-13 that nobody installed r1/r2 (usr/src/kedra/docs/STATUS.md); legacy migration is not a publication or installation prerequisite. Retained compatibility verification must still refuse unresolved state and preserve hold, journals and high-water.
+Changed inputs require a signed image before stable advances. No-change publishes nothing and does not renew checkpoints. The owner confirmed on 2026-09-13 that nobody installed r1/r2 (usr/src/kedra/docs/STATUS.md); legacy migration is not a publication or installation prerequisite. Verification must still refuse unknown or corrupt state and preserve hold, journals and high-water.
 
 Retain known-good digests/signatures. Rollback holds forward updates and preserves persistent data. Key rotation needs actual qualification. Container signatures do not establish Secure Boot.
 

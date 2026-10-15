@@ -1587,6 +1587,3 @@ fn executor_and_recovery_pin_the_connection_across_private_context_changes() {
     sentinel.assert_alive();
     f.store("verify", &store, &["--object", &built]).json();
 }
-
-#[path = "reuse.rs"]
-mod reuse;

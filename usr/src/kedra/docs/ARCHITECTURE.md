@@ -4,9 +4,9 @@ Kedra is a personal Fedora 44 bootc OS. `sysroot` is the CLI; a narrow image-ins
 
 ## Source and ownership
 
-The repository root is the image's Linux filesystem. Shared payload is root `etc/` and `usr/` except `usr/src/`, with `etc/skel/` as the home baseline; it is resolved before the explicit target overlay `usr/src/kedra/image/targets/<target>/` (`etc/`, `usr/`, and `etc/skel/` for target home files). Package lists and target declarations also live under `usr/src/kedra/image/`. `usr/src/kedra/` is the development tree and never enters the image. Any other top-level directory apart from dot-directories, any other `usr/src/` content and unexpected files in a target overlay are refused. Retained commits in the earlier layout (`hosts/`, `packages/`, root `home/`) resolve exactly as before, selected per commit; a commit mixing both layouts is refused. Home-review provenance compares layer and home-relative path, so a baseline recorded before the move keeps working. The committed source plan records path provenance and replacement. Root-level files and `.gitkeep` do not become rootfs files. Generated build contexts contain only declared payloads; never copy the whole repository into an image.
+The repository root is the image's Linux filesystem. Shared payload is root `etc/` and `usr/` except `usr/src/`, with `etc/skel/` as the home baseline; it is resolved before the explicit target overlay `usr/src/kedra/image/targets/<target>/` (`etc/`, `usr/`, and `etc/skel/` for target home files). Package lists and target declarations also live under `usr/src/kedra/image/`. `usr/src/kedra/` is the development tree and never enters the image. Any other top-level directory apart from dot-directories, any other `usr/src/` content and unexpected files in a target overlay are refused. Retained commits in the earlier layout (`hosts/`, `packages/`, root `home/`) resolve exactly as before, selected per commit; a commit mixing both layouts is refused. The committed source plan records path provenance and replacement. Root-level files and `.gitkeep` do not become rootfs files. Generated build contexts contain only declared payloads; never copy the whole repository into an image.
 
-`/usr` contains image-owned software, public trust and home baselines. `/etc` follows bootc persistence/merge semantics; `/var` and live home persist across deployments. Root state lives in `/var/lib/sysroot`; private user review state is separate. OS rollback does not rewind home, credentials, persistent databases or personal tools.
+`/usr` contains image-owned software, public trust and home baselines. `/etc` follows bootc persistence/merge semantics; `/var` and live home persist across deployments. Root state lives in `/var/lib/sysroot`; each user's applied home baselines are separate. OS rollback does not rewind home, credentials, persistent databases or personal tools.
 
 ## Release authority
 
@@ -47,15 +47,9 @@ The pinned image-builder manifest receives a native SELinux-labeling stage where
 
 ## Writable home
 
-Live files remain ordinary writable files. Baseline, live content, selected changes, explicit local-only policy, published source receipts and pending recovery are independent state. Never replace this with symlinks, whole-home capture or Git ignore/index flags. Credentials, vault/keyring data, transcripts and caches are excluded before capture.
+Live files remain ordinary writable files. Never replace them with symlinks, whole-home capture or Git ignore/index flags. The image declares the managed home files in `/usr/share/kedra/home-files.toml`, each with optional check and reload argv; `sysroot` has no application-specific home code. Only declared files are read, so credentials, vault/keyring data, transcripts and caches stay out unless an entry names them. See [HOME](HOME.md).
 
-Noctalia uses a narrow safe-field projection; niri uses explicitly adopted text paths. Plans bind reviewed content. Application writers are coordinated, files are rechecked, changes are journaled and native reload/start is verified. No conflict markers enter live configuration. Stale plans and unknown/corrupt state refuse safely; recovery can abort, resume or preserve newer current content. Source publication and accepting an installed baseline are separate operations.
-
-The qemu-arm64 composition adapter materializes the public niri main baseline from
-a verified engine single-file source object. An additive image-owned receipt is
-checked only after existing installed source/baseline authority. It adds no desktop
-store or state migration; genuine absence retains old-image loading and unsafe
-present records refuse. The ordinary baseline remains writable after adoption.
+`sysroot home update` merges installed baseline changes into live files with `git merge-file` against the last applied baseline, kept per user in `$XDG_STATE_HOME/kedra/home`. A candidate passes its declared check before an atomic replacement that keeps mode, group and label; reloads follow, and the new baseline is recorded only after all succeeded. A conflict leaves the live file untouched and writes `<file>.kedra-new`; no conflict markers enter live configuration. `sysroot home capture` copies a live file into the checkout's source path for the owner to stage by line; it never commits. Accepting a baseline and publishing to source stay separate operations.
 
 ## Agents and credentials
 

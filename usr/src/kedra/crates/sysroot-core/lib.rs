@@ -1,4 +1,4 @@
-//! Pure release/home models and capability information.
+//! Pure release models and capability information.
 
 /// Reviewed build/runtime compatibility, embedded from the shared repository contract.
 pub mod compatibility;
@@ -6,10 +6,8 @@ pub mod compatibility;
 pub mod deployment;
 /// Identity authenticated by an OCI image signature; independent of legacy release files.
 pub mod image;
-/// Committed source layouts and layout-independent home-baseline provenance.
+/// Committed source layouts.
 pub mod layout;
-/// Narrow Noctalia effective-settings review and disposition transitions.
-pub mod noctalia;
 /// Bounded requests shared by the ordinary CLI and the installed helper.
 pub mod protocol;
 /// Signed release records, freshness checkpoints and replay validation.
@@ -54,10 +52,9 @@ pub const STATUS_JSON: &str = r#"{
       "requires": ["installed Kedra helper and trust", "administrator authorization", "enrollment for stage and rollback"]
     },
     "home": {
-      "implemented": true, "platform": "linux",
-      "noctalia_fields": ["theme.mode", "shell.button_borders", "shell.input_borders"],
-      "niri_file": ".config/niri/config.kdl",
-      "requires": ["ordinary user", "installed baselines", "explicit adoption for managed changes", "qualified native applications for activation", "source checkout for export and niri reconciliation"]
+      "implemented": true, "platform": "linux", "operations": ["status", "capture", "update"],
+      "managed_files": "/usr/share/kedra/home-files.toml",
+      "requires": ["ordinary user", "installed baselines", "Git", "source checkout for capture"]
     },
     "agent_launchers": {
       "implemented": true, "platform": "linux", "agents": ["codex", "claude"],
@@ -81,7 +78,7 @@ pub const STATUS_JSON: &str = r#"{
   "qualification": {
     "complete": false,
     "scope": "recorded_project_evidence",
-    "broader_home_groups": "incomplete",
+    "home_files": "implemented_not_qualified",
     "codex_bundled_runtime": "native_vm_pass",
     "claude_bundled_runtime": "not_packaged_pending_owner_terms",
     "agent_authentication": "not_qualified",

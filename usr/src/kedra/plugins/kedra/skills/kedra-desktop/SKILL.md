@@ -38,15 +38,15 @@ Earlier display/GPU context is not a live hardware probe.
 Measured 2026-09-27 (niri 26.04, Noctalia 5.1.0, OrbStack 2.2.3 on an M2 Pro): the real session renders in a container. The harness README has the details (usr/src/kedra/tests/container).
 
 - **How it runs.** `kedra-session` starts through the greetd PAM service with `PAMName=greetd`, which gives a real logind session. niri runs nested through its winit backend: `niri --session` drops `WAYLAND_DISPLAY` unless `WSL_DISTRO_NAME` is set (src/main.rs, v26.04). The parent is a headless sway (pixman). Rendering is llvmpipe; Noctalia, GTK 3/4, Qt and Electron (Bitwarden) render.
-- **Screenshots.** `kedra-lab up`, edit supported niri/Noctalia defaults in etc/skel, then `kedra-lab sync --shot changed`. `up` prepares the host source archiver; a stale one requires `prepare-sync`. Sync validates first, preserves guest edits/GUI overrides and tracks managed deletions; it does not compile Rust. PNG receipts read actual niri output scale and identify image/home source. The default output is 2560×1600 at scale 2, set by niri IPC. Show the owner the PNGs.
+- **Screenshots.** `kedra-lab up`, edit managed home defaults in etc/skel, then `kedra-lab sync --shot changed`. `up` prepares the host source archiver; a stale one requires `prepare-sync`. Sync runs `sysroot home update --root` over the working tree's baselines, so guest edits merge and each file's declared check and reload run; it does not compile Rust. PNG receipts read actual niri output scale and identify image/home source. The default output is 2560×1600 at scale 2, set by niri IPC. Show the owner the PNGs.
 - **Input.** niri's virtual keyboard reaches foot, GTK 3 (wlrctl's standard keymap only) and GTK 4 (wtype, which sends a real Return). Xwayland (xwayland-satellite) and Qt 6.11 clients received no key events. A nested niri reads raw keycodes with its own keymap, so wtype through the parent compositor types wrong characters. Keyboard-driven Qt/Xwayland checks stay in the VM.
 - **Not the hardware.** Container screenshots show layout, theme and palette, not GPU, scaling-on-hardware or accessibility behavior. The kernel, uptime and hardware sensors are the host's.
 
 Measured 2026-09-28: Noctalia 5.1's `config validate` accepts an unknown
 `theme.mode` string, even with an explicit directory. Malformed TOML is rejected.
-The sync helper uses an explicit staging directory and captures native errors;
-inspect the effective rendering instead of treating validator success as semantic
-proof. Evidence: WL-20260928-04 and `usr/src/kedra/tests/container/lab/probes/sync-home.py`.
+Noctalia 5.2.1 still only warns (exit0) for an unknown enum value (2026-10-14).
+Inspect the effective rendering instead of treating validator success as semantic
+proof. Evidence: WL-20260928-04, WL-20261014-HOME-FILES-01 and usr/src/kedra/docs/HOME.md.
 Native QEMU renderer/scanout evidence is recorded below; `vm tools check` still
 only inspects prerequisites and never infers GPU qualification from readiness.
 
@@ -77,8 +77,8 @@ v4 Quickshell/JSON commands are not interchangeable. Check the installed major
 version first. Read references/noctalia.md for the proposed narrow projection.
 Noctalia 5.0.1 native full-export/IPC projection passes R07 run 34179189185 at
 d74c4c0 (2026-09-08). The safe three-field model rejects unqualified versions and
-missing/malformed selected fields before persistence; see usr/src/kedra/docs/HOME-REVIEW.md.
-The full export remains transient. Native activation separately coordinates writers.
+missing/malformed selected fields before persistence. That projection was retired on
+2026-10-14 in favor of data-driven managed files (usr/src/kedra/docs/HOME.md).
 Do not decide a Git config update succeeded while a writable override still wins.
 Review/export only selected safe settings, not the entire state tree.
 

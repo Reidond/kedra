@@ -1,21 +1,38 @@
 #!/usr/bin/env bash
-# Disposable Actions only. The ghcr.io hostname is bound to this runner's local registry.
+# Disposable x86_64 Linux host with KVM only: this binds the ghcr.io hostname to
+# a local registry and installs its test CA. From the repository root, after
+# `cargo build --workspace --release --locked`:
+#   bash usr/src/kedra/tests/vm/ghcr-update/run.sh --disposable-host --work NEW_DIRECTORY
 set -euo pipefail
-test "${GITHUB_ACTIONS:-}" = true
-test "${RUNNER_OS:-}" = Linux
-test "${GITHUB_REPOSITORY:-}" = Reidond/kedra
-root="$RUNNER_TEMP/kedra-ghcr"
-private="$RUNNER_TEMP/kedra-ghcr-private"
+# set -e ignores a failed test before the last one in an && list, so every
+# precondition below exits explicitly before the guard or any host change.
+if test "$#" -ne 3 || test "$1" != --disposable-host || test "$2" != --work; then
+    echo 'usage: run.sh --disposable-host --work NEW_DIRECTORY' >&2
+    exit 2
+fi
+uv run usr/src/kedra/tests/common/qemu.py guard --disposable-host
+if test "$(uname -m)" != x86_64 || test ! -r /dev/kvm || test ! -w /dev/kvm; then
+    echo 'run.sh needs an x86_64 host with KVM access for the invoking user' >&2
+    exit 1
+fi
+if test ! -x target/release/sysroot || test ! -x target/release/sysroot-helper; then
+    echo 'Build first: cargo build --workspace --release --locked' >&2
+    exit 1
+fi
+mkdir -m 0700 "$3"
+work=$(realpath -e "$3")
+root="$work/kedra-ghcr"
+private="$work/kedra-ghcr-private"
 mkdir "$root" "$private"
 chmod 0700 "$private"
-mkdir -p "$root/context" "$root/image" "$root/cases" output/ghcr-evidence
-evidence="$PWD/output/ghcr-evidence"
+mkdir -p "$root/context" "$root/image" "$root/cases" "$work/evidence"
+evidence="$work/evidence"
 controller_pid=
 cleanup() {
     if test -n "$controller_pid"; then kill "$controller_pid" 2>/dev/null || true; wait "$controller_pid" 2>/dev/null || true; fi
     sudo podman logs kedra-ghcr-registry > "$evidence/registry.log" 2>&1 || true
     sudo podman stop kedra-ghcr-registry >/dev/null 2>&1 || true
-    test "$private" = "$RUNNER_TEMP/kedra-ghcr-private" && rm -rf -- "$private"
+    test "$private" = "$work/kedra-ghcr-private" && rm -rf -- "$private"
 }
 trap cleanup EXIT
 base=$(uv run usr/src/kedra/tests/common/resolve-fedora-base.py --output "$evidence/base-resolution.json")
@@ -35,9 +52,9 @@ done
 openssl req -x509 -newkey rsa:3072 -nodes -days 1 -subj /CN=ghcr.io \
     -addext subjectAltName=DNS:ghcr.io,IP:127.0.0.1 -keyout "$private/tls.key" -out "$root/context/tls.crt" \
     2> "$evidence/tls-generation.log"
-uv run usr/src/kedra/tests/vm/ghcr-update/prepare.py
+uv run usr/src/kedra/tests/vm/ghcr-update/prepare.py --root "$root" --source-revision "$(git rev-parse --verify 'HEAD^{commit}')"
 cp usr/src/kedra/tests/vm/ghcr-update/{Containerfile,variant.Containerfile,check.py,check.service,identity-recovery.py} "$root/context/"
-cp usr/src/kedra/tests/common/console.toml "$root/context/"
+cp usr/src/kedra/tests/common/{console.toml,secure_boot_check.py} "$root/context/"
 cp target/release/sysroot "$root/context/sysroot"
 cp target/release/sysroot-helper "$root/context/helper"
 sudo mkdir -p /etc/containers/certs.d/ghcr.io /etc/containers/registries.d
@@ -59,7 +76,7 @@ sudo podman build --pull=never --build-arg "BASE_IMAGE=$base" --tag localhost/ke
     > "$evidence/base-build.log" 2>&1
 sudo podman run --rm --network=none localhost/kedra-ghcr:base rpm -qa \
     --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' > "$root/package-material.txt"
-uv run usr/src/kedra/tests/vm/ghcr-update/prepare.py finalize
+uv run usr/src/kedra/tests/vm/ghcr-update/prepare.py --root "$root" finalize
 for variant in A B C E U W R N T X H M; do
     identity=$(cat "$root/context/$variant/image-identity.json")
     sudo podman build --pull=never --build-arg "KEDRA_IDENTITY=$identity" --build-arg "VARIANT=$variant" \
@@ -84,14 +101,14 @@ sudo skopeo inspect --raw "docker://ghcr.io/reidond/kedra-desktop:$signature_tag
 attachment_digest=$(skopeo manifest-digest "$evidence/removed-signature-manifest.json")
 curl --silent --show-error --fail --cacert "$root/context/tls.crt" -X DELETE \
     "https://127.0.0.1/v2/reidond/kedra-desktop/manifests/$attachment_digest"
-uv run python - <<'PY'
-import json, os, pathlib
-root=pathlib.Path(os.environ['RUNNER_TEMP'])/'kedra-ghcr'
+uv run python - "$root" "$evidence" <<'PY'
+import json, pathlib, sys
+root, evidence = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 cases={'schema_version':1,'digests':{v:(root/(v+'.digest')).read_text().strip() for v in 'A B C E U W R N T X H M'.split()}}
 (root/'cases/cases.json').write_text(json.dumps(cases,indent=2)+'\n')
-pathlib.Path('output/ghcr-evidence/cases.json').write_text(json.dumps(cases,indent=2)+'\n')
+(evidence/'cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 PY
-uv run usr/src/kedra/tests/vm/ghcr-update/control.py > "$evidence/controller.log" 2>&1 &
+uv run usr/src/kedra/tests/vm/ghcr-update/control.py --root "$root" > "$evidence/controller.log" 2>&1 &
 controller_pid=$!
 sleep 1
 curl --silent --show-error --fail -X POST http://127.0.0.1:18080/A
@@ -107,32 +124,32 @@ mapfile -t disks < <(find "$root/image" -type f -name '*.qcow2')
 test "${#disks[@]}" -eq 1
 truncate -s 16M "$root/cases.raw"
 mkfs.ext4 -q -L KEDRA_GHCR_CASES -d "$root/cases" "$root/cases.raw"
+uv=$(command -v uv)
+# Negative UEFI Secure Boot case on the same disk (snapshot, no network): the
+# same firmware with a db trusting only Ubuntu's snakeoil test key must refuse
+# Fedora's Microsoft-signed shim and remain at its boot menu for 120 s.
+sudo "$uv" run usr/src/kedra/tests/common/qemu.py refuse --disposable-host --accelerator kvm \
+    --disk "${disks[0]}" --work "$root/vm-untrusted-keys" --serial "$evidence/untrusted-keys.serial.log" \
+    --timeout 120 > "$evidence/untrusted-keys-result.json"
 # Microsoft-enrolled UEFI Secure Boot variables persist across the three boots
-# (shim's fallback may add a boot entry and reset once; no -no-reboot).
-uv run usr/src/kedra/tests/common/secure_boot.py vars --template microsoft --output "$root/OVMF_VARS.fd"
+# (shim's fallback may add a boot entry and reset once). The shared launcher
+# creates them on the first boot and verifies their trust around every boot.
 for phase in A B ROLLBACK; do
-    uv run usr/src/kedra/tests/common/secure_boot.py verify --vars "$root/OVMF_VARS.fd"
-    sudo timeout 2400 qemu-system-x86_64 -machine q35,smm=on,accel=kvm -cpu host -smp 2 -m 4096 \
-        -global driver=cfi.pflash01,property=secure,value=on \
-        -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
-        -drive "if=pflash,format=raw,unit=1,file=$root/OVMF_VARS.fd" \
-        -drive "file=${disks[0]},if=virtio,format=qcow2" \
-        -drive "file=$root/cases.raw,if=virtio,format=raw,readonly=on" \
-        -nic user,model=virtio-net-pci -display none -serial stdio -monitor none > "$evidence/$phase.serial.log" 2>&1
-    # `! grep` never trips errexit; refuse a failure marker explicitly.
-    if grep -q KEDRA_GHCR_FAIL "$evidence/$phase.serial.log"; then exit 1; fi
-    grep -q KEDRA_SECUREBOOT_PASS "$evidence/$phase.serial.log"
-    grep -q "KEDRA_GHCR_${phase}_PASS" "$evidence/$phase.serial.log"
+    sudo "$uv" run usr/src/kedra/tests/common/qemu.py boot --disposable-host --architecture x86_64 \
+        --accelerator kvm --disk "${disks[0]}" --data-disk "$root/cases.raw" --vars "$root/OVMF_VARS.fd" \
+        --work "$root/vm-$phase" --serial "$evidence/$phase.serial.log" --network --cpus 2 --memory-mib 4096 \
+        --timeout 2400 --require KEDRA_SECUREBOOT_PASS --require "KEDRA_GHCR_${phase}_PASS" \
+        --fail-marker KEDRA_GHCR_FAIL > "$evidence/$phase-result.json"
 done
-printf 'PASS: native v2 enrollment/check/stage/boot/identity recovery/rollback/hold/resume, cached-layer reuse and critical refusals under UEFI Secure Boot.\n' > "$evidence/result.txt"
-uv run python - <<'PY'
-import json,pathlib
-pathlib.Path('output/ghcr-evidence/scope.json').write_text(json.dumps({
+printf 'PASS: native v2 enrollment/check/stage/boot/identity recovery/rollback/hold/resume, cached-layer reuse and critical refusals under UEFI Secure Boot.\n' | tee "$evidence/result.txt"
+uv run python - "$evidence" <<'PY'
+import json,pathlib,sys
+pathlib.Path(sys.argv[1], 'scope.json').write_text(json.dumps({
     'implemented_cases':['enroll/current','unsigned','wrong-key','wrong-repository','missing-signature',
         'wrong-target','wrong-architecture-identity','wrong-channel','malformed-identity','same-rank-equivocation',
         'offline','available','stage','pending-preservation','idempotent-stage','boot-B','lower-rank-replay',
         'identity-health-refusal-and-retained-rollback','boot-A','persistent-data','hold','resume',
-        'uefi-secure-boot-microsoft-keys','first-verification-downloads-every-layer',
+        'uefi-secure-boot-microsoft-keys','untrusted-keys-firmware-refusal','first-verification-downloads-every-layer',
         'repeated-verification-reuses-cached-layers','check-then-stage-reuse','cache-persists-across-reboot',
         'untrusted-cache-discarded-without-following-links','cached-digest-signature-withdrawn'],
     'not_run_cases':['deterministic-tag-race','interrupted-helper-or-bootc-operation','legacy-state-migration',

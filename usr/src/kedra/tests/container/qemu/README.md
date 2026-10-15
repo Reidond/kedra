@@ -3,6 +3,9 @@
 `kedra-lab vm` runs standalone QEMU 11.0.0 with HVF, Cocoa, VirGL and ANGLE's
 Metal backend. It does not use UTM, Apple Events, UTM libraries or VM bundles.
 The signed ARM image identity is `qemu-arm64` / `ghcr.io/reidond/kedra-qemu-arm64`.
+`vm.py` builds its Secure Boot machine, QMP session and owned processes with the
+shared VM launcher (`usr/src/kedra/tests/common/qemu.py`), the same one the Linux
+boot-level drivers use, here with HVF and the private runtime's firmware.
 
 The runtime and first disposable disk are prepared once. A running desktop stays
 available for manual use, guest commands, screenshots and validated home sync.
@@ -32,6 +35,16 @@ target/debug/kedra-lab vm image --image stable --overlay worktree
 # Use the image.json path printed by the previous command:
 target/debug/kedra-lab vm up --name desktop --image /absolute/path/to/image.json
 ```
+
+Known gap (observed 2026-10-14): an ordinary fixture of a signed image such as
+`stable` fails at disk installation with `A signature was required, but no
+signature exists`, because the image's inherited `enforce-container-sigpolicy`
+refuses the unsigned fixture and only the native path signs its fixture. Use the
+unsigned full local build, `vm image --image build --overlay none`, until the
+ordinary path signs too. That build compiles in the engine-wide
+`kedra-lab-target-aarch64` Cargo volume at the fixed `/snapshot` path, so a
+newer build from another checkout can be reused for older sources (observed as
+a `sysroot` compile error); an isolated engine avoids it.
 
 A prepared runtime is reused after its receipts/hashes pass. Preparation installs
 no Homebrew tools: Xcode (including its Metal component), Ninja, pkg-config,
@@ -80,6 +93,7 @@ target/debug/kedra-lab vm exec --name desktop -- noctalia msg settings-toggle
 target/debug/kedra-lab vm key --name desktop meta_l ret
 target/debug/kedra-lab vm shot --name desktop settings
 target/debug/kedra-lab vm logs --name desktop
+target/debug/kedra-lab vm check --name desktop
 target/debug/kedra-lab vm status --name desktop
 target/debug/kedra-lab vm down --name desktop
 # Only for a stuck VM; may interrupt guest writes:
@@ -87,6 +101,15 @@ target/debug/kedra-lab vm down --name desktop --force
 # Deletes only this stopped disposable instance, including its disk and keys:
 target/debug/kedra-lab vm remove --name desktop
 ```
+
+`vm check` requires the pass of the shared guest Secure Boot check
+(`usr/src/kedra/tests/common/secure_boot_check.py`) for the running boot. The lab
+fixture's root `kedra-lab-secure-boot.service` runs it at boot with
+`--boot-entry shimaa64.efi` and publishes `/run/kedra-lab/secure-boot.json`; `vm
+check` reads that file over the pinned SSH transport as the test account, refuses
+a result from another boot, and prints it. The same unit copies its result lines
+to the PL011 serial console, so a headless Linux boot of the same disk through
+`qemu.py boot --until-markers --require KEDRA_SECUREBOOT_PASS` sees the marker.
 
 Use the existing `kedra-lab up` / `shot` container workflow for explicitly software
 rendered diagnostics. Native VMs always require the qualified Cocoa/Metal path and

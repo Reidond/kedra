@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Fixed native-material observer; runs only in the fixture image or VM guest."""
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -224,24 +225,21 @@ def boot_artifacts(value):
             'initrd_journal': initrd_journal, 'loaded_modules': drivers}
 
 
+def shared_secure_boot_check():
+    """The one guest Secure Boot check the lab tools layer installs beside this observer."""
+    path = Path('/usr/libexec/kedra-lab/secure-boot-check.py')
+    regular(path)
+    specification = importlib.util.spec_from_file_location('kedra_secure_boot_check', path)
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
 def boot_observation(value):
     result = image_observation(value, installed=True)
     result['boot_id'] = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     result['boot_artifacts'] = boot_artifacts(value)
-    require(run(['/usr/bin/mokutil', '--sb-state']).strip() == 'SecureBoot enabled', 'Secure Boot disabled')
-    variables = Path('/sys/firmware/efi/efivars')
-    for name, expected in (('SecureBoot', 1), ('SetupMode', 0)):
-        data = (variables / (name + '-8be4df61-93ca-11d2-aa0d-00e098032b8c')).read_bytes()
-        require(len(data) == 5 and data[4] == expected, 'unexpected EFI ' + name)
-    lockdown = Path('/sys/kernel/security/lockdown').read_text().strip()
-    require('[integrity]' in lockdown or '[confidentiality]' in lockdown, 'kernel lockdown disabled')
-    kernel_log = run(['/usr/bin/journalctl', '-k', '-b', '--no-pager', '-o', 'cat', '--grep', 'secureboot: Secure boot enabled'])
-    require('secureboot: Secure boot enabled' in kernel_log.splitlines(), 'kernel Secure Boot evidence absent')
-    firmware = run(['/usr/sbin/efibootmgr', '-v'])
-    current = re.search(r'^BootCurrent: ([0-9A-Fa-f]{4})$', firmware, re.MULTILINE)
-    require(current is not None, 'firmware BootCurrent absent')
-    require(re.search(r'^Boot' + current[1] + r'[* ].*shimaa64\.efi', firmware, re.MULTILINE | re.IGNORECASE),
-            'firmware did not select the Fedora shim entry')
+    secure_boot = shared_secure_boot_check().check(boot_entry='shimaa64.efi')
     require(run(['/usr/sbin/getenforce']).strip() == 'Enforcing', 'SELinux is not enforcing')
     selinux = run(['/usr/sbin/sestatus'])
     require(re.search(r'^Loaded policy name:\s+targeted$', selinux, re.MULTILINE), 'unexpected SELinux policy')
@@ -264,7 +262,8 @@ def boot_observation(value):
         'exit': avcs.returncode, 'stdout': avcs.stdout.decode(), 'stderr': avcs.stderr.decode(),
         'complete': avcs.returncode == 0 or avcs.returncode == 1 and not avcs.stdout and not avcs.stderr,
     }
-    result.update(secure_boot=True, lockdown=lockdown, firmware=firmware, selinux=selinux, bootc=status,
+    result.update(secure_boot=True, lockdown=secure_boot['lockdown'], firmware=secure_boot['efibootmgr'],
+                  selinux=selinux, bootc=status,
                   release_trust='disposable fixture signature admission; no production release authority')
     return result
 

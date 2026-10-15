@@ -68,6 +68,8 @@ def main():
                  'resume-arm64.py', 'run-arm64.sh', 'prepare-install-arm64.py', 'boot-arm64.py', 'marker_input.py',
                  'installer_stages.py'):
         material['recipes']['fixture/' + name] = m.sha(Path(__file__).with_name(name).read_bytes())
+    material['recipes']['fixture/secure_boot_check.py'] = m.sha(
+        (ROOT / 'usr/src/kedra/tests/common/secure_boot_check.py').read_bytes())
     observer_hash = m.sha((ROOT / 'usr/src/kedra/tests/container/qemu/boot-check.py').read_bytes())
     material['recipes']['fixture/native-observer.py'] = observer_hash
     material_bytes = write('resolved-inputs.json', material)

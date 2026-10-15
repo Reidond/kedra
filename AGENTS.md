@@ -263,9 +263,13 @@ Disposable VM tests remain for what a container cannot host: firmware and
 Secure Boot, SELinux enforcement, VT/greetd password login and PAM keyring
 unlock, bootc switch/update/rollback, the installer, and clients that receive no
 virtual-keyboard input in the nested session (Xwayland, Qt). They run locally on a
-disposable Linux host with KVM or through `kedra-lab vm`; the drivers under
-`usr/src/kedra/tests/vm/` were written for hosted Ubuntu runners and may need
-their runner variables (`RUNNER_TEMP`, `GITHUB_RUN_ID`) set. When changing niri,
+disposable Linux host with KVM (TCG for aarch64 without it) or, for the aarch64
+Secure Boot boot and guest check, through `kedra-lab vm` and `vm check`. Every
+driver under `usr/src/kedra/tests/vm/` uses the shared launcher and guest Secure
+Boot check in `usr/src/kedra/tests/common/` and requires `--disposable-host`; the
+launcher refuses a host with bootc, ostree or Kedra state by inspecting paths and
+the kernel command line, never by calling bootc. Never pass `--disposable-host`
+on a workstation. See `usr/src/kedra/tests/README.md`. When changing niri,
 Noctalia or other visible desktop configuration, check it with `kedra-lab up`,
 `kedra-lab sync` and `kedra-lab shot`, and show the owner the screenshots.
 

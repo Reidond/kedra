@@ -18,6 +18,8 @@ RUN /usr/bin/python3 -I /usr/libexec/kedra-lab/boot-check restore
 COPY seed.py /usr/libexec/kedra-lab/seed
 COPY seed.service /usr/lib/systemd/system/kedra-lab-seed.service
 COPY boot-check.service /usr/lib/systemd/system/kedra-lab-boot-check.service
+COPY secure-boot.service /usr/lib/systemd/system/kedra-lab-secure-boot.service
+COPY secure_boot_check.py /usr/libexec/kedra-lab/secure-boot-check.py
 COPY session-start /usr/libexec/kedra-lab/session-start
 COPY test-profile.toml /etc/skel/.config/noctalia/zz-research.toml
 COPY probes/ /usr/libexec/kedra-lab/probes/
@@ -32,7 +34,7 @@ RUN chmod 0755 /usr/libexec/kedra-lab/seed /usr/libexec/kedra-lab/session-* /usr
     printf '[Unit]\nRequires=kedra-lab-seed.service\nAfter=kedra-lab-seed.service\n' > /usr/lib/systemd/system/sshd.service.d/90-kedra-lab.conf && \
     mkdir -p /usr/lib/systemd/user/niri.service.d && \
     printf '[Service]\nEnvironment=RUST_LOG=niri=debug,smithay=debug\n' > /usr/lib/systemd/user/niri.service.d/90-kedra-lab-diagnostics.conf && \
-    systemctl enable sshd.service kedra-lab-seed.service kedra-lab-boot-check.service && \
+    systemctl enable sshd.service kedra-lab-seed.service kedra-lab-boot-check.service kedra-lab-secure-boot.service && \
     /usr/bin/python3 -I /usr/libexec/kedra-lab/boot-check image && bootc container lint
 ARG FIXTURE_REFERENCE=""
 LABEL dev.kedra.lab.fixture-reference=${FIXTURE_REFERENCE}

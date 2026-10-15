@@ -3,7 +3,12 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Closed execution context for the disposable ARM release workflow."""
+"""Closed execution context for the disposable ARM release workflow.
+
+Two modes run it: host, on a disposable aarch64 Linux host admitted by the
+shared --disposable-host guard, and local, inside the dedicated controller
+container (controller.Containerfile) under an owning supervisor.
+"""
 import argparse
 import hashlib
 import json
@@ -14,6 +19,10 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'common'))
+import qemu
 
 ROOT = Path(__file__).resolve().parents[6]
 PROGRAMS = ('sysroot', 'sysroot-helper', 'kedra-lab')
@@ -60,7 +69,7 @@ def validate(value):
     require(type(value['uid']) is int and sys.platform == 'linux' and platform.machine() == 'aarch64'
             and os.getuid() == os.geteuid() == value['uid'] and value['uid'] > 0,
             'The ARM fixture controller must run as an ordinary native Linux ARM user')
-    require(value['mode'] in ('actions', 'local') and re.fullmatch('[a-f0-9]{40}', value['source_revision'])
+    require(value['mode'] in ('host', 'local') and re.fullmatch('[a-f0-9]{40}', value['source_revision'])
             and re.fullmatch('[a-f0-9]{40}', value['fixture_revision']),
             'Invalid fixture mode or source revision')
     if value['retained_candidate'] is None:
@@ -82,49 +91,48 @@ def validate(value):
     binaries = path(value['binaries'])
     require(temporary.is_dir() and binaries.is_dir(), 'Fixture directories are missing')
     require(not evidence.is_relative_to(temporary / 'kedra-ghcr-private'), 'Evidence must be outside private inputs')
-    if value['mode'] == 'actions':
-        require(os.environ.get('GITHUB_ACTIONS') == 'true'
-                and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra'
-                and os.environ.get('GITHUB_SHA') == value['source_revision']
-                and temporary == Path(os.environ['RUNNER_TEMP']).resolve(), 'Actions context differs from dispatch')
-    else:
-        require(os.environ.get('GITHUB_ACTIONS') != 'true', 'Local fixture mode is separate from Actions')
+    # Either mode refuses a workstation, including a bootc host seen from a container.
+    refusal = qemu.disposable_host_refusal(True)
+    require(refusal is None, 'Refusing this host: ' + str(refusal))
+    if value['mode'] == 'local':
         info = MARKER.lstat()
         require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
                 and info.st_mode & 0o022 == 0
                 and MARKER.read_bytes() == b'Kedra disposable ARM release controller v1\n'
                 and (Path('/.dockerenv').is_file() or Path('/run/.containerenv').is_file()),
                 'Local fixtures require the dedicated disposable controller container')
-        info = temporary.stat()
-        require(info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o700,
-                'Local runner temp must be owned and mode 0700')
-    environment = {key: item for key, item in os.environ.items() if not key.startswith('GIT_')}
-    environment.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null', GIT_OPTIONAL_LOCKS='0')
-    head = subprocess.check_output(['/usr/bin/git', '--no-replace-objects', '-C', str(ROOT),
-        'rev-parse', '--verify', 'HEAD^{commit}'], env=environment, timeout=30).decode().strip()
-    require(head == value['fixture_revision'], 'Real committed HEAD differs from selected fixture tools')
+    info = temporary.stat()
+    require(info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o700,
+            'Fixture runner temp must be owned and mode 0700')
+    require(head_revision() == value['fixture_revision'], 'Real committed HEAD differs from selected fixture tools')
     require(binary_hashes(binaries) == value['binary_sha256'], 'Selected fixture binaries changed')
     return value
 
 
-def actions_context():
-    require(os.environ.get('GITHUB_ACTIONS') == 'true'
-            and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra', 'Expected a real Actions dispatch')
+def head_revision():
+    environment = {key: item for key, item in os.environ.items() if not key.startswith('GIT_')}
+    environment.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null', GIT_OPTIONAL_LOCKS='0')
+    return subprocess.check_output(['/usr/bin/git', '--no-replace-objects', '-C', str(ROOT),
+        'rev-parse', '--verify', 'HEAD^{commit}'], env=environment, timeout=30).decode().strip()
+
+
+def host_context(args):
+    """The committed checkout on an admitted disposable host; nothing is overridable."""
+    qemu.require_disposable_host(args.disposable_host)
+    require(args.work is not None, '--disposable-host needs --work, a new private directory')
+    work = path(args.work, existing=False)
+    work.mkdir(mode=0o700)
     binaries = ROOT / 'target/release'
-    output = ROOT / 'output'
-    require(not output.is_symlink(), 'Actions output must not be a symlink')
-    output.mkdir(mode=0o700, exist_ok=True)
-    return {'schema_version': 1, 'kind': 'kedra-arm-release-fixture', 'mode': 'actions',
-            'source_revision': os.environ['GITHUB_SHA'], 'fixture_revision': os.environ['GITHUB_SHA'],
+    revision = head_revision()
+    return {'schema_version': 1, 'kind': 'kedra-arm-release-fixture', 'mode': 'host',
+            'source_revision': revision, 'fixture_revision': revision,
             'retained_candidate': None, 'retained_candidate_sha256': None, 'repository': str(ROOT),
-            'runner_temp': str(Path(os.environ['RUNNER_TEMP']).resolve()),
-            'evidence': str(ROOT / 'output/ghcr-arm-evidence'), 'binaries': str(binaries),
+            'runner_temp': str(work), 'evidence': str(work / 'evidence'), 'binaries': str(binaries),
             'binary_sha256': binary_hashes(binaries), 'uid': os.getuid()}
 
 
-def load_context(filename=None):
-    if filename is None:
-        return validate(actions_context())
+def load_context(filename):
+    require(filename is not None, 'Select the fixture context written by fixture.py')
     filename = path(filename)
     info = filename.stat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1
@@ -134,7 +142,7 @@ def load_context(filename=None):
 
 
 def add_context_argument(parser):
-    parser.add_argument('--fixture-context', type=Path, help='Previously selected closed local or Actions fixture context')
+    parser.add_argument('--fixture-context', type=Path, help='Previously selected closed host or local fixture context')
 
 
 def local_operation(args):
@@ -332,6 +340,8 @@ def registry_volume(args):
 
 def argument_parser():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--disposable-host', action='store_true', help='Host mode: this throwaway aarch64 host may be changed')
+    parser.add_argument('--work', type=Path, help='Host mode: new private directory for fixture state and evidence')
     parser.add_argument('--local-fixture', action='store_true')
     parser.add_argument('--source-revision')
     parser.add_argument('--fixture-revision', help='Exact current tools commit when continuing a retained local candidate')
@@ -395,11 +405,13 @@ def local_context(parser, args, selected):
 
 def selected_context(parser, args, selected):
     if args.local_fixture:
+        if args.disposable_host or args.work is not None:
+            parser.error('--local-fixture runs in the controller container; host mode is separate')
         return local_context(parser, args, selected)
     if any(item is not None for item in (*selected, args.fixture_revision, args.retained_candidate,
                                         args.retained_candidate_sha256)):
-        parser.error('Actions defaults cannot be overridden; select explicit local fixture mode')
-    return actions_context()
+        parser.error('Host mode builds the committed checkout; select explicit local fixture mode to override')
+    return host_context(args)
 
 
 def write_context(value):

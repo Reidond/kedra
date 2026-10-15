@@ -13,6 +13,7 @@ COPY source.json /usr/share/sysroot/source.json
 COPY resolved-inputs.json /usr/share/sysroot/resolved-inputs.json
 COPY check.py /usr/libexec/kedra-ghcr-check.py
 COPY identity-recovery.py /usr/libexec/kedra-ghcr-identity-recovery.py
+COPY secure_boot_check.py /usr/libexec/kedra-secure-boot-check.py
 COPY check.service /usr/lib/systemd/system/kedra-ghcr-test.service
 COPY console.toml /usr/lib/bootc/kargs.d/90-kedra-ghcr-test.toml
 COPY install.toml /usr/lib/bootc/install/90-kedra-ghcr-test.toml

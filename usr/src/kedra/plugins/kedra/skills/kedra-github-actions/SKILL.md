@@ -10,7 +10,7 @@ Read usr/src/kedra/docs/UPDATES.md, usr/src/kedra/docs/RELEASES.md and usr/src/k
 Owner decision (2026-10-08): Actions produces releases; testing of changes is local.
 - `release.yml` + reusable `release-target.yml` build, validate, sign and publish OS updates for installed systems (00:00 UTC schedule, image-affecting pushes to main, manual dispatch).
 - `iso.yml` is a full new installer release that the owner dispatches for one target. It builds an ISO from the target's current signed `stable` digest with usr/src/kedra/installer/build-local.py, splits it into parts below 2 GiB and attaches them with PARTS.SHA256SUMS, the builder's unchanged single-line SHA256SUMS (installer/macos/media.py verify requires that format) and installer.json marked `"uploaded": true` to a new GitHub Release tagged `<target>-<digest16>`. It never replaces a release, holds no signing secret and never builds, signs or moves an image. Only the owner dispatches it.
-- `check.yml` and the eight `test-*.yml` workflows were removed (last present at `3e33867`). Changes are tested locally and merge on the `signoff` commit status (AGENTS.md "Local testing and sign-off"; usr/src/kedra/tests/signoff.py). Main's branch protection needs `signoff` as its required status in place of `rust`; that setting is the owner's. The boot-level drivers remain under usr/src/kedra/tests/vm (tests/README.md).
+- `check.yml` and the eight `test-*.yml` workflows were removed (last present at `3e33867`). Changes are tested locally and merge on the `signoff` commit status (AGENTS.md "Local testing and sign-off"; usr/src/kedra/tests/signoff.py). Main's branch protection needs `signoff` as its required status in place of `rust`; that setting is the owner's. The boot-level drivers under usr/src/kedra/tests/vm no longer depend on Actions variables: they run on a disposable Linux host behind `--disposable-host`, through the shared launcher usr/src/kedra/tests/common/qemu.py and guest check common/secure_boot_check.py (tests/README.md). Never re-add a check that a driver runs only in Actions.
 - The release build job builds the binaries without repeating the source checks the sign-off covers. `validate-candidate` and the qemu-arm64 installed catalog case still test each exact candidate before signing, because nightly refreshes produce images no sign-off saw.
 - `release-target.yml` is hashed into resolved-input recipes (usr/src/kedra/image/release/material.py), so editing it rebuilds each target once.
 
@@ -27,7 +27,7 @@ Per-target releases (implemented 2026-09-25; release 36617035503 passes both tar
 
 Historical, from the test workflows removed on 2026-10-08 (their drivers remain):
 - Hosted arm64 runners expose no `/dev/kvm`, so test-qemu-arm64.yml booted its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. Main run 36617035132 attempt 2 at `bafd1884` powered off with every security/bootc marker in 300 s.
-- The x86 VM drivers boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd` and require the guest's `KEDRA_SECUREBOOT_PASS`. The protocol-1 signed-update driver, removed on 2026-10-14, added a snakeoil-keys refusal case.
+- The x86 VM drivers boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd` and require the guest's `KEDRA_SECUREBOOT_PASS`. The protocol-1 signed-update driver, removed on 2026-10-14, added a snakeoil-keys refusal case; that case now runs as `qemu.py refuse` in ghcr-update's run.sh. Since 2026-10-14 the machine comes from the shared launcher and the marker from the shared guest check.
 - test-container.yml (main run 36617035048 passes both architectures on 2026-09-29) built each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`) and ran every container scenario. The same harness now runs locally and in the release's `validate-candidate` job.
 Image-content and session checks live in container scenarios. No unit/model/mock/doctests or repository scanners.
 
@@ -36,9 +36,10 @@ run 36617035132 attempt 1 froze PID 1 at guest 113.669 s, before the observer
 started, then consumed the full 90-minute bound. The serial line
 `systemd[1]: Freezing execution.` is a fatal boot outcome, not readiness.
 The same SHA, firmware and package closure pass in attempt 2; retain both
-artifacts rather than rewriting the first failure. `tests/vm/qemu-arm64/boot.sh`
-now detects that exact fatal line every 2 s, preserves it and terminates the
-owned timeout/QEMU process before failing. There is no automatic retry and all
+artifacts rather than rewriting the first failure. The shared launcher's
+`qemu.watch` (used by tests/vm/qemu-arm64/run.py and `qemu.py boot`, formerly
+`boot.sh`) detects that exact fatal line every 2 s and stops the owned QEMU
+process group before failing. There is no automatic retry and all
 Secure Boot, SELinux, bootc, unit and digest assertions remain required.
 
 Local installer changes retain pinned image-builder, labeling, offline payload verification and deliberate disk choice. Media permissive SELinux never weakens installed enforcing SELinux/signature policy. Record actual local smoke/fresh-install results separately from image builds.

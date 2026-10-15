@@ -19,7 +19,6 @@ import signal
 import subprocess
 import sys
 import time
-import uuid
 from pathlib import Path
 
 from fixture import add_context_argument, load_context
@@ -137,80 +136,28 @@ def main():
     for name in ('sysroot', 'sysroot-helper', 'kedra-lab'):
         shutil.copyfile(Path(fixture['binaries']) / name, binaries / name)
         (binaries / name).chmod(0o500)
-    resolution = work / 'resolution'
-    resolution.mkdir(mode=0o700)
-    nonce = uuid.uuid4().hex
-    resolver = {'schema_version': 1, 'name': 'kedra-release-resolver-' + nonce,
-                'invocation': nonce, 'id': None}
-    resolver_path = work / 'resolver.json'
-    resolver_path.write_bytes(m.canonical(resolver))
-    podman = ['/usr/bin/sudo', '--non-interactive', '/usr/bin/podman']
-    absent = run('resolver-name-absence', [*podman, 'container', 'exists', resolver['name']],
-                 timeout=30, accepted=(0, 1))
-    m.require(absent.returncode == 1, 'Resolver name already exists')
-
-    def inspect_resolver():
-        records = m.document(run('inspect-resolver', [*podman, 'container', 'inspect', resolver['name']],
-                                 timeout=30, capture=True).stdout)
-        m.require(isinstance(records, list) and len(records) == 1, 'Unexpected resolver inspection')
-        record = records[0]
-        labels = record.get('Config', {}).get('Labels', {})
-        identifier = record.get('Id', '')
-        m.require(re.fullmatch('[a-f0-9]{64}', identifier)
-                  and record.get('Name') == resolver['name']
-                  and labels.get('dev.kedra.lab.owner') == 'kedra-release-fixture'
-                  and labels.get('dev.kedra.lab.kind') == 'package-resolver'
-                  and labels.get('dev.kedra.lab.invocation') == nonce
-                  and resolver['id'] in (None, identifier), 'Resolver ownership or identity changed')
-        return identifier
-
-    try:
-        created = run('create-resolver', [
-            *podman, 'create', '--pull=always', '--name', resolver['name'],
-            '--label', 'dev.kedra.lab.owner=kedra-release-fixture',
-            '--label', 'dev.kedra.lab.kind=package-resolver',
-            '--label', 'dev.kedra.lab.invocation=' + nonce,
-            '--volume', str(context) + ':/context:ro', '--volume', str(resolution) + ':/resolution',
-            '--entrypoint', '/bin/bash', args.base_image, '-euc',
-            ('tar -xf /context/payload.tar -C /; tar -xf /context/agents.tar -C /; '
-            'tar -xf /context/bitwarden.tar -C /; mkdir -p /usr/libexec/sysroot; '
-            'cp /context/sysroot /usr/bin/sysroot; cp /context/sysroot-helper /usr/libexec/sysroot/helper; '
-            '/bin/bash /context/assemble.sh --resolve-packages'),
-        ], capture=True)
-        resolver['id'] = created.stdout.decode().strip()
-        m.require(re.fullmatch('[a-f0-9]{64}', resolver['id']), 'Invalid created resolver identity')
-        resolver_path.write_bytes(m.canonical(resolver))
-        inspect_resolver()
-        run('resolve-packages', [*podman, 'start', '--attach', resolver['id']])
-    finally:
-        previous = {number: signal.signal(number, signal.SIG_IGN)
-                    for number in (signal.SIGTERM, signal.SIGINT)}
-        cleanup = {**resolver, 'removed': False, 'cleanup_failed': True}
-        try:
-            exists = run('resolver-cleanup-exists', [*podman, 'container', 'exists', resolver['name']],
-                         timeout=30, accepted=(0, 1))
-            if exists.returncode == 0:
-                resolver['id'] = inspect_resolver()
-                resolver_path.write_bytes(m.canonical(resolver))
-                cleanup['id'] = resolver['id']
-                run('remove-resolver', [*podman, 'rm', '--force', '--time', '10', resolver['id']], timeout=30)
-                absent = run('resolver-removed', [*podman, 'container', 'exists', resolver['id']],
-                             timeout=30, accepted=(0, 1))
-                m.require(absent.returncode == 1, 'Resolver still exists after removal')
-            cleanup.update(removed=True, cleanup_failed=False)
-        finally:
-            (work / 'resolver-cleanup.json').write_bytes(m.canonical(cleanup))
-            for number, handler in previous.items():
-                signal.signal(number, handler)
-    run('own-material', ['sudo', 'chown', str(os.getuid()) + ':' + str(os.getgid()),
-                         resolution / 'package-material.txt'])
+    # The release's single package resolution: an RPM lock of fixed-output store
+    # objects, from which the foundation installs offline (image/catalog/install-rpms.sh).
+    store = work / 'store'
+    lock_path = work / 'rpm-lock.json'
+    image = ROOT / 'usr/src/kedra/image'
+    run('resolve-rpm-lock', [binaries / 'sysroot', 'catalog', 'lock', 'resolve',
+                             '--input-root', image / 'packages', '--entry', 'catalog.kedra',
+                             '--lock', 'packages.lock.json', '--target', 'qemu-arm64',
+                             '--target-policy', image / 'package-policy.json', '--base', args.base_image,
+                             '--store', store, '--log-dir', work / 'rpm-resolution', '--output', lock_path],
+        timeout=3600)
     inputs = m.resolved_inputs(ROOT, plan, args.base_image, context, binaries,
-                               m.read(resolution / 'package-material.txt'), 'qemu-arm64')
+                               m.read(lock_path, m.LOCK_LIMIT), 'qemu-arm64')
+    m.require(context.joinpath('install-rpms.sh').is_file(), 'Build context lacks install-rpms.sh')
+    m.require(not context.joinpath('rpms').exists(), 'Build context already has an RPM repository')
+    run('foundation-rpms', [binaries / 'sysroot', 'catalog', 'lock', 'repo', '--store', store,
+                            '--lock', lock_path, '--foundation', '--output', context / 'rpms'], timeout=1800)
     inputs_path = work / 'resolved-inputs.json'
     inputs_path.write_bytes(m.canonical(inputs))
     common = ['--target', 'qemu-arm64', '--repo', ROOT, '--source-revision', source_revision,
               '--inputs', inputs_path, '--expected-inputs-sha256', sha(inputs_path),
-              '--store', work / 'store', '--binaries', binaries]
+              '--store', store, '--binaries', binaries]
     composer = ROOT / 'usr/src/kedra/image/release/compose.py'
     run('foundation', ['uv', 'run', composer, 'foundation', *common,
                        '--diagnostic-output', diagnostics / 'foundation-failure.json',

@@ -25,11 +25,13 @@ import material as m
 FIXTURE_PREFIX = 'usr/src/kedra/tests/vm/ghcr-update/'
 FIXTURE_FILES = frozenset(FIXTURE_PREFIX + name for name in (
     'fixture.py', 'candidate.py', 'resume-arm64.py', 'prepare-arm64.py', 'prepare-install-arm64.py',
-    'boot-arm64.py', 'boot-macos.py', 'macos-transfer.py', 'marker_input.py', 'installer_stages.py',
+    'boot-arm64.py', 'marker_input.py', 'installer_stages.py',
     'run-arm64.sh', 'arm64.Containerfile', 'arm64-variant.Containerfile',
     'controller.Containerfile', 'controller-entrypoint.sh', 'check.py', 'control.py',
     'arm64-check.service', 'identity-recovery.py')) | frozenset((
-        'usr/src/kedra/installer/media/Containerfile',))
+        'usr/src/kedra/installer/media/Containerfile',
+        'usr/src/kedra/tests/common/qemu.py', 'usr/src/kedra/tests/common/secure_boot.py',
+        'usr/src/kedra/tests/common/secure_boot_check.py',))
 DEVELOPMENT_DOCUMENTATION = frozenset((
     'usr/src/kedra/plugins/kedra/.claude-plugin/plugin.json',
     'usr/src/kedra/plugins/kedra/.codex-plugin/plugin.json',

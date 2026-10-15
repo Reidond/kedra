@@ -48,9 +48,11 @@ marker KEDRA_QEMU_ARM64_SECUREBOOT_PASS
 
 # bootc deployment identity for the generated disk.
 evidence bootc status --json
-bootc status --json | jq -e '.status.booted.image.image.image == "localhost/kedra-qemu-arm64-test:secureboot"
-    and .status.booted.image.architecture == "arm64"
+bootc status --json | jq -e '.status.booted.image.architecture == "arm64"
     and .status.staged == null and .status.rollback == null' > /dev/null
+# The host compares this with the signed fixture reference it gave bootc-image-builder.
+image_reference=$(bootc status --json | jq -er .status.booted.image.image.image)
+printf 'KEDRA_QEMU_ARM64_IMAGE_REFERENCE=%s\n' "$image_reference" > "$events"
 jq -e '.target.id == "qemu-arm64" and .target.architecture == "aarch64"' /usr/share/sysroot/source.json > /dev/null
 # The host compares this with the digest of the image it gave bootc-image-builder.
 image_digest=$(bootc status --json | jq -er .status.booted.image.imageDigest)

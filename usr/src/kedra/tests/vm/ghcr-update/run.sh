@@ -4,10 +4,21 @@
 # `cargo build --workspace --release --locked`:
 #   bash usr/src/kedra/tests/vm/ghcr-update/run.sh --disposable-host --work NEW_DIRECTORY
 set -euo pipefail
-test "$#" -eq 3 && test "$1" = --disposable-host && test "$2" = --work
+# set -e ignores a failed test before the last one in an && list, so every
+# precondition below exits explicitly before the guard or any host change.
+if test "$#" -ne 3 || test "$1" != --disposable-host || test "$2" != --work; then
+    echo 'usage: run.sh --disposable-host --work NEW_DIRECTORY' >&2
+    exit 2
+fi
 uv run usr/src/kedra/tests/common/qemu.py guard --disposable-host
-test "$(uname -m)" = x86_64 && test -r /dev/kvm && test -w /dev/kvm
-test -x target/release/sysroot && test -x target/release/sysroot-helper
+if test "$(uname -m)" != x86_64 || test ! -r /dev/kvm || test ! -w /dev/kvm; then
+    echo 'run.sh needs an x86_64 host with KVM access for the invoking user' >&2
+    exit 1
+fi
+if test ! -x target/release/sysroot || test ! -x target/release/sysroot-helper; then
+    echo 'Build first: cargo build --workspace --release --locked' >&2
+    exit 1
+fi
 mkdir -m 0700 "$3"
 work=$(realpath -e "$3")
 root="$work/kedra-ghcr"

@@ -60,8 +60,11 @@ def main():
     try:
         disk.import_candidate(args.candidate, CANDIDATE, evidence)
         disk.build_fixture(work / 'context', FILES, FIXTURE, evidence)
+        # The candidate enforces its signature policy at install: admit the
+        # fixture through a generated key rather than disabling verification.
+        reference, buildroot, _ = disk.sign_fixture(work, FIXTURE)
         password = disk.blueprint(work / 'private')
-        generated = disk.build_disk('amd64', FIXTURE, work)
+        generated = disk.build_disk('amd64', reference, work, build_container=buildroot)
         subprocess.run(['uv', 'run', COMMON / 'secure_boot.py', 'provenance', '--evidence', evidence],
                        check=True, timeout=300)
         # sudo resets PATH; hand root the pinned uv by absolute path. Root opens

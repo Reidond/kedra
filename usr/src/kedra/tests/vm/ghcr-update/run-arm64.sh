@@ -25,7 +25,11 @@ if test "$#" -eq 1 && test "$1" = --help; then
 fi
 test -z "$registry_volume" || [[ "$registry_volume" =~ ^[a-f0-9]{64}$ ]]
 test -z "$registry_volume_created_at" || [[ "$registry_volume_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$ ]]
-test -z "$registry_volume$registry_volume_created_at" || { test -n "$registry_volume" && test -n "$registry_volume_created_at"; }
+# Explicit: set -e ignores a failed test before the last one in an && list.
+if test -n "$registry_volume$registry_volume_created_at" && { test -z "$registry_volume" || test -z "$registry_volume_created_at"; }; then
+    echo '--registry-volume and --registry-volume-created-at are required together' >&2
+    exit 1
+fi
 test -z "$installer_base" || [[ "$installer_base" =~ ^quay[.]io/fedora/fedora-bootc@sha256:[a-f0-9]{64}$ ]]
 if test -n "$registry_volume" && test "$supervised_admission" != true; then
     echo 'Local retained-registry execution requires --supervised-admission and an owning supervisor' >&2

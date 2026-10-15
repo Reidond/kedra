@@ -76,7 +76,7 @@ def command(work, generated, accelerator):
     return argv + ['-device', 'virtio-gpu-pci', '-display', 'none', '-no-reboot']
 
 
-def boot(work, generated, accelerator, digest):
+def boot(work, generated, accelerator, reference, digest):
     evidence = work / 'evidence'
     qemu.create_variables('aarch64', work / 'AAVMF_VARS.fd', boot_entry=qemu.AARCH64_SHIM)
     entries = subprocess.run(['virt-fw-vars', '--input', work / 'AAVMF_VARS.fd', '--print'], check=True,
@@ -88,7 +88,8 @@ def boot(work, generated, accelerator, digest):
     try:
         qemu.wait_for_socket(work / 'qmp.sock', process)
         qemu.watch(process, work / 'qmp.sock', [evidence / 'serial.log', evidence / 'events.log'],
-                   deadline=started + BOUND, required=(*MARKERS, 'KEDRA_QEMU_ARM64_IMAGE_DIGEST=' + digest),
+                   deadline=started + BOUND, required=(*MARKERS, 'KEDRA_QEMU_ARM64_IMAGE_DIGEST=' + digest,
+                                                       'KEDRA_QEMU_ARM64_IMAGE_REFERENCE=' + reference),
                    failures=('KEDRA_QEMU_ARM64_FAIL',))
     finally:
         qemu.stop(process)
@@ -110,12 +111,15 @@ def main():
     try:
         disk.import_candidate(args.candidate, CANDIDATE, evidence)
         contract(evidence)
-        digest = disk.build_fixture(work / 'context', FILES, FIXTURE, evidence)
+        disk.build_fixture(work / 'context', FILES, FIXTURE, evidence)
+        # The candidate enforces its signature policy at install: admit the
+        # fixture through a generated key rather than disabling verification.
+        reference, buildroot, digest = disk.sign_fixture(work, FIXTURE)
         # Headless: the account only lets the observer run doctor as a non-root user.
         disk.blueprint(work / 'private', keep_password=False)
-        generated = disk.build_disk('arm64', FIXTURE, work)
+        generated = disk.build_disk('arm64', reference, work, build_container=buildroot)
         secure_boot.provenance(evidence, 'aarch64')
-        elapsed = boot(work, generated, accelerator, digest)
+        elapsed = boot(work, generated, accelerator, reference, digest)
     finally:
         disk.sanitize(work)
     print(json.dumps({'schema_version': 1, 'target': 'qemu-arm64', 'accelerator': accelerator,

@@ -124,13 +124,14 @@ sysroot setup tpm-unlock             # asks for sudo, then for the current disk 
 Without administrator access, it refuses and changes nothing unless:
 
 - it runs as the ordinary owner, not through sudo, and (except `--dry-run`) from an interactive terminal;
+- for enrolling and `--replace`: exactly one TPM in `/sys/class/tpm` exposes a SHA-256 PCR 7, and its value is not a reset value (all zeros or all F). A reset PCR 7 means the firmware did not measure the Secure Boot state, so a key sealed to it would be bound to nothing;
 - for enrolling and `--replace`: UEFI Secure Boot is enforced (the same firmware check as `sysroot doctor`), because the TPM policy is bound to the Secure Boot state;
 - the kernel command line names exactly one LUKS volume with `rd.luks.uuid=`, and `/dev/disk/by-uuid/<uuid>` exists. The image's initramfs is generic (`--no-hostonly`) and contains no `/etc/crypttab`, so this argument is what unlocks the root at boot, and that volume is the one TPM unlock applies to.
 
 `--dry-run` stops there and prints the two commands below. Otherwise it runs `/usr/bin/sudo -- /usr/bin/systemd-cryptenroll` twice with explicit arguments:
 
 1. `/dev/disk/by-uuid/<uuid>` lists the key slots. It stops unless a passphrase slot exists, so the passphrase always remains as the fallback, and, without `--replace` or `--remove`, if a TPM slot already exists.
-2. `--tpm2-device=auto --tpm2-pcrs=7:sha256 --tpm2-public-key= --tpm2-pcrlock= /dev/disk/by-uuid/<uuid>` enrolls (`--tpm2-with-pin=yes` is added with `--with-pin`). `auto` requires exactly one TPM 2.0. systemd-cryptenroll asks for the current passphrase on your terminal; `sysroot` never reads, stores or passes it. The empty values stop systemd-cryptenroll from also binding a signed-PCR key or pcrlock policy that happens to exist on disk.
+2. `--tpm2-device=auto --tpm2-pcrs=7:sha256 --tpm2-public-key= --tpm2-pcrlock= /dev/disk/by-uuid/<uuid>` enrolls (`--tpm2-with-pin=yes` is added with `--with-pin`). `auto` requires exactly one TPM 2.0 resource manager, the TPM whose PCR 7 the preflight read. systemd-cryptenroll asks for the current passphrase on your terminal; `sysroot` never reads, stores or passes it. The empty values stop systemd-cryptenroll from also binding a signed-PCR key or pcrlock policy that happens to exist on disk.
 
 No `/etc/crypttab` or kernel-argument change is needed. When no key file is configured, systemd-cryptsetup 259 tries every enrolled LUKS2 token through libcryptsetup's token plugins before asking for the passphrase. The base initramfs contains `systemd-cryptsetup`, the `systemd-tpm2` token plugin and the TPM libraries. A key file or explicit options (`rd.luks.key`, `rd.luks.options`) can stop it from trying tokens; the command does not check for them, so if boot keeps asking for the passphrase, look for them in `/proc/cmdline`.
 
@@ -160,4 +161,4 @@ Security scope:
 - In a virtual machine the host keeps the TPM state. Anyone who can read the VM's `tpm/` state can recover the key without the passphrase, the PCR 7 state or a PIN.
 - `sysroot doctor` does not report the enrollment: reading LUKS2 token metadata means opening the block device, which only root can do.
 
-The enrollment, replace and remove arguments were exercised with systemd 259.9 against a software TPM and a generated LUKS2 file, with an explicit `/dev/tpmrm` device rather than `auto`. The current listing, refusal and removal flow was exercised against stand-in `sudo` and `systemd-cryptenroll` in a disposable container. Enrollment through `auto` and boot unlock on native QEMU and on hardware are not yet qualified; see [status](STATUS.md).
+The enrollment, replace and remove arguments were exercised with systemd 259.9 against a software TPM and a generated LUKS2 file, with an explicit `/dev/tpmrm` device rather than `auto`. The current listing, refusal and removal flow was exercised against stand-in `sudo` and `systemd-cryptenroll`, and the PCR 7 refusals against a stand-in `/sys/class/tpm`, in disposable containers. Enrollment through `auto` and boot unlock on native QEMU and on hardware are not yet qualified; see [status](STATUS.md).

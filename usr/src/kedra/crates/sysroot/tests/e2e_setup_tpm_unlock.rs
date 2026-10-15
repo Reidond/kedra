@@ -80,7 +80,15 @@ fn tpm_unlock_refuses_cleanly_before_administrator_access() {
     // A dry run never uses sudo; its read-only preflight decides.
     let enroll = "--tpm2-device=auto --tpm2-pcrs=7:sha256 --tpm2-public-key= --tpm2-pcrlock=";
     let output = tpm_unlock(&["--dry-run"]);
-    if !Path::new("/sys/firmware/efi").exists() {
+    let pcr7 = std::fs::read_dir("/sys/class/tpm").is_ok_and(|mut tpms| {
+        tpms.any(|tpm| tpm.is_ok_and(|tpm| tpm.path().join("pcr-sha256/7").exists()))
+    });
+    if !pcr7 {
+        refused(
+            &output,
+            "sysroot: TPM unlock requires one TPM 2.0 whose SHA-256 PCR 7 holds the firmware's Secure Boot measurement: ",
+        );
+    } else if !Path::new("/sys/firmware/efi").exists() {
         refused(
             &output,
             "sysroot: TPM unlock requires UEFI Secure Boot because the TPM policy is bound to the Secure Boot state (PCR 7): the system was not booted through UEFI firmware.",

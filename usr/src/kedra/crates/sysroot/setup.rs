@@ -97,6 +97,47 @@ mod linux {
         .into())
     }
 
+    /// The TPM `--tpm2-device=auto` uses must show a firmware measurement in SHA-256 PCR 7.
+    /// Sealing to a reset value (all zero or all one bits) would bind the key to no Secure Boot
+    /// state at all. drivers/char/tpm/tpm-sysfs.c exports the bank 0444, in uppercase hex.
+    fn measured_pcr7() -> Result<String, Error> {
+        let refuse = |detail: String| {
+            refusal(format!(
+                "TPM unlock requires one TPM 2.0 whose SHA-256 PCR 7 holds the firmware's Secure Boot measurement: {detail}"
+            ))
+        };
+        let entries = std::fs::read_dir("/sys/class/tpm").map_err(|e| {
+            refuse(if e.kind() == std::io::ErrorKind::NotFound {
+                "no TPM is visible in /sys/class/tpm".into()
+            } else {
+                format!("/sys/class/tpm is unreadable ({e})")
+            })
+        })?;
+        let banks: Vec<(String, String)> = entries
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let value = std::fs::read_to_string(entry.path().join("pcr-sha256/7")).ok()?;
+                let name = entry.file_name().to_string_lossy().into_owned();
+                Some((name, value.trim().to_ascii_uppercase()))
+            })
+            .collect();
+        let [(name, value)] = banks.as_slice() else {
+            return Err(refuse(format!(
+                "{} TPMs expose a SHA-256 PCR 7, not exactly one",
+                banks.len()
+            )));
+        };
+        if value.len() != 64 || !value.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(refuse(format!("{name} reports a malformed PCR 7 value")));
+        }
+        if value.bytes().all(|b| b == b'0') || value.bytes().all(|b| b == b'F') {
+            return Err(refuse(format!(
+                "PCR 7 of {name} is at its reset value, so the firmware did not measure the Secure Boot state"
+            )));
+        }
+        Ok(name.clone())
+    }
+
     /// The LUKS volume the image's initramfs unlocks at boot. It has no /etc/crypttab, so the
     /// only rd.luks.uuid on the kernel command line names the volume TPM unlock applies to.
     fn boot_volume() -> Result<String, Error> {
@@ -225,6 +266,7 @@ mod linux {
             ));
         }
         // Wiping TPM slots needs neither Secure Boot nor the TPM, so revocation always works.
+        let tpm = (!options.remove).then(measured_pcr7).transpose()?;
         let secure_boot = (!options.remove).then(secure_boot).transpose()?;
         let volume = boot_volume()?;
         let mut change: Vec<&str> = if options.remove {
@@ -241,8 +283,9 @@ mod linux {
         }
         change.push(&volume);
 
-        if let Some(state) = secure_boot {
+        if let (Some(state), Some(tpm)) = (secure_boot, tpm) {
             println!("Secure Boot: {state}");
+            println!("TPM:         {tpm}, SHA-256 PCR 7 measured");
         }
         println!("Volume:      {volume} (rd.luks.uuid on the kernel command line)");
         println!(

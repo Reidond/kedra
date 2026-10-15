@@ -70,7 +70,7 @@ pub const STATUS_JSON: &str = r#"{
     "setup": {
       "implemented": true, "platform": "linux", "operations": ["tpm-unlock"],
       "tpm_policy": "pcr7_sha256_optional_pin",
-      "requires": ["ordinary owner at an interactive terminal", "exactly one LUKS volume named by rd.luks.uuid", "a remaining passphrase slot", "administrator authorization", "for enrollment and replacement only: enforced UEFI Secure Boot, one TPM 2.0 and the current disk passphrase"]
+      "requires": ["ordinary owner at an interactive terminal", "exactly one LUKS volume named by rd.luks.uuid", "a remaining passphrase slot", "administrator authorization", "for enrollment and replacement only: one TPM 2.0 with a measured SHA-256 PCR 7, enforced UEFI Secure Boot and the current disk passphrase"]
     },
     "targets": {
       "implemented": true, "platform": "portable",

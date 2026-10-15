@@ -55,7 +55,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', required=True, help='Reviewed REPOSITORY@sha256:... of ' + repositories)
     parser.add_argument('--output-dir', required=True, type=Path, help='New local directory; never overwrite existing output')
-    parser.add_argument('--base-image', help='Explicit reviewed Fedora base digest; needed for legacy images without resolved inputs')
     parser.add_argument('--smoke', action='store_true',
                         help='Also boot the ISO diskless through UEFI Secure Boot and check offline verification/Anaconda startup (requires KVM)')
     args = parser.parse_args()
@@ -71,8 +70,6 @@ def main():
     require(platform.machine() == spec['architecture'],
             f'Build {target_name} media on a native {spec["architecture"]} Linux host, not {platform.machine()}')
     base_pattern = r'quay\.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}'
-    if args.base_image:
-        require(re.fullmatch(base_pattern, args.base_image), 'Invalid reviewed Fedora base digest')
     machine = smoke.MACHINES[spec['architecture']]
     names = ['sudo', 'podman', 'skopeo', 'openssl'] + ([machine['qemu']] if args.smoke else [])
     tools = {name: shutil.which(name, path='/usr/sbin:/usr/bin:/sbin:/bin') for name in names}
@@ -179,15 +176,12 @@ def main():
                 'Signed payload does not enforce initial-install signature policy')
         require((trust / 'registries.yaml').read_text() == 'docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n',
                 'Signed payload attachment discovery differs')
-        if args.base_image:
-            base = args.base_image
-        else:
-            resolved = work / 'resolved-inputs.json'
-            run([tools['sudo'], tools['podman'], 'cp', container + ':/usr/share/sysroot/resolved-inputs.json', resolved])
-            require(resolved.is_file() and not resolved.is_symlink(), 'Signed resolved inputs are not a regular file')
-            run([tools['sudo'], 'chown', '--no-dereference', str(os.getuid()) + ':' + str(os.getgid()), resolved])
-            base = json_file(resolved)['base']
-        require(re.fullmatch(base_pattern, base), 'Signed image does not name an exact Fedora base; use --base-image for legacy media')
+        resolved = work / 'resolved-inputs.json'
+        run([tools['sudo'], tools['podman'], 'cp', container + ':/usr/share/sysroot/resolved-inputs.json', resolved])
+        require(resolved.is_file() and not resolved.is_symlink(), 'Signed resolved inputs are not a regular file')
+        run([tools['sudo'], 'chown', '--no-dereference', str(os.getuid()) + ':' + str(os.getgid()), resolved])
+        base = json_file(resolved)['base']
+        require(re.fullmatch(base_pattern, base), 'Signed image does not name an exact Fedora base')
         for name in ('Containerfile', 'iso.yaml', 'prepare.sh', 'boot-probe.service', 'boot-probe.sh',
                      'anaconda-adapter.py', 'finalize-fstab.py', 'verify-payload.service', 'require-verification.conf'):
             shutil.copyfile(HERE / 'media' / name, context / name)

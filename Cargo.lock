@@ -2391,7 +2391,6 @@ dependencies = [
 name = "sysroot-core"
 version = "0.1.0"
 dependencies = [
- "base64 0.23.1",
  "p256",
  "serde",
  "serde_json",

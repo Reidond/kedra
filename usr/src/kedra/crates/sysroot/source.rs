@@ -204,10 +204,8 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
     plan_committed(repo, host, revision, "committed HEAD only")
 }
 
-/// Committed input paths of one target, in the layout of one commit.
-/// See `sysroot_core::layout`; retained legacy commits keep their old meaning.
+/// Committed input paths of one target. See `sysroot_core::layout`.
 struct Inputs {
-    legacy: bool,
     target: String,
     packages: [String; 2],
     remove: String,
@@ -215,41 +213,17 @@ struct Inputs {
 }
 
 impl Inputs {
-    fn new(tree: &[Entry], host: &str) -> Result<Self, Error> {
-        let legacy = tree.iter().any(|e| {
-            layout::LEGACY_ROOTS
-                .iter()
-                .any(|root| e.path.starts_with(root))
-        });
-        if legacy && tree.iter().any(|e| e.path.starts_with(layout::DEVELOPMENT)) {
-            return Err(invalid(
-                "source mixes the root-filesystem layout with legacy hosts/, packages/ or home/",
-            ));
+    fn new(host: &str) -> Self {
+        let image = layout::IMAGE;
+        Self {
+            target: format!("{image}targets/{host}/target.toml"),
+            packages: [
+                format!("{image}packages.list"),
+                format!("{image}targets/{host}/packages.list"),
+            ],
+            remove: format!("{image}remove.list"),
+            overlay: format!("{image}targets/{host}/"),
         }
-        Ok(if legacy {
-            Self {
-                legacy,
-                target: format!("hosts/{host}/host.toml"),
-                packages: [
-                    "packages/common.list".into(),
-                    format!("hosts/{host}/packages.list"),
-                ],
-                remove: "packages/remove.list".into(),
-                overlay: format!("hosts/{host}/"),
-            }
-        } else {
-            let image = layout::IMAGE;
-            Self {
-                legacy,
-                target: format!("{image}targets/{host}/target.toml"),
-                packages: [
-                    format!("{image}packages.list"),
-                    format!("{image}targets/{host}/packages.list"),
-                ],
-                remove: format!("{image}remove.list"),
-                overlay: format!("{image}targets/{host}/"),
-            }
-        })
     }
 
     /// Payload root (`etc`, `usr` or `home`) and the path below it, for a path
@@ -262,20 +236,6 @@ impl Inputs {
         relative: &'a str,
     ) -> Result<Option<(&'static str, &'a str)>, Error> {
         let directory = |path: &str| invalid(format!("payload root must be a directory: {path}"));
-        if self.legacy {
-            if matches!(relative, "etc" | "usr" | "home") {
-                return Err(directory(path));
-            }
-            return Ok(relative.split_once('/').and_then(|(root, rest)| {
-                let root = match root {
-                    "etc" => "etc",
-                    "usr" => "usr",
-                    "home" => "home",
-                    _ => return None,
-                };
-                Some((root, rest))
-            }));
-        }
         if matches!(relative, "etc" | "usr" | "etc/skel") {
             return Err(directory(path));
         }
@@ -368,7 +328,7 @@ fn package_sets(
     host: &str,
     inputs: &Inputs,
 ) -> Result<PackageSets, Error> {
-    let packages = match crate::source_packages::select(repo, tree, host, inputs.legacy)? {
+    let packages = match crate::source_packages::select(repo, tree, host)? {
         Some(selection) => PackageSets {
             install: selection.packages,
             remove: selection.remove,
@@ -503,7 +463,7 @@ fn plan_committed(
     input_scope: &'static str,
 ) -> Result<Plan, Error> {
     let tree = entries(repo, &revision)?;
-    let inputs = Inputs::new(&tree, host)?;
+    let inputs = Inputs::new(host);
     let target = committed_target(repo, &tree, host, &inputs.target)?;
     let packages = package_sets(repo, &tree, host, &inputs)?;
     let files = payload_files(repo, &tree, &inputs)?;

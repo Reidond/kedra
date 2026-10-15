@@ -55,10 +55,8 @@ authentication remain available. Only bundled Claude receives invocation-local
 update settings. The wrapper never collects or copies login credentials. No
 repository skill collection is installed globally or in these profiles.
 
-`sysroot status --json` schema 2 reports implemented capabilities, their platform
-and runtime requirements, and separate qualification limits. It does not inspect
-installed runtimes, enrollment, home state or credentials, so a checkout build does
-not claim that the selected agent exists or is authenticated on the current machine.
+A checkout build does not claim that the selected agent exists or is
+authenticated on the current machine.
 
 See [verified status](STATUS.md) for remaining qualification and distribution
 prerequisites. Official configuration sources, retrieved 2026-09-08:

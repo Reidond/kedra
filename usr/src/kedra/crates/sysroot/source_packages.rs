@@ -67,12 +67,7 @@ fn read(repo: &Path, tree: &[Entry], path: &str) -> Result<Vec<u8>, Error> {
     Ok(bytes)
 }
 
-pub(crate) fn select(
-    repo: &Path,
-    tree: &[Entry],
-    host: &str,
-    legacy: bool,
-) -> Result<Option<Selection>, Error> {
+pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<Selection>, Error> {
     let descriptor_path = format!("{IMAGE}package-inputs.json");
     let selected = tree.iter().any(|e| e.path == descriptor_path);
     let has_language = tree
@@ -86,14 +81,11 @@ pub(crate) fn select(
         }
         return Ok(None);
     }
-    if legacy
-        || tree.iter().any(|e| {
-            e.path == format!("{IMAGE}packages.list")
-                || e.path == format!("{IMAGE}remove.list")
-                || e.path.starts_with(&format!("{IMAGE}targets/"))
-                    && e.path.ends_with("/packages.list")
-        })
-    {
+    if tree.iter().any(|e| {
+        e.path == format!("{IMAGE}packages.list")
+            || e.path == format!("{IMAGE}remove.list")
+            || e.path.starts_with(&format!("{IMAGE}targets/")) && e.path.ends_with("/packages.list")
+    }) {
         return Err(invalid(
             "source mixes authoritative language and package lists",
         ));

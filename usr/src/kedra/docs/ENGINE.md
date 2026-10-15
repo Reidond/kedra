@@ -15,16 +15,17 @@ admitted `build.sh` resource and runs only inside the existing isolated builder.
 There is no resident daemon, Nix executable, host shell fallback or general
 configuration interpreter.
 
-The legacy typed API remains independently usable. Strict serde JSON `Catalog`
-records and `Catalog::resolve` keep their own explicit reader and policy; CLI
-`--catalog` selects that path. The built-in jq/SQLite Rust catalog is retained
-during migration. At the committed-source boundary, old revisions use the
-package-list reader while a valid `package-inputs.json` selects the `.kedra`
-reader. Selection is versioned and exclusive; a failed new reader never falls
-back to a legacy format.
+`Catalog` is only the lowered form of `.kedra` definitions; `Catalog::resolve`
+applies the caller's exact policy to it. The schema-1 JSON catalog, its
+`--catalog` reader and the built-in jq/SQLite collection were removed on
+2026-10-14, so every `sysroot catalog` selection names `.kedra` inputs. At the
+committed-source boundary, a revision without `package-inputs.json` uses the
+package-list reader while a valid descriptor selects the `.kedra` reader.
+Selection is versioned and exclusive; a failed new reader never falls back to the
+package lists.
 
 The committed source discriminator now selects `.kedra` definitions; the old lists
-are removed. The schema-1 catalog is retained immutable JSON for old callers.
+are removed.
 Local Fedora builds/rebuilds, independent API consumption, preparation and the
 installed catalog workflow pass. Fresh both-target release qualification remains
 separate from these passes; no production image is published by this PR. See [package authoring](PACKAGES.md) and

@@ -1,5 +1,5 @@
-//! Narrow bootc observations and deployment-journal transitions. No ambient I/O.
-use crate::release::{Scope, TrustState};
+//! Narrow bootc observations and stage preflight. No ambient I/O.
+use crate::release::Scope;
 use crate::targets;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -199,77 +199,6 @@ pub enum Phase {
     Booted,
     NotApplied,
 }
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct Operation {
-    pub kind: OperationKind,
-    pub target_digest: String,
-    pub release_sha256: String,
-    pub previous_booted: String,
-    pub previous_staged: Option<String>,
-    pub phase: Phase,
-}
-impl Operation {
-    pub fn observe(&mut self, host: &Host) {
-        self.phase = if host.booted.digest == self.target_digest
-            && host.staged.is_none()
-            && !host.rollback_queued
-        {
-            Phase::Booted
-        } else if host
-            .staged
-            .as_ref()
-            .is_some_and(|slot| slot.digest == self.target_digest && !slot.download_only)
-            || host.rollback_queued
-                && host
-                    .rollback
-                    .as_ref()
-                    .is_some_and(|slot| slot.digest == self.target_digest)
-        {
-            Phase::AwaitingReboot
-        } else {
-            Phase::NotApplied
-        };
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Journal {
-    pub schema_version: u32,
-    pub machine: String,
-    pub scope: Scope,
-    pub high_water: TrustState,
-    pub rollback_hold: bool,
-    pub operation: Option<Operation>,
-}
-impl Journal {
-    pub fn validate(&self, machine: &str, scope: &Scope) -> Result<(), Error> {
-        if self.schema_version != 1
-            || self.machine != machine
-            || self.scope != *scope
-            || self.high_water.scope != *scope
-            || self.high_water.validate().is_err()
-            || self.machine.len() != 64
-            || !self
-                .machine
-                .bytes()
-                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
-            || self.operation.as_ref().is_some_and(|op| {
-                !digest_valid(&op.target_digest)
-                    || !digest_valid(&format!("sha256:{}", op.release_sha256))
-                    || !digest_valid(&op.previous_booted)
-                    || op
-                        .previous_staged
-                        .as_ref()
-                        .is_some_and(|digest| !digest_valid(digest))
-            })
-        {
-            return Err(Error::InvalidState);
-        }
-        Ok(())
-    }
-}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum StageAction {
@@ -310,23 +239,4 @@ pub fn stage_action(
         return Ok(StageAction::AlreadyBooted);
     }
     Ok(StageAction::Switch)
-}
-
-pub fn intent(
-    host: &Host,
-    kind: OperationKind,
-    digest: &str,
-    release_sha256: &str,
-) -> Result<Operation, Error> {
-    if !digest_valid(digest) || !digest_valid(&format!("sha256:{release_sha256}")) {
-        return Err(Error::InvalidState);
-    }
-    Ok(Operation {
-        kind,
-        target_digest: digest.to_owned(),
-        release_sha256: release_sha256.to_owned(),
-        previous_booted: host.booted.digest.clone(),
-        previous_staged: host.staged.as_ref().map(|slot| slot.digest.clone()),
-        phase: Phase::Intent,
-    })
 }

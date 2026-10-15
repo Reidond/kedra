@@ -57,7 +57,7 @@ uv run usr/src/kedra/installer/build-local.py --image ghcr.io/reidond/kedra-qemu
 
 The repository selects the target. Other repositories, tags and cross-architecture builds are refused. The output directory must not already exist.
 
-The script checks the fixed public fingerprint and strict native container signature policy before extracting the image's helper, source and trust. It then requires the payload, builder and Anaconda environment to have the target's OCI architecture and the signed scope to name that target. It uses the image's recorded Fedora base and the per-architecture digest-pinned builder in usr/src/kedra/installer/inputs.json. Legacy images without recorded resolved inputs additionally require an explicitly reviewed `--base-image quay.io/fedora/fedora-bootc@sha256:BASE_DIGEST`.
+The script checks the fixed public fingerprint and strict native container signature policy before extracting the image's helper, source and trust. It then requires the payload, builder and Anaconda environment to have the target's OCI architecture and the signed scope to name that target. It uses the image's recorded Fedora base and the per-architecture digest-pinned builder in usr/src/kedra/installer/inputs.json; an image without recorded resolved inputs is refused.
 
 The result is one complete `kedra-<target>-44-<first 16 digest hex>.iso`, `installer.json` and `SHA256SUMS` in the selected directory. No existing output is overwritten and the script uploads nothing; only the owner-dispatched `iso.yml` publishes its output. Local checksum files describe the built ISO; they are not release signatures. The embedded signed OS payload is independently verified offline before installation.
 

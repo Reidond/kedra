@@ -33,7 +33,7 @@ Exclude agent auth, keyrings, vault contents, private SSH keys, tokens, transcri
 
 Rollback shares persistent data. Version protocols/journals and refuse unknown or corrupt records. Test stale locks/CAS, interruption, full disk, concurrent operations and older readers with real CLI/VM flows. Bundled SQLite follows Cargo updates, independently of Fedora packages.
 
-The owner confirmed on 2026-09-13 that nobody installed r1/r2 (usr/src/kedra/docs/STATUS.md); a legacy bridge is not a delivery requirement. Retained compatibility code still refuses unreconciled legacy operations. This scope correction never authorizes clearing journals, rollback holds or high-water state, or silently repairing unknown schemas.
+The owner confirmed on 2026-09-13 that nobody installed r1/r2 (usr/src/kedra/docs/STATUS.md); a legacy bridge is not a delivery requirement. The legacy migration code was removed on 2026-10-14; deployment state in an older format is refused, never migrated. This scope correction never authorizes clearing journals, rollback holds or high-water state, or silently repairing unknown schemas.
 
 UEFI Secure Boot (owner decision, 2026-09-25) is required at install time and by doctor. It is never a boot-time hard stop, so local recovery stays available.
 

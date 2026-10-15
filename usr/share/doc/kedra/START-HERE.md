@@ -31,7 +31,6 @@ The source checkout is separate from the installed OS. In a Kedra checkout:
     sysroot source plan --host desktop --json
 
 Those commands inspect committed build inputs and do not modify your machine.
-`sysroot status` reports which management capabilities this build implements.
 `sysroot doctor` checks the installed desktop session without changing it or
 requesting administrator access. Use `sysroot doctor --json` for structured output.
 Managed updates require configured release trust and enrollment.

@@ -5,13 +5,13 @@ use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
 use sysroot_engine::{
-    Error, PLATFORM, Result, Store, SystemContent, SystemDefinition, SystemFile,
+    Error, PLATFORM, RPM_ARCHITECTURE, Result, Store, SystemContent, SystemDefinition, SystemFile,
     VerifiedComposition, read_system,
 };
 
 use crate::source;
 
-const SOURCE_OWNER: &str = "kedra-source:";
+pub(crate) const SOURCE_OWNER: &str = "kedra-source:";
 const SOURCE_NAMESPACE: &str = "/usr/share/sysroot";
 
 #[derive(Args)]
@@ -54,7 +54,7 @@ struct Inputs {
     /// Checkout whose committed HEAD is resolved once; dirty files are excluded.
     #[arg(long)]
     repo: PathBuf,
-    /// Explicit Kedra target; this first composition backend supports qemu-arm64.
+    /// Explicit Kedra target of this machine's native architecture.
     #[arg(long)]
     target: String,
     /// Existing ordinary-user engine store with retained foundation evidence.
@@ -73,13 +73,12 @@ fn invalid(message: impl Into<String>) -> Error {
 }
 
 fn definition(inputs: &Inputs) -> Result<SystemDefinition> {
-    if inputs.target != "qemu-arm64" {
-        return Err(invalid("system composition supports only qemu-arm64"));
-    }
     let source =
         source::plan(&inputs.repo, &inputs.target).map_err(|error| invalid(error.to_string()))?;
-    if source.target.architecture != "aarch64" || source.target.fedora_release != 44 {
-        return Err(invalid("system composition requires native ARM Fedora 44"));
+    if source.target.architecture != RPM_ARCHITECTURE || source.target.fedora_release != 44 {
+        return Err(invalid(format!(
+            "system composition requires a native {RPM_ARCHITECTURE} Fedora 44 target"
+        )));
     }
     let mut definition = if let Some(path) = &inputs.definition {
         let authored = read_system(path)?;

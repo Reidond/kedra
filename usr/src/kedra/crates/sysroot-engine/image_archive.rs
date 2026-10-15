@@ -100,8 +100,11 @@ fn blob_path(digest: &str) -> Result<String> {
 
 fn native(platform: &ImagePlatform) -> bool {
     platform.os == "linux"
-        && platform.architecture == "arm64"
-        && platform.variant.as_deref().is_none_or(|v| v == "v8")
+        && platform.architecture == crate::OCI_ARCHITECTURE
+        && platform
+            .variant
+            .as_deref()
+            .is_none_or(|v| crate::OCI_ARCHITECTURE == "arm64" && v == "v8")
 }
 
 fn is_index(media_type: &str) -> bool {

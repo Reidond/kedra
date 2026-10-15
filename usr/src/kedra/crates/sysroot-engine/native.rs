@@ -1,15 +1,12 @@
 //! Closed native transformations. Planning grants no host execution authority.
-use crate::{Error, MAX_JSON, PLATFORM, Result, VerifiedComposition, plan};
+use crate::{Error, MAX_JSON, PLATFORM, Result, SystemComposition, VerifiedComposition, plan};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs::File,
-    io::Read,
-    path::Path,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const NATIVE_RECEIPT_PATH: &str = "/usr/share/sysroot/native-receipt.json";
 const HOME: &str = "/usr/share/sysroot/home/default/";
+/// A new account's applied home baseline inside `/etc/skel` (see `sysroot home`).
+pub const SKEL_APPLIED: &str = ".local/state/kedra/home/applied/";
 const SCHEMAS: &str = "/usr/share/glib-2.0/schemas/";
 const SYSTEMD: &str = "/etc/systemd/system/";
 const MODULES: &str = "/usr/lib/modules/";
@@ -43,25 +40,21 @@ pub enum NativeStep {
         mask: Vec<String>,
         default_target: Option<String>,
     },
+    /// Copies the committed home baseline to `/etc/skel` and records it there as
+    /// a new account's applied baseline (`.local/state/kedra/home/applied`).
     InitialSkel,
-    QemuInitramfs {
-        #[serde(default = "default_native_modules")]
-        required_modules: Vec<String>,
+    /// Regenerates every image kernel's generic (no-hostonly) initramfs with the
+    /// image's own dracut configuration, adding and then requiring the listed
+    /// dracut modules and kernel drivers.
+    Initramfs {
+        modules: Vec<String>,
+        #[serde(default)]
+        drivers: Vec<String>,
     },
 }
-pub fn default_native_modules() -> Vec<String> {
-    ["virtio_dma_buf", "virtio_gpu", "virtio_input"]
-        .map(String::from)
-        .to_vec()
-}
-/// Committed step declaration (`image/release/native-steps.json`). The parent
-/// identity is bound by the caller's independently selected composition.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct NativeSteps {
-    pub schema_version: u32,
-    pub steps: Vec<NativeStep>,
-}
+/// Picks the declared steps out of a verified parent composition, for example
+/// from a committed manifest among its files. It runs only after verification.
+pub type StepSelector<'a> = &'a dyn Fn(&SystemComposition) -> Result<Vec<NativeStep>>;
 /// Supplied only by the trusted Rust adapter, never deserialized from a plan.
 /// `executor_sha256` names the exact sysroot binary that runs inside the build.
 pub struct NativeImplementation {
@@ -118,8 +111,9 @@ pub struct NativeKernel {
     pub version: String,
     pub kernel_sha256: String,
     pub listing_sha256: String,
+    /// Declared driver name to its resolved module file in this kernel.
     #[serde(deserialize_with = "crate::model::unique_map")]
-    pub required_modules: BTreeMap<String, String>,
+    pub drivers: BTreeMap<String, String>,
 }
 /// Actual observed material; the deriver binds this to final image and daemon IDs.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,26 +133,44 @@ pub struct NativeReceipt {
     pub tools: BTreeMap<String, String>,
 }
 
-/// Reads the committed steps and binds them to the selected parent composition.
-pub fn read_native_steps(path: &Path, parent_identity: &str) -> Result<NativeDefinition> {
-    let mut bytes = Vec::new();
-    File::open(path)?
-        .take(MAX_JSON + 1)
-        .read_to_end(&mut bytes)?;
-    if bytes.len() as u64 > MAX_JSON {
-        return Err(invalid("oversized declaration"));
-    }
-    let steps: NativeSteps = serde_json::from_slice(&bytes)?;
-    if steps.schema_version != 1 {
-        return Err(invalid("unsupported native steps schema"));
-    }
+/// Binds the selected composition's declared steps to that parent.
+pub fn native_definition(
+    composition: &SystemComposition,
+    steps: StepSelector<'_>,
+) -> Result<NativeDefinition> {
     let mut definition = NativeDefinition {
         schema: 1,
-        parent_identity: parent_identity.to_owned(),
-        steps: steps.steps,
+        parent_identity: composition.identity.clone(),
+        steps: steps(composition)?,
     };
     normalize(&mut definition)?;
     Ok(definition)
+}
+
+/// Check and order a step declaration; authoring frontends call this to refuse
+/// an invalid declaration before anything is composed.
+pub fn normalize_native_steps(steps: &mut [NativeStep]) -> Result<()> {
+    if steps.is_empty() || steps.len() > 4 {
+        return Err(invalid("unsupported step count"));
+    }
+    let mut kinds = BTreeSet::new();
+    for step in steps.iter_mut() {
+        if !kinds.insert(order(step)) {
+            return Err(invalid("duplicate native step"));
+        }
+        match step {
+            NativeStep::Systemd {
+                enable,
+                disable,
+                mask,
+                default_target,
+            } => normalize_systemd(enable, disable, mask, default_target.as_deref())?,
+            NativeStep::Initramfs { modules, drivers } => normalize_initramfs(modules, drivers)?,
+            NativeStep::GlibSchemas | NativeStep::InitialSkel => {}
+        }
+    }
+    steps.sort_by_key(order);
+    Ok(())
 }
 
 pub fn plan_native(
@@ -172,7 +184,7 @@ pub fn plan_native(
     if definition.parent_identity != composition.identity
         || composition.plan.definition.platform != PLATFORM
     {
-        return Err(invalid("parent identity or native ARM platform differs"));
+        return Err(invalid("parent identity or native platform differs"));
     }
     if implementation.version.is_empty()
         || implementation.version.len() > 128
@@ -242,7 +254,7 @@ fn selected(definition: &NativeDefinition, path: &str) -> bool {
             path.starts_with("/usr/lib/systemd/system/") || path.starts_with(SYSTEMD)
         }
         NativeStep::InitialSkel => path.starts_with(HOME),
-        NativeStep::QemuInitramfs { .. } => {
+        NativeStep::Initramfs { .. } => {
             path.starts_with("/usr/lib/dracut/dracut.conf.d/")
                 || path.starts_with("/etc/dracut.conf.d/")
                 || path == "/etc/dracut.conf"
@@ -253,30 +265,11 @@ fn selected(definition: &NativeDefinition, path: &str) -> bool {
 fn normalize(definition: &mut NativeDefinition) -> Result<()> {
     if definition.schema != 1
         || !plan::hex(&definition.parent_identity)
-        || definition.steps.is_empty()
-        || definition.steps.len() > 4
         || serde_json::to_vec(definition)?.len() as u64 > MAX_JSON
     {
-        return Err(invalid("unsupported schema, identity, or step count"));
+        return Err(invalid("unsupported schema, identity, or size"));
     }
-    let mut kinds = BTreeSet::new();
-    for step in &mut definition.steps {
-        if !kinds.insert(order(step)) {
-            return Err(invalid("duplicate native step"));
-        }
-        match step {
-            NativeStep::Systemd {
-                enable,
-                disable,
-                mask,
-                default_target,
-            } => normalize_systemd(enable, disable, mask, default_target.as_deref())?,
-            NativeStep::QemuInitramfs { required_modules } => normalize_modules(required_modules)?,
-            NativeStep::GlibSchemas | NativeStep::InitialSkel => {}
-        }
-    }
-    definition.steps.sort_by_key(order);
-    Ok(())
+    normalize_native_steps(&mut definition.steps)
 }
 /// Each unit takes at most one operation; every list is sorted once it is checked.
 fn normalize_systemd(
@@ -309,28 +302,27 @@ fn normalize_systemd(
     }
     Ok(())
 }
-fn normalize_modules(required_modules: &mut [String]) -> Result<()> {
-    if required_modules.is_empty() || required_modules.len() > 32 {
-        return Err(invalid("invalid module count"));
+/// Dracut modules are named like `rootfs-block`; kernel drivers like `virtio_gpu`.
+fn normalize_initramfs(modules: &mut [String], drivers: &mut [String]) -> Result<()> {
+    if modules.is_empty() || modules.len() > 64 || drivers.len() > 32 {
+        return Err(invalid("invalid initramfs module or driver count"));
     }
-    let mut modules = BTreeSet::new();
-    for module in required_modules.iter() {
-        if module.is_empty()
-            || module.len() > 128
-            || !module
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'_')
-            || !modules.insert(module.clone())
-        {
-            return Err(invalid("invalid or duplicate module"));
+    for (names, extra) in [(&mut *modules, b'-'), (&mut *drivers, b'_')] {
+        let mut seen = BTreeSet::new();
+        for name in names.iter() {
+            if name.is_empty()
+                || name.len() > 128
+                || !name.as_bytes()[0].is_ascii_alphanumeric()
+                || !name
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == extra)
+                || !seen.insert(name.clone())
+            {
+                return Err(invalid("invalid or duplicate initramfs module or driver"));
+            }
         }
+        names.sort();
     }
-    for required in default_native_modules() {
-        if !modules.contains(&required) {
-            return Err(invalid("required QEMU graphics/input module omitted"));
-        }
-    }
-    required_modules.sort();
     Ok(())
 }
 fn order(step: &NativeStep) -> u8 {
@@ -338,7 +330,7 @@ fn order(step: &NativeStep) -> u8 {
         NativeStep::GlibSchemas => 0,
         NativeStep::Systemd { .. } => 1,
         NativeStep::InitialSkel => 2,
-        NativeStep::QemuInitramfs { .. } => 3,
+        NativeStep::Initramfs { .. } => 3,
     }
 }
 fn unit(name: &str) -> Result<()> {
@@ -401,8 +393,8 @@ pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -
                 receipt,
                 &artifacts,
             )?,
-            NativeStep::QemuInitramfs { required_modules } => {
-                validate_kernels(required_modules, receipt, &artifacts)?
+            NativeStep::Initramfs { drivers, .. } => {
+                validate_kernels(drivers, receipt, &artifacts)?
             }
         }
     }
@@ -410,7 +402,7 @@ pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -
         .definition
         .steps
         .iter()
-        .any(|s| matches!(s, NativeStep::QemuInitramfs { .. }))
+        .any(|s| matches!(s, NativeStep::Initramfs { .. }))
         && !receipt.kernels.is_empty()
     {
         return Err(invalid("unrequested kernel evidence"));
@@ -480,12 +472,16 @@ fn validate_skeleton(
 ) -> Result<()> {
     for input in inputs {
         if let Some(relative) = input.path.strip_prefix(HOME) {
-            let destination = format!("/etc/skel/{relative}");
-            if !matches!(artifacts.get(destination.as_str()),
-                Some(NativeArtifactKind::Regular {sha256,bytes,mode})
-                if *sha256 == input.sha256 && *bytes == input.bytes && *mode == input.mode)
-            {
-                return Err(invalid("initial skeleton differs from committed input"));
+            for destination in [
+                format!("/etc/skel/{relative}"),
+                format!("/etc/skel/{SKEL_APPLIED}{relative}"),
+            ] {
+                if !matches!(artifacts.get(destination.as_str()),
+                    Some(NativeArtifactKind::Regular {sha256,bytes,mode})
+                    if *sha256 == input.sha256 && *bytes == input.bytes && *mode == input.mode)
+                {
+                    return Err(invalid("initial skeleton differs from committed input"));
+                }
             }
         }
     }
@@ -538,7 +534,7 @@ pub fn native_tools(plan: &NativePlan) -> BTreeSet<&'static str> {
                 tools.insert("/usr/bin/systemctl");
             }
             NativeStep::InitialSkel => {}
-            NativeStep::QemuInitramfs { .. } => {
+            NativeStep::Initramfs { .. } => {
                 tools.extend(["/usr/bin/dracut", "/usr/bin/lsinitrd", "/usr/sbin/modinfo"]);
             }
         }
@@ -557,6 +553,7 @@ fn allowed_artifact(
             }
             NativeStep::InitialSkel => {
                 if let Some(relative) = artifact.path.strip_prefix("/etc/skel/") {
+                    let relative = relative.strip_prefix(SKEL_APPLIED).unwrap_or(relative);
                     return Ok(matches!(artifact.entry, NativeArtifactKind::Regular { .. })
                         && plan
                             .inputs
@@ -564,7 +561,7 @@ fn allowed_artifact(
                             .any(|input| input.path == format!("{HOME}{relative}")));
                 }
             }
-            NativeStep::QemuInitramfs { .. } => {
+            NativeStep::Initramfs { .. } => {
                 if receipt.kernels.iter().any(|kernel| {
                     artifact.path == format!("{MODULES}{}/initramfs.img", kernel.version)
                 }) {
@@ -640,13 +637,12 @@ fn validate_kernels(
             || !versions.insert(&kernel.version)
             || !plan::hex(&kernel.kernel_sha256)
             || !plan::hex(&kernel.listing_sha256)
-            || kernel.required_modules.keys().collect::<Vec<_>>()
-                != required.iter().collect::<Vec<_>>()
+            || kernel.drivers.keys().collect::<Vec<_>>() != required.iter().collect::<Vec<_>>()
         {
             return Err(invalid("invalid kernel/module evidence"));
         }
         let prefix = format!("{MODULES}{}/", kernel.version);
-        for (name, path) in &kernel.required_modules {
+        for (name, path) in &kernel.drivers {
             absolute(path)?;
             let basename = path
                 .rsplit('/')

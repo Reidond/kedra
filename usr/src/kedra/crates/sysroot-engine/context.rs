@@ -331,7 +331,7 @@ fn verify_observation(plan: &SystemPlan) -> Result<()> {
                 .any(|s| s.is_empty() || s.len() > 4096 || s.bytes().any(|b| b < 32 || b == 127))
             || cols[0] == "gpg-pubkey"
             || !cols[1].bytes().all(|b| b.is_ascii_digit())
-            || !matches!(cols[4], "aarch64" | "noarch")
+            || !crate::native_rpm_architecture(cols[4])
             || !plan::hex(cols[5])
             || !plan::hex(cols[6])
             || !identities.insert(cols[..5].join("\t"))

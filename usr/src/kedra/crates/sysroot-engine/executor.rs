@@ -226,11 +226,13 @@ pub(crate) fn daemon(connection: &Connection) -> Result<String> {
     let r = checked(docker(connection, &["info", "--format", "{{json .}}"])?)?;
     let v: serde_json::Value = serde_json::from_slice(&r.stdout)?;
     if v["OSType"].as_str() != Some("linux")
-        || !matches!(v["Architecture"].as_str(), Some("aarch64" | "arm64"))
+        || !v["Architecture"]
+            .as_str()
+            .is_some_and(|a| a == crate::RPM_ARCHITECTURE || a == crate::OCI_ARCHITECTURE)
     {
-        return Err(Error::Invalid(
-            "executor requires native aarch64 Linux Docker daemon".into(),
-        ));
+        return Err(Error::Invalid(format!(
+            "executor requires a native {PLATFORM} Docker daemon"
+        )));
     }
     let id = v["ID"]
         .as_str()
@@ -248,7 +250,7 @@ pub(crate) fn inspect_image(connection: &Connection, id: &str) -> Result<ImageIn
         .ok_or_else(|| Error::Invalid("image inspection empty".into()))?;
     if info.id != id
         || info.os != "linux"
-        || info.architecture != "arm64"
+        || info.architecture != crate::OCI_ARCHITECTURE
         || info.config.volumes.as_ref().is_some_and(|v| !v.is_empty())
     {
         return Err(Error::Invalid(format!(
@@ -324,7 +326,7 @@ pub(crate) fn execute(store: &Store, exec: Execution<'_>) -> Result<RunResult> {
             "--label",
             &format!("sysroot.engine.operation={}", journal.nonce),
             "--platform",
-            "linux/arm64",
+            crate::OCI_PLATFORM,
             "--read-only",
             "--no-healthcheck",
             "--network",

@@ -3,7 +3,7 @@
 use crate::{
     Error, MAX_JSON, NATIVE_EXECUTOR, NATIVE_OBSERVATION, NATIVE_PLAN, NATIVE_RECEIPT_PATH,
     NativeArtifact, NativeArtifactKind, NativeKernel, NativePlan, NativeReceipt, NativeStep,
-    Result, native_tools, plan, store,
+    RPM_ARCHITECTURE, Result, SKEL_APPLIED, native_tools, plan, store,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -26,7 +26,6 @@ const SOURCE: &str = "/usr/share/sysroot/source.json";
 pub(crate) const RPM_FORMAT: &str =
     "%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n";
 const UNIT_TYPES: [&str; 5] = ["service", "socket", "timer", "target", "path"];
-const GENERIC_DRACUT: [&str; 4] = ["qemu", "crypt", "dm", "rootfs-block"];
 
 /// Readback exported from the throwaway observation stage.
 #[derive(Debug, Serialize, Deserialize)]
@@ -119,8 +118,8 @@ pub fn apply(plan_path: &Path) -> Result<()> {
                 outputs.expected.extend(initial_skel(&plan)?);
                 true
             }
-            NativeStep::QemuInitramfs { required_modules } => {
-                for (output, kernel) in qemu_initramfs(required_modules)? {
+            NativeStep::Initramfs { modules, drivers } => {
+                for (output, kernel) in initramfs(modules, drivers)? {
                     outputs.expected.insert(output);
                     outputs.kernels.push(kernel);
                 }
@@ -169,8 +168,9 @@ pub fn observe(plan_path: &Path) -> Result<()> {
     for artifact in &receipt.artifacts {
         observe_artifact(artifact)?;
     }
+    let modules = initramfs_modules(&plan);
     for kernel in &receipt.kernels {
-        observe_kernel(kernel)?;
+        observe_kernel(kernel, modules)?;
     }
     let observation = Observation {
         receipt,
@@ -352,21 +352,30 @@ fn tree() -> Result<Tree> {
     Ok(result)
 }
 
+fn initramfs_modules(plan: &NativePlan) -> &[String] {
+    plan.definition
+        .steps
+        .iter()
+        .find_map(|step| match step {
+            NativeStep::Initramfs { modules, .. } => Some(modules.as_slice()),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
 fn tools_for(plan: &NativePlan) -> Result<BTreeMap<String, String>> {
     if plan
         .definition
         .steps
         .iter()
-        .any(|step| matches!(step, NativeStep::QemuInitramfs { .. }))
+        .any(|step| matches!(step, NativeStep::Initramfs { .. }))
     {
-        // The host requires a native aarch64 daemon; this binary is aarch64 too.
+        // The deriver requires a native daemon, so this executor's architecture
+        // is the image's; the kernels must belong to the image's own target.
         let source: serde_json::Value = serde_json::from_slice(&bounded(SOURCE)?)?;
-        if source["target"]["id"].as_str() != Some("qemu-arm64")
-            || source["target"]["architecture"].as_str() != Some("aarch64")
-            || !cfg!(target_arch = "aarch64")
-        {
+        if source["target"]["architecture"].as_str() != Some(RPM_ARCHITECTURE) {
             return Err(fail(
-                "native initramfs requires image-local qemu-arm64 source",
+                "native initramfs requires image-local source of the native architecture",
             ));
         }
     }
@@ -512,25 +521,53 @@ fn systemd(
     Ok(())
 }
 
+/// Create a missing directory with `mode`; an existing one must be a real directory.
+fn directory(path: &str, mode: u32) -> Result<()> {
+    parents(path)?;
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_dir() => Ok(()),
+        Ok(_) => Err(fail(format!("skeleton directory is not a directory: {path}"))),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            DirBuilder::new().mode(mode).create(path)?;
+            Ok(())
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Baseline files go to `/etc/skel` and to the account's private applied-baseline
+/// record there (owner-only state directories), so a new account's first
+/// `sysroot home update` merges later image changes into its own edits.
 fn initial_skel(plan: &NativePlan) -> Result<Vec<String>> {
+    let applied = format!("/etc/skel/{}", SKEL_APPLIED.trim_end_matches('/'));
+    let mut state = String::from("/etc/skel");
+    for (part, mode) in [(".local", 0o755), ("state", 0o755)]
+        .into_iter()
+        .chain(["kedra", "home", "applied"].map(|part| (part, 0o700)))
+    {
+        state = format!("{state}/{part}");
+        directory(&state, mode)?;
+    }
     let mut outputs = Vec::new();
     for item in &plan.inputs {
         let Some(relative) = item.path.strip_prefix(&format!("{BASELINE}/")) else {
             continue;
         };
-        let destination = format!("/etc/skel/{relative}");
-        regular(&destination, true, false)?;
-        let parent = Path::new(&destination)
-            .parent()
-            .ok_or_else(|| fail("skeleton path has no parent"))?;
-        DirBuilder::new()
-            .recursive(true)
-            .mode(0o755)
-            .create(parent)?;
         let mut bytes = Vec::new();
         File::open(&item.path)?.read_to_end(&mut bytes)?;
-        replace_file(Path::new(&destination), &bytes, item.mode)?;
-        outputs.push(destination);
+        for root in ["/etc/skel", applied.as_str()] {
+            let destination = format!("{root}/{relative}");
+            regular(&destination, true, false)?;
+            let parent = Path::new(&destination)
+                .parent()
+                .ok_or_else(|| fail("skeleton path has no parent"))?;
+            DirBuilder::new()
+                .recursive(true)
+                .mode(0o755)
+                .create(parent)?;
+            replace_file(Path::new(&destination), &bytes, item.mode)?;
+            outputs.push(destination);
+        }
     }
     Ok(outputs)
 }
@@ -541,7 +578,7 @@ fn kernel_version(version: &str) -> bool {
         && bytes.all(|b| b.is_ascii_alphanumeric() || b"._+-".contains(&b))
 }
 
-fn qemu_initramfs(required: &[String]) -> Result<Vec<(String, NativeKernel)>> {
+fn initramfs(modules: &[String], drivers: &[String]) -> Result<Vec<(String, NativeKernel)>> {
     parents(&format!("{MODULES}/placeholder"))?;
     let mut versions = Vec::new();
     for entry in fs::read_dir(MODULES)? {
@@ -561,7 +598,7 @@ fn qemu_initramfs(required: &[String]) -> Result<Vec<(String, NativeKernel)>> {
         if !kernel_version(&version) {
             return Err(fail("invalid native kernel version"));
         }
-        kernels.push(generate_kernel(&version, required)?);
+        kernels.push(generate_kernel(&version, modules, drivers)?);
     }
     Ok(kernels)
 }
@@ -589,7 +626,11 @@ fn required_drivers(
     Ok(modules)
 }
 
-fn generate_kernel(version: &str, required: &[String]) -> Result<(String, NativeKernel)> {
+fn generate_kernel(
+    version: &str,
+    modules: &[String],
+    required: &[String],
+) -> Result<(String, NativeKernel)> {
     let module_root = format!("{MODULES}/{version}");
     let metadata = fs::symlink_metadata(&module_root)?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -597,28 +638,28 @@ fn generate_kernel(version: &str, required: &[String]) -> Result<(String, Native
     }
     let kernel = format!("{module_root}/vmlinuz");
     regular(&kernel, false, false)?;
-    let modules = required_drivers(version, &module_root, required)?;
+    let resolved = required_drivers(version, &module_root, required)?;
     let output = format!("{module_root}/initramfs.img");
     let old = regular(&output, true, false)?;
     let scratch = private_scratch("sysroot-native-initramfs")?;
     let generated = (|| -> Result<()> {
         let temporary = scratch.join("initramfs.img");
         let temporary_name = temporary.to_str().ok_or_else(|| fail("scratch path"))?;
+        let added = modules.join(" ");
         let drivers = required.join(" ");
-        with_root_home(|| {
-            run(&[
-                "/usr/bin/dracut",
-                "--force",
-                "--no-hostonly",
-                "--no-hostonly-cmdline",
-                "--add",
-                "qemu crypt dm rootfs-block",
-                "--add-drivers",
-                &drivers,
-                temporary_name,
-                version,
-            ])
-        })?;
+        let mut argv = vec![
+            "/usr/bin/dracut",
+            "--force",
+            "--no-hostonly",
+            "--no-hostonly-cmdline",
+            "--add",
+            &added,
+        ];
+        if !required.is_empty() {
+            argv.extend(["--add-drivers", &drivers]);
+        }
+        argv.extend([temporary_name, version]);
+        with_root_home(|| run(&argv))?;
         let mode = old.map_or(0o644, |metadata| metadata.mode() & 0o7777);
         fs::set_permissions(&temporary, fs::Permissions::from_mode(mode))?;
         fs::rename(&temporary, &output)?;
@@ -626,8 +667,8 @@ fn generate_kernel(version: &str, required: &[String]) -> Result<(String, Native
     })();
     fs::remove_dir_all(&scratch)?;
     generated?;
-    let listing = initramfs_listing(&output)?;
-    for (driver, path) in &modules {
+    let listing = initramfs_listing(&output, modules)?;
+    for (driver, path) in &resolved {
         if !listing.contains(path.trim_start_matches('/')) {
             return Err(fail(format!(
                 "generated initramfs lacks required module: {driver}"
@@ -638,7 +679,7 @@ fn generate_kernel(version: &str, required: &[String]) -> Result<(String, Native
         version: version.to_owned(),
         kernel_sha256: digest(Path::new(&kernel))?,
         listing_sha256: plan::hash(listing.as_bytes()),
-        required_modules: modules,
+        drivers: resolved,
     };
     Ok((output, record))
 }
@@ -667,17 +708,15 @@ fn with_root_home(generate: impl FnOnce() -> Result<Vec<u8>>) -> Result<()> {
     result.map(drop)
 }
 
-/// The full listing (hashed into the receipt) after checking generic modules.
-fn initramfs_listing(path: &str) -> Result<String> {
-    let modules = text(run(&["/usr/bin/lsinitrd", "-m", path])?)?;
-    let included: BTreeSet<&str> = modules.lines().collect();
-    if !GENERIC_DRACUT
-        .iter()
-        .all(|module| included.contains(module))
-    {
-        return Err(fail(
-            "generated initramfs lacks generic QEMU storage/crypto modules",
-        ));
+/// The full listing (hashed into the receipt) after checking the declared
+/// dracut modules are all included.
+fn initramfs_listing(path: &str, modules: &[String]) -> Result<String> {
+    let listed = text(run(&["/usr/bin/lsinitrd", "-m", path])?)?;
+    let included: BTreeSet<&str> = listed.lines().collect();
+    if let Some(missing) = modules.iter().find(|m| !included.contains(m.as_str())) {
+        return Err(fail(format!(
+            "generated initramfs lacks declared dracut module: {missing}"
+        )));
     }
     text(run(&["/usr/bin/lsinitrd", path])?)
 }
@@ -967,7 +1006,7 @@ fn observe_artifact(artifact: &NativeArtifact) -> Result<()> {
     Ok(())
 }
 
-fn observe_kernel(kernel: &NativeKernel) -> Result<()> {
+fn observe_kernel(kernel: &NativeKernel, modules: &[String]) -> Result<()> {
     if !kernel_version(&kernel.version) {
         return Err(fail("invalid native kernel version"));
     }
@@ -975,11 +1014,11 @@ fn observe_kernel(kernel: &NativeKernel) -> Result<()> {
     if digest(Path::new(&format!("{root}/vmlinuz")))? != kernel.kernel_sha256 {
         return Err(fail("native kernel changed"));
     }
-    let listing = initramfs_listing(&format!("{root}/initramfs.img"))?;
+    let listing = initramfs_listing(&format!("{root}/initramfs.img"), modules)?;
     if plan::hash(listing.as_bytes()) != kernel.listing_sha256 {
         return Err(fail("native initramfs listing changed"));
     }
-    for (driver, path) in &kernel.required_modules {
+    for (driver, path) in &kernel.drivers {
         if !listing.contains(path.trim_start_matches('/')) {
             return Err(fail(format!(
                 "native initramfs module disappeared: {driver}"

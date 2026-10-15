@@ -31,6 +31,7 @@ pub(crate) struct Frontend {
 pub(crate) struct Selection {
     pub packages: BTreeSet<String>,
     pub remove: BTreeSet<String>,
+    pub native_steps: Vec<sysroot_engine::NativeStep>,
     pub frontend: Frontend,
 }
 
@@ -173,11 +174,6 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
     }
     let intent = language::compile(&modules, entry, host, lock, &policy)
         .map_err(|e| Error::Invalid(e.to_string()))?;
-    if host == "desktop" && !intent.selected.is_empty() {
-        return Err(invalid(
-            "native x86 source package realization is not supported",
-        ));
-    }
     for recipe in intent.recipes.values() {
         let mut contents = vec![&recipe.build];
         if let language::SourceIntent::Files(files) = &recipe.source {
@@ -218,6 +214,7 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
     Ok(Some(Selection {
         packages: intent.packages.clone(),
         remove: intent.remove.clone(),
+        native_steps: intent.native_steps.clone(),
         frontend: Frontend {
             schema_version: 1,
             format: "kedra".into(),

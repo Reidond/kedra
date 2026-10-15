@@ -173,7 +173,7 @@ impl Store {
                 .iter()
                 .any(|s| s.is_empty() || s.len() > 4096 || s.bytes().any(|b| b < 32 || b == 127))
                 || !columns[1].bytes().all(|b| b.is_ascii_digit())
-                || !matches!(columns[4], "aarch64" | "noarch")
+                || !crate::native_rpm_architecture(columns[4])
                 || !plan::hex(columns[5])
                 || !plan::hex(columns[6])
                 || !identities.insert(columns[..5].join("\t"))

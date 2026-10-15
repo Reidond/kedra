@@ -62,6 +62,9 @@ pub struct Plan {
     pub target: Target,
     pub packages: Vec<String>,
     pub remove_packages: Vec<String>,
+    /// The target's image steps (`sysroot derive`), declared in its `.kedra` block.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub native_steps: Vec<sysroot_engine::NativeStep>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) package_frontend: Option<crate::source_packages::Frontend>,
     pub files: Vec<File>,
@@ -317,6 +320,7 @@ fn committed_target(
 struct PackageSets {
     install: BTreeSet<String>,
     remove: BTreeSet<String>,
+    native_steps: Vec<sysroot_engine::NativeStep>,
     frontend: Option<crate::source_packages::Frontend>,
 }
 
@@ -332,6 +336,7 @@ fn package_sets(
         Some(selection) => PackageSets {
             install: selection.packages,
             remove: selection.remove,
+            native_steps: selection.native_steps,
             frontend: Some(selection.frontend),
         },
         None => {
@@ -340,6 +345,7 @@ fn package_sets(
             PackageSets {
                 install,
                 remove: package_list(repo, tree, &inputs.remove)?,
+                native_steps: Vec::new(),
                 frontend: None,
             }
         }
@@ -474,6 +480,7 @@ fn plan_committed(
         target,
         packages: packages.install.into_iter().collect(),
         remove_packages: packages.remove.into_iter().collect(),
+        native_steps: packages.native_steps,
         package_frontend: packages.frontend,
         files: files.into_values().collect(),
     })

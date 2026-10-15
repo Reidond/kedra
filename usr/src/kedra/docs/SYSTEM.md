@@ -25,7 +25,9 @@ publication are separate gates.
 ## Plan and compose
 
 The Kedra adapter resolves one committed source revision, including target overlay
-and home baselines, then observes an exact retained native ARM Fedora 44 image.
+and home baselines, then observes an exact retained Fedora 44 image of the target's
+architecture, which must be the machine's own (`aarch64` for `qemu-arm64`,
+`x86_64` for `desktop`).
 All desired RPM names must already be present and removed names absent. Engine
 outputs must share that foundation. Composition itself performs no DNF transaction.
 
@@ -110,11 +112,35 @@ artifact hashes, loads the retained archive, verifies its exact image ID and
 assigns that tag before building with pulls/network disabled. Exported files carry
 no signing or installed-system authority.
 
-The separate [native stage](NATIVE.md) (`sysroot derive`) compiles GLib schemas,
-changes declared service links, seeds initial account defaults and generates
-generic QEMU initramfs images. The release workflow may feed a verified catalog
-contribution to that stage, but final installed behavior,
-boot/update/install/SELinux and protected signing remain independent gates.
+The separate [native stage](NATIVE.md) (`sysroot derive`) applies the steps the
+target's `.kedra` block declares and the composition's source manifest carries:
+it compiles GLib schemas, changes declared service links, seeds initial account
+defaults and regenerates the target's generic initramfs. Final installed
+behavior, boot/update/install/SELinux and protected signing remain independent
+gates.
+
+## One image pipeline
+
+Both release targets build the same way, natively on their own runner
+(`.github/workflows/release-target.yml`, `image/release/compose.py`):
+
+1. Lock: `sysroot catalog lock resolve` resolves every Fedora RPM once
+   ([package delivery](PACKAGES.md#fedora-rpm-lock)).
+2. Foundation: `image/Containerfile` and `assemble.sh` install the locked RPMs
+   offline over the Fedora bootc base and add the binaries, the committed payload,
+   the private agents and Bitwarden. `assemble.sh` checks the Bitwarden runtime
+   libraries, validates the niri and Noctalia baselines, names the OS Kedra in
+   `os-release`, records the RPM material and runs `sysroot --version`. It applies
+   no image step.
+3. Packages: the catalog builders and `sysroot catalog build|contribute` realize
+   the target's `.kedra` source packages.
+4. Compose: `sysroot system compose` with that contribution.
+5. Derive: `sysroot derive build` applies the target's declared steps.
+6. Trust layer: `image/release/Containerfile` adds the signed-update identity and
+   public trust, and runs `bootc container lint`.
+
+The lab's full local build (`KEDRA_LAB_IMAGE=build`) replays steps 1, 2, 4 and 5
+without catalog packages or the trust layer.
 
 See [package declarations](PACKAGES.md), [engine operations](ENGINE.md),
 [architecture](ARCHITECTURE.md), [actual status](STATUS.md), and the

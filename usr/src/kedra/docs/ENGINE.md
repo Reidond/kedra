@@ -33,8 +33,10 @@ separate from these passes; no production image is published by this PR. See [pa
 
 ## Execution and integrity
 
-The current execution backend is a local Unix Docker socket and native aarch64
-Linux. Source and image admission are explicit. Derived output paths are
+The current execution backend is a local Unix Docker socket and native Linux on
+aarch64 or x86_64: `PLATFORM` (`aarch64-linux` or `x86_64-linux`) is the
+architecture `sysroot` was compiled for, and the engine refuses images, daemons
+and objects of any other. Source and image admission are explicit. Derived output paths are
 input-addressed and independently realized content is hashed separately. A
 rebuild compares the prior winner and preserves divergent evidence instead of
 replacing it.
@@ -97,13 +99,15 @@ them. The lock document itself is `sysroot-catalog::rpm_lock`; see
 
 ## Boundaries
 
-The first backend supports native ARM, one runtime image per closure, local Unix
-Docker endpoints and Docker 29 OCI save archives. Native x86_64 source builds,
-remote endpoints/caches, nixpkgs or `.nix` compatibility and an alternate OS
-backend remain unqualified. The `.kedra` Kedra policy currently refuses selected
-source packages for `desktop`; desktop may still select Fedora foundation
-requests. Complete kernel, boot, SELinux, installation and release signing use
-separate workflows.
+The backend supports one native architecture per machine (aarch64 or x86_64),
+one runtime image per closure, local Unix Docker endpoints and Docker 29 OCI save
+archives; cross-architecture builds are refused. Both release targets build
+through it ([one image pipeline](SYSTEM.md#one-image-pipeline)) and both may
+select `.kedra` source packages. Native x86_64 builds run on the desktop release
+runner; their local qualification is recorded in [STATUS](STATUS.md). Remote
+endpoints/caches, nixpkgs or `.nix` compatibility and an alternate OS backend
+remain unqualified. Complete kernel, boot, SELinux, installation and release
+signing use separate workflows.
 
 Engine/package rollback does not roll back systemd service state, databases,
 writable home, credentials, bootc deployments or registry tags. A bundle hash is

@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use sysroot_catalog::language::{self, Lockfile, TargetPolicy};
+use sysroot_engine::NativeStep;
 
 const IMAGE: &str = "usr/src/kedra/image/";
 
@@ -66,6 +67,38 @@ fn read(repo: &Path, tree: &[Entry], path: &str) -> Result<Vec<u8>, Error> {
         return Err(invalid("oversized or private package input"));
     }
     Ok(bytes)
+}
+
+/// Every Kedra image needs all four image steps; the initramfs keeps the generic
+/// storage/LUKS modules, and the QEMU target its virtual display and input.
+fn require_image_steps(host: &str, steps: &[NativeStep]) -> Result<(), Error> {
+    let initramfs = steps.iter().find_map(|step| match step {
+        NativeStep::Initramfs { modules, drivers } => Some((modules, drivers)),
+        _ => None,
+    });
+    let all = steps.contains(&NativeStep::GlibSchemas)
+        && steps.contains(&NativeStep::InitialSkel)
+        && steps
+            .iter()
+            .any(|step| matches!(step, NativeStep::Systemd { .. }));
+    let Some((modules, drivers)) = initramfs.filter(|_| all) else {
+        return Err(invalid(
+            "target must declare glib_schemas, systemd, skel and initramfs image steps",
+        ));
+    };
+    let has = |names: &[String], required: &[&str]| {
+        required.iter().all(|name| names.iter().any(|n| n == name))
+    };
+    if !has(modules, &["bootc", "ostree", "crypt", "dm", "rootfs-block"])
+        || host == "qemu-arm64"
+            && (!has(modules, &["qemu"])
+                || !has(drivers, &["virtio_dma_buf", "virtio_gpu", "virtio_input"]))
+    {
+        return Err(invalid(
+            "target initramfs omits required boot, storage or QEMU display modules",
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<Selection>, Error> {
@@ -174,6 +207,7 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
     }
     let intent = language::compile(&modules, entry, host, lock, &policy)
         .map_err(|e| Error::Invalid(e.to_string()))?;
+    require_image_steps(host, &intent.native_steps)?;
     for recipe in intent.recipes.values() {
         let mut contents = vec![&recipe.build];
         if let language::SourceIntent::Files(files) = &recipe.source {

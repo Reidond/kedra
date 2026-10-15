@@ -176,8 +176,9 @@ fn committed_language_cutover_preserves_legacy_and_refuses_mixed_inputs() {
         &format!("{IMAGE}/packages/packages.lock.json"),
         r#"{"schema_version":1,"sources":{}}"#,
     );
+    let steps = "glib_schemas = true; systemd = systemd { enable = [\"greetd.service\"]; default_target = \"graphical.target\"; }; skel = true; initramfs = initramfs { modules = [\"bootc\", \"ostree\", \"crypt\", \"dm\", \"rootfs-block\"]; };";
     let catalog = format!(
-        "language 1; namespace \"kedra\"; foundation system {{ fedora = 44; packages = {}; }} target \"desktop\" {{ foundation = system; }}",
+        "language 1; namespace \"kedra\"; foundation system {{ fedora = 44; packages = {}; }} target \"desktop\" {{ foundation = system; {steps} }}",
         serde_json::to_string(&required).unwrap()
     );
     f.write(&format!("{IMAGE}/packages/catalog.kedra"), &catalog);
@@ -186,6 +187,7 @@ fn committed_language_cutover_preserves_legacy_and_refuses_mixed_inputs() {
     assert_eq!(old["packages"], new["packages"]);
     assert_eq!(old["remove_packages"], new["remove_packages"]);
     assert_eq!(new["package_frontend"]["format"], "kedra");
+    assert_eq!(new["native_steps"].as_array().map(Vec::len), Some(4));
     let new_revision = new["source_revision"].as_str().unwrap().to_owned();
     f.write(
         &format!("{IMAGE}/packages/catalog.kedra"),
@@ -196,6 +198,24 @@ fn committed_language_cutover_preserves_legacy_and_refuses_mixed_inputs() {
     );
     f.commit("protected kernel removal");
     f.refused("desktop", "bootc foundation contract");
+    f.write(
+        &format!("{IMAGE}/packages/catalog.kedra"),
+        &catalog.replace(steps, ""),
+    );
+    f.commit("no image steps");
+    f.refused(
+        "desktop",
+        "must declare glib_schemas, systemd, skel and initramfs",
+    );
+    f.write(
+        &format!("{IMAGE}/packages/catalog.kedra"),
+        &catalog.replace("\"ostree\", ", ""),
+    );
+    f.commit("initramfs without ostree");
+    f.refused(
+        "desktop",
+        "omits required boot, storage or QEMU display modules",
+    );
     f.git(&["checkout", "--detach", &new_revision]);
     f.write(
         &format!("{IMAGE}/packages/catalog.kedra"),

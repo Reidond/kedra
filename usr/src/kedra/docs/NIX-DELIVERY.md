@@ -21,8 +21,9 @@ unmeasured speed, incident frequency or percentage improvement is asserted.
 
 Keep current FHS source layout, Fedora RPM foundation, ordinary nonroot package
 execution, writable home, narrowly scoped installed helper and isolated main-only
-production signer. Initial native release integration is qemu-arm64; desktop
-retains its existing assembly until native x86 behavior is independently qualified.
+production signer. Initial native release integration was qemu-arm64; since 2026-10-15 both
+targets build through the engine ([one image pipeline](SYSTEM.md#one-image-pipeline)),
+desktop natively on its x86_64 release runner.
 
 Alternative retained: keep existing assembly and use the engine only for private
 package environments. It already works but does not satisfy the requested new OS

@@ -147,6 +147,15 @@ def write_json(path, value):
     return m.sha(data)
 
 
+def built_image(iid, observed):
+    """Whether a `docker build --iidfile` result names the inspected image. With the
+    containerd image store the inspected ID is the manifest digest; Docker 29 writes
+    the config digest to the iidfile, which the manifest's own descriptor records."""
+    descriptor = observed.get('Descriptor') or {}
+    return iid == observed['Id'] or (descriptor.get('digest') == observed['Id']
+                                     and (descriptor.get('annotations') or {}).get('config.digest') == iid)
+
+
 def image_config_matches(exported, inspected):
     if not isinstance(exported, dict) or not isinstance(inspected, dict):
         return False
@@ -538,9 +547,10 @@ class Runner:
             '--label', 'dev.kedra.release.invocation=' + self.nonce,
             '--build-arg', 'BASE_IMAGE=' + self.inputs['base'],
             '--file', snapshot / 'Containerfile', snapshot], BUILD_TIMEOUT)
-        image = image_id(m.read(ordinary(self.output / 'foundation.iid'), 128).decode().strip())
+        built = image_id(m.read(ordinary(self.output / 'foundation.iid'), 128).decode().strip())
         observed = self.inspect_image(tag)
-        m.require(observed['Id'] == image
+        image = observed['Id']
+        m.require(built_image(built, observed)
                   and observed.get('Config', {}).get('Labels', {}).get('dev.kedra.release.invocation') == self.nonce,
                   'Foundation build result differs from its owned tag')
         retained = self.retain(image)

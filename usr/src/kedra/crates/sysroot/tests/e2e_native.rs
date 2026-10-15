@@ -32,8 +32,8 @@ const STEPS: &str = r#"
     };
     skel = true;
     initramfs = initramfs {
-        modules = ["bootc", "crypt", "dm", "rootfs-block"];
-        drivers = ["virtio_gpu", "virtio_input"];
+        modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block", "qemu"];
+        drivers = ["virtio_dma_buf", "virtio_gpu", "virtio_input"];
     };{extra}
 "#;
 

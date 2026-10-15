@@ -38,9 +38,12 @@ temporary copy after exit, preserving journal/tag/binding for public retry.
 Evidence: `.specs/nix-native-artifacts/verification.md`. Native-cache interruption,
 kernel boot/signing and power-loss/ENOSPC remain separate gates.
 
-Native generation uses `kedra-lab derive-plan`/`derive` with separate composition
-and derivation identities. Installed checks use the existing container test's
-`KEDRA_LAB_NATIVE_PLAN`/`KEDRA_LAB_DERIVATION_IDENTITY`, composition source and
+Native generation is product code since 2026-10-14: `sysroot derive plan|build`
+(steps file, separate composition and derivation identities, `--state`); the
+in-image executor is the running `sysroot` binary, bound by `driver_sha256`, and
+`kedra-lab derive*` no longer exists (docs/NATIVE.md). Installed checks use the
+existing container test's `KEDRA_LAB_NATIVE_PLAN` (steps file),
+`KEDRA_LAB_DERIVATION_IDENTITY`, `KEDRA_LAB_SYSROOT`, composition source and
 `native_artifacts` filter. Actual fresh-user GLib default/explicit dconf override,
 unit start/mask/default, initial skeleton/preserved existing home and generated
 initramfs content pass (2026-10-01). Start the fixture's existing systemd user bus;

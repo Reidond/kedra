@@ -78,19 +78,18 @@ disabled. Verification consumes a private snapshot and checks foundation/load/ta
 payload semantics and cache image provenance. Interrupted owned cache publication
 resumes on retry; unknown/foreign state refuses.
 
-For closed native generation, use `kedra-lab derive-plan --image composition:…
---composition-identity <parent> --native-plan /private/plan.json`, then `derive`
-with the independently retained `--derivation-identity <identity>`. The fixed
-offline recipe generates GLib schemas, declared systemd links, initial account
-skeletons and QEMU initramfs contents; it accepts no arbitrary script/command.
-It verifies unchanged RPM material, actual artifacts and exact parent image
-layers. See [native declarations and limits](../../docs/NATIVE.md).
+Closed native generation is product code: `sysroot derive plan|build` (see
+[native declarations and limits](../../docs/NATIVE.md)). The harness only calls
+it. Static composition replay uses the same engine realization, with state in
+`target/kedra-lab/derive` (the artifact root's `derive` directory).
 
 The installed native case uses `KEDRA_LAB_IMAGE=composition:…`,
-`KEDRA_LAB_COMPOSITION_IDENTITY`, `KEDRA_LAB_NATIVE_PLAN` and
-`KEDRA_LAB_DERIVATION_IDENTITY`, with filter `native_artifacts`. Both native
-variables are required together; ordinary and static-composition cases remain
-separate selections. It runs directly on the derived System-profile image without
+`KEDRA_LAB_COMPOSITION_IDENTITY`, `KEDRA_LAB_NATIVE_PLAN` (a native steps file,
+`{"schema_version": 1, "steps": [...]}`), `KEDRA_LAB_DERIVATION_IDENTITY` and
+`KEDRA_LAB_SYSROOT`, a native Linux aarch64 `sysroot` binary that runs `derive
+build` (it is also the executor bound into the derivation identity), with filter
+`native_artifacts`. Both native variables are required together; ordinary and
+static-composition cases remain separate selections. It runs directly on the derived System-profile image without
 a lab-tools adaptation. TLS Docker endpoints use the already locked ring provider;
 retained archive import allows600s while ordinary requests keep120s.
 

@@ -1,5 +1,22 @@
 # Verified status
 
+## Native derivation in sysroot (2026-10-14)
+
+The qemu-arm64 native image is derived by `sysroot derive plan|build`, no longer by
+the test harness (`kedra-lab derive*` and its embedded Python driver are removed).
+The steps are implemented in Rust and run in the offline BuildKit build as the
+running `sysroot` binary, whose hash is the plan's `driver_sha256`;
+`image/release/native-steps.json` is the single declaration on that path. The
+release composer and its installed catalog case call `sysroot`; desktop still uses
+`assemble.sh`. See [NATIVE](NATIVE.md). Local Linux qualification
+on the owner's Mac (rust:1.98.1 linux/arm64, OrbStack Docker29.4/BuildKit0.29):
+public `e2e_native` (plan, refusals, build, binding reuse) and `e2e_context` pass;
+container harness `native::native_artifacts` on the `sysroot`-derived image and
+`native::composition_unit` pass; this branch composed over the published
+qemu-arm64 `stable` image and derived with the committed steps yields twelve
+recorded artifacts. The release workflow change is `not-run` on Actions; no
+signed image, boot, installation or publication follows from these results.
+
 ## Compatibility reset (2026-10-14)
 
 No non-disposable Kedra installation exists, so backward-compatibility code and

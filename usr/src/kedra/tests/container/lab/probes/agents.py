@@ -22,7 +22,10 @@ def snapshot():
 
 before = snapshot()
 target = json.loads(pathlib.Path('/usr/share/sysroot/source.json').read_text())['target']
-package = json.loads(pathlib.Path('/usr/share/sysroot/agents/codex.json').read_text())
+# Codex is a catalog package: its private launcher, version and output come from
+# the image's catalog inventory.
+catalog = json.loads(pathlib.Path('/usr/share/kedra/catalog.json').read_text())
+launcher = catalog['libexec']['codex']['launcher']
 with tempfile.TemporaryDirectory(prefix='kedra-agent-checkout-', dir=home) as temporary:
     repo = pathlib.Path(temporary)
     definition = repo / 'usr/src/kedra/image/targets' / target['id'] / 'target.toml'
@@ -37,7 +40,8 @@ with tempfile.TemporaryDirectory(prefix='kedra-agent-checkout-', dir=home) as te
     (repo / 'untracked').write_text('retain the fixture checkout\n')
     command = ['sysroot', 'codex', '--repo', str(repo), '--host', target['id']]
     plan = json.loads(subprocess.check_output([*command, '--print-plan']))
-    if plan['version'] != package['version'] or plan['deployment_authorized']:
+    if (plan['version'] != catalog['versions']['codex'] or plan['executable'] != launcher
+            or plan['deployment_authorized']):
         raise RuntimeError('Image runtime selection mismatch')
     for args in [['--version'], ['--help'], ['login', '--help']]:
         subprocess.run([*command, '--', *args], stdout=subprocess.DEVNULL, check=True, timeout=30)
@@ -45,9 +49,11 @@ with tempfile.TemporaryDirectory(prefix='kedra-agent-checkout-', dir=home) as te
         raise RuntimeError('Agent help/version changed the checkout')
 if before != snapshot():
     raise RuntimeError('Management launch changed the personal profile')
-root = pathlib.Path('/usr/libexec/sysroot/agents/codex')
+root = pathlib.Path('/usr/lib/sysroot/store') / catalog['outputs']['codex']
 for relative in ['codex-path/rg', 'codex-resources/bwrap', 'codex-resources/zsh/bin/zsh']:
     subprocess.run([str(root / relative), '--version'], check=True, timeout=20)
-if pathlib.Path('/usr/bin/codex').exists() or pathlib.Path('/usr/local/bin/codex').exists():
+located = subprocess.run(['bash', '-lc', 'command -v codex'], capture_output=True, check=False)
+if (located.returncode == 0 or 'codex' in catalog['commands'] or pathlib.Path('/usr/bin/codex').exists()
+        or pathlib.Path('/usr/local/bin/codex').exists()):
     raise RuntimeError('Bundled runtime shadows the personal command namespace')
 print('KEDRA_R05_IMAGE_RUNTIME_PASS: private runtime/helpers and personal-profile retention')

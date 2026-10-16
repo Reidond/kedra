@@ -169,14 +169,6 @@ fn resolve(selection: Selection) -> Result<Authorized> {
     let mut policy: Policy = read(&selection.policy)?;
     let inputs = &selection.language;
     let loaded = crate::catalog_language::load(inputs)?;
-    if loaded.intent.namespace == "kedra"
-        && inputs.target == "desktop"
-        && !loaded.intent.selected.is_empty()
-    {
-        return Err(Error::Invalid(
-            "native x86 source package realization is not supported".into(),
-        ));
-    }
     let images = if let Some(path) = &selection.resolution {
         read::<sysroot_catalog::language::Images>(path)?
     } else {
@@ -250,7 +242,13 @@ pub fn run(options: Options) -> Result<ExitCode> {
             let resolved = authorized.package;
             let store = Store::open(&store)?;
             let (intent, images) = &authorized.roles;
+            native_target(intent)?;
             let material = observe_roles(&store, intent, images)?;
+            let built = intent
+                .selected
+                .iter()
+                .filter(|key| intent.recipes[*key].name == resolved.package);
+            check_shadowing(&store, &images.foundation, intent, built)?;
             for (expected, files) in &authorized.resources {
                 if store.import_resources(files)?.object != *expected {
                     return Err(Error::Invalid("admitted resource identity differs".into()));
@@ -267,6 +265,63 @@ pub fn run(options: Options) -> Result<ExitCode> {
         Command::Contribute(options) => contribute(options),
         Command::Lock { command } => crate::catalog_lock::run(command),
     }
+}
+
+/// Packages build natively: a target that declares its architecture builds only
+/// with an engine of that architecture.
+fn native_target(intent: &sysroot_catalog::language::Intent) -> Result<()> {
+    match &intent.architecture {
+        Some(architecture) if architecture != sysroot_engine::RPM_ARCHITECTURE => {
+            Err(Error::Invalid(format!(
+                "target {} is {architecture}; this engine builds {} packages",
+                intent.target,
+                sysroot_engine::RPM_ARCHITECTURE
+            )))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// An exported command comes before the foundation's commands on PATH. It may not
+/// shadow a command the foundation already provides unless its package declares
+/// `replaces`, and a declared replacement must name a command the foundation has.
+fn check_shadowing<'a>(
+    store: &Store,
+    foundation: &str,
+    intent: &sysroot_catalog::language::Intent,
+    keys: impl Iterator<Item = &'a String>,
+) -> Result<()> {
+    let mut exported = BTreeMap::new();
+    for key in keys {
+        let recipe = &intent.recipes[key];
+        for (alias, export) in &recipe.exports {
+            if export.kind == "command" {
+                exported.insert(
+                    alias.clone(),
+                    (&recipe.name, recipe.replaces.contains(alias)),
+                );
+            }
+        }
+    }
+    let names = exported.keys().cloned().collect();
+    let provided = store.foundation_commands(foundation, &names)?;
+    for (alias, (package, replaces)) in exported {
+        match (provided.contains(&alias), replaces) {
+            (true, false) => {
+                return Err(Error::Invalid(format!(
+                    "{package} exports command {alias}, which would shadow the foundation's {alias}; \
+                     declare `replaces = [\"{alias}\"];` in {package} to replace it deliberately"
+                )));
+            }
+            (false, true) => {
+                return Err(Error::Invalid(format!(
+                    "{package} declares that it replaces {alias}, but the foundation has no {alias} command"
+                )));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn observe_roles(
@@ -409,7 +464,8 @@ fn language_pins(loaded: &crate::catalog_language::Loaded) -> Result<serde_json:
             .exports
             .values()
             .find(|e| e.kind == "command")
-            .ok_or_else(|| Error::Invalid("selected package lacks command".into()))?
+            .or_else(|| recipe.exports.values().find(|e| e.kind == "libexec"))
+            .ok_or_else(|| Error::Invalid("selected package lacks command or libexec".into()))?
             .path
             .clone();
         if packages.insert(recipe.name.clone(), serde_json::json!({"version":recipe.version, "summary":recipe.summary, "license":recipe.license, "program":program, "sources":sources.into_values().collect::<Vec<_>>(), "exports":recipe.exports})).is_some() {
@@ -546,88 +602,12 @@ fn language_definition(
             });
         }
     }
-    let mut command_dirs = std::collections::BTreeSet::new();
-    let mut commands = BTreeMap::new();
-    let mut launchers = false;
-    for key in &loaded.intent.selected {
-        let recipe = &loaded.intent.recipes[key];
-        for (alias, export) in recipe.exports.iter().filter(|(_, e)| e.kind == "command") {
-            let directory = export.path.rsplit_once('/').map_or("", |(dir, _)| dir);
-            command_dirs.insert((recipe.name.clone(), directory.to_owned()));
-            let basename = export.path.rsplit('/').next().unwrap_or_default();
-            let launcher = if basename != alias {
-                let path = format!("/usr/share/kedra/catalog-bin/{alias}");
-                if !paths.insert(path.clone()) {
-                    return Err(Error::Invalid(
-                        "command launcher conflicts with authored config".into(),
-                    ));
-                }
-                let escaped = export
-                    .path
-                    .replace('"', "\\\"")
-                    .replace('$', "\\$")
-                    .replace('`', "\\`");
-                files.push(SystemFile {
-                    path: path.clone(),
-                    mode: 0o755,
-                    provenance: "catalog:kedra:2".into(),
-                    priority: 10,
-                    replaces: None,
-                    content: SystemContent::Template(Argument(vec![
-                        literal("#!/bin/sh\nexec \""),
-                        Segment::Input {
-                            name: recipe.name.clone(),
-                            path: String::new(),
-                        },
-                        literal(format!("/{escaped}\" \"$@\"\n")),
-                    ])),
-                });
-                launchers = true;
-                Some(path)
-            } else {
-                None
-            };
-            if commands.insert(alias.clone(),serde_json::json!({"package":recipe.name,"path":export.path,"launcher":launcher})).is_some() { return Err(Error::Invalid("duplicate command export".into())); }
-        }
-    }
-    let mut path_segments = Vec::new();
-    if launchers {
-        path_segments.push(literal("/usr/share/kedra/catalog-bin:"));
-    }
-    for (index, (name, path)) in command_dirs.into_iter().enumerate() {
-        if index != 0 {
-            path_segments.push(literal(":"));
-        }
-        path_segments.push(Segment::Input { name, path });
-    }
-    path_segments.push(literal(":${PATH:-/usr/local/bin:/usr/bin:/bin}"));
-    for (path, prefix, suffix) in [
-        ("/etc/profile.d/kedra-catalog.sh", "export PATH=\"", "\"\n"),
-        (
-            "/usr/lib/environment.d/60-kedra-catalog.conf",
-            "PATH=",
-            "\n",
-        ),
-    ] {
-        if !paths.insert(path.into()) {
-            return Err(Error::Invalid(
-                "package config collides with generated export environment".into(),
-            ));
-        }
-        let mut segments = vec![literal(prefix)];
-        segments.extend(path_segments.clone());
-        segments.push(literal(suffix));
-        files.push(SystemFile {
-            path: path.into(),
-            mode: 0o644,
-            provenance: "catalog:kedra:2".into(),
-            priority: 10,
-            replaces: None,
-            content: SystemContent::Template(Argument(segments)),
-        });
+    let (commands, libexec) = export_launchers(loaded, &mut paths, &mut files)?;
+    if !commands.is_empty() {
+        path_environment(&mut paths, &mut files)?;
     }
     let inventory = json_bytes(
-        &serde_json::json!({"schema_version":1,"namespace":loaded.intent.namespace,"format":"kedra","commands":commands,"source_revision":source_revision,"foundation":foundation,"outputs":outputs,"versions":versions}),
+        &serde_json::json!({"schema_version":2,"namespace":loaded.intent.namespace,"format":"kedra","commands":commands,"libexec":libexec,"source_revision":source_revision,"foundation":foundation,"outputs":outputs,"versions":versions}),
     )?;
     files.push(SystemFile {
         path: "/usr/share/kedra/catalog.json".into(),
@@ -650,6 +630,102 @@ fn language_definition(
         removed_packages: vec![],
         files,
     })
+}
+
+/// Command exports get a launcher in the PATH directory `CATALOG_BIN`; private
+/// `libexec` exports (bundled agents) get one in `CATALOG_LIBEXEC`, never on PATH.
+/// Only declared exports become commands; their output directories stay off PATH.
+const CATALOG_BIN: &str = "/usr/share/kedra/catalog-bin";
+const CATALOG_LIBEXEC: &str = "/usr/share/kedra/catalog-libexec";
+
+type Inventory = BTreeMap<String, serde_json::Value>;
+
+fn export_launchers(
+    loaded: &crate::catalog_language::Loaded,
+    paths: &mut std::collections::BTreeSet<String>,
+    files: &mut Vec<SystemFile>,
+) -> Result<(Inventory, Inventory)> {
+    let mut commands = BTreeMap::new();
+    let mut libexec = BTreeMap::new();
+    for key in &loaded.intent.selected {
+        let recipe = &loaded.intent.recipes[key];
+        for (alias, export) in &recipe.exports {
+            let (directory, inventory) = match export.kind.as_str() {
+                "command" => (CATALOG_BIN, &mut commands),
+                "libexec" => (CATALOG_LIBEXEC, &mut libexec),
+                _ => continue,
+            };
+            let path = format!("{directory}/{alias}");
+            if !paths.insert(path.clone()) {
+                return Err(Error::Invalid(
+                    "command launcher conflicts with authored config".into(),
+                ));
+            }
+            files.push(launcher(&path, &recipe.name, &export.path));
+            let mut entry =
+                serde_json::json!({"package":recipe.name,"path":export.path,"launcher":path});
+            if export.kind == "command" {
+                entry["replaces"] = recipe.replaces.contains(alias).into();
+            }
+            if inventory.insert(alias.clone(), entry).is_some() {
+                return Err(Error::Invalid("duplicate command export".into()));
+            }
+        }
+    }
+    Ok((commands, libexec))
+}
+
+/// `exec` of the exact store output; the program sees its real store path. The
+/// typed path must exist in the output, and command paths are shell-safe words.
+fn launcher(path: &str, package: &str, export: &str) -> SystemFile {
+    SystemFile {
+        path: path.into(),
+        mode: 0o755,
+        provenance: "catalog:kedra:2".into(),
+        priority: 10,
+        replaces: None,
+        content: SystemContent::Template(Argument(vec![
+            literal("#!/bin/sh\nexec \""),
+            Segment::Input {
+                name: package.into(),
+                path: export.into(),
+            },
+            literal("\" \"$@\"\n"),
+        ])),
+    }
+}
+
+/// Login shells and the systemd user manager put `CATALOG_BIN` first on PATH.
+fn path_environment(
+    paths: &mut std::collections::BTreeSet<String>,
+    files: &mut Vec<SystemFile>,
+) -> Result<()> {
+    let path = format!("{CATALOG_BIN}:${{PATH:-/usr/local/bin:/usr/bin:/bin}}");
+    for (file, line) in [
+        (
+            "/etc/profile.d/kedra-catalog.sh",
+            format!("export PATH=\"{path}\"\n"),
+        ),
+        (
+            "/usr/lib/environment.d/60-kedra-catalog.conf",
+            format!("PATH={path}\n"),
+        ),
+    ] {
+        if !paths.insert(file.into()) {
+            return Err(Error::Invalid(
+                "package config collides with generated export environment".into(),
+            ));
+        }
+        files.push(SystemFile {
+            path: file.into(),
+            mode: 0o644,
+            provenance: "catalog:kedra:2".into(),
+            priority: 10,
+            replaces: None,
+            content: SystemContent::Bytes(line.into_bytes()),
+        });
+    }
+    Ok(())
 }
 
 fn literal(value: impl Into<String>) -> Segment {
@@ -691,7 +767,14 @@ fn contribute(options: Contribution) -> Result<ExitCode> {
         .collect::<Result<Vec<_>>>()?;
     let preflight = check_preflight(&options, &loaded)?;
     let store = Store::open(&options.store)?;
+    native_target(&loaded.intent)?;
     verify_observed_rpms(&store, &loaded.intent, &images, &preflight.material)?;
+    check_shadowing(
+        &store,
+        &options.foundation,
+        &loaded.intent,
+        loaded.intent.selected.iter(),
+    )?;
     let mut realized = verify_realized_packages(&store, selected, &options.foundation)?;
     alias_runtime_outputs(&loaded.intent, &lowered.names, &mut realized)?;
     let definition = language_definition(

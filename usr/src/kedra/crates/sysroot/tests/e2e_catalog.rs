@@ -29,6 +29,31 @@ package hello(builder: Builder, runtime: Foundation) {
 }
 target "demo" { foundation = system; packages = [hello(builder: compiler, runtime: system)]; }
 "##;
+/// A prebuilt package with one archive per architecture, a private `libexec`
+/// export and a command that deliberately replaces the foundation's `cat`.
+const ARCHITECTURE_SAMPLE: &str = r##"language 1;
+namespace "example";
+foundation system { fedora = 44; packages = ["coreutils"]; }
+builder tools { base = system; packages = ["tar"]; }
+package tool(builder: Builder, runtime: Foundation) {
+    version = "1"; summary = "Prebuilt tool"; license = "MIT";
+    source = by_architecture {
+        aarch64 = archive { url = "https://example.invalid/tool-aarch64.tar.gz"; pin = "tool-aarch64"; };
+        x86_64 = archive { url = "https://example.invalid/tool-x86_64.tar.gz"; pin = "tool-x86_64"; };
+    };
+    build = shell """
+        cp -R "$src"/. "$out"/
+        """;
+    export libexec "tool" = "bin/tool";
+    export command "cat" = "bin/cat";
+    replaces = ["cat"];
+}
+target "qemu-arm64" { architecture = "aarch64"; foundation = system; packages = [tool(builder: tools, runtime: system)]; }
+target "desktop" { architecture = "x86_64"; foundation = system; packages = [tool(builder: tools, runtime: system)]; }
+target "demo" { foundation = system; packages = [tool(builder: tools, runtime: system)]; }
+"##;
+const AARCH64_OBJECT: &str = "src-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const X86_64_OBJECT: &str = "src-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const BUILDER: &str = "root-1111111111111111111111111111111111111111111111111111111111111111";
 const RUNTIME: &str = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
 
@@ -54,6 +79,29 @@ impl Fixture {
             "--target-policy".into(),
             text(&self.path("target-policy.json")).into(),
         ]
+    }
+
+    /// Inputs for `catalog` commands on `target`, with the release targets allowed.
+    fn targets(&self, source: &str, target: &str) -> Vec<String> {
+        fs::write(self.path("catalog.kedra"), source).unwrap();
+        self.write("pins.json", &json!({"schema_version":1,"sources":{
+            "tool-aarch64":{"url":"https://example.invalid/tool-aarch64.tar.gz","sha256":"a".repeat(64),"object":AARCH64_OBJECT},
+            "tool-x86_64":{"url":"https://example.invalid/tool-x86_64.tar.gz","sha256":"b".repeat(64),"object":X86_64_OBJECT}}}));
+        self.write("target-policy.json", &json!({"schema_version":1,"namespace":"example","targets":["demo","desktop","qemu-arm64"],"repositories":["fedora","updates"],"required_packages":["coreutils"]}));
+        [
+            "--entry",
+            "catalog.kedra",
+            "--input-root",
+            text(&self.root),
+            "--target",
+            target,
+            "--lock",
+            "pins.json",
+            "--target-policy",
+            text(&self.path("target-policy.json")),
+        ]
+        .map(String::from)
+        .to_vec()
     }
 
     fn language_run(&self, operation: &str, language: &[String], extra: &[&str]) -> Output {
@@ -195,6 +243,190 @@ fn language_edit_format_plan_and_refusal() {
         let message = String::from_utf8_lossy(&refused.stderr);
         assert!(message.contains(reason), "{message}");
         assert!(!message.contains("secret not echoed"));
+    }
+}
+
+#[test]
+fn language_architecture_sources_private_exports_and_replacements() {
+    let fixture = Fixture::new();
+    for (target, object, other) in [
+        ("qemu-arm64", AARCH64_OBJECT, X86_64_OBJECT),
+        ("desktop", X86_64_OBJECT, AARCH64_OBJECT),
+    ] {
+        let args = fixture.targets(ARCHITECTURE_SAMPLE, target);
+        let checked: Value =
+            serde_json::from_slice(&success(fixture.language_run("check", &args, &[])).stdout)
+                .unwrap();
+        let recipe = &checked["intent"]["recipes"]["catalog.kedra#tool"];
+        assert_eq!(recipe["replaces"], json!(["cat"]));
+        assert_eq!(recipe["source"]["Archive"]["object"], object);
+        let pins: Value =
+            serde_json::from_slice(&success(fixture.language_run("pins", &args, &[])).stdout)
+                .unwrap();
+        assert!(pins["archives"].get(object).is_some());
+        assert!(pins["archives"].get(other).is_none());
+        assert_eq!(pins["packages"]["tool"]["program"], "bin/cat");
+        assert_eq!(
+            pins["packages"]["tool"]["exports"]["tool"]["kind"],
+            "libexec"
+        );
+        let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["tool"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[object]}));
+        let graph: Value = serde_json::from_slice(
+            &success(fixture.language_run(
+                "plan",
+                &args,
+                &[
+                    "--package",
+                    "tool",
+                    "--builder",
+                    BUILDER,
+                    "--runtime",
+                    RUNTIME,
+                    "--policy",
+                    text(&policy),
+                ],
+            ))
+            .stdout,
+        )
+        .unwrap();
+        assert_eq!(
+            graph["nodes"]["package_0"]["inputs"]["source"]["value"],
+            object
+        );
+    }
+    let private = ARCHITECTURE_SAMPLE
+        .replace("    export command \"cat\" = \"bin/cat\";\n", "")
+        .replace("    replaces = [\"cat\"];\n", "");
+    let args = fixture.targets(&private, "qemu-arm64");
+    let pins: Value =
+        serde_json::from_slice(&success(fixture.language_run("pins", &args, &[])).stdout).unwrap();
+    assert_eq!(pins["packages"]["tool"]["program"], "bin/tool");
+    for (source, target, reason) in [
+        (ARCHITECTURE_SAMPLE.to_owned(), "demo", "per-architecture source requires the target to declare its architecture"),
+        (
+            ARCHITECTURE_SAMPLE.replace("x86_64 = archive { url = \"https://example.invalid/tool-x86_64.tar.gz\"; pin = \"tool-x86_64\"; };", ""),
+            "desktop",
+            "no source for the target architecture",
+        ),
+        (
+            ARCHITECTURE_SAMPLE.replace("architecture = \"aarch64\"", "architecture = \"x86_64\""),
+            "qemu-arm64",
+            "differs from the release target table",
+        ),
+        (
+            ARCHITECTURE_SAMPLE.replace("architecture = \"aarch64\"", "architecture = \"riscv64\""),
+            "qemu-arm64",
+            "target architecture must be aarch64 or x86_64",
+        ),
+        (
+            ARCHITECTURE_SAMPLE.replace("aarch64 = archive", "riscv64 = archive"),
+            "qemu-arm64",
+            "unsupported constructor or fields",
+        ),
+        (
+            ARCHITECTURE_SAMPLE.replace("aarch64 = archive { url", "aarch64 = files { \"url\" = text \"x\"; }; unused = archive { url"),
+            "qemu-arm64",
+            "unsupported constructor or fields",
+        ),
+        (
+            ARCHITECTURE_SAMPLE.replace("replaces = [\"cat\"]", "replaces = [\"tool\"]"),
+            "qemu-arm64",
+            "replaces must name this package's command exports once each",
+        ),
+        (
+            ARCHITECTURE_SAMPLE.replace("replaces = [\"cat\"]", "replaces = [\"cat\", \"cat\"]"),
+            "qemu-arm64",
+            "replaces must name this package's command exports once each",
+        ),
+        (
+            ARCHITECTURE_SAMPLE.replace("export libexec", "export daemon"),
+            "qemu-arm64",
+            "unsupported export kind",
+        ),
+    ] {
+        let args = fixture.targets(&source, target);
+        denied(fixture.language_run("check", &args, &[]), reason);
+    }
+}
+
+#[test]
+fn fixture_catalog_keeps_the_former_demo_packages() {
+    // jq, SQLite and hello left the shipped targets on 2026-10-16; they remain the
+    // source-build fixtures of the language (tests/fixtures/catalog).
+    let fixture = Fixture::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/catalog");
+    let files =
+        ["catalog.kedra", "jq.kedra", "sqlite.kedra", "hello.kedra"].map(|name| root.join(name));
+    let mut format = vec!["catalog", "fmt", "--check"];
+    format.extend(files.iter().map(|path| text(path)));
+    success(fixture.run(&format));
+    for target in ["desktop", "qemu-arm64"] {
+        let args: Vec<String> = [
+            "--input-root",
+            text(&root),
+            "--entry",
+            "catalog.kedra",
+            "--target",
+            target,
+            "--lock",
+            "packages.lock.json",
+            "--target-policy",
+            text(&root.join("target-policy.json")),
+        ]
+        .map(String::from)
+        .to_vec();
+        let checked: Value =
+            serde_json::from_slice(&success(fixture.language_run("check", &args, &[])).stdout)
+                .unwrap();
+        let intent = &checked["intent"];
+        assert_eq!(
+            intent["selected"],
+            json!(["hello.kedra#hello", "jq.kedra#jq", "sqlite.kedra#sqlite"])
+        );
+        assert_eq!(intent["recipes"]["jq.kedra#jq"]["replaces"], json!(["jq"]));
+        let pins: Value =
+            serde_json::from_slice(&success(fixture.language_run("pins", &args, &[])).stdout)
+                .unwrap();
+        let programs: Vec<_> = ["hello", "jq", "sqlite"]
+            .iter()
+            .map(|name| pins["packages"][name]["program"].clone())
+            .collect();
+        assert_eq!(
+            programs,
+            [json!("bin/hello"), json!("bin/jq"), json!("bin/sqlite3")]
+        );
+        let sources: Vec<_> = pins["archives"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        let policy = fixture.write("fixture-policy.json", &json!({"namespace":"fixture","packages":["hello","jq","sqlite"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":sources}));
+        let graph: Value = serde_json::from_slice(
+            &success(fixture.language_run(
+                "plan",
+                &args,
+                &[
+                    "--package",
+                    "sqlite",
+                    "--builder",
+                    BUILDER,
+                    "--runtime",
+                    RUNTIME,
+                    "--policy",
+                    text(&policy),
+                ],
+            ))
+            .stdout,
+        )
+        .unwrap();
+        let nodes = graph["nodes"].as_object().unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert!(
+            nodes
+                .values()
+                .any(|node| node["runtime_inputs"] == json!(["library"]))
+        );
     }
 }
 
@@ -539,6 +771,28 @@ fn language_real_inline_build_transfer_and_rebuild() {
         "bin/hello",
     ]));
     assert_eq!(output.stdout, b"original\n");
+    // The Fedora runtime foundation has cat: an export named cat needs `replaces`,
+    // and a declared replacement must name a command the foundation has.
+    let shadowing = LANGUAGE_SAMPLE.replace("export command \"hello\"", "export command \"cat\"");
+    fixture.language(&shadowing);
+    denied(
+        fixture.language_run("build", &args, &build),
+        "would shadow the foundation's cat",
+    );
+    fixture.language(&shadowing.replace(
+        "    export command",
+        "    replaces = [\"cat\"];\n    export command",
+    ));
+    success(fixture.language_run("build", &args, &build));
+    fixture.language(&LANGUAGE_SAMPLE.replace(
+        "    export command",
+        "    replaces = [\"hello\"];\n    export command",
+    ));
+    denied(
+        fixture.language_run("build", &args, &build),
+        "the foundation has no hello command",
+    );
+    fixture.language(LANGUAGE_SAMPLE);
     let mut rebuild = build.to_vec();
     rebuild.push("--rebuild");
     let second: Value =

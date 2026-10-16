@@ -38,6 +38,14 @@ genuine contribution passed the composer/exact-image checks recorded in
 Those results remain valid for their exact sources and scope; they do not qualify
 the new frontend, its migration, protected signing or a current production image.
 
+Since 2026-10-16 the shipped targets select the official Codex and Bitwarden
+Desktop packages ([shipped packages](#shipped-packages)) instead of jq, SQLite and
+hello. Those three remain the language's source-build fixtures in
+`crates/sysroot/tests/fixtures/catalog` (E2E `fixture_catalog_keeps_the_former_demo_packages`):
+Fedora's foundation already ships jq, so a second jq ahead of it on PATH had no
+product purpose, and shipping it would need `replaces`, which the fixture jq
+declares instead.
+
 The versioned source discriminator is deliberately explicit:
 
 ```json
@@ -132,6 +140,7 @@ builder c_tools {
 }
 
 target "desktop" {
+    architecture = "x86_64";
     foundation = system;
     packages = [hello(builder: c_tools, runtime: system)];
     glib_schemas = true;
@@ -146,6 +155,7 @@ target "desktop" {
 }
 
 target "qemu-arm64" {
+    architecture = "aarch64";
     foundation = system;
     fedora = ["qemu-guest-agent", "egl-utils"];
     packages = [hello(builder: c_tools, runtime: system)];
@@ -165,6 +175,10 @@ rules (one operation per unit, concrete unit names, module and driver names).
 `sysroot source plan` records the checked steps as `native_steps` in the source
 manifest; they are part of the target's package intent and its hash. Both targets
 may select source packages; each builds natively on its own architecture.
+`architecture` (`aarch64` or `x86_64`) is the target's RPM architecture: it selects
+`by_architecture` sources, `sysroot catalog build` and `contribute` refuse it on an
+engine of another architecture, and for a target in `image/release/targets.json`
+it must be the table's.
 
 Packages and libraries take exactly one `Builder` and one `Foundation` role.
 Builders derive from the selected foundation and add compiler-only RPM requests.
@@ -196,16 +210,26 @@ package hello(builder: Builder, runtime: Foundation) {
 ```
 
 Archive sources refer to an exact URL, SHA-256 and normalized `src-...` object in
-the strict `packages.lock.json`. `files` creates a source tree; optional `files`,
+the strict `packages.lock.json`. A prebuilt upstream package that differs per
+architecture names one reviewed archive per architecture; the target's
+`architecture` selects one, the others still need their pins:
+
+```text
+source = by_architecture {
+    aarch64 = archive { url = "https://…/codex-package-aarch64-unknown-linux-musl.tar.gz"; pin = "codex-aarch64"; };
+    x86_64 = archive { url = "https://…/codex-package-x86_64-unknown-linux-musl.tar.gz"; pin = "codex-x86_64"; };
+};
+```
+ `files` creates a source tree; optional `files`,
 `replace_files` and ordered `patches` prepare a copy before the real build. A
 source path cannot be both added and replaced. `build_deps` are build inputs;
 `runtime_deps` are build inputs retained in the runtime closure. `env` values are
 literals or typed dependency paths. `src`, `out`, `HOME`, `PATH` and `TMPDIR` are
 reserved.
 
-`export command`, `export library` and `export files` name safe output-relative
-paths. A command package needs a command export; a library cannot export a
-command. A `config` template becomes typed `SystemFile` content after the build.
+`export command`, `export libexec`, `export library` and `export files` name safe
+output-relative paths. A package needs a command or libexec export; a library can
+export neither. A `config` template becomes typed `SystemFile` content after the build.
 Bindings may be literal, a typed package path or the independently verified
 `source_revision`; missing, unused or phase-invalid bindings refuse.
 
@@ -267,14 +291,83 @@ Exact image resolution is separate from authored requests:
 {
   "foundation": "sha256:<64 lowercase hex digits>",
   "builders": {
-    "catalog.kedra#c_tools": "sha256:<64 lowercase hex digits>"
+    "catalog.kedra#tools": "root-<64 lowercase hex digits>"
   }
 }
 ```
 
-Command exports with a different alias from their output filename receive a typed
-launcher under `/usr/share/kedra/catalog-bin`. Exact-store paths for matching
-command names are preserved; global RPM paths are never replaced.
+## Exports and PATH
+
+`sysroot catalog contribute` gives every command export a typed launcher,
+`/usr/share/kedra/catalog-bin/<name>`, that `exec`s the exact store path of the
+output (`#!/bin/sh` + `exec "<store>/<path>" "$@"`); the program still sees its real
+store path. `/etc/profile.d/kedra-catalog.sh` and
+`/usr/lib/environment.d/60-kedra-catalog.conf` put that one directory first on PATH.
+Output directories themselves never go on PATH, so only declared exports become
+commands. A `libexec` export is a private executable for another program: its
+launcher is `/usr/share/kedra/catalog-libexec/<name>`, never on PATH (`sysroot
+codex` uses it). `/usr/share/kedra/catalog.json` (schema 2) lists `commands` and
+`libexec` with their package, output path, launcher and, for commands, `replaces`.
+Global RPM paths are never replaced.
+
+No silent shadowing: `sysroot catalog build` and `contribute` probe the exact
+foundation (in the engine sandbox) for each exported command name in
+`/usr/local/bin`, `/usr/local/sbin`, `/usr/bin`, `/usr/sbin`, `/bin` and `/sbin`. An
+export the foundation already provides is refused unless its package declares it:
+
+```text
+export command "jq" = "bin/jq";
+replaces = ["jq"];
+```
+
+`replaces` may name only the package's own command exports, and naming a command
+the foundation does not have is refused too, so a stale declaration does not
+survive a foundation change.
+
+## Shipped packages
+
+Both targets select two prebuilt official packages, unchanged, built with the
+`tools` builder (coreutils, findutils, glibc-common, grep, gzip, tar; all already
+in the foundation, so the role installs nothing):
+
+| Package | Source per architecture | Exports | Runtime libraries |
+|---|---|---|---|
+| `codex` 0.153.4 (`codex.kedra`) | `codex-package-<arch>-unknown-linux-musl.tar.gz` | `libexec "codex" = "bin/codex"` | `codex_licenses` (license, notices, bubblewrap COPYING, zsh patch, corresponding source re-packed from the pinned commit), `codex_components` (ripgrep, PCRE2, zsh, ratatui licenses committed in `packages/notices/codex/`) |
+| `bitwarden` 2026.8.0 (`bitwarden.kedra`) | `bitwarden_2026.8.0_<arm64\|x64>.tar.gz` | `command "bitwarden" = "bitwarden"` and `/usr/share/applications/com.bitwarden.desktop.desktop` | `bitwarden_licenses` (three license files and the client source re-packed from the pinned commit) |
+
+The Codex build checks that the binary runs and reports the declared version; the
+Bitwarden build checks with `ldd` that the runtime, `desktop_proxy` and the native
+module resolve every library in the builder root (the foundation plus build
+tools), and declares the Electron libraries it needs as `runtime_requires`. The
+desktop entry's `Exec=` and `Icon=` are typed paths of the exact output. Its
+upstream launcher resolves its own directory through `readlink -f`. The x86_64
+image now uses the official x64 tarball like arm64, not the RPM; package scripts
+and setuid bits never existed in the tarball and cannot enter the store.
+
+## Updating a pin
+
+The SHA-256 pin is the build-time trust: the release downloads each archive and
+admits only those bytes. Provenance is verified once, when a pin is added or
+bumped, on a Linux machine:
+
+```sh
+# Codex: the release workflow's Sigstore signatures on codex, its code-mode host
+# and bwrap, with the pinned Cosign 3.1.3, for each architecture.
+uv run usr/src/kedra/image/packages/verify-codex.py --version 0.153.4 --architecture aarch64
+# Then record the verified bytes (SHA-256 and src- object) in packages.lock.json.
+uv run usr/src/kedra/image/packages/pin.py --name codex-aarch64 \
+  --url https://github.com/openai/codex/releases/download/rust-v0.153.4/codex-package-aarch64-unknown-linux-musl.tar.gz \
+  --sha256 <printed sha256> --sysroot target/release/sysroot
+```
+
+`pin.py` extracts the archive with the release's own `image/catalog/prepare-sources.py`
+and admits the tree with `sysroot store add-source`, so the recorded object is the
+one the build reproduces. Bitwarden publishes no signatures: compare its archive
+with the GitHub release asset digest (`gh api repos/bitwarden/clients/releases/tags/<tag>`)
+and pass it as `--sha256`. Update the `.kedra` URL and version in the same change.
+Verifying at build time instead would put Cosign, its Sigstore trust root and
+network access into every release build for no added protection: the pin already
+binds the build to the verified bytes, and a mismatch fails the download.
 
 The engine observes each retained image's actual seven-column RPM inventory. It
 refuses a runtime missing a requested Fedora package, containing a requested
@@ -297,9 +390,12 @@ The package build consumes that tree. It does not mutate the admitted original o
 fall back to host tools.
 
 Release source acquisition is likewise separate from author shell. The reviewed
-archive helper downloads only HTTPS pins, verifies size, deadline and SHA-256,
-extracts a bounded single-root gzip/tar tree with restricted member types, and
-then admits the resulting tree through the ordinary store workflow. This code is
+archive helper downloads only HTTPS pins, verifies size (256 MiB), deadline (600 s)
+and SHA-256, extracts a bounded (1 GiB) gzip/tar tree with restricted member types,
+and then admits the resulting tree through the ordinary store workflow. An archive
+with a single top-level directory (a source release) contributes that directory;
+a flat archive (a prebuilt package with several top-level entries) contributes
+the extraction itself. This code is
 public pre-signing work; production signers receive authenticated candidate
 material and never fetch sources or run recipes.
 

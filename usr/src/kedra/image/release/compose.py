@@ -32,7 +32,7 @@ import material as m
 IMAGE = 'usr/src/kedra/image/'
 PROGRAMS = ('sysroot', 'sysroot-helper')
 CONTEXT_FILES = frozenset(('Containerfile', 'assemble.sh', 'install-rpms.sh', 'sysroot', 'sysroot-helper',
-                           'payload.tar', 'agents.tar', 'bitwarden.tar', 'rpms'))
+                           'payload.tar', 'rpms'))
 CONTEXT_RECIPES = {'Containerfile': IMAGE + 'Containerfile', 'assemble.sh': IMAGE + 'assemble.sh',
                    'install-rpms.sh': IMAGE + 'catalog/install-rpms.sh'}
 MAX_JSON = 64 * 1024**2

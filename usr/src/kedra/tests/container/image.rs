@@ -703,7 +703,12 @@ fn prepare_fixture(
 
 /// Full local image build of the working tree or `revision`; see build.rs.
 pub fn local_build(docker: &Docker, request: &Request, revision: Option<&str>) -> Result<String> {
-    crate::localbuild::local(docker, &request.target, revision)
+    crate::localbuild::local(
+        docker,
+        &request.target,
+        revision,
+        request.binaries.as_deref(),
+    )
 }
 
 /// Git bundle of the source revision an image records in

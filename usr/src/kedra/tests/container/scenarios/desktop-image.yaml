@@ -16,7 +16,19 @@ steps:
           - select: $
             subset: {id: desktop, architecture: x86_64, image: ghcr.io/reidond/kedra-desktop}
   - exec:
-      argv: [jq, -r, .target, /usr/share/sysroot/agents/codex.json]
+      name: the bundled Codex is the x86_64 musl build
+      argv: [jq, -er, .outputs.codex, /usr/share/kedra/catalog.json]
+      capture:
+        codex: {stdout: trim}
+  - exec:
+      argv: [jq, -r, .target, "/usr/lib/sysroot/store/${codex}/codex-package.json"]
       expect: {stdout: x86_64-unknown-linux-musl}
+  - exec:
+      name: Bitwarden is the x64 build
+      argv: [jq, -er, .outputs.bitwarden, /usr/share/kedra/catalog.json]
+      capture:
+        bitwarden: {stdout: trim}
+  - exec:
+      argv: [test, -f, "/usr/lib/sysroot/store/${bitwarden}/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi/desktop_napi.linux-x64-gnu.node"]
   - exec:
       argv: [rpm, -q, shim-x64, grub2-efi-x64, bootupd, mokutil, efibootmgr, kernel-core, bootc]

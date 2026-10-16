@@ -14,15 +14,18 @@ pub enum SourceApplicability {
     Ordinary,
     Composition,
     Derivation,
+    /// Images that carry the catalog's packages: a derived release composition
+    /// or a full local build (`KEDRA_LAB_IMAGE=build`), which builds them too.
+    Catalog,
 }
 impl SourceApplicability {
-    pub fn applies(self, composition: bool, derivation: bool) -> bool {
+    pub fn applies(self, composition: bool, derivation: bool, local_build: bool) -> bool {
         matches!(
             (self, composition, derivation),
             (Self::Ordinary, false, false)
                 | (Self::Composition, true, false)
-                | (Self::Derivation, true, true)
-        )
+                | (Self::Derivation | Self::Catalog, true, true)
+        ) || (self == Self::Catalog && local_build && !composition)
     }
 }
 
@@ -38,12 +41,20 @@ pub struct NativeTest {
 
 pub const TESTS: &[NativeTest] = &[
     NativeTest {
-        source: SourceApplicability::Derivation,
+        source: SourceApplicability::Catalog,
         name: "catalog",
         profile: Profile::System,
         fixtures: &[Fixture::TestUser],
         targets: &[],
         run: crate::catalog_tests::installed_catalog,
+    },
+    NativeTest {
+        source: SourceApplicability::Ordinary,
+        name: "catalog_shadowing",
+        profile: Profile::System,
+        fixtures: &[Fixture::TestUser],
+        targets: &[],
+        run: crate::catalog_tests::shadowing_refusal,
     },
     NativeTest {
         source: SourceApplicability::Ordinary,

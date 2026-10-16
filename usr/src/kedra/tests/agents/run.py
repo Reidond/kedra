@@ -3,7 +3,12 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Native launcher probes under a generated user home and no network namespace."""
+"""Native launcher probes under a generated user home and no network namespace.
+
+Runs on an installed Kedra (or the lab image) as an ordinary user: the bundled
+runtime is the image's Codex catalog package, the personal one any separately
+obtained official Codex executable (`--personal`, for example an older release).
+"""
 import argparse
 import hashlib
 import json
@@ -14,7 +19,7 @@ import subprocess
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--sysroot', type=pathlib.Path, required=True)
-parser.add_argument('--packages', type=pathlib.Path, required=True)
+parser.add_argument('--personal', type=pathlib.Path, required=True, help='personal official Codex executable')
 parser.add_argument('--work', type=pathlib.Path, required=True)
 parser.add_argument('--evidence', type=pathlib.Path, required=True)
 args = parser.parse_args()
@@ -43,16 +48,23 @@ for command in [['init', '-q'], ['config', 'user.name', 'Fixture'],
     subprocess.run(['git', '-C', str(repo), *command], env=environment, check=True)
 repo.joinpath('untracked').write_text('must remain untouched\n')
 before = subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain=v1'], env=environment)
+def version(executable):
+    output = subprocess.run([str(executable), '--version'], env={**environment, 'CODEX_HOME': str(args.work / 'probe')},
+                            capture_output=True, text=True, timeout=30, check=True).stdout
+    return output.split()[-1]
+
+(args.work / 'probe').mkdir(mode=0o700)
+catalog = json.loads(pathlib.Path('/usr/share/kedra/catalog.json').read_text())
+expected = {'bundled': catalog['versions']['codex'], 'user': version(args.personal)}
 results = []
 for runtime in ['bundled', 'user']:
     for scope in ['management', 'personal']:
         personal_before = snapshot(personal)
         command = [str(args.sysroot), 'codex', '--repo', str(repo), '--runtime', runtime, '--config-scope', scope]
         if runtime == 'user':
-            command.extend(['--executable', str(args.packages / 'personal-codex/bin/codex')])
+            command.extend(['--executable', str(args.personal.resolve())])
         plan = json.loads(subprocess.check_output([*command, '--print-plan'], env=environment))
-        expected_version = '0.153.4' if runtime == 'bundled' else '0.153.3'
-        if plan['version'] != expected_version or plan['deployment_authorized']:
+        if plan['version'] != expected[runtime] or plan['deployment_authorized']:
             raise RuntimeError('Wrong native runtime selected')
         for upstream in [['--version'], ['--help'], ['login', '--help']]:
             output = subprocess.run([*command, '--', *upstream], env=environment, capture_output=True, timeout=30, check=False)
@@ -69,4 +81,5 @@ if (personal / 'config.toml').read_text() != '# synthetic personal preferences; 
     raise RuntimeError('Personal configuration changed')
 args.evidence.mkdir(parents=True, exist_ok=True)
 (args.evidence / 'native-results.json').write_text(json.dumps(results, indent=2) + '\n')
-print('PASS: native Codex 0.153.4/0.153.3 runtime and config selection; unchanged checkout/personal profile')
+print(f'PASS: native Codex {expected["bundled"]}/{expected["user"]} runtime and config selection; '
+      'unchanged checkout/personal profile')

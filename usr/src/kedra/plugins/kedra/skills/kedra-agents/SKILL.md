@@ -5,14 +5,27 @@ description: Build sysroot Codex/Claude launchers while preserving personal inst
 
 # Two runtimes, explicit configuration scope
 
-Bundled official CLIs are OS-management tools under
-/usr/libexec/sysroot/agents/, invoked by absolute path through sysroot. They must
-not install /usr/bin/codex or /usr/bin/claude, add aliases or shadow personal PATH
-commands. Ordinary codex/claude belong to the user's independently updated setup.
-The Linux launcher selects these paths (with bin/NAME below each agent
-directory). Codex 0.153.4 is packaged in the image and VM-tested; Claude is not
-bundled until the owner accepts its preinstallation terms. Authenticated model
-use, MCP and skills remain unqualified.
+Bundled official CLIs are OS-management tools: catalog packages with a private
+`libexec` export, launched through /usr/share/kedra/catalog-libexec/NAME by
+sysroot. They must not install /usr/bin/codex or /usr/bin/claude, add aliases or
+shadow personal PATH commands; a libexec export never reaches PATH, so `--runtime
+user` cannot find the bundled one. Ordinary codex/claude belong to the user's
+independently updated setup. Codex 0.153.4 is the `codex` package
+(usr/src/kedra/image/packages/codex.kedra) on both targets; Claude is not bundled
+until the owner accepts its preinstallation terms. Authenticated model use, MCP
+and skills remain unqualified.
+
+Settled 2026-10-16 (engine packages): the Codex archive is one SHA-256 pin per
+architecture in packages.lock.json. Sigstore verification of the codex,
+codex-code-mode-host and bwrap blobs (identity
+`openai/codex/.github/workflows/rust-release.yml@refs/tags/rust-v<version>`,
+issuer token.actions.githubusercontent.com, Cosign 3.1.3) runs when the pin is
+added or bumped (`uv run usr/src/kedra/image/packages/verify-codex.py`, then
+`pin.py`); builds trust the pin. The former exact six-file list and manifest
+equality are gone: the pin fixes those bytes, and the package build runs
+`codex --version` against the declared version. The x86_64 binary is 258.7 MB,
+close to the engine's 256 MiB per-file store limit; a bump past it needs an
+engine change first.
 See usr/src/kedra/docs/AGENT-LAUNCHERS.md and usr/src/kedra/docs/STATUS.md for actual scope.
 
 ## Intended interfaces (not upstream flags)

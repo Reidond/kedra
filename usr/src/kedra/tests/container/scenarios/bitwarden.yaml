@@ -7,7 +7,7 @@ profile: desktop
 steps:
   - exec:
       as: session
-      argv: [systemd-run, --user, --unit=kedra-bitwarden-research, --collect, --service-type=exec, --property=TimeoutStopSec=5s, /usr/bin/bitwarden]
+      argv: [systemd-run, --user, --unit=kedra-bitwarden-research, --collect, --service-type=exec, --property=TimeoutStopSec=5s, /usr/share/kedra/catalog-bin/bitwarden]
   - eventually:
       name: Bitwarden maps a window
       timeout: 90s

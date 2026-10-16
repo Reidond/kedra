@@ -14,10 +14,16 @@ sysroot codex --repo ~/src/kedra --host xps --runtime user -- 'Review the target
 Wrapper options precede `--`; everything after it goes unchanged to the official CLI,
 which runs with normal upstream interaction, signals and exit status.
 
-Runtime. The default bundled runtime is `/usr/libexec/sysroot/agents/NAME/bin/NAME`,
-outside ordinary PATH. The desktop image packages the pinned official Codex runtime,
-whose native VM startup and profile-retention checks pass. Claude is not packaged
-pending the owner's preinstallation terms choice. `--runtime user` uses the personal
+Runtime. The default bundled runtime is `/usr/share/kedra/catalog-libexec/NAME`, the
+launcher of a catalog package's private `libexec` export, outside ordinary PATH
+([exports and PATH](PACKAGES.md#exports-and-path)). Both images build the pinned
+official Codex package from `image/packages/codex.kedra`; the launcher `exec`s its
+exact store output, so Codex finds its bundled helpers next to its real path. Its
+native VM startup and profile-retention checks passed with the earlier
+`/usr/libexec/sysroot/agents/codex` layout. Claude is not packaged: its published
+preinstallation policy requires the owner's Commercial Terms agreement, unmodified
+binaries, native authentication choices and direct end-user billing, and an
+unanswered question is not agreement. `--runtime user` uses the personal
 executable on absolute PATH entries, or an explicit absolute `--executable`. A missing
 personal executable fails; there is no bundled fallback. Authenticated model
 workflows and the complete runtime/profile matrix remain unqualified.

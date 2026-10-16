@@ -16,8 +16,11 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-MAX_ARCHIVE = 32 * 1024**2
-MAX_TREE = 128 * 1024**2
+# Prebuilt upstream packages (Codex, Bitwarden) are the largest pins; the
+# engine's own source tree bound is 1 GiB with 256 MiB per file.
+MAX_ARCHIVE = 256 * 1024**2
+MAX_TREE = 1024**3
+DEADLINE = 600
 
 
 def require(condition, message):
@@ -56,7 +59,7 @@ def acquire(pin, destination, local=None):
             'Invalid source pin')
     digest = hashlib.sha256()
     total = 0
-    deadline = time.monotonic() + 120
+    deadline = time.monotonic() + DEADLINE
     opener = urllib.request.build_opener(HTTPSRedirect())
     source = local.open('rb') if local is not None else opener.open(pin['url'], timeout=120)
     with source, destination.open('xb') as output:
@@ -83,9 +86,13 @@ def extract(archive, destination):
             names.add(name)
             members.append(member)
         source.extractall(destination, members=members, filter='data')
-    roots = list(destination.iterdir())
-    require(len(roots) == 1 and roots[0].is_dir() and not roots[0].is_symlink(), 'Expected single ordinary archive root')
-    for path in roots[0].rglob('*'):
+    # A single top-level directory (a source release) is the tree's root; a flat
+    # archive (a prebuilt package with several top-level entries) is the tree.
+    entries = list(destination.iterdir())
+    require(entries, 'Empty archive')
+    single = len(entries) == 1 and entries[0].is_dir() and not entries[0].is_symlink()
+    root = entries[0] if single else destination
+    for path in root.rglob('*'):
         if path.is_symlink():
             continue
         info = path.stat()
@@ -95,8 +102,8 @@ def extract(archive, destination):
             path.unlink()
             path.write_bytes(data)
         path.chmod(mode)
-    roots[0].chmod(0o755)
-    return roots[0]
+    root.chmod(0o755)
+    return root
 
 
 def main():

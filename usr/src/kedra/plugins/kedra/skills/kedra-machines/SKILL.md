@@ -28,7 +28,8 @@ Keep output/scale overrides in disposable lab state unless a product default is
 measured. The target preserves qemu-guest-agent's restricted RPC list; fixture
 SSH grants do not enter production. SPICE integration and Venus diagnostics were
 removed because the native backend uses Cocoa/VirGL/ANGLE Metal, not SPICE/Venus.
-Bitwarden uses the reviewed official arm64 tarball because no arm64 RPM exists.
+Bitwarden is the catalog package of the official Linux tarball on both targets
+(x64 or arm64, per-architecture pins; 2026-10-16).
 
 ## Provenance and identity
 

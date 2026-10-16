@@ -200,6 +200,49 @@ impl Store {
         })
     }
 
+    /// The subset of `names` the retained foundation provides as commands in its
+    /// default PATH directories (any entry, including alternatives symlinks).
+    pub fn foundation_commands(
+        &self,
+        foundation: &str,
+        names: &BTreeSet<String>,
+    ) -> Result<BTreeSet<String>> {
+        if names.is_empty() {
+            return Ok(BTreeSet::new());
+        }
+        if names.iter().any(|name| {
+            name.is_empty()
+                || name.len() > 128
+                || name.starts_with(['-', '.'])
+                || !name
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"+._-".contains(&b))
+        }) {
+            return Err(Error::Invalid("invalid command name".into()));
+        }
+        self.verify_image(foundation)?;
+        // Names are positional arguments, never shell source.
+        let script = "for name do for dir in /usr/local/bin /usr/local/sbin /usr/bin /usr/sbin /bin /sbin; do if [ -e \"$dir/$name\" ] || [ -L \"$dir/$name\" ]; then printf '%s\\n' \"$name\"; break; fi; done; done";
+        let mut argv = vec![
+            "/usr/bin/sh".into(),
+            "-c".into(),
+            script.into(),
+            "foundation-commands".into(),
+        ];
+        argv.extend(names.iter().cloned());
+        let found: BTreeSet<String> = self
+            .system_command(foundation, &argv)?
+            .lines()
+            .map(str::to_owned)
+            .collect();
+        if !found.is_subset(names) {
+            return Err(Error::Invalid(
+                "foundation command probe returned unrequested names".into(),
+            ));
+        }
+        Ok(found)
+    }
+
     pub fn plan_system(&self, definition: &SystemDefinition) -> Result<SystemPlan> {
         validate_definition(definition)?;
         let mut definition = definition.clone();

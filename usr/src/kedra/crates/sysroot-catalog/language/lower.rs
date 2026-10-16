@@ -247,7 +247,8 @@ pub fn lower(
             .exports
             .values()
             .find(|e| e.kind == "command")
-            .ok_or_else(|| invalid("selected package has no command export"))?
+            .or_else(|| recipe.exports.values().find(|e| e.kind == "libexec"))
+            .ok_or_else(|| invalid("selected package has no command or libexec export"))?
             .path
             .clone();
         let package = Package {

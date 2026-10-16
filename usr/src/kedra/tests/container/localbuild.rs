@@ -188,7 +188,9 @@ fn engine_string(value: &serde_json::Value, pointer: &str) -> Result<String> {
 /// disposable builder container that reaches this lab's Docker engine. The
 /// derived image is tagged `reference`; the store and contexts die with the
 /// container. Ordinary-user engine stores refuse root, so the commands run as
-/// a user in the socket's group.
+/// a user in the socket's group. Composition observes the foundation in the
+/// engine's bubblewrap sandbox, which needs unprivileged user namespaces, a
+/// fresh `/proc` and `/dev` inside this container.
 fn engine_image(
     docker: &Docker,
     target: &Target,
@@ -205,6 +207,9 @@ fn engine_image(
         .with_cmd(["sleep", "infinity"])
         .with_label(docker::OWNER_LABEL, docker::OWNER)
         .with_label(docker::KIND_LABEL, "builder")
+        .with_security_opt("seccomp=unconfined")
+        .with_security_opt("apparmor=unconfined")
+        .with_security_opt("systempaths=unconfined")
         .with_mount(Mount::bind_mount(
             "/var/run/docker.sock",
             "/var/run/docker.sock",

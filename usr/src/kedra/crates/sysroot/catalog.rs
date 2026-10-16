@@ -114,7 +114,7 @@ struct ContributionReceipt {
 struct Selection {
     #[command(flatten)]
     language: crate::catalog_language::Inputs,
-    /// Exact independently approved image identities per symbolic builder role.
+    /// Exact independently approved foundation image and builder roots per role.
     #[arg(long, conflicts_with_all = ["builder", "runtime"])]
     resolution: Option<PathBuf>,
     #[arg(long)]
@@ -122,7 +122,7 @@ struct Selection {
     /// Independently selected exact package/image/source allowlists.
     #[arg(long)]
     policy: PathBuf,
-    /// Exact admitted builder image for every builder role.
+    /// Exact admitted builder root for every builder role.
     #[arg(long, requires = "runtime")]
     builder: Option<String>,
     /// Exact admitted foundation (runtime) image.
@@ -289,15 +289,16 @@ fn observe_roles(
     }
     let mut builders = BTreeMap::new();
     for (role, required) in &intent.builders {
-        let image = &images.builders[role];
-        let observed = store.observe_foundation(image)?;
+        // A builder root records the inventory its sandbox observed at admission.
+        let root = &images.builders[role];
+        let observed = store.root(root)?;
         let installed = names(&observed.rpm_inventory);
         if !required.is_subset(&installed) || !intent.packages.is_subset(&installed) {
             return Err(Error::Invalid(
-                "compiler Fedora requests differ from admitted image material".into(),
+                "compiler Fedora requests differ from admitted root material".into(),
             ));
         }
-        builders.insert(role.clone(), serde_json::json!({"image":image,"rpm_sha256":observed.rpm_sha256,"rpm_inventory":observed.rpm_inventory}));
+        builders.insert(role.clone(), serde_json::json!({"root":root,"rpm_sha256":observed.rpm_sha256,"rpm_inventory":observed.rpm_inventory}));
     }
     Ok(serde_json::json!({"foundation":foundation,"builders":builders}))
 }

@@ -396,7 +396,7 @@ fn verify_closure(plan: &SystemPlan) -> Result<()> {
                     nodes: BTreeMap::from([(
                         "context".into(),
                         BuildNode {
-                            builder_image: spec.builder_image.clone(),
+                            builder_root: spec.builder_root.clone(),
                             runtime_image: spec.runtime_image.clone(),
                             inputs: spec
                                 .inputs

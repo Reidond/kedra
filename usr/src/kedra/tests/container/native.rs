@@ -46,6 +46,14 @@ pub const TESTS: &[NativeTest] = &[
         run: crate::catalog_tests::installed_catalog,
     },
     NativeTest {
+        source: SourceApplicability::Ordinary,
+        name: "engine_sandbox",
+        profile: Profile::System,
+        fixtures: &[Fixture::TestUser],
+        targets: &["qemu-arm64"],
+        run: crate::engine_sandbox_tests::engine_sandbox,
+    },
+    NativeTest {
         source: SourceApplicability::Derivation,
         name: "native_artifacts",
         profile: Profile::System,

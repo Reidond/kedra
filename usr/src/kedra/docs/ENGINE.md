@@ -9,7 +9,7 @@ and recovery. The CLI exposes `sysroot build`, `store`, `run`, `profile`,
 The engine has no package language parser and no Kedra target table. It accepts
 typed `BuildGraph`, `BuildNode`, `Input`, `Argument` and `SourceFile` values. The
 separate `sysroot-catalog::language` frontend parses and checks `.kedra`, then
-lowers accepted intent and exact image-role resolution to those types. This is the
+lowers accepted intent and exact foundation/builder-root resolution to those types. This is the
 narrow owner-approved package language exception: author shell becomes an
 admitted `build.sh` resource and runs only inside the existing isolated builder.
 There is no resident daemon, Nix executable, host shell fallback or general
@@ -33,19 +33,61 @@ separate from these passes; no production image is published by this PR. See [pa
 
 ## Execution and integrity
 
-The current execution backend is a local Unix Docker socket and native Linux on
-aarch64 or x86_64: `PLATFORM` (`aarch64-linux` or `x86_64-linux`) is the
-architecture `sysroot` was compiled for, and the engine refuses images, daemons
-and objects of any other. Source and image admission are explicit. Derived output paths are
+Package builds, `run`, `profile run` and `develop` execute without a daemon in an
+unprivileged bubblewrap (`bwrap`) sandbox on native Linux, so they work on
+an installed Kedra (the foundation carries `bubblewrap`) and need no Docker socket,
+which is effectively root. Each process gets new user, PID, network, IPC, UTS and
+cgroup namespaces (`--unshare-all --unshare-user --disable-userns`), runs as the
+store owner with no capabilities and `no_new_privs`, `--die-with-parent`,
+`--new-session`, a cleared environment (`HOME=/build`, `TMPDIR=/tmp`,
+`PATH=/usr/bin:/bin`, `LANG`/`LC_ALL=C`, `TZ=UTC` plus the node's declared
+variables) and the node's timeout. It sees only a read-only root filesystem,
+private tmpfs `/tmp` and `/build`, its `/dev` and `/proc`, the read-only store
+inputs at `/usr/lib/sysroot/store/<id>` and, for a build, the one writable output
+directory there. No host home, credentials, sockets or other host paths are
+mounted. The sandbox cannot bound memory or process count (bubblewrap has no
+cgroup control); the earlier Docker limits are not reproduced. The derivation
+policy string `v2:bwrap:...` is part of every output identity.
+
+Roots are store root filesystems (`rootfs/root-<sha256>`), input-addressed by a
+recipe and reused by identity:
+
+- an image root is the store's archive of an exact image, unpacked without a
+  daemon (layers verified against their uncompressed digests, whiteouts applied,
+  device nodes skipped, set-ID bits cleared, every entry owned by the store owner
+  and owner-readable). `run`, `profile run`, `develop` and foundation observation
+  create the root of the output's runtime image on first use;
+- a builder root is an image root plus one builder role of a
+  [Fedora RPM lock](#fedora-rpm-lock), installed offline from the lock's
+  fixed-output RPM objects by the root's own `rpm` inside the sandbox
+  (`sysroot store add-root --image <id> --lock <lock> --builder <role>`). Every
+  file's Fedora signature is checked first, and the root is refused unless its
+  RPM inventory equals the role's locked inventory. A non-root `rpm` keeps file
+  ownership instead of changing it, which is what lets an ordinary user install.
+
+A graph node names its `builder_root` and its `runtime_image`. Roots are not
+transferred in bundles; a receiver creates the same input-addressed root from the
+same image archive and lock. Roots are verified by owner, mode and recipe identity
+on use, not re-hashed; their receipts record the observed RPM inventory, entry
+count and size. `store gc` keeps pinned roots and the image roots of retained
+images.
+
+The engine is native: `PLATFORM` (`aarch64-linux` or `x86_64-linux`) is the
+architecture `sysroot` was compiled for, and it refuses images, daemons, roots and
+objects of any other. Source, image and root admission are explicit. Derived output paths are
 input-addressed and independently realized content is hashed separately. A
 rebuild compares the prior winner and preserves divergent evidence instead of
-replacing it.
+replacing it. The exact builder root is the coarse build userspace. This does not
+promise mathematical reproducibility across host kernels, CPUs or all ambient
+details.
 
-Builders see read-only inputs and private output backing at
-`/usr/lib/sysroot/store/<output-id>`. Root filesystem and network are restricted;
-host home, credentials and the Docker socket are not mounted. The exact builder
-image is the coarse build userspace. This does not promise mathematical
-reproducibility across host kernels, CPUs or all ambient details.
+Every sandbox is journaled in `transactions/execution.json` with the kernel boot
+and PID-namespace identity and, once started, the bubblewrap PID and start time.
+`--die-with-parent` ends the sandbox when its controller is killed. `store
+recover` then refuses a journal of another store, accepts a sandbox from an earlier
+boot as gone, kills a surviving sandbox (matched by PID and start time) and waits
+until it is gone, refuses to guess from another PID namespace of the same boot,
+and removes the staging directory.
 
 Language resources use the same engine contract as direct Rust consumers.
 `source_identity` accepts at most 4,096 safe ASCII paths and 32 MiB of bytes,
@@ -54,9 +96,10 @@ canonical `src-...` identity. Package build scripts are file inputs, avoiding th
 engine's 32 KiB argument bound. Patch/overlay preparation is a separate graph node
 with an immutable original input and a fixed admitted driver.
 
-`Store::observe_foundation` runs fixed image-local commands through the journaled
-executor and records Fedora 44 `/usr/lib/os-release` plus sorted RPM rows containing
-name, epoch, version, release, architecture, header SHA-256 and payload SHA-256.
+`Store::observe_foundation` runs fixed commands in the foundation image's root
+through the journaled sandbox and records Fedora 44 `/usr/lib/os-release` plus
+sorted RPM rows containing name, epoch, version, release, architecture, header
+SHA-256 and payload SHA-256. Builder roots carry the same rows from admission.
 The language adapter compares authored requests to this actual material before
 resource admission/build.
 
@@ -99,15 +142,18 @@ them. The lock document itself is `sysroot-catalog::rpm_lock`; see
 
 ## Boundaries
 
-The backend supports one native architecture per machine (aarch64 or x86_64),
-one runtime image per closure, local Unix Docker endpoints and Docker 29 OCI save
-archives; cross-architecture builds are refused. Both release targets build
-through it ([one image pipeline](SYSTEM.md#one-image-pipeline)) and both may
-select `.kedra` source packages. Native x86_64 builds run on the desktop release
-runner; their local qualification is recorded in [STATUS](STATUS.md). Remote
-endpoints/caches, nixpkgs or `.nix` compatibility and an alternate OS backend
-remain unqualified. Complete kernel, boot, SELinux, installation and release
-signing use separate workflows.
+The engine supports one native architecture per machine (aarch64 or x86_64;
+cross-architecture builds are refused), one runtime image per closure, bubblewrap
+with unprivileged user namespaces (0.8 or later) and Docker 29 OCI save archives;
+image import from a daemon (`store add-image --image`), RPM resolution and native
+derivation still use the local Docker engine, while `store add-image --archive`
+imports a saved archive without one. Both release targets build through it
+([one image pipeline](SYSTEM.md#one-image-pipeline)) and both may select `.kedra`
+source packages. Native x86_64 builds run on the desktop release runner; their
+local qualification is recorded in [STATUS](STATUS.md). Remote endpoints/caches,
+nixpkgs or `.nix` compatibility and an alternate OS backend remain unqualified.
+Complete kernel, boot, SELinux, installation and release signing use separate
+workflows.
 
 Engine/package rollback does not roll back systemd service state, databases,
 writable home, credentials, bootc deployments or registry tags. A bundle hash is

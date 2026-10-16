@@ -115,9 +115,23 @@ fn is_manifest(media_type: &str) -> bool {
     matches!(media_type, OCI_MANIFEST | DOCKER_MANIFEST)
 }
 
+/// One verified layer blob: its position in the archive and the digest of its
+/// uncompressed tar stream.
+pub(crate) struct Layer {
+    pub offset: u64,
+    pub bytes: u64,
+    pub media_type: String,
+    pub diff_id: String,
+}
+
 /// Verify Docker's OCI save envelope and the complete selected native image graph.
 /// Missing non-native branches of a multi-platform index are intentionally allowed.
 pub(crate) fn verify(path: &Path, image: &str, platform: &str) -> Result<()> {
+    layers(path, image, platform).map(|_| ())
+}
+
+/// Verify the archive like `verify`, then return its layers from the bottom up.
+pub(crate) fn layers(path: &Path, image: &str, platform: &str) -> Result<Vec<Layer>> {
     plan::image_id(image).map_err(corrupt)?;
     if platform != PLATFORM {
         return Err(corrupt("unsupported platform"));
@@ -141,7 +155,7 @@ pub(crate) fn verify(path: &Path, image: &str, platform: &str) -> Result<()> {
             .next()
             .ok_or_else(|| corrupt("missing root descriptor"))?,
     )?;
-    archive.validate_configuration(&manifest)?;
+    let diff_ids = archive.validate_configuration(&manifest)?;
     let docker: Vec<DockerManifest> = archive.json("manifest.json")?;
     let expected_layers = manifest
         .layers
@@ -156,7 +170,20 @@ pub(crate) fn verify(path: &Path, image: &str, platform: &str) -> Result<()> {
             "Docker compatibility manifest differs from selected OCI image",
         ));
     }
-    Ok(())
+    manifest
+        .layers
+        .into_iter()
+        .zip(diff_ids)
+        .map(|(layer, diff_id)| {
+            let member = archive.members[&blob_path(&layer.digest)?];
+            Ok(Layer {
+                offset: member.offset,
+                bytes: member.bytes,
+                media_type: layer.media_type,
+                diff_id,
+            })
+        })
+        .collect()
 }
 
 fn validate_index(index: &Index) -> Result<()> {
@@ -343,7 +370,7 @@ impl ImageArchive {
         Err(corrupt("image index depth exceeds 8"))
     }
 
-    fn validate_configuration(&mut self, manifest: &Manifest) -> Result<()> {
+    fn validate_configuration(&mut self, manifest: &Manifest) -> Result<Vec<String>> {
         if !matches!(
             manifest.config.media_type.as_str(),
             "application/vnd.oci.image.config.v1+json"
@@ -368,13 +395,13 @@ impl ImageArchive {
                 "configuration platform, rootfs or volumes unsupported",
             ));
         }
-        for (layer, diff_id) in manifest.layers.iter().zip(configuration.rootfs.diff_ids) {
-            plan::image_id(&diff_id).map_err(corrupt)?;
+        for (layer, diff_id) in manifest.layers.iter().zip(&configuration.rootfs.diff_ids) {
+            plan::image_id(diff_id).map_err(corrupt)?;
             self.descriptor(layer)?;
             match layer.media_type.as_str() {
                 "application/vnd.oci.image.layer.v1.tar"
                 | "application/vnd.docker.image.rootfs.diff.tar"
-                    if layer.digest == diff_id => {}
+                    if layer.digest == *diff_id => {}
                 "application/vnd.oci.image.layer.v1.tar+gzip"
                 | "application/vnd.oci.image.layer.v1.tar+zstd"
                 | "application/vnd.docker.image.rootfs.diff.tar.gzip" => {}
@@ -385,6 +412,6 @@ impl ImageArchive {
                 }
             }
         }
-        Ok(())
+        Ok(configuration.rootfs.diff_ids)
     }
 }

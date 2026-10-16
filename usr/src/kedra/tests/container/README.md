@@ -93,6 +93,15 @@ steps file. Ordinary and static-composition cases remain separate selections. It
 a lab-tools adaptation. TLS Docker endpoints use the already locked ring provider;
 retained archive import allows600s while ordinary requests keep120s.
 
+The ordinary `native::engine_sandbox` System-profile case (qemu-arm64) runs the
+engine's Nix-style commands as the test user on the installed image, which carries
+no Docker: it saves a small pinned Ubuntu image on the harness engine, copies the
+archive in, and checks `store add-image --archive`, `add-root`, `build`, `run`,
+`profile switch|run`, `develop` isolation (no network, read-only root and store, no
+host home or Docker socket, cleared environment) and `store recover` after the
+controller of a running build is killed. The harness container is privileged, so
+bubblewrap's user namespaces and `/proc` mount are available.
+
 The composition-only `native::composition_unit` System-profile case consumes the
 static image and validates/starts a generated unit. Ordinary scenario discovery
 omits it. Lab desktop adaptation still runs its normal networked tools layer, and
@@ -115,7 +124,7 @@ The overlay refuses package-list changes and changes to the target's declared sy
 1. Linux binaries and `sysroot source archive` in the Rust builder.
 2. The pinned Codex and Bitwarden inputs through `image/agents/prepare.sh` and `image/bitwarden/prepare.py`, in a Fedora 44 builder with the pinned uv. The scripts accept `KEDRA_LOCAL_BUILDER=1` inside a container.
 3. The stage's own foundation (`Containerfile` and `assemble.sh`) on `quay.io/fedora/fedora-bootc:44`, pinned to its platform digest. A stage with `image/catalog/install-rpms.sh` installs offline from an RPM lock: the host `sysroot catalog lock resolve` (the prepared host archiver, store `cache/rpm-store`) resolves it once per stage and base digest, and `lock repo` adds the foundation repository as `rpms/` ([package delivery](../../docs/PACKAGES.md#fedora-rpm-lock)). An interrupted resolution leaves staging that `sysroot store recover --store <artifacts>/cache/rpm-store` removes.
-4. For a stage whose source declares image steps, the stage's own Linux `sysroot` composes that foundation with the snapshot's committed payload (`sysroot system compose`) and derives the declared steps (`sysroot derive build`), as the release does ([one image pipeline](../../docs/SYSTEM.md#one-image-pipeline)). It runs in a disposable builder container (the Rust builder also carries the pinned Docker CLI with buildx) that reaches the lab's Docker socket at `/var/run/docker.sock` as an ordinary user in the socket's group; the engine store and contexts die with the container. Catalog source packages and the release trust layer are not built locally. An older stage builds its complete image in step 3.
+4. For a stage whose source declares image steps, the stage's own Linux `sysroot` composes that foundation with the snapshot's committed payload (`sysroot system compose`) and derives the declared steps (`sysroot derive build`), as the release does ([one image pipeline](../../docs/SYSTEM.md#one-image-pipeline)). It runs in a disposable builder container (the Rust builder also carries bubblewrap and the pinned Docker CLI with buildx) that reaches the lab's Docker socket at `/var/run/docker.sock` as an ordinary user in the socket's group, with seccomp, AppArmor and system paths unconfined so the engine's bubblewrap sandbox can observe the foundation; the engine store and contexts die with the container. Catalog source packages and the release trust layer are not built locally. An older stage builds its complete image in step 3.
 
 The result is an unsigned `kedra-local-<target>:<key>`. It is never pushed, signed or installed, and it has no release identity layers. `build:<revision>` needs the root-filesystem layout (PR #20 or later).
 

@@ -6,7 +6,8 @@ composition. It does not invoke Nix. The Kedra CLI is one adapter; the public AP
 contains no Kedra target table, production key, repository address or package
 language parser.
 
-The first backend uses a local Unix Docker socket and native aarch64 Linux.
+Builds and runtime commands execute in an unprivileged bubblewrap sandbox on native
+aarch64 Linux, inside store root filesystems; no container daemon is involved.
 Planning/data types remain separate from Unix filesystem/execution code. Native
 Darwin builds, Windows execution, x86_64 source-build qualification, remote
 endpoints/caches, `.nix`/nixpkgs compatibility and whole-OS construction remain
@@ -16,7 +17,8 @@ separate work.
 
 Direct Rust consumers author `BuildGraph`, `BuildNode`, `Input` and `Argument`.
 Planning is pure: it validates the complete graph and resolves the requested
-dependency closure without opening Docker or capturing filesystem state.
+dependency closure without opening a store, running a sandbox or capturing
+filesystem state.
 
 ```rust,ignore
 use std::collections::BTreeMap;
@@ -25,7 +27,7 @@ use sysroot_engine::{Argument, BuildGraph, BuildNode, Input, plan};
 let graph = BuildGraph {
     schema: 1,
     nodes: BTreeMap::from([("application".into(), BuildNode {
-        builder_image: "sha256:<exact-builder-id>".into(),
+        builder_root: "root-<exact-builder-root-id>".into(),
         runtime_image: "sha256:<exact-runtime-id>".into(),
         inputs: BTreeMap::from([("source".into(), Input::Object(
             "src-<exact-source-id>".into(),
@@ -90,7 +92,7 @@ bounded, stable, non-private input admission. The CLI adapter supplies the
 repository's no-symlink/single-link/recheck rules. Neither path executes author
 code during parsing/checking/lowering.
 
-`lower` requires exact builder roles and a runtime foundation already allowed by
+`lower` requires exact builder roots and a runtime foundation already allowed by
 the independent `sysroot_catalog::Policy`. It emits a strict legacy-compatible
 `Catalog`, canonical resource trees and symbolic-to-graph node names. Build scripts
 become `build.sh` resources invoked through typed arguments. Inline source files
@@ -99,7 +101,8 @@ the fixed admitted `prepare.py`; the original source remains read-only.
 
 The pre-existing catalog API remains supported independently:
 `sysroot_catalog::{Catalog, Package, Recipe, Source, Policy}` is strict serde data,
-and `Catalog::resolve` checks namespace, package, image and source allowlists before
+and `Catalog::resolve` checks namespace, package, builder root, runtime image and
+source allowlists before
 returning a `ResolvedPackage`. CLI `--catalog FILE` selects this reader. The built-in
 jq/SQLite Rust recipes also remain during migration. There is no implicit
 new-language-to-legacy fallback.
@@ -112,13 +115,16 @@ production publication is implied. See [package declarations](../../docs/PACKAGE
 
 ## CLI workflow
 
-Admit exact sources and images into a private store before building a graph:
+Admit exact sources and images into a private store and create the builder root
+before building a graph:
 
 ```sh
 sysroot store init --store STORE
 sysroot store add-source --store STORE --source SELECTED_SOURCE_DIRECTORY
-sysroot store add-image --store STORE --image sha256:EXACT_BUILDER_ID
-sysroot store add-image --store STORE --image sha256:EXACT_RUNTIME_ID
+sysroot store add-image --store STORE --image sha256:EXACT_RUNTIME_ID --archive SAVED.tar
+sysroot store add-root --store STORE --image sha256:EXACT_RUNTIME_ID \
+  --lock rpm-lock.json --builder ROLE
+sysroot store add-root --store STORE --image sha256:EXACT_BUILDER_ID
 sysroot build --store STORE --plan GENERATED_GRAPH.json --root application --dry-run
 sysroot build --store STORE --plan GENERATED_GRAPH.json --root application
 sysroot run --store STORE --object OUTPUT_ID --program bin/program
@@ -135,12 +141,18 @@ sysroot store gc --store STORE --delete
 sysroot store recover --store STORE
 ```
 
-Placeholder identities must be replaced with actual admission/result IDs. Image
-admission never pulls or installs tools. Runtime image archives are retained and
-transferred; compiler images and build-only sources need not enter a runtime
-export. Every output in one runtime closure must use the same foundation.
-`develop` runs a command with private scratch and the declared closure; it does
-not mount the host working directory or offer an interactive host shell.
+Placeholder identities must be replaced with actual admission/result IDs. `add-image`
+without `--archive` saves the image from the local Docker engine; with `--archive`
+it admits a `docker image save` archive without a daemon. `add-root` prints the
+root identity a graph's `builder_root` names: an image's unpacked root, or that root
+plus one RPM lock builder role installed offline (its locked RPM objects must
+already be in the store, see `sysroot catalog lock fetch`). Image admission never
+pulls or installs tools. Runtime image archives are retained and transferred; the
+runtime image's root is created on first use. Builder roots and build-only sources
+need not enter a runtime export. Every output in one runtime closure must use the
+same foundation. `develop` runs a command with private scratch and the declared
+closure in the runtime image's root; it does not mount the host working directory
+or offer an interactive host shell.
 
 The language-aware CLI adds pure `sysroot catalog check`, `fmt`, `pins`, `plan`
 and `resolve` operations plus store-backed `build` and post-build `contribute`.
@@ -154,8 +166,13 @@ guide](../../docs/PACKAGES.md) for complete commands and schemas.
 
 The established public engine E2E target uses generated Rust authoring and real C
 executable/shared-library builds, fresh receiver stores, profiles, tampered
-artifacts, owned interruption/recovery and independent sentinels. Its Docker cases
-are ignored by default; listing an ignored case is not a behavior pass.
+artifacts, sandbox isolation observed through `/proc`, killed-controller and
+surviving-sandbox recovery and independent sentinels. Its sandbox cases are ignored
+by default (they need bubblewrap with user namespaces and the retained images, which
+the fixture imports from the local Docker engine); listing an ignored case is not a
+behavior pass. In a container, run them with
+`--security-opt seccomp=unconfined --security-opt systempaths=unconfined` (user
+namespaces and a mountable `/proc`) and an init process that reaps orphans.
 
 ```sh
 cargo test -p sysroot --test e2e_engine --locked -- --include-ignored --test-threads 1 --nocapture
@@ -174,27 +191,34 @@ Independent rebuild compares the old winner; divergence preserves it and retains
 private alternate evidence.
 
 Builders see read-only input objects and private output backing at
-`/usr/lib/sysroot/store/OUTPUT_ID`. Root filesystem and network are restricted;
-host home, credentials and daemon socket are not mounted. The declared image is
+`/usr/lib/sysroot/store/OUTPUT_ID` inside a bubblewrap sandbox: new user, PID,
+network, IPC, UTS and cgroup namespaces, no capabilities, `no_new_privs`, a
+read-only root, private `/tmp` and `/build`, a cleared environment,
+`--die-with-parent` and the node timeout. Host home, credentials and sockets are
+not mounted. Memory and process count are not bounded. The declared builder root is
 the coarse userspace foundation. Host kernel, CPU and ambient process details are
-not a universal purity/reproducibility guarantee.
+not a universal purity/reproducibility guarantee. See the
+[engine contract](../../docs/ENGINE.md#execution-and-integrity) for roots.
 
 Bundle import requires an independently expected whole-bundle hash, validates
 allowlisted members and complete references, then registers dependencies first.
 Image archives are checked against their exact OCI root and selected native
-manifest/config/layer graph. The initial archive protocol is Docker 29 OCI save;
-classic Docker-only archives refuse. Docker performs decompression/DiffID checks
-when loading. A bundle hash supplies no publisher or OS authority.
+manifest/config/layer graph. The archive protocol is Docker 29 OCI save; classic
+Docker-only archives refuse. Unpacking a root checks every layer's uncompressed
+digest. A bundle hash supplies no publisher or OS authority.
 
 One store lock spans management and execution; the store is movable but cannot be
-concurrently shared. Execution journals bind an owned container to a frozen Unix
-endpoint and daemon identity. GC retires unreferenced objects into journaled
+concurrently shared. Execution journals record the sandbox's boot, PID namespace,
+PID and start time; recovery kills a surviving sandbox and removes its staging. GC
+retires unreferenced objects into journaled
 tombstones before removing bytes. Initial profiles publish a complete staged
 directory; existing selection uses atomic index replacement. Unknown/corrupt
-state or uncertain cleanup refuses and preserves recovery evidence. Store GC does
-not delete Docker images, GHCR objects or bootc deployments.
+state or uncertain cleanup refuses and preserves recovery evidence. Store GC keeps
+pinned roots and the roots of retained images; it does not delete Docker images,
+GHCR objects or bootc deployments.
 
-The private owner and Docker daemon are trusted. These APIs never grant installed
+The private owner is trusted; the Docker daemon only for image import and RPM
+resolution. These APIs never grant installed
 root-helper or release-signing authority. Package tree hashing does not attest
 arbitrary owners, SELinux labels or file capabilities. Exclude credentials before
 source capture.

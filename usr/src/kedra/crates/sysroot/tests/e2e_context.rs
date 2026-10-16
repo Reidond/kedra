@@ -473,9 +473,9 @@ fn killed_context_copy_recovers_without_removing_a_stopped_reader() {
     );
 }
 
-fn graph(source: &str, foundation: &str) -> BuildGraph {
+fn graph(source: &str, foundation: &str, builder: &str) -> BuildGraph {
     let library = BuildNode {
-        builder_image: BUILDER.into(),
+        builder_root: builder.into(),
         runtime_image: foundation.into(),
         inputs: BTreeMap::from([("source".into(), Input::Object(source.into()))]),
         argv: vec![
@@ -489,7 +489,7 @@ fn graph(source: &str, foundation: &str) -> BuildGraph {
         timeout_seconds: 120,
     };
     let app = BuildNode {
-        builder_image: BUILDER.into(),
+        builder_root: builder.into(),
         runtime_image: foundation.into(),
         inputs: BTreeMap::from([
             ("source".into(), Input::Object(source.into())),
@@ -594,12 +594,20 @@ fn compose(f: &Fixture) -> Value {
         assert_eq!(inspected[0]["Architecture"], "arm64");
         assert_eq!(f.store("add-image", &["--image", image])["image"], image);
     }
+    let builder = f.store("add-root", &["--image", BUILDER])["root"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let source = package_source(f);
     let admitted = f.store("add-source", &["--source", text(&source)]);
     let graph_path = f.producer("build.json");
     write_json(
         &graph_path,
-        &graph(admitted["object"].as_str().unwrap(), &f.foundation),
+        &graph(
+            admitted["object"].as_str().unwrap(),
+            &f.foundation,
+            &builder,
+        ),
     );
     let built = json_output(run(f
         .cli(&["build", "--store"])

@@ -42,12 +42,12 @@ sysroot system compose --repo . --target qemu-arm64 --store /private/engine-stor
 `--definition` is optional. Initialize the private store and retain the exact
 image with `sysroot store init` and `store add-image` first. Commands emit JSON;
 failures go to stderr. A new output directory is required. Planning verifies
-image/object bytes and uses the journaled executor for read-only foundation
-observations. It does not activate configuration.
+image/object bytes and runs read-only foundation observations in the journaled
+bubblewrap sandbox, inside the foundation image's unpacked root. It does not activate configuration.
 
 Language contributions add another independently bound layer before these calls.
 `sysroot catalog contribute` requires an explicit language root/entry/target/lock,
-target policy, exact image-role resolution, private store, foundation image,
+target policy, exact foundation/builder-root resolution, private store, foundation image,
 catalog policy, exact lowercase source commit, canonical release input material
 and its expected SHA-256. It writes a new mode-0700 directory containing:
 

@@ -13,8 +13,11 @@ Use typed errors, explicit process arguments and separate stdout data/stderr dia
 
 `sysroot-engine` is the independent flat-source package graph/store/profile crate
 (2026-10-01). Its model/planning API is separate from Unix storage/execution;
-the first backend is private-owner native aarch64 Linux through a frozen local
-Unix Docker endpoint. CLI adapters live in `sysroot/engine.rs`. This is separate
+since 2026-10-15 builds, `run`, `profile run`, `develop` and foundation
+observation execute without a daemon in an unprivileged bubblewrap sandbox on
+native aarch64 Linux, inside input-addressed store roots (`rootfs/`; graph nodes
+name `builder_root`). Docker remains only for image import, RPM resolution and
+image composition. CLI adapters live in `sysroot/engine.rs`. This is separate
 from installed helper authority, OS composition, home state and signed releases.
 Read `usr/src/kedra/docs/ENGINE.md` and the crate README for operations/limits.
 
@@ -69,9 +72,25 @@ Docker29.4.0 image IDs in the observed retained fixtures name OCI root indexes,
 not config hashes. The engine validates the complete selected ARM manifest/config/
 layer descriptor graph and Docker compatibility manifest before trusting retained
 archive evidence. Hashing an archive only against its own receipt is insufficient
-when an unrelated claimed image is already cached. Classic-only archives refuse;
-Docker owns decompression/DiffID verification. Source: first-engine E2E forged
-archive refusal and `.specs/nix-engine/verification.md`.
+when an unrelated claimed image is already cached. Classic-only archives refuse.
+Unpacking an image root checks every layer's uncompressed DiffID itself (host
+gzip/zstd). Source: first-engine E2E forged archive refusal and
+`.specs/nix-engine/verification.md`.
+
+Unprivileged roots (2026-10-15, Fedora 44 rpm 6.0.2, bubblewrap 0.12, OrbStack
+kernel 7.0): rpm running as uid 0 in a single-uid user namespace fails `chown` on
+packaged files owned by other users (`/var/spool/mail` root:mail), while rpm as a
+non-root uid skips chown, so a builder role installs as the store owner with
+`rpm -U` inside `bwrap --bind <root> /`, scriptlets, sysusers and alternatives
+included. `_pkgverify_level signature` reports "no signature" for Fedora's
+header-only V4 signatures; `rpmkeys -Kv` verifies them. The RPM lock holds only
+the RPMs installed over the base image, so roots start from an image archive.
+bubblewrap tmpfs mounts are nosuid/nodev but executable. Layers can hard-link
+symlinks (linux-firmware). Ubuntu 24.04 ships bubblewrap 0.9 (no `--size`) and
+confines unprivileged user namespaces through AppArmor
+(`kernel.apparmor_restrict_unprivileged_userns`). In Docker, bwrap needs
+`seccomp=unconfined` and `systempaths=unconfined` (for `--proc`), and an init
+that reaps orphans. Source: worklog WL-20261015-ENGINE-SANDBOX-01.
 
 On this macOS/ARM filesystem, renaming a sealed0555 directory across parents
 returns EACCES. Engine publication seals contents, temporarily leaves only the
@@ -79,7 +98,8 @@ staging container0700 for rename under its exclusive lock, then seals the final
 container and fsyncs. GC retires live objects into journaled tombstones before
 recursive removal; first profiles publish complete staged directories. Real
 interruption, foreign-sentinel and source-admission workflows are required evidence,
-not inferred from the presence of journals. Run explicit Docker cases with
+not inferred from the presence of journals. Run explicit sandbox cases on Linux
+with bubblewrap user namespaces:
 `cargo test -p sysroot --test e2e_engine --locked -- --include-ignored --test-threads 1`;
 default ignored cases confer no runtime coverage.
 
@@ -136,8 +156,9 @@ entries. Source: engine cache/snapshot/bundle/context modules and
 stopped-reader/SIGKILL recovery, native fault windows or Linux ENOSPC; those
 remain actual workflow gates.
 
-Catalog configure probes (2026-10-03): the native engine's `/build` tmpfs is
-observed noexec with the existing Docker flags. Real jq configure and a compiled
+Catalog configure probes (2026-10-03): the native engine's `/build` tmpfs was
+observed noexec with the former Docker flags (bubblewrap's is executable since
+2026-10-15). Real jq configure and a compiled
 ELF both exit126 there on compiler image07c0e384. Recipes needing executable
 probes must use named scratch inside their own output binding, map that scratch
 prefix for reproducibility and remove it before successful admission; do not

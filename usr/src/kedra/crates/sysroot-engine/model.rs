@@ -37,7 +37,9 @@ pub struct BuildGraph {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BuildNode {
-    pub builder_image: String,
+    /// Store root filesystem (`root-<sha256>`) the build step runs in.
+    pub builder_root: String,
+    /// Exact foundation image the output runs on; its unpacked root runs it.
     pub runtime_image: String,
     #[serde(deserialize_with = "unique_map")]
     pub inputs: BTreeMap<String, Input>,
@@ -96,7 +98,7 @@ pub struct ResolvedBuildSpec {
     pub platform: String,
     pub prefix: String,
     pub policy: String,
-    pub builder_image: String,
+    pub builder_root: String,
     pub runtime_image: String,
     #[serde(deserialize_with = "unique_map")]
     pub inputs: BTreeMap<String, String>,
@@ -132,6 +134,47 @@ pub struct ImageReceipt {
     pub sha256: String,
     pub bytes: u64,
 }
+/// Input-addressed recipe of a store root filesystem: an image's layers, then
+/// optionally one RPM lock role installed offline over them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RootRecipe {
+    pub schema: u32,
+    pub platform: String,
+    pub image: String,
+    pub rpms: Option<RootRpms>,
+}
+/// One locked RPM role: fixed-output files installed with the root's own rpm,
+/// and the complete seven-column inventory the result must equal.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RootRpms {
+    pub role: String,
+    pub fedora_release: u32,
+    pub files: Vec<RootRpmFile>,
+    pub remove: Vec<String>,
+    pub packages: Vec<Vec<String>>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RootRpmFile {
+    pub file: String,
+    pub sha256: String,
+    pub object: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RootReceipt {
+    pub schema: u32,
+    pub root: String,
+    pub recipe: RootRecipe,
+    /// Sorted seven-column `rpm -qa` rows observed in the finished root, without
+    /// gpg-pubkey; empty when the root has no rpm.
+    pub rpm_inventory: String,
+    pub rpm_sha256: String,
+    pub entries: u64,
+    pub bytes: u64,
+}
 #[derive(Clone, Debug, Serialize)]
 pub struct BuildResult {
     pub outputs: BTreeMap<String, String>,
@@ -157,6 +200,7 @@ pub struct ImportResult {
 pub struct GcResult {
     pub objects: Vec<String>,
     pub images: Vec<String>,
+    pub roots: Vec<String>,
     pub deleted: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]

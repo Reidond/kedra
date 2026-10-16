@@ -105,7 +105,7 @@ pub fn lower(
             .builders
             .get(&recipe.builder)
             .ok_or_else(|| invalid("unresolved builder role"))?;
-        if !policy.builder_images.contains(builder) || recipe.runtime != intent.foundation {
+        if !policy.builder_roots.contains(builder) || recipe.runtime != intent.foundation {
             return Err(invalid("denied/incompatible image role"));
         }
         let mut files = BTreeMap::from([("build.sh".into(), content(&recipe.build, external)?)]);
@@ -161,7 +161,7 @@ pub fn lower(
             nodes.insert(
                 prepare_name.clone(),
                 BuildNode {
-                    builder_image: builder.clone(),
+                    builder_root: builder.clone(),
                     runtime_image: images.foundation.clone(),
                     inputs: inputs.clone(),
                     argv: vec![
@@ -208,7 +208,7 @@ pub fn lower(
         nodes.insert(
             name.clone(),
             BuildNode {
-                builder_image: builder.clone(),
+                builder_root: builder.clone(),
                 runtime_image: images.foundation.clone(),
                 inputs,
                 argv: vec![

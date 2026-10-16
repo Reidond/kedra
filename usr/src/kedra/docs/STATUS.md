@@ -25,6 +25,21 @@ image, its derivation and harness are `not-run` until the first release run on
 the native x86_64 runner. No release run, boot, installation or publication
 follows from these results.
 
+## Daemonless engine sandbox (2026-10-15)
+
+Branch claude/epic-vaughan-c66b89 replaces the engine's Docker-socket package
+executor with an unprivileged bubblewrap sandbox, so `sysroot build`, `run`,
+`profile` and `develop` work on an installed Kedra (the foundation lists
+`bubblewrap`). Builds and runtime commands run in store root filesystems: an image
+root is the store's image archive unpacked without a daemon; a builder root adds
+one RPM lock builder role, installed offline by the root's own `rpm` in the
+sandbox (`sysroot store add-root`). Graph nodes name `builder_root` instead of a
+builder image; the release builds builder roots instead of per-role `docker build`.
+Image import from a daemon, RPM resolution and image composition/derivation keep
+their container tooling. Local Linux results and the harness case
+`native::engine_sandbox` are recorded in worklog WL-20261015-ENGINE-SANDBOX-01; the
+release workflow change is `not-run` on Actions. See [ENGINE](ENGINE.md#execution-and-integrity).
+
 ## Signed updates through bootc (2026-10-15)
 
 Branch claude/helper-bootc-d6bc61 makes the installed helper rely on bootc's own

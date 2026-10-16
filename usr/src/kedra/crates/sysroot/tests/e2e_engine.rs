@@ -330,9 +330,9 @@ fn append_tar_bytes<W: Write>(builder: &mut tar::Builder<W>, path: &str, bytes: 
     builder.append(&header, bytes).unwrap();
 }
 
-/// Point the closure root's receipt at another runtime root, keeping every
-/// member and the outer digest self-consistent.
-fn bundle_with_forged_runtime_root(original: &Path, output: &Path, object: &str, runtime: &str) {
+/// Point every derived receipt at another runtime root, keeping the closure's
+/// single runtime root, every member and the outer digest self-consistent.
+fn bundle_with_forged_runtime_root(original: &Path, output: &Path, runtime: &str) {
     let mut archive = tar::Archive::new(File::open(original).unwrap());
     let mut builder = tar::Builder::new(File::create(output).unwrap());
     let mut changed = false;
@@ -340,10 +340,14 @@ fn bundle_with_forged_runtime_root(original: &Path, output: &Path, object: &str,
         let mut entry = entry.unwrap();
         if entry.path().unwrap().as_ref() == Path::new("manifest.json") {
             let mut manifest: Value = serde_json::from_reader(&mut entry).unwrap();
-            let receipt = &mut manifest["objects"][object]["receipt"];
-            assert_ne!(receipt["runtime_root"], runtime);
-            receipt["runtime_root"] = json!(runtime);
-            receipt["derivation"]["runtime_root"] = json!(runtime);
+            for object in manifest["objects"].as_object_mut().unwrap().values_mut() {
+                let receipt = &mut object["receipt"];
+                if receipt["runtime_root"].is_string() {
+                    assert_ne!(receipt["runtime_root"], runtime);
+                    receipt["runtime_root"] = json!(runtime);
+                    receipt["derivation"]["runtime_root"] = json!(runtime);
+                }
+            }
             append_tar_bytes(
                 &mut builder,
                 "manifest.json",
@@ -873,7 +877,7 @@ fn package_build_transfer_profiles_and_collection() {
     )
     .refused("member");
     let forged_bundle = f.path("forged-runtime-root.tar");
-    bundle_with_forged_runtime_root(&bundles[0].0, &forged_bundle, &one, &builder);
+    bundle_with_forged_runtime_root(&bundles[0].0, &forged_bundle, &builder);
     let forged_receiver = f.path("forged-runtime-receiver");
     f.images(&forged_receiver);
     f.root(&forged_receiver, BUILDER);

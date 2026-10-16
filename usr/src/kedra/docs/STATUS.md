@@ -29,6 +29,15 @@ foundation observation, so the desktop image, its derivation and harness are
 `not-run` until the first release run on the native x86_64 runner. No release run, boot, installation or publication
 follows from these results.
 
+The first release run after the merge (38943248086, main 460956a) failed the
+desktop build at `sysroot catalog build`: `resolve()` still refused a selected
+`kedra` package for `desktop` ("native x86 source package realization is not
+supported"). That refusal is removed; the `e2e_catalog` case
+`kedra_desktop_selection_resolves_and_builds_like_any_target` shows a desktop
+selection resolving and building like any other target. Realizing desktop source
+packages on native x86_64 stays `not-run` until the next release run. See worklog
+WL-20261016-DESKTOP-SOURCE-01.
+
 ## Daemonless engine sandbox (2026-10-15)
 
 Branch claude/epic-vaughan-c66b89 replaces the engine's Docker-socket package

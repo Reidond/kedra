@@ -304,25 +304,33 @@ def packages(data, architecture):
     return sorted(rows)
 
 
+def version_triplet(value):
+    parts = value.split('.')
+    if len(parts) == 3 and all(0 < len(part) <= 10 and re.fullmatch(r'0|[1-9][0-9]*', part)
+                               and int(part) <= 2**32 - 1 for part in parts):
+        return tuple(int(part) for part in parts)
+    return None
+
+
 def bootc_compatibility(rows, architecture):
     contract = document(read(Path(__file__).with_name('compatibility.json'), 4096))
-    require(isinstance(contract, dict) and set(contract) == {'schema_version', 'bootc_version'}
-            and type(contract['schema_version']) is int and contract['schema_version'] == 1
-            and isinstance(contract['bootc_version'], str), 'Invalid bootc compatibility contract')
-    parts = contract['bootc_version'].split('.')
-    require(len(parts) == 3 and all(0 < len(part) <= 10 and re.fullmatch(r'0|[1-9][0-9]*', part)
-                                  and int(part) <= 2**32 - 1 for part in parts), 'Invalid bootc version triplet')
+    require(isinstance(contract, dict) and set(contract) == {'schema_version', 'minimum_bootc_version'}
+            and type(contract['schema_version']) is int and contract['schema_version'] == 2
+            and isinstance(contract['minimum_bootc_version'], str), 'Invalid bootc compatibility contract')
+    minimum = version_triplet(contract['minimum_bootc_version'])
+    require(minimum is not None, 'Invalid bootc version triplet')
     selected = [row for row in rows if row[0] == 'bootc']
-    compatible = (len(selected) == 1 and selected[0][1] == '0' and selected[0][2] == contract['bootc_version']
+    installed = version_triplet(selected[0][2]) if len(selected) == 1 else None
+    compatible = (installed is not None and installed >= minimum and selected[0][1] == '0'
                   and selected[0][4] == architecture)
-    return {'compatible': compatible, 'qualified_bootc_version': contract['bootc_version'],
+    return {'compatible': compatible, 'minimum_bootc_version': contract['minimum_bootc_version'],
             'installed_bootc_packages': selected}
 
 
 def require_bootc(rows, architecture):
     result = bootc_compatibility(rows, architecture)
-    require(result['compatible'], 'Unqualified bootc package; expected version ' + result['qualified_bootc_version']
-            + ', observed ' + repr(result['installed_bootc_packages']) + '. Qualify/update the shared compatibility contract before signing.')
+    require(result['compatible'], 'Unqualified bootc package; expected version ' + result['minimum_bootc_version']
+            + ' or newer, observed ' + repr(result['installed_bootc_packages']) + '. The installed helper refuses older bootc.')
     return result
 
 

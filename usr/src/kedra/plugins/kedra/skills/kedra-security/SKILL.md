@@ -22,12 +22,7 @@ live-home application remain separate.
 
 Adopt only safe paths. Defend traversal, symlink/hardlink escapes, special files, replacement races and mode/label changes. One canonicalize or hash check is not complete TOCTOU protection. Coordinate application writers and durable recovery; several atomic renames are not a global transaction.
 
-The verified image cache (`/var/lib/sysroot/verified-oci`; see kedra-release-signing) is validated before every copy, because skopeo follows symlinks when it writes `index.json` and manifests with `os.WriteFile`. Any of these makes the helper remove the whole layout without following links, then download again:
-- symlinks, unknown entries or temporary names other than containers/image `oci-put-blob<digits>`;
-- files that are not root-owned, are group- or other-writable, or have multiple links;
-- metadata that cannot be parsed or is unexpected.
-
-Pruning replaces `index.json` atomically before deleting blobs. Stale refs go before every copy, so a failed transfer (for example ENOSPC) cannot keep them; unreferenced blobs go only after a successful copy, so a retry reuses completed layers. Only the helper writes the cache, while holding the management lock; an interrupted helper's surviving skopeo process inherits that lock.
+bootc and Skopeo children of the helper run with a cleared environment and `HOME=/var/lib/sysroot`; the helper refuses if `/var/lib/sysroot/.config` exists, because a per-user `~/.config/containers/policy.json` overrides `/etc/containers/policy.json` and can admit unsigned images even under `--enforce-container-sigpolicy` (experiment in kedra-release-signing, 2026-10-15). The helper's only persistent state is the rollback hold.
 
 Exclude agent auth, keyrings, vault contents, private SSH keys, tokens, transcripts and caches before capture. Deleting a secret after it entered Git is insufficient. Mixed secret/config files need a safe projection or remain unmanaged. Never COPY the entire checkout into the image.
 

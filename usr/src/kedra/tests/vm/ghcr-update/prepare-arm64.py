@@ -77,7 +77,7 @@ def main():
                 'source_revision': source['source_revision'], 'source_manifest_sha256': m.sha(source_bytes),
                 'resolved_inputs_sha256': m.sha(material_bytes), 'workflow': '.github/workflows/release.yml',
                 'epoch': 1, 'run_number': 10, 'run_attempt': 1, 'resolved_at': int(time.time()), 'minimum_protocol': 2}
-    variants = {'A': {}, 'B': {'run_number': 20}, 'C': {'run_number': 30}, 'E': {},
+    variants = {'A': {}, 'B': {'run_number': 20}, 'C': {'run_number': 30}, 'D': {'run_number': 5}, 'E': {},
                 'U': {'run_number': 40}, 'W': {'run_number': 40}, 'R': {'run_number': 40},
                 'N': {'run_number': 40}, 'T': {'target': 'xps'}, 'X': {'architecture': 'x86_64'},
                 'H': {'channel': 'other'}, 'M': {'unexpected': True}}

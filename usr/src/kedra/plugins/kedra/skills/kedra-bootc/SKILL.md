@@ -11,7 +11,7 @@ Prefer image-owned /usr defaults. /etc follows bootc persistence/merge; /var and
 
 Resolve only the official production Fedora 44 stream, not similarly named development images. A pin prevents substitution but cannot guarantee upstream retention: Quay retired d4b9c5e... before native tests on 2026-09-12. Current tests resolve/verify one immutable platform per run. Source: [Fedora publication](https://forge.fedoraproject.org/iot/base-images/src/commit/8f30db6ad355562aeaca5c547f81ca157e8ffbf4/RELEASE.md). New base inputs require actual qualification.
 
-The installed helper verifies signed GHCR stable discovery and stages exact digests through enforcing bootc policy. Normal bootc upgrade does not advance a digest-pinned installation. Preserve pending slots, ordering and rollback holds; no automatic reboot or home activation.
+The installed helper reads GHCR stable's digest-bound identity label, refuses another target or an image older than the booted one, and stages the exact digest with `bootc switch --enforce-container-sigpolicy`, so bootc verifies the signature (kedra-release-signing). The helper requires bootc at least `image/release/compatibility.json`'s minimum (1.16.13) and parses its v1 status strictly. Normal bootc upgrade does not advance a digest-pinned installation. Preserve pending slots and rollback holds; no automatic reboot or home activation.
 
 No-change CI publishes nothing. There is no checkpoint renewal in the current path. Keep local recovery independent of GitHub Releases. The owner confirmed on 2026-09-13 that nobody installed r1/r2 (usr/src/kedra/docs/STATUS.md); do not make legacy migration a delivery prerequisite. Unknown or corrupt state must still refuse; never reset it to bypass a refusal.
 

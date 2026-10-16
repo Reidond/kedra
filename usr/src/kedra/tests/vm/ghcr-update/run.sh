@@ -77,7 +77,7 @@ sudo podman build --pull=never --build-arg "BASE_IMAGE=$base" --tag localhost/ke
 sudo podman run --rm --network=none localhost/kedra-ghcr:base rpm -qa \
     --qf '%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n' > "$root/package-material.txt"
 uv run usr/src/kedra/tests/vm/ghcr-update/prepare.py --root "$root" finalize
-for variant in A B C E U W R N T X H M; do
+for variant in A B C D E U W R N T X H M; do
     identity=$(cat "$root/context/$variant/image-identity.json")
     sudo podman build --pull=never --build-arg "KEDRA_IDENTITY=$identity" --build-arg "VARIANT=$variant" \
         --file "$root/context/variant.Containerfile" --tag "localhost/kedra-ghcr:$variant" "$root/context" \
@@ -104,7 +104,7 @@ curl --silent --show-error --fail --cacert "$root/context/tls.crt" -X DELETE \
 uv run python - "$root" "$evidence" <<'PY'
 import json, pathlib, sys
 root, evidence = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-cases={'schema_version':1,'digests':{v:(root/(v+'.digest')).read_text().strip() for v in 'A B C E U W R N T X H M'.split()}}
+cases={'schema_version':1,'digests':{v:(root/(v+'.digest')).read_text().strip() for v in 'A B C D E U W R N T X H M'.split()}}
 (root/'cases/cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 (evidence/'cases.json').write_text(json.dumps(cases,indent=2)+'\n')
 PY
@@ -141,17 +141,16 @@ for phase in A B ROLLBACK; do
         --timeout 2400 --require KEDRA_SECUREBOOT_PASS --require "KEDRA_GHCR_${phase}_PASS" \
         --fail-marker KEDRA_GHCR_FAIL > "$evidence/$phase-result.json"
 done
-printf 'PASS: native v2 enrollment/check/stage/boot/identity recovery/rollback/hold/resume, cached-layer reuse and critical refusals under UEFI Secure Boot.\n' | tee "$evidence/result.txt"
+printf 'PASS: native check/stage through bootc signature policy, boot, identity recovery, rollback/hold/resume, single layer downloads and critical refusals under UEFI Secure Boot.\n' | tee "$evidence/result.txt"
 uv run python - "$evidence" <<'PY'
 import json,pathlib,sys
 pathlib.Path(sys.argv[1], 'scope.json').write_text(json.dumps({
-    'implemented_cases':['enroll/current','unsigned','wrong-key','wrong-repository','missing-signature',
+    'implemented_cases':['status/check-current','unsigned','wrong-key','wrong-repository','missing-signature',
         'wrong-target','wrong-architecture-identity','wrong-channel','malformed-identity','same-rank-equivocation',
-        'offline','available','stage','pending-preservation','idempotent-stage','boot-B','lower-rank-replay',
-        'identity-health-refusal-and-retained-rollback','boot-A','persistent-data','hold','resume',
-        'uefi-secure-boot-microsoft-keys','untrusted-keys-firmware-refusal','first-verification-downloads-every-layer',
-        'repeated-verification-reuses-cached-layers','check-then-stage-reuse','cache-persists-across-reboot',
-        'untrusted-cache-discarded-without-following-links','cached-digest-signature-withdrawn'],
+        'signed-downgrade','offline','available','expected-digest-mismatch','stage','pending-preservation',
+        'idempotent-stage','boot-B','lower-rank-replay','identity-health-refusal-and-retained-rollback','boot-A',
+        'persistent-data','hold','resume','refusals-download-no-layer','stage-downloads-new-layers-once',
+        'uefi-secure-boot-microsoft-keys','untrusted-keys-firmware-refusal'],
     'not_run_cases':['deterministic-tag-race','interrupted-helper-or-bootc-operation','legacy-state-migration',
         'native-OCI-platform-mismatch'],
     'production_registry_writes':False,'production_keys_used':False},indent=2)+'\n')

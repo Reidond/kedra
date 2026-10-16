@@ -108,7 +108,7 @@ Fedora 44's shim-aa64 16.1-5 ships test-signed fallback and MokManager binaries.
 
 The installed system uses enforcing SELinux; installer-media policy is separate. Check `sysroot doctor` (including `secure_boot`) and `sysroot update status` after login. Home remains writable and system root read-only.
 
-After a fresh installation, use `sysroot update enroll`, then the [update workflow](UPDATES.md).
+After a fresh installation, follow the [update workflow](UPDATES.md); no enrollment is needed.
 
 Physical hardware and each target's Secure Boot installation require separate qualification. See [status](STATUS.md) for actual tested media and remaining limits.
 

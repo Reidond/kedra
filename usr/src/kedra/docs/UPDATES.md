@@ -1,30 +1,27 @@
 # Update and recover
 
-Kedra updates use the signed GHCR `stable` image of the installed target: `ghcr.io/reidond/kedra-desktop` for desktop (x86_64) and `ghcr.io/reidond/kedra-qemu-arm64` for the qemu-arm64 virtual machine (aarch64). The tag locates a candidate; the installed helper verifies signature, repository, target, architecture, image identity and retained ordering before switching to its exact digest. It never follows another target's repository. No GitHub Release files or checkpoint renewal is involved.
+Kedra updates use the signed GHCR `stable` image of the installed target: `ghcr.io/reidond/kedra-desktop` for desktop (x86_64) and `ghcr.io/reidond/kedra-qemu-arm64` for the qemu-arm64 virtual machine (aarch64). The tag locates a candidate; bootc verifies its signature and the installed helper checks its target, architecture, image identity and order before switching to its exact digest. It never follows another target's repository. No GitHub Release files or checkpoint renewal is involved.
 
 ## Current-source commands
 
 Run as the ordinary owner; the fixed installed helper requests administrator authentication:
 
 ```sh
-sysroot update enroll
 sysroot update check
 sysroot update stage
 ```
 
-Enroll once. Review an available update before staging it. Staging changes the next boot image but does not reboot.
+Review an available update before staging it. Staging changes the next boot image but does not reboot. No enrollment is needed: trust comes from the booted image itself.
 
-Checking records verified image ordering and last-check state in the root-owned store; it does not stage an image. It is not proof that upstream Fedora has no newer packages. Add --expected-digest when enrollment or staging must match a digest you independently reviewed.
+`check` reads the identity label of the image `stable` names (manifest and configuration only, bound to its digest) and refuses one from another target, platform or channel, or one older than the booted image. It does not verify the signature and changes nothing. It is not proof that upstream Fedora has no newer packages. `stage` repeats those checks, then runs `bootc switch --enforce-container-sigpolicy` with the exact digest: bootc verifies the signature against the installed policy before it downloads the configuration or any layer, and fetches only the layers it does not already have. Add `--expected-digest` when staging must match a digest you independently reviewed.
 
-## Downloads and disk use
+## How an update is verified
 
-Every `enroll`, `check` and `stage` verifies the exact digest again with a policy-enforcing Skopeo copy from the registry, so the signature is checked on every run. The copy's destination is a root-only OCI layout, `/var/lib/sysroot/verified-oci`, which is kept between runs. The first verification downloads the whole image (about 6.3 GB for the current desktop and qemu-arm64 images). Later verifications fetch the manifest, configuration and signature, plus only layers the cache does not hold. A `check` followed by `stage` therefore downloads a new image's changed layers once. `bootc switch` then fetches whatever ostree lacks into its own store. Progress is printed to the terminal.
+- **Signature and repository.** `/etc/containers/policy.json` rejects everything except the installed target's repository, which requires a Sigstore signature from `/usr/lib/sysroot/trust/release.pub` with that exact repository as its identity. The helper refuses to run unless that file equals the policy the booted image's trust implies. It runs bootc and Skopeo with a cleared environment and `HOME=/var/lib/sysroot`, and refuses if `/var/lib/sysroot/.config` exists, because containers/image would otherwise prefer a per-user `~/.config/containers/policy.json`.
+- **Order.** bootc deploys any validly signed digest, including an older one. Before staging, the helper requires the candidate's rank (epoch, run number, attempt) to be above the booted image's, or the same rank with the same digest, and its package resolution time not to be earlier. The booted identity is `/usr/share/sysroot/image-identity.json`, bound to the booted source and resolved inputs. A registry can still withhold newer images; `status` warns when the signed resolution is older than 36 hours.
+- **State.** The only root state is the rollback hold, in `/var/lib/sysroot/deployment`. A missing store means no rollback was requested; an unknown or corrupt one is refused.
 
-The helper keeps layers for the booted, staged and rollback images, the journal's recorded operation and the digest being verified. Before each copy it removes every other image, so a failed transfer never leaves stale images in place. After a successful copy it also removes leftover layers of interrupted transfers. A failed or interrupted copy keeps the layers it completed, so a retry resumes rather than starting over. Expect the cache to use about one image's size plus the layers unique to the other kept images, on top of ostree's deployments.
-
-If a verification fails because `/var` is full, free space and retry. The kept images are the minimum a verification needs. If you must reclaim the cache itself, delete it as described below; the retry then downloads the whole image again.
-
-The cache only saves transfers. The helper never reads layers from it, and bootc never deploys from it. Unexpected contents make the helper remove the cache without following links and download again. That includes unknown files, links, wrong ownership or mode, and unparseable metadata. While no `sysroot update` command is running, root can safely delete `/var/lib/sysroot/verified-oci`; the next verification downloads the whole image. Do not delete anything else in `/var/lib/sysroot`.
+The installed bootc must be at least the version in `usr/src/kedra/image/release/compatibility.json` (currently 1.16.13). The helper parses bootc's v1 status strictly, so an incompatible change fails closed.
 
 After your chosen reboot:
 
@@ -35,7 +32,7 @@ sysroot doctor
 
 Home baseline acceptance remains explicit: run `sysroot home update` after the new image boots ([managed home files](HOME.md)). It merges baseline changes into local edits and never discards them.
 
-Use `sysroot update rollback` to select the retained verified deployment. Rollback preserves persistent data and places forward updates on hold. A later reviewed `sysroot update stage --resume` clears that hold after normal verification. Never remove journals or trust state to bypass a refusal.
+Use `sysroot update rollback` to select the retained deployment, which bootc verified when it deployed it. Rollback preserves persistent data and places forward updates on hold before bootc changes the boot order. A later reviewed `sysroot update stage --resume` clears that hold once the new stage succeeds. Never remove the hold or other state to bypass a refusal.
 
 ## Midnight package checks
 
@@ -43,7 +40,7 @@ Actions starts package reconciliation at **00:00 UTC**, with manual dispatch ava
 
 Changed source, base or lock pins produce a new image whose installed RPMs must equal the lock. It must pass isolated automatic OCI signing with that target's own key and verify strictly before its exact digest advances that target's `stable`. The image carries its lock (`/usr/share/sysroot/rpm-lock.json`), bound by the signed resolved inputs. There is no human approval or manual signing step. Unchanged inputs cause no publication and no renewal. A failed repository, solver or signature check is an error, not a successful no-change result.
 
-The producer and helper share `usr/src/kedra/image/release/compatibility.json`, currently qualifying bootc 1.16.13. An unsupported bootc RPM in the lock fails the public build before signing or stable publication. Updating that contract and helper compatibility requires deliberate source review and native qualification; the workflow never silently accepts an untested bootc version.
+The producer and helper share `usr/src/kedra/image/release/compatibility.json`, a minimum bootc version (currently 1.16.13). A bootc RPM older than that in the lock fails the public build before signing or stable publication; newer versions pass, and the helper's strict status parsing and the update VM test catch an incompatible change.
 
 Schedules can queue, skip or be disabled by repository inactivity. No automatic machine staging/reboot or background AI service is implied.
 

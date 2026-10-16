@@ -48,13 +48,13 @@ Signed OS images are published per target: ghcr.io/reidond/kedra-desktop
 system follows only its own target. Installation media is built locally on
 demand; no GitHub Release download is required. UEFI Secure Boot is required.
 Follow https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/INSTALL.md.
-On an installed system, use `sysroot update status` to inspect enrollment and
-the running/staged image. Run management commands as your ordinary owner account;
+On an installed system, use `sysroot update status` to inspect the update hold
+and the running/staged image. Run management commands as your ordinary owner account;
 the installed helper requests administrator authentication when needed.
 
-Use `sysroot update enroll` once, `sysroot update check` to inspect the signed
-stable image and `sysroot update stage` after review. The installed helper
-verifies the exact GHCR digest independently.
+Use `sysroot update check` to inspect the stable image and `sysroot update
+stage` after review. bootc verifies the exact GHCR digest's signature while
+staging; the installed helper refuses an image older than the running one.
 Keep known-good signed images and local recovery media. Staging does not reboot,
 and a reboot does not automatically accept a changed home baseline.
 `sysroot update status --home` also reports whether your managed home files

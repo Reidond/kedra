@@ -1,11 +1,11 @@
 # Direct GHCR updates
 
-Read usr/src/kedra/docs/UPDATES.md. Current source enrolls with sysroot update enroll, discovers stable with update check and stages its verified exact digest with update stage. It does not reboot or apply home changes.
+Read usr/src/kedra/docs/UPDATES.md. `sysroot update check` reads the identity label of the fixed repository's stable image and reports whether it is newer than the booted image; `sysroot update stage` stages its exact digest with `bootc switch --enforce-container-sigpolicy`. Neither reboots or applies home changes. There is no enrollment (removed 2026-10-15): trust comes from the booted image.
 
-The fixed installed helper validates native OCI signature/repository/target, image-owned identity and retained ordering. User checkouts are irrelevant to authority. Each verification copies from the registry again, into a root-only OCI layout that reuses cached layers. Only the first verification downloads the whole image. See usr/src/kedra/docs/UPDATES.md. Rollback holds forward updates; explicit stage --resume clears the hold after normal checks. Persistent home and /var are not rewound.
+bootc verifies the signature with the installed strict policy before it fetches the configuration or any layer, and downloads each new layer once. The fixed installed helper adds what the policy cannot: the signed identity's target, architecture and channel, and refusal of an image older than the booted one (bootc deploys any validly signed digest). `check` does not verify signatures. User checkouts are irrelevant to authority. Rollback holds forward updates; an explicit `stage --resume` clears the hold after a successful stage. Persistent home and /var are not rewound.
 
-The owner confirmed on 2026-09-13 that nobody installed r1/r2 (usr/src/kedra/docs/STATUS.md). Fresh installations enroll directly. The protocol-1 release-file path and its legacy migration and rollback code were removed on 2026-10-14; older readers refuse newer state. Never delete journals or clear a hold to bypass a refusal.
+The only root state is the rollback hold (`/var/lib/sysroot/deployment`, schema 3). Older stores are refused, never migrated; never delete state or clear a hold to bypass a refusal.
 
-Do not claim signed checkpoint freshness for the new path; there are no channel/release assets or renewal. No-change CI does nothing. Image/signing age, publication and actual successful package resolution remain distinct observations.
+Do not claim signed checkpoint freshness: there are no channel/release assets or renewal, and a registry can withhold newer images (status warns after 36 hours of signed resolution age). No-change CI does nothing. Image/signing age, publication and actual successful package resolution remain distinct observations.
 
 Local recovery must work through the retained image/boot menu or locally constructed verified installer without AI or GitHub Releases.

@@ -263,6 +263,40 @@ fn catalog_definition(
     Ok(result["definition"].as_str().map(str::to_owned))
 }
 
+/// Key of a derived image: its foundation's key, plus what the engine steps read
+/// that neither the payload nor the foundation context carries (the catalog
+/// tooling, release material code and this file's catalog steps).
+fn engine_key(foundation: &str, snapshot: &Path) -> Result<String> {
+    let mut files = Vec::new();
+    for directory in ["usr/src/kedra/image/catalog", "usr/src/kedra/image/release"] {
+        collect_files(&snapshot.join(directory), &mut files)?;
+    }
+    files.sort();
+    let mut parts = vec![foundation.as_bytes().to_vec(), CATALOG.as_bytes().to_vec()];
+    for path in files {
+        let relative = path.strip_prefix(snapshot).unwrap_or(&path);
+        parts.push(relative.to_string_lossy().into_owned().into_bytes());
+        parts.push(builder::file_sha256(&path)?.into_bytes());
+    }
+    let parts: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
+    Ok(content_key(&parts))
+}
+
+fn collect_files(directory: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    if !directory.is_dir() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(directory)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_files(&path, files)?;
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
 /// The stage's inputs to its engine steps.
 struct EngineBuild<'a> {
     sysroot: &'a Path,
@@ -490,7 +524,11 @@ pub fn local(
     }
     let parts: Vec<&[u8]> = key_parts.iter().map(Vec::as_slice).collect();
     let key = content_key(&parts);
-    let reference = format!("kedra-local-{}:{key}", target.id);
+    let reference = if engine {
+        format!("kedra-local-{}:{}", target.id, engine_key(&key, &snapshot)?)
+    } else {
+        format!("kedra-local-{}:{key}", target.id)
+    };
     if engine && docker.image(&reference)?.is_some() {
         eprintln!("kedra-lab: {reference} is cached");
         fs::remove_dir_all(&snapshot)?;

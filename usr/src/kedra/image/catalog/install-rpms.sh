@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Runs as root only inside a disposable image build, from assemble.sh or
-# builder.sh. Installs exactly one role of the run's RPM lock from the
-# bind-mounted offline repository that `sysroot catalog lock repo` made from
-# fixed-output store objects. No repository is enabled, so nothing is resolved
-# or downloaded here; the result must equal the role's locked inventory.
+# Runs as root only inside a disposable image build, from assemble.sh. Installs
+# exactly one role of the run's RPM lock from the bind-mounted offline
+# repository that `sysroot catalog lock repo` made from fixed-output store
+# objects. No repository is enabled, so nothing is resolved or downloaded here;
+# the result must equal the role's locked inventory. (Catalog builder roles are
+# installed by `sysroot store add-root` in the engine sandbox instead.)
 set -euo pipefail
 test -f /run/.containerenv || grep -qF /tmp/kedra- /proc/1/cmdline
 test "$(id -u)" = 0

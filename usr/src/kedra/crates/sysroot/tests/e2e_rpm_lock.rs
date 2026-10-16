@@ -956,7 +956,7 @@ fn fixture_repository_lock_installs_offline_and_refuses_changed_rpms() {
 }
 
 #[test]
-#[ignore = "requires a native Linux Docker engine and network access to Fedora mirrors and Koji"]
+#[ignore = "requires a native Linux Docker engine, bubblewrap and network access to Fedora mirrors and Koji"]
 fn real_fedora_lock_installs_offline_and_koji_serves_the_locked_bytes() {
     let fixture = Fixture::new();
     let (target, architecture) = native_target();
@@ -1034,6 +1034,103 @@ fn real_fedora_lock_installs_offline_and_koji_serves_the_locked_bytes() {
         installed_rows(&image),
         rows(&lock["foundation"]["packages"])
     );
+
+    // A builder root: this exact image unpacked without a daemon, then the
+    // locked builder role installed offline by rpm in the bubblewrap sandbox.
+    let engine = |arguments: &[&str]| -> Value {
+        let output = Command::new(&fixture.binary)
+            .args(arguments)
+            .output()
+            .unwrap();
+        serde_json::from_slice(&success(output).stdout).unwrap()
+    };
+    let role = lock["builders"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .next()
+        .unwrap()
+        .clone();
+    engine(&[
+        "store",
+        "add-image",
+        "--store",
+        text(&store),
+        "--image",
+        &image,
+    ]);
+    let add_root = [
+        "store",
+        "add-root",
+        "--store",
+        text(&store),
+        "--image",
+        &image,
+        "--lock",
+        text(&lock_path),
+        "--builder",
+        &role,
+    ];
+    let root = engine(&add_root);
+    let inventory: String = rows(&lock["builders"][&role]["packages"])
+        .iter()
+        .map(|row| format!("{}\n", row.join("\t")))
+        .collect();
+    assert_eq!(
+        root["rpm_sha256"].as_str(),
+        Some(hash(inventory.as_bytes()).as_str())
+    );
+    assert_eq!(
+        engine(&add_root)["root"],
+        root["root"],
+        "builder root was not reused"
+    );
+    let source = fixture.path("make-source");
+    fs::create_dir(&source).unwrap();
+    fs::write(
+        source.join("Makefile"),
+        "all:\n\tmkdir -p $(OUT)/bin\n\tprintf '#!/bin/sh\\necho built-with-make\\n' > $(OUT)/bin/hello\n\tchmod 755 $(OUT)/bin/hello\n",
+    )
+    .unwrap();
+    let source = engine(&[
+        "store",
+        "add-source",
+        "--store",
+        text(&store),
+        "--source",
+        text(&source),
+    ]);
+    let graph = fixture.path("make-graph.json");
+    fs::write(
+        &graph,
+        serde_json::to_vec(&json!({"schema":1,"nodes":{"app":{
+            "builder_root":root["root"],"runtime_image":image,
+            "inputs":{"source":{"kind":"object","value":source["object"]}},
+            "argv":[[{"kind":"literal","value":"/usr/bin/make"}],[{"kind":"literal","value":"-f"}],
+                [{"kind":"input","name":"source","path":"Makefile"}],
+                [{"kind":"literal","value":"OUT="},{"kind":"output","path":""}]],
+            "env":{},"runtime_inputs":[],"timeout_seconds":120}}}))
+        .unwrap(),
+    )
+    .unwrap();
+    let built = engine(&[
+        "build",
+        "--store",
+        text(&store),
+        "--plan",
+        text(&graph),
+        "--root",
+        "app",
+    ]);
+    let output = success(
+        Command::new(&fixture.binary)
+            .args(["run", "--store", text(&store), "--object"])
+            .arg(built["outputs"]["app"].as_str().unwrap())
+            .args(["--program", "bin/hello"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(output.stdout, b"built-with-make\n");
 
     // Fresh store: every object again from mirrors, identical by construction.
     let fresh = fixture.path("fresh-store");

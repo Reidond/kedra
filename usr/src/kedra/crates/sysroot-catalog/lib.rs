@@ -53,7 +53,7 @@ pub struct Recipe {
 pub struct Policy {
     pub namespace: String,
     pub packages: BTreeSet<String>,
-    pub builder_images: BTreeSet<String>,
+    pub builder_roots: BTreeSet<String>,
     pub runtime_images: BTreeSet<String>,
     pub source_objects: BTreeSet<String>,
 }
@@ -155,11 +155,8 @@ impl Catalog {
         }
         let mut used = BTreeSet::new();
         for node in selected.recipe.graph.nodes.values() {
-            if !policy.builder_images.contains(&node.builder_image) {
-                return Err(Error::Denied(format!(
-                    "builder image {}",
-                    node.builder_image
-                )));
+            if !policy.builder_roots.contains(&node.builder_root) {
+                return Err(Error::Denied(format!("builder root {}", node.builder_root)));
             }
             if !policy.runtime_images.contains(&node.runtime_image) {
                 return Err(Error::Denied(format!(
@@ -198,7 +195,7 @@ impl Policy {
         name(&self.namespace)?;
         if [
             self.packages.len(),
-            self.builder_images.len(),
+            self.builder_roots.len(),
             self.runtime_images.len(),
             self.source_objects.len(),
         ]
@@ -212,7 +209,10 @@ impl Policy {
         for package in &self.packages {
             name(package)?;
         }
-        for image in self.builder_images.iter().chain(&self.runtime_images) {
+        for root in &self.builder_roots {
+            identity(root, "root-")?;
+        }
+        for image in &self.runtime_images {
             identity(image, "sha256:")?;
         }
         for source in &self.source_objects {

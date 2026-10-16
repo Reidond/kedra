@@ -6,8 +6,8 @@ selected commands, libraries and configuration to the composed image.
 
 | Kind | Authored form | Materialization | Delivery |
 |---|---|---|---|
-| Fedora foundation packages | Current `.kedra` inputs: `foundation`, `set` and `target` declarations in `.kedra` | Resolved once per release run into an RPM lock of fixed-output store objects; image and builder builds install offline from it | Complete signed Kedra image through bootc |
-| Source packages | Versioned `.kedra` `package`/`library` declarations, or the retained typed Rust/JSON `Catalog` API | Exact builder images produce immutable objects below `/usr/lib/sysroot/store` | Selected runtime closure and typed configuration enter composition |
+| Fedora foundation packages | Current `.kedra` inputs: `foundation`, `set` and `target` declarations in `.kedra` | Resolved once per release run into an RPM lock of fixed-output store objects; the image build and builder roots install offline from it | Complete signed Kedra image through bootc |
+| Source packages | Versioned `.kedra` `package`/`library` declarations, or the retained typed Rust/JSON `Catalog` API | Exact builder roots produce immutable objects below `/usr/lib/sysroot/store` in the engine's bubblewrap sandbox | Selected runtime closure and typed configuration enter composition |
 
 The `.kedra` frontend is an owner-approved, narrow language exception. Rust parses,
 checks and lowers data into the existing `sysroot-catalog` and `sysroot-engine`
@@ -100,8 +100,10 @@ sysroot catalog lock repo --store /private/rpm-store --lock rpm-lock.json \
 ```
 
 Then build the context as the release does: `image/Containerfile` with
-`image/catalog/install-rpms.sh` next to it, on the lock's `base`. Builder roles use
-`--builder <role>`, `image/catalog/Containerfile` and `--build-arg BUILDER_ROLE=<role>`.
+`image/catalog/install-rpms.sh` next to it, on the lock's `base`. A builder role
+needs no image build: `sysroot store add-root --store <store> --image <foundation>
+--lock rpm-lock.json --builder <role>` installs it offline over the foundation's
+root in the engine sandbox and prints the root a graph's `builder_root` names.
 `fetch` downloads from the recorded mirror, then from Koji, and admits only the
 locked bytes. `kedra-lab build` resolves a lock with the host `sysroot` and
 installs from it in the same way.

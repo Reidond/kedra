@@ -12,14 +12,17 @@ use std::{
     os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
 };
-const DIRECTORIES: [&str; 6] = [
+const DIRECTORIES: [&str; 7] = [
     "objects",
     "images",
+    "rootfs",
     "transactions",
     "profiles",
     "quarantine",
     "roots",
 ];
+/// Schema 2 stores hold root filesystems; earlier stores are refused.
+const STORE_SCHEMA: u32 = 2;
 /// Predict content identity without importing or pinning an object.
 /// Uses the same canonical non-executable tree encoder as directory admission.
 pub fn single_file_source_receipt(member: &str, bytes: &[u8]) -> Result<ObjectReceipt> {
@@ -90,6 +93,7 @@ pub(crate) struct Roots {
     pub schema: u32,
     pub objects: BTreeSet<String>,
     pub images: BTreeSet<String>,
+    pub rootfs: BTreeSet<String>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -99,11 +103,14 @@ struct GcJournal {
     stage: String,
     objects: Vec<String>,
     images: Vec<String>,
+    rootfs: Vec<String>,
 }
-/// Validated GC journal entries: each object's retirement position and the image set.
+/// Validated GC journal entries: each object's retirement position, the image
+/// set and the root filesystem set.
 struct GcTargets {
     positions: BTreeMap<String, usize>,
     images: BTreeSet<String>,
+    rootfs: BTreeSet<String>,
 }
 impl GcTargets {
     fn from_journal(journal: &GcJournal) -> Result<Self> {
@@ -121,13 +128,24 @@ impl GcTargets {
                 return Err(Error::RecoveryRequired("duplicate GC image".into()));
             }
         }
-        Ok(Self { positions, images })
+        let mut rootfs = BTreeSet::new();
+        for root in &journal.rootfs {
+            plan::root_id(root)?;
+            if !rootfs.insert(root.clone()) {
+                return Err(Error::RecoveryRequired("duplicate GC root".into()));
+            }
+        }
+        Ok(Self {
+            positions,
+            images,
+            rootfs,
+        })
     }
     fn declares_tombstone(&self, member: &str, id: &str) -> bool {
-        if member == "objects" {
-            self.positions.contains_key(id)
-        } else {
-            self.images.contains(&format!("sha256:{id}"))
+        match member {
+            "objects" => self.positions.contains_key(id),
+            "rootfs" => self.rootfs.contains(id),
+            _ => self.images.contains(&format!("sha256:{id}")),
         }
     }
 }
@@ -176,7 +194,7 @@ impl Store {
             fs::set_permissions(path.join(dir), Permissions::from_mode(0o700))?;
         }
         let marker = Marker {
-            schema: 1,
+            schema: STORE_SCHEMA,
             token: nonce()?,
             prefix: LOGICAL_PREFIX.into(),
             uid: rustix::process::geteuid().as_raw(),
@@ -217,7 +235,7 @@ impl Store {
             .open(path.join("lock"))?;
         lock.lock()?;
         let marker: Marker = read_json(&path.join("marker.json"))?;
-        if marker.schema != 1
+        if marker.schema != STORE_SCHEMA
             || marker.prefix != LOGICAL_PREFIX
             || marker.uid != rustix::process::geteuid().as_raw()
             || !hex(&marker.token)
@@ -256,6 +274,9 @@ impl Store {
         }
         for id in &roots.images {
             image_id(id)?;
+        }
+        for id in &roots.rootfs {
+            plan::root_id(id)?;
         }
         Ok(roots)
     }
@@ -551,6 +572,36 @@ impl Store {
         }
         result
     }
+    /// Admit an image archive written by `docker image save` without a daemon:
+    /// the archive must hold exactly the selected native image.
+    pub fn import_image_archive(&self, id: &str, archive: &Path) -> Result<ImageReceipt> {
+        image_id(id)?;
+        if !self.image_path(id).exists() {
+            let stage = self.staging()?;
+            let result = (|| {
+                let (sha256, bytes) = hash_file(archive, 8 * 1024 * 1024 * 1024)?;
+                fs::copy(archive, stage.join("image.tar"))?;
+                fs::set_permissions(stage.join("image.tar"), Permissions::from_mode(0o600))?;
+                let receipt = ImageReceipt {
+                    schema: 1,
+                    image: id.into(),
+                    platform: PLATFORM.into(),
+                    sha256,
+                    bytes,
+                };
+                self.admit_image(&stage, &receipt)
+            })();
+            if stage.exists() {
+                tree::remove(&stage)?;
+            }
+            result?;
+        }
+        let receipt = self.verify_image(id)?;
+        let mut roots = self.roots()?;
+        roots.images.insert(id.into());
+        self.save_roots(&roots)?;
+        Ok(receipt)
+    }
     pub(crate) fn admit_image(&self, stage: &Path, receipt: &ImageReceipt) -> Result<()> {
         image_id(&receipt.image)?;
         let (hash, bytes) = hash_file(&stage.join("image.tar"), 8 * 1024 * 1024 * 1024)?;
@@ -663,7 +714,7 @@ impl Store {
                 continue;
             }
             self.verify_image(&spec.runtime_image)?;
-            self.verify_image(&spec.builder_image)?;
+            self.root(&spec.builder_root)?;
             let mut mounts = BTreeSet::new();
             for input in spec.inputs.values() {
                 mounts.extend(self.closure(input)?.objects);
@@ -694,12 +745,15 @@ impl Store {
                     .iter()
                     .map(|(key, arg)| Ok((key.clone(), plan::render(arg, spec, id)?)))
                     .collect::<Result<_>>()?;
-                let run = executor::execute(
+                let run = executor::sandbox(
                     self,
-                    executor::Execution {
-                        image: &spec.builder_image,
+                    executor::Sandbox {
+                        root: &self.root_tree(&spec.builder_root),
+                        writable_root: false,
+                        stage: Some(&stage),
                         mounts: &mounts.iter().cloned().collect::<Vec<_>>(),
                         output: Some((id, &stage.join("data"))),
+                        repository: None,
                         argv: &argv,
                         env: &env,
                         seconds: spec.timeout_seconds,
@@ -802,7 +856,7 @@ impl Store {
             },
         )
     }
-    fn retained(&self) -> Result<(BTreeSet<String>, BTreeSet<String>)> {
+    fn retained(&self) -> Result<(BTreeSet<String>, BTreeSet<String>, BTreeSet<String>)> {
         let roots = self.roots()?;
         let mut keep = BTreeSet::new();
         let mut images = roots.images;
@@ -822,10 +876,11 @@ impl Store {
         for image in &images {
             self.verify_image(image)?;
         }
-        Ok((keep, images))
+        let rootfs = self.retained_roots(&images)?;
+        Ok((keep, images, rootfs))
     }
     pub fn gc(&self, delete: bool) -> Result<GcResult> {
-        let (keep, images) = self.retained()?;
+        let (keep, images, rootfs) = self.retained()?;
         let mut doomed = BTreeSet::new();
         for id in list_names(&self.path.join("objects"))? {
             self.verify(&id)?;
@@ -839,6 +894,13 @@ impl Store {
             self.verify_image(&id)?;
             if !images.contains(&id) {
                 image_doomed.push(id);
+            }
+        }
+        let mut roots_doomed = Vec::new();
+        for id in self.list_roots()? {
+            plan::root_id(&id).map_err(|_| Error::Corrupt(format!("unknown root entry {id}")))?;
+            if !rootfs.contains(&id) {
+                roots_doomed.push(id);
             }
         }
         let mut ordered = Vec::new();
@@ -857,9 +919,9 @@ impl Store {
                 ordered.push(id);
             }
         }
-        if delete && (!ordered.is_empty() || !image_doomed.is_empty()) {
+        if delete && (!ordered.is_empty() || !image_doomed.is_empty() || !roots_doomed.is_empty()) {
             let stage = self.staging()?;
-            for name in ["objects", "images"] {
+            for name in ["objects", "images", "rootfs"] {
                 fs::create_dir(stage.join(name))?;
                 fs::set_permissions(stage.join(name), Permissions::from_mode(0o700))?;
             }
@@ -874,6 +936,7 @@ impl Store {
                     .into(),
                 objects: ordered.clone(),
                 images: image_doomed.clone(),
+                rootfs: roots_doomed.clone(),
             };
             write_json_new(&self.path.join("transactions/gc.json"), &journal)?;
             self.finish_gc(&journal)?;
@@ -881,6 +944,7 @@ impl Store {
         Ok(GcResult {
             objects: ordered,
             images: image_doomed,
+            roots: roots_doomed,
             deleted: delete,
         })
     }
@@ -916,9 +980,10 @@ impl Store {
         Ok(())
     }
     fn check_gc_targets_unretained(&self, targets: &GcTargets) -> Result<()> {
-        let (retained, retained_images) = self.retained()?;
+        let (retained, retained_images, retained_roots) = self.retained()?;
         if retained.iter().any(|id| targets.positions.contains_key(id))
             || !targets.images.is_disjoint(&retained_images)
+            || !targets.rootfs.is_disjoint(&retained_roots)
         {
             return Err(Error::RecoveryRequired(
                 "GC journal includes retained artifacts".into(),
@@ -972,6 +1037,9 @@ impl Store {
                 &stage.join("images").join(&image[7..]),
             )?;
         }
+        for root in &journal.rootfs {
+            retire(&self.root_path(root), &stage.join("rootfs").join(root))?;
+        }
         tree::remove(stage)?;
         File::open(self.path.join("transactions"))?.sync_all()?;
         Ok(())
@@ -982,6 +1050,7 @@ impl Store {
             .iter()
             .any(|id| self.object_path(id).exists())
             || journal.images.iter().any(|id| self.image_path(id).exists())
+            || journal.rootfs.iter().any(|id| self.root_path(id).exists())
     }
     pub fn recover(path: &Path) -> Result<Recovery> {
         let store = Self::open_inner(path, true)?;
@@ -996,7 +1065,7 @@ impl Store {
                 tree::remove(&store.path.join("transactions").join(&journal.staging))?;
             }
             fs::remove_file(execution)?;
-            recovered.push(journal.container);
+            recovered.push(format!("sandbox-{}", journal.nonce));
         }
         store.recover_import()?;
         store.recover_gc()?;
@@ -1164,7 +1233,7 @@ fn exists_nofollow(path: &Path) -> Result<bool> {
 fn check_gc_stage(stage: &Path, targets: &GcTargets) -> Result<()> {
     private(stage, true)?;
     for name in list_names(stage)? {
-        if name != "objects" && name != "images" {
+        if !matches!(name.as_str(), "objects" | "images" | "rootfs") {
             return Err(Error::RecoveryRequired("unknown GC staging member".into()));
         }
         private(&stage.join(&name), true)?;

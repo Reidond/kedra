@@ -1,3 +1,6 @@
+//! Process execution. Package builds, roots and `run`/`develop` run in an
+//! unprivileged bubblewrap sandbox; the Docker helpers below serve only image
+//! tooling (RPM resolution, image import and native image composition).
 use crate::{Error, LOGICAL_PREFIX, PLATFORM, Result, RunResult, Store, plan};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -104,17 +107,6 @@ impl Connection {
         command
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Journal {
-    pub schema: u32,
-    pub store_token: String,
-    pub daemon: String,
-    pub endpoint: String,
-    pub nonce: String,
-    pub container: String,
-    pub staging: String,
-}
 #[derive(Deserialize)]
 pub(crate) struct ImageInfo {
     #[serde(rename = "Id")]
@@ -151,13 +143,22 @@ fn reader(mut stream: impl Read + Send + 'static) -> mpsc::Receiver<(Vec<u8>, bo
     });
     rx
 }
-pub(crate) fn command(mut cmd: Command, seconds: u64) -> Result<RunResult> {
+/// A started process whose stdout and stderr are drained into bounded buffers.
+pub(crate) struct Captured {
+    child: std::process::Child,
+    stdout: mpsc::Receiver<(Vec<u8>, bool)>,
+    stderr: mpsc::Receiver<(Vec<u8>, bool)>,
+}
+pub(crate) fn spawn(mut cmd: Command) -> Result<Captured> {
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| Error::Invalid(format!("cannot start required local Docker/process: {e}")))?;
+    let mut child = cmd.spawn().map_err(|e| {
+        Error::Invalid(format!(
+            "cannot start required local program {}: {e}",
+            cmd.get_program().to_string_lossy()
+        ))
+    })?;
     let stdout = reader(
         child
             .stdout
@@ -170,38 +171,56 @@ pub(crate) fn command(mut cmd: Command, seconds: u64) -> Result<RunResult> {
             .take()
             .ok_or_else(|| Error::Invalid("missing stderr pipe".into()))?,
     );
-    let deadline = Instant::now() + Duration::from_secs(seconds);
-    let mut timed_out = false;
-    let status = loop {
-        if let Some(status) = child.try_wait()? {
-            break status;
-        }
-        if Instant::now() >= deadline {
-            timed_out = true;
-            child.kill()?;
-            break child.wait()?;
-        }
-        thread::sleep(Duration::from_millis(20));
-    };
-    let (out, ot) = stdout
-        .recv_timeout(Duration::from_secs(3))
-        .map_err(|_| Error::RecoveryRequired("stdout drain did not terminate".into()))?;
-    let (err, et) = stderr
-        .recv_timeout(Duration::from_secs(3))
-        .map_err(|_| Error::RecoveryRequired("stderr drain did not terminate".into()))?;
-    if timed_out {
-        return Err(Error::Process {
-            code: 124,
-            message: format!("deadline exceeded after {seconds} seconds"),
-        });
-    }
-    Ok(RunResult {
-        code: status.code().unwrap_or(128),
-        stdout: out,
-        stderr: err,
-        stdout_truncated: ot,
-        stderr_truncated: et,
+    Ok(Captured {
+        child,
+        stdout,
+        stderr,
     })
+}
+impl Captured {
+    pub(crate) fn id(&self) -> u32 {
+        self.child.id()
+    }
+    /// Wait until the process exits or the deadline kills it, then collect output.
+    pub(crate) fn wait(mut self, seconds: u64) -> Result<RunResult> {
+        let deadline = Instant::now() + Duration::from_secs(seconds);
+        let mut timed_out = false;
+        let status = loop {
+            if let Some(status) = self.child.try_wait()? {
+                break status;
+            }
+            if Instant::now() >= deadline {
+                timed_out = true;
+                self.child.kill()?;
+                break self.child.wait()?;
+            }
+            thread::sleep(Duration::from_millis(20));
+        };
+        let (out, ot) = self
+            .stdout
+            .recv_timeout(Duration::from_secs(3))
+            .map_err(|_| Error::RecoveryRequired("stdout drain did not terminate".into()))?;
+        let (err, et) = self
+            .stderr
+            .recv_timeout(Duration::from_secs(3))
+            .map_err(|_| Error::RecoveryRequired("stderr drain did not terminate".into()))?;
+        if timed_out {
+            return Err(Error::Process {
+                code: 124,
+                message: format!("deadline exceeded after {seconds} seconds"),
+            });
+        }
+        Ok(RunResult {
+            code: status.code().unwrap_or(128),
+            stdout: out,
+            stderr: err,
+            stdout_truncated: ot,
+            stderr_truncated: et,
+        })
+    }
+}
+pub(crate) fn command(cmd: Command, seconds: u64) -> Result<RunResult> {
+    spawn(cmd)?.wait(seconds)
 }
 fn docker(connection: &Connection, args: &[&str]) -> Result<RunResult> {
     let mut cmd = connection.command();
@@ -257,18 +276,42 @@ pub(crate) fn inspect_image(connection: &Connection, id: &str) -> Result<ImageIn
     }
     Ok(info)
 }
-pub(crate) fn ensure_image(store: &Store, connection: &Connection, id: &str) -> Result<()> {
-    store.verify_image(id)?;
-    daemon(connection)?;
-    if inspect_image(connection, id).is_err() {
-        let path = store.image_path(id).join("image.tar");
-        let mut cmd = connection.command();
-        cmd.args(["image", "load", "--input"]).arg(path);
-        checked(command(cmd, 300)?)?;
-        inspect_image(connection, id)?;
-    }
-    Ok(())
+
+/// Bubblewrap program; an absolute path, so no inherited PATH chooses it.
+const BWRAP: &str = "/usr/bin/bwrap";
+/// Where a root build sees its offline RPM repository.
+pub(crate) const REPOSITORY: &str = "/run/kedra-rpms";
+/// Directories every root provides for the sandbox's own mounts.
+pub(crate) const MOUNT_POINTS: [&str; 6] = [
+    "dev",
+    "proc",
+    "tmp",
+    "build",
+    "run",
+    "usr/lib/sysroot/store",
+];
+
+/// The running sandbox a journal names. Recovery identifies it by PID and
+/// kernel start time within the same boot and PID namespace.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Process {
+    pub pid: u32,
+    pub start_time: u64,
 }
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Journal {
+    pub schema: u32,
+    pub store_token: String,
+    pub nonce: String,
+    pub boot_id: String,
+    pub pid_namespace: String,
+    pub process: Option<Process>,
+    pub staging: String,
+}
+
+/// Run in the unpacked root of an exact store image (created on first use).
 pub(crate) struct Execution<'a> {
     pub image: &'a str,
     pub mounts: &'a [String],
@@ -278,115 +321,72 @@ pub(crate) struct Execution<'a> {
     pub seconds: u64,
 }
 pub(crate) fn execute(store: &Store, exec: Execution<'_>) -> Result<RunResult> {
+    let root = store.image_root(exec.image)?;
+    sandbox(
+        store,
+        Sandbox {
+            root: &store.root_tree(&root),
+            writable_root: false,
+            stage: exec.output.and_then(|(_, path)| path.parent()),
+            mounts: exec.mounts,
+            output: exec.output,
+            repository: None,
+            argv: exec.argv,
+            env: exec.env,
+            seconds: exec.seconds,
+        },
+    )
+}
+
+/// One unprivileged bubblewrap process: no network, no host files except the
+/// root, read-only store inputs and at most one writable output directory.
+pub(crate) struct Sandbox<'a> {
+    pub root: &'a Path,
+    /// Only a root build writes its own staging copy of a root.
+    pub writable_root: bool,
+    /// The transaction staging directory recovery removes after a crash.
+    pub stage: Option<&'a Path>,
+    pub mounts: &'a [String],
+    pub output: Option<(&'a str, &'a Path)>,
+    pub repository: Option<&'a Path>,
+    pub argv: &'a [String],
+    pub env: &'a BTreeMap<String, String>,
+    pub seconds: u64,
+}
+
+pub(crate) fn sandbox(store: &Store, exec: Sandbox<'_>) -> Result<RunResult> {
     plan::timeout(exec.seconds)?;
-    let connection = store.connection()?;
-    ensure_image(store, &connection, exec.image)?;
     if exec.argv.is_empty() {
         return Err(Error::Invalid("empty command".into()));
     }
-    let nonce = crate::store::nonce()?;
-    let container = format!("sysroot-engine-{}-{nonce}", &store.token[..12]);
-    let staging = exec
-        .output
-        .map(|(_, p)| {
-            p.parent()
-                .and_then(Path::file_name)
-                .and_then(|s| s.to_str())
-                .unwrap_or_default()
-                .to_owned()
-        })
-        .unwrap_or_default();
-    let journal = Journal {
-        schema: 2,
+    if rustix::process::geteuid().is_root() {
+        return Err(Error::Invalid("engine refuses root builders".into()));
+    }
+    let command = bwrap(store, &exec)?;
+    let mut journal = Journal {
+        schema: 3,
         store_token: store.token.clone(),
-        daemon: daemon(&connection)?,
-        endpoint: connection.endpoint.clone(),
-        nonce,
-        container,
-        staging,
+        nonce: crate::store::nonce()?,
+        boot_id: boot_id()?,
+        pid_namespace: pid_namespace()?,
+        process: None,
+        staging: exec
+            .stage
+            .and_then(Path::file_name)
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .to_owned(),
     };
     let journal_path = store.path().join("transactions/execution.json");
     crate::store::write_json_new(&journal_path, &journal)?;
     let result = (|| {
-        let uid = rustix::process::geteuid().as_raw();
-        if uid == 0 {
-            return Err(Error::Invalid("engine refuses root builders".into()));
-        }
-        let mut cmd = connection.command();
-        cmd.args([
-            "create",
-            "--pull",
-            "never",
-            "--name",
-            &journal.container,
-            "--label",
-            &format!("sysroot.engine.store={}", store.token),
-            "--label",
-            &format!("sysroot.engine.operation={}", journal.nonce),
-            "--platform",
-            "linux/arm64",
-            "--read-only",
-            "--no-healthcheck",
-            "--network",
-            "none",
-            "--cap-drop",
-            "ALL",
-            "--security-opt",
-            "no-new-privileges",
-            "--pids-limit",
-            "256",
-            "--memory",
-            "1g",
-            "--memory-swap",
-            "1g",
-            "--ipc",
-            "private",
-            "--user",
-            &format!("{uid}:{uid}"),
-            "--tmpfs",
-            "/tmp:rw,nosuid,nodev,size=268435456,mode=1777",
-            "--tmpfs",
-            "/build:rw,nosuid,nodev,size=268435456,mode=1777",
-            "--workdir",
-            "/build",
-            "--env",
-            "HOME=/build",
-            "--env",
-            "TMPDIR=/tmp",
-            "--env",
-            "PATH=/usr/bin:/bin",
-            "--env",
-            "LANG=C",
-            "--env",
-            "LC_ALL=C",
-            "--env",
-            "TZ=UTC",
-        ]);
-        for id in exec.mounts {
-            plan::object_id(id)?;
-            cmd.args([
-                "--mount",
-                &format!(
-                    "type=bind,src={},dst={LOGICAL_PREFIX}/{id},readonly",
-                    store.object_path(id).join("data").display()
-                ),
-            ]);
-        }
-        if let Some((id, path)) = exec.output {
-            cmd.args([
-                "--mount",
-                &format!("type=bind,src={},dst={LOGICAL_PREFIX}/{id}", path.display()),
-            ]);
-        }
-        for (key, value) in exec.env {
-            cmd.args(["--env", &format!("{key}={value}")]);
-        }
-        cmd.args(["--entrypoint", &exec.argv[0], exec.image])
-            .args(&exec.argv[1..]);
-        checked(command(cmd, 300)?)?;
-        let mut cmd = connection.command();
-        cmd.args(["start", "--attach", &journal.container]);
-        command(cmd, exec.seconds)
+        let running = spawn(command)?;
+        let pid = running.id();
+        // The PID is recorded only while the process exists; --die-with-parent
+        // ends the sandbox if this process dies before or after the record.
+        journal.process = start_time(pid)?.map(|start_time| Process { pid, start_time });
+        crate::store::atomic_json(&journal_path, &journal)?;
+        running.wait(exec.seconds)
     })();
     if let Err(error) = cleanup(store, &journal) {
         return Err(Error::RecoveryRequired(format!(
@@ -403,76 +403,149 @@ pub(crate) fn execute(store: &Store, exec: Execution<'_>) -> Result<RunResult> {
     .sync_all()?;
     result
 }
-pub(crate) fn cleanup(store: &Store, journal: &Journal) -> Result<()> {
-    let connection = &Connection::recorded(&journal.endpoint)?;
-    if journal.schema != 2
-        || journal.store_token != store.token
-        || journal.daemon != daemon(connection)?
-        || journal.container != format!("sysroot-engine-{}-{}", &store.token[..12], journal.nonce)
+
+fn bwrap(store: &Store, exec: &Sandbox<'_>) -> Result<Command> {
+    let mut cmd = Command::new(BWRAP);
+    cmd.env_clear();
+    cmd.args([
+        "--unshare-all",
+        "--unshare-user",
+        "--disable-userns",
+        "--die-with-parent",
+        "--new-session",
+        "--clearenv",
+        "--hostname",
+        "sysroot",
+    ]);
+    cmd.arg(if exec.writable_root {
+        "--bind"
+    } else {
+        "--ro-bind"
+    })
+    .arg(exec.root)
+    .arg("/");
+    cmd.args(["--dev", "/dev", "--proc", "/proc"]);
+    cmd.args([
+        "--tmpfs",
+        "/tmp",
+        "--tmpfs",
+        "/build",
+        "--tmpfs",
+        LOGICAL_PREFIX,
+    ]);
+    for id in exec.mounts {
+        plan::object_id(id)?;
+        cmd.arg("--ro-bind")
+            .arg(store.object_path(id).join("data"))
+            .arg(format!("{LOGICAL_PREFIX}/{id}"));
+    }
+    if let Some((id, path)) = exec.output {
+        plan::object_id(id)?;
+        cmd.arg("--bind")
+            .arg(path)
+            .arg(format!("{LOGICAL_PREFIX}/{id}"));
+    }
+    cmd.args(["--remount-ro", LOGICAL_PREFIX]);
+    if let Some(repository) = exec.repository {
+        cmd.arg("--ro-bind").arg(repository).arg(REPOSITORY);
+    }
+    cmd.args(["--chdir", "/build"]);
+    let path = if exec.writable_root {
+        "/usr/bin:/usr/sbin"
+    } else {
+        "/usr/bin:/bin"
+    };
+    for (key, value) in [
+        ("HOME", "/build"),
+        ("TMPDIR", "/tmp"),
+        ("PATH", path),
+        ("LANG", "C"),
+        ("LC_ALL", "C"),
+        ("TZ", "UTC"),
+    ]
+    .into_iter()
+    .chain(exec.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
     {
+        cmd.args(["--setenv", key, value]);
+    }
+    cmd.arg("--").args(exec.argv);
+    Ok(cmd)
+}
+
+fn boot_id() -> Result<String> {
+    let id = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")?;
+    let id = id.trim();
+    if id.is_empty() || id.len() > 64 || !id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
+        return Err(Error::Invalid("unexpected kernel boot identity".into()));
+    }
+    Ok(id.into())
+}
+
+fn pid_namespace() -> Result<String> {
+    std::fs::read_link("/proc/self/ns/pid")?
+        .to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| Error::Invalid("unexpected PID namespace identity".into()))
+}
+
+/// Kernel start time of a live bubblewrap process, or None once it is gone.
+fn start_time(pid: u32) -> Result<Option<u64>> {
+    let stat = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(stat) => stat,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let (head, tail) = stat
+        .rsplit_once(')')
+        .ok_or_else(|| Error::Invalid("unexpected process status".into()))?;
+    let fields: Vec<&str> = tail.split_whitespace().collect();
+    // Field 3 (state) is the first after the command name; start time is field 22.
+    if fields.first() == Some(&"Z") || !head.ends_with("(bwrap") {
+        return Ok(None);
+    }
+    fields
+        .get(19)
+        .and_then(|s| s.parse().ok())
+        .map(Some)
+        .ok_or_else(|| Error::Invalid("unexpected process status".into()))
+}
+
+/// Make sure the journaled sandbox no longer runs: it is gone, belongs to an
+/// earlier boot, or is killed and observed gone within ten seconds.
+pub(crate) fn cleanup(store: &Store, journal: &Journal) -> Result<()> {
+    if journal.schema != 3 || journal.store_token != store.token || !plan::hex(&journal.nonce) {
         return Err(Error::RecoveryRequired(
-            "journal ownership or Docker daemon differs".into(),
+            "execution journal ownership or schema differs".into(),
         ));
     }
-    if !plan::hex(&journal.nonce) {
-        return Err(Error::RecoveryRequired("invalid execution nonce".into()));
-    }
-    let result = docker(connection, &["container", "inspect", &journal.container])?;
-    if result.code != 0 {
-        let listing = checked(docker(
-            connection,
-            &["container", "ls", "--all", "--format", "{{.Names}}"],
-        )?)?;
-        if String::from_utf8_lossy(&listing.stdout)
-            .lines()
-            .any(|n| n == journal.container)
-        {
-            return Err(Error::RecoveryRequired(
-                "cannot inspect possibly existing container".into(),
-            ));
-        }
+    let Some(process) = &journal.process else {
+        return Ok(());
+    };
+    if journal.boot_id != boot_id()? {
         return Ok(());
     }
-    if result.stdout_truncated {
+    if journal.pid_namespace != pid_namespace()? {
         return Err(Error::RecoveryRequired(
-            "container inspection truncated".into(),
+            "sandbox ran in another PID namespace of this boot; recover there".into(),
         ));
     }
-    let values: Vec<serde_json::Value> = serde_json::from_slice(&result.stdout)?;
-    let info = values
-        .first()
-        .ok_or_else(|| Error::RecoveryRequired("container inspection empty".into()))?;
-    if info["Name"].as_str() != Some(format!("/{}", journal.container).as_str())
-        || info["Config"]["Labels"]["sysroot.engine.store"].as_str() != Some(store.token.as_str())
-        || info["Config"]["Labels"]["sysroot.engine.operation"].as_str()
-            != Some(journal.nonce.as_str())
-    {
-        return Err(Error::RecoveryRequired(
-            "container ownership labels differ".into(),
-        ));
-    }
-    let id = info["Id"]
-        .as_str()
-        .ok_or_else(|| Error::RecoveryRequired("container missing identity".into()))?;
-    checked(docker(connection, &["container", "rm", "--force", id])?)?;
-    let listing = checked(docker(
-        connection,
-        &[
-            "container",
-            "ls",
-            "--all",
-            "--no-trunc",
-            "--format",
-            "{{.ID}}",
-        ],
-    )?)?;
-    if String::from_utf8_lossy(&listing.stdout)
-        .lines()
-        .any(|s| s == id)
-    {
-        return Err(Error::RecoveryRequired(
-            "container still exists after removal".into(),
-        ));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while start_time(process.pid)? == Some(process.start_time) {
+        if Instant::now() >= deadline {
+            return Err(Error::RecoveryRequired(format!(
+                "sandbox process {} survived termination",
+                process.pid
+            )));
+        }
+        let pid = i32::try_from(process.pid)
+            .ok()
+            .and_then(rustix::process::Pid::from_raw)
+            .ok_or_else(|| Error::RecoveryRequired("invalid sandbox process".into()))?;
+        match rustix::process::kill_process(pid, rustix::process::Signal::KILL) {
+            Ok(()) | Err(rustix::io::Errno::SRCH) => {}
+            Err(error) => return Err(error.into()),
+        }
+        thread::sleep(Duration::from_millis(50));
     }
     Ok(())
 }

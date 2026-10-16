@@ -622,6 +622,22 @@ impl Docker {
         Ok(result)
     }
 
+    /// `docker image save` of one local image, for importing it without a daemon.
+    pub fn save(&self, image: &str) -> Result<Vec<u8>> {
+        const LIMIT: usize = 256 * 1024 * 1024;
+        self.runtime.block_on(crate::cancel::interrupt(async {
+            let mut stream = self.api.export_image(image);
+            let mut archive = Vec::new();
+            while let Some(chunk) = stream.next().await {
+                archive.extend_from_slice(&chunk?);
+                if archive.len() > LIMIT {
+                    return Err(invalid("saved image exceeds 256 MiB"));
+                }
+            }
+            Ok::<_, Error>(archive)
+        }))?
+    }
+
     /// Pull an image reference, printing coarse progress to stderr.
     pub fn pull(&self, reference: &str, platform: &str) -> Result<()> {
         let options = bollard::query_parameters::CreateImageOptions {

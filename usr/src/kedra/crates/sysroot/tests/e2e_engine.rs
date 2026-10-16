@@ -1,12 +1,14 @@
-//! Real public engine workflows. Docker qualification is explicitly opt-in; an
-//! ignored listing is not evidence of building, transferring or running a package.
+//! Real public engine workflows. Sandbox qualification is explicitly opt-in: it
+//! needs bubblewrap with user namespaces and the retained pinned images, which
+//! the fixture imports through the local Docker daemon. An ignored listing is
+//! not evidence of building, transferring or running a package.
 #![cfg(unix)]
 
 mod cache_recovery;
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -19,6 +21,8 @@ use sha2::{Digest, Sha256};
 
 const BUILDER: &str = "sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546";
 const RUNTIME: &str = "sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3";
+/// A well-formed root identity for pure planning; no store holds it.
+const PLANNED_ROOT: &str = "root-3333333333333333333333333333333333333333333333333333333333333333";
 const CAPTURE_LIMIT: usize = 2 * 1024 * 1024;
 const COMMAND_DEADLINE: Duration = Duration::from_secs(600);
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -174,7 +178,11 @@ impl Fixture {
     }
 
     fn store(&self, operation: &str, store: &Path, extra: &[&str]) -> Capture {
-        if matches!(operation, "add-source" | "add-image" | "import") && !store.exists() {
+        if matches!(
+            operation,
+            "add-source" | "add-image" | "add-root" | "import"
+        ) && !store.exists()
+        {
             self.store("init", store, &[]).json();
         }
         let mut command = self.command(&["store", operation, "--store"]);
@@ -218,6 +226,14 @@ impl Fixture {
             let admitted = self.store("add-image", store, &["--image", image]).json();
             assert_eq!(admitted["image"], image);
         }
+    }
+
+    /// The root of a retained image, created or reused by the public CLI.
+    fn root(&self, store: &Path, image: &str) -> String {
+        string(
+            &self.store("add-root", store, &["--image", image]).json(),
+            "root",
+        )
     }
 
     fn write_json(&self, name: &str, value: &Value) -> PathBuf {
@@ -357,7 +373,7 @@ fn bundle_with_self_consistent_wrong_image(original: &Path, output: &Path) {
 
 fn bare_graph() -> Value {
     json!({"schema":1,"nodes":{"app":{
-        "builder_image":BUILDER,"runtime_image":RUNTIME,"inputs":{},
+        "builder_root":PLANNED_ROOT,"runtime_image":RUNTIME,"inputs":{},
         "argv":[[{"kind":"literal","value":"/bin/true"}]],
         "env":{},"runtime_inputs":[],"timeout_seconds":120
     }}})
@@ -374,8 +390,7 @@ fn planning_is_public_pure_and_rejects_invalid_graphs() {
         .arg(&absent_store)
         .arg("--plan")
         .arg(&plan)
-        .args(["--root", "app", "--dry-run"])
-        .env("DOCKER_HOST", "unix:///nonexistent/kedra-engine-e2e.sock");
+        .args(["--root", "app", "--dry-run"]);
     let first = run(&mut command).json();
     let second = run(&mut command).json();
     assert_eq!(first["outputs"], second["outputs"]);
@@ -558,14 +573,14 @@ fn main() {
     let builder = &args[2];
     let runtime = &args[3];
     let library = BuildNode {
-        builder_image: builder.clone(), runtime_image: runtime.clone(),
+        builder_root: builder.clone(), runtime_image: runtime.clone(),
         inputs: BTreeMap::from([("source".into(), Input::Object(source.clone()))]),
         argv: vec![Argument::literal("/bin/sh"), Argument::input("source", "library.sh"),
             Argument::input("source", "library.c"), Argument::output("")],
         env: BTreeMap::new(), runtime_inputs: vec![], timeout_seconds: 120,
     };
     let app = BuildNode {
-        builder_image: builder.clone(), runtime_image: runtime.clone(),
+        builder_root: builder.clone(), runtime_image: runtime.clone(),
         inputs: BTreeMap::from([("source".into(), Input::Object(source.clone())),
             ("library".into(), Input::Node("library".into()))]),
         argv: vec![Argument::literal("/bin/sh"), Argument::input("source", "app.sh"),
@@ -587,11 +602,8 @@ fn main() {
     target.join("debug/author")
 }
 
-fn authored_plan(f: &Fixture, author: &Path, source: &str, name: &str) -> PathBuf {
-    let value = run(Command::new(author)
-        .args([source, BUILDER, RUNTIME])
-        .env("DOCKER_HOST", "unix:///nonexistent/kedra-engine-e2e.sock"))
-    .json();
+fn authored_plan(f: &Fixture, author: &Path, builder: &str, source: &str, name: &str) -> PathBuf {
+    let value = run(Command::new(author).args([source, builder, RUNTIME])).json();
     f.write_json(name, &value)
 }
 
@@ -619,17 +631,19 @@ fn profile(f: &Fixture, operation: &str, store: &Path, extra: &[&str]) -> Captur
 }
 
 #[test]
-#[ignore = "requires native aarch64 Docker and retained pinned images; run --ignored"]
+#[ignore = "requires bubblewrap user namespaces and retained pinned images; run --ignored"]
 fn package_build_transfer_profiles_and_collection() {
     let f = Fixture::new();
     let producer = f.path("producer");
     let receiver = f.path("receiver");
     f.images(&producer);
+    let builder = f.root(&producer, BUILDER);
+    assert_eq!(f.root(&producer, BUILDER), builder, "root not reused");
     let author = authoring_consumer(&f);
     let source_one = c_source(&f, "version-one");
     let source_one_id = f.source(&producer, &source_one);
     assert_eq!(f.source(&producer, &source_one), source_one_id);
-    let plan_one = authored_plan(&f, &author, &source_one_id, "one.json");
+    let plan_one = authored_plan(&f, &author, &builder, &source_one_id, "one.json");
     let planned = f.build(&f.path("unused"), &plan_one, &["--dry-run"]).json();
     assert!(!f.path("unused").exists());
     let first = f.build(&producer, &plan_one, &[]).json();
@@ -646,7 +660,7 @@ fn package_build_transfer_profiles_and_collection() {
     let source_two = c_source(&f, "version-two");
     let source_two_id = f.source(&producer, &source_two);
     assert_ne!(source_one_id, source_two_id);
-    let plan_two = authored_plan(&f, &author, &source_two_id, "two.json");
+    let plan_two = authored_plan(&f, &author, &builder, &source_two_id, "two.json");
     let second = f.build(&producer, &plan_two, &[]).json();
     let two = app_id(&second);
     assert_ne!(one, two);
@@ -817,7 +831,6 @@ fn package_build_transfer_profiles_and_collection() {
     image.seek(SeekFrom::Start(0)).unwrap();
     image.write_all(&[original_byte[0] ^ 1]).unwrap();
     image.sync_all().unwrap();
-    run(Command::new("docker").args(["image", "inspect", RUNTIME])).success();
     f.program(&receiver, &one, &[]).refused("image evidence");
     image.seek(SeekFrom::Start(0)).unwrap();
     image.write_all(&original_byte).unwrap();
@@ -842,8 +855,7 @@ fn package_build_transfer_profiles_and_collection() {
     bundle_with_self_consistent_wrong_image(&bundles[0].0, &forged_bundle);
     let forged_receiver = f.path("forged-image-receiver");
     // The outer digest and image receipt agree with the forged bytes. Only the
-    // archive's claimed image identity is wrong, despite the real daemon cache.
-    run(Command::new("docker").args(["image", "inspect", RUNTIME])).success();
+    // archive's claimed image identity is wrong.
     f.store(
         "import",
         &forged_receiver,
@@ -866,9 +878,9 @@ fn package_build_transfer_profiles_and_collection() {
     );
 }
 
-fn script_plan(source: &str, script: &str, timeout: u64) -> Value {
+fn script_plan(builder: &str, source: &str, script: &str, timeout: u64) -> Value {
     json!({"schema":1,"nodes":{"app":{
-        "builder_image":BUILDER,"runtime_image":RUNTIME,
+        "builder_root":builder,"runtime_image":RUNTIME,
         "inputs":{"source":{"kind":"object","value":source}},
         "argv":[[{"kind":"literal","value":"/bin/sh"}],
             [{"kind":"input","name":"source","path":script}],
@@ -877,120 +889,159 @@ fn script_plan(source: &str, script: &str, timeout: u64) -> Value {
     }}})
 }
 
-fn active_container(store: &Path) -> (Value, Value) {
+fn proc_text(pid: u32, name: &str) -> String {
+    fs::read_to_string(format!("/proc/{pid}/{name}")).unwrap_or_default()
+}
+
+/// Processes whose parent chain reaches `ancestor`, read from /proc.
+fn descendants(ancestor: u32) -> Vec<u32> {
+    let mut parents = Vec::new();
+    for entry in fs::read_dir("/proc").unwrap().flatten() {
+        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
+            continue;
+        };
+        let stat = proc_text(pid, "stat");
+        if let Some((_, tail)) = stat.rsplit_once(')')
+            && let Some(parent) = tail.split_whitespace().nth(1)
+        {
+            parents.push((pid, parent.parse::<u32>().unwrap_or(0)));
+        }
+    }
+    let mut found = vec![ancestor];
+    let mut index = 0;
+    while index < found.len() {
+        let current = found[index];
+        found.extend(
+            parents
+                .iter()
+                .filter(|(_, p)| *p == current)
+                .map(|(c, _)| *c),
+        );
+        index += 1;
+    }
+    found.remove(0);
+    found
+}
+
+/// The journal of a running sandbox and its innermost non-bubblewrap process.
+fn active_sandbox(store: &Path) -> (Value, u32) {
     let deadline = Instant::now() + Duration::from_secs(90);
     loop {
         if let Ok(bytes) = fs::read(store.join("transactions/execution.json"))
             && let Ok(journal) = serde_json::from_slice::<Value>(&bytes)
-            && let Some(name) = journal["container"].as_str()
+            && let Some(pid) = journal["process"]["pid"].as_u64()
+            && let Some(inner) = descendants(pid as u32).into_iter().find(|child| {
+                // Settled: executed the sandboxed program (no longer bwrap) with
+                // its environment in place.
+                !proc_text(*child, "comm").starts_with("bwrap")
+                    && fs::read(format!("/proc/{child}/environ"))
+                        .is_ok_and(|environment| !environment.is_empty())
+            })
         {
-            let inspected = run(Command::new("docker").args(["container", "inspect", name]));
-            if inspected.status.success() {
-                let info: Value = serde_json::from_slice(&inspected.stdout).unwrap();
-                if info[0]["State"]["Running"] == true {
-                    return (journal, info[0].clone());
-                }
-            }
+            return (journal, inner);
         }
         assert!(
             Instant::now() < deadline,
-            "never observed an active owned executor in {}",
+            "never observed an active owned sandbox in {}",
             store.display()
         );
         thread::sleep(Duration::from_millis(50));
     }
 }
 
-fn assert_isolation(info: &Value, writable_output: bool) {
-    assert_eq!(info["HostConfig"]["NetworkMode"], "none");
-    assert_eq!(info["HostConfig"]["ReadonlyRootfs"], true);
-    assert_eq!(info["HostConfig"]["Privileged"], false);
-    assert_eq!(info["HostConfig"]["PidsLimit"], 256);
-    assert_eq!(info["HostConfig"]["Memory"], 1024 * 1024 * 1024_u64);
-    assert!(
-        info["HostConfig"]["CapDrop"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("ALL"))
-    );
-    assert!(
-        info["Config"]["User"]
-            .as_str()
-            .unwrap()
-            .split(':')
-            .next()
-            .unwrap()
-            .parse::<u32>()
-            .unwrap()
-            > 0
-    );
-    let mounts = info["Mounts"].as_array().unwrap();
-    let bindings: Vec<_> = mounts.iter().filter(|m| m["Type"] == "bind").collect();
-    assert!(!bindings.is_empty());
-    assert_eq!(
-        bindings.iter().filter(|m| m["RW"] == true).count(),
-        usize::from(writable_output)
-    );
-    for mount in bindings {
-        assert!(
-            mount["Destination"]
-                .as_str()
-                .unwrap()
-                .starts_with("/usr/lib/sysroot/store/")
+/// Isolation of the observed sandboxed process: separate user, network and PID
+/// namespaces, no capabilities, no new privileges, a non-root owner, a cleared
+/// environment and a read-only root with only the output writable in the store.
+fn assert_isolation(pid: u32, writable_output: bool) {
+    for namespace in ["user", "net", "pid", "ipc", "uts"] {
+        assert_ne!(
+            fs::read_link(format!("/proc/{pid}/ns/{namespace}")).unwrap(),
+            fs::read_link(format!("/proc/self/ns/{namespace}")).unwrap(),
+            "sandbox shares the {namespace} namespace"
         );
     }
-    assert!(info["Config"]["Env"].as_array().unwrap().iter().all(|v| {
-        !v.as_str()
+    let status = proc_text(pid, "status");
+    let field = |name: &str| {
+        status
+            .lines()
+            .find_map(|line| line.strip_prefix(name))
             .unwrap()
-            .starts_with("KEDRA_ENGINE_HOST_ONLY_SENTINEL=")
-    }));
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .to_owned()
+    };
+    assert_ne!(field("Uid:"), "0");
+    assert_eq!(field("CapEff:"), "0000000000000000");
+    assert_eq!(field("NoNewPrivs:"), "1");
+    let environment = fs::read(format!("/proc/{pid}/environ")).unwrap();
+    let environment: Vec<_> = environment.split(|b| *b == 0).collect();
+    assert!(environment.contains(&&b"HOME=/build"[..]));
+    assert!(
+        environment
+            .iter()
+            .all(|v| !v.starts_with(b"KEDRA_ENGINE_HOST_ONLY_SENTINEL="))
+    );
+    let mut writable = 0;
+    let mut root_read_only = false;
+    for line in proc_text(pid, "mountinfo").lines() {
+        let fields: Vec<_> = line.split_whitespace().collect();
+        let (point, options) = (fields[4], fields[5]);
+        let read_only = options.split(',').any(|o| o == "ro");
+        if point == "/" {
+            root_read_only = read_only;
+        }
+        if point.starts_with("/usr/lib/sysroot/store/") && !read_only {
+            writable += 1;
+        }
+        assert!(!point.starts_with("/home") && !point.starts_with("/var/run/docker"));
+    }
+    assert!(root_read_only, "sandbox root is writable");
+    assert_eq!(writable, usize::from(writable_output));
 }
 
-struct SentinelContainer(String);
+/// An unrelated process of the same user that recovery must leave alone.
+struct Sentinel(Child);
 
-impl SentinelContainer {
+impl Sentinel {
     fn new() -> Self {
-        let result = run(Command::new("docker").args([
-            "run",
-            "--detach",
-            "--pull",
-            "never",
-            "--network",
-            "none",
-            "--read-only",
-            "--user",
-            "65534:65534",
-            "--cap-drop",
-            "ALL",
-            "--entrypoint",
-            "/bin/sleep",
-            RUNTIME,
-            "600",
-        ]))
-        .success();
-        let id = String::from_utf8(result.stdout).unwrap().trim().to_owned();
-        assert_eq!(id.len(), 64);
-        Self(id)
+        Self(Command::new("sleep").arg("600").spawn().unwrap())
     }
 
-    fn assert_alive(&self) {
-        let result = run(Command::new("docker").args(["container", "inspect", &self.0])).json();
-        assert_eq!(result[0]["State"]["Running"], true);
+    fn assert_alive(&mut self) {
+        assert!(self.0.try_wait().unwrap().is_none(), "sentinel was killed");
     }
 }
 
-impl Drop for SentinelContainer {
+impl Drop for Sentinel {
     fn drop(&mut self) {
-        let _ = run(Command::new("docker").args(["container", "rm", "--force", &self.0]));
+        let _ = self.0.kill();
+        let _ = self.0.wait();
     }
+}
+
+/// Kernel start time of a process, from field 22 of /proc/<pid>/stat.
+fn start_time(pid: u32) -> u64 {
+    let stat = proc_text(pid, "stat");
+    let (_, tail) = stat.rsplit_once(')').unwrap();
+    tail.split_whitespace().nth(19).unwrap().parse().unwrap()
+}
+
+/// The same process still runs: present, not a zombie, same start time.
+fn running(pid: u32, start: u64) -> bool {
+    let stat = proc_text(pid, "stat");
+    stat.rsplit_once(')').is_some_and(|(_, tail)| {
+        tail.split_whitespace().next() != Some("Z") && start_time(pid) == start
+    })
 }
 
 #[test]
-#[ignore = "requires native aarch64 Docker and retained pinned images; run --ignored"]
+#[ignore = "requires bubblewrap user namespaces and retained pinned images; run --ignored"]
 fn executor_failures_rebuild_divergence_and_owned_recovery() {
     let f = Fixture::new();
     let store = f.path("store");
     f.images(&store);
+    let builder = f.root(&store, BUILDER);
     let source = c_source(&f, "faults");
     fs::write(
         source.join("fail.sh"),
@@ -1007,8 +1058,18 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
         "set -eu\nhead -c 2097152 /dev/zero\nprintf complete > \"$1/done\"\n",
     )
     .unwrap();
+    fs::write(
+        source.join("offline.sh"),
+        "set -eu\nmkdir -p \"$1\"\nif getent hosts example.org >/dev/null 2>&1; then exit 51; fi\n\
+         if [ \"$(ls /proc | grep -c \'^[0-9]\')\" -gt 8 ]; then exit 52; fi\n\
+         printf offline > \"$1/done\"\n",
+    )
+    .unwrap();
     let source_id = f.source(&store, &source);
-    let entropy = f.write_json("entropy.json", &script_plan(&source_id, "entropy.sh", 120));
+    let plan = |name: &str, script: &str, timeout: u64| {
+        f.write_json(name, &script_plan(&builder, &source_id, script, timeout))
+    };
+    let entropy = plan("entropy.json", "entropy.sh", 120);
     let first = f.build(&store, &entropy, &[]).json();
     let winner = app_id(&first);
     let before = f.store("verify", &store, &["--object", &winner]).json();
@@ -1016,8 +1077,10 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
     let after = f.store("verify", &store, &["--object", &winner]).json();
     assert_eq!(before, after, "divergent rebuild changed the valid winner");
     nonempty_result(&f.build(&store, &entropy, &[]).json(), "reused");
+    f.build(&store, &plan("offline.json", "offline.sh", 120), &[])
+        .json();
 
-    let failure = f.write_json("failure.json", &script_plan(&source_id, "fail.sh", 120));
+    let failure = plan("failure.json", "fail.sh", 120);
     let failure_id = app_id(
         &f.build(&f.path("unopened"), &failure, &["--dry-run"])
             .json(),
@@ -1025,7 +1088,7 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
     f.build(&store, &failure, &[])
         .refused("intentional-builder-failure");
     assert!(!store.join("objects").join(&failure_id).exists());
-    let timeout = f.write_json("timeout.json", &script_plan(&source_id, "slow.sh", 1));
+    let timeout = plan("timeout.json", "slow.sh", 1);
     let timeout_id = app_id(
         &f.build(&f.path("unopened"), &timeout, &["--dry-run"])
             .json(),
@@ -1033,13 +1096,13 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
     f.build(&store, &timeout, &[]).refused("deadline");
     assert!(!store.join("objects").join(&timeout_id).exists());
     assert!(!store.join("transactions/execution.json").exists());
-    let noisy = f.write_json("noisy.json", &script_plan(&source_id, "noisy.sh", 120));
+    let noisy = plan("noisy.json", "noisy.sh", 120);
     let noisy_result = f.build(&store, &noisy, &[]).json();
     f.store("verify", &store, &["--object", &app_id(&noisy_result)])
         .json();
 
     // A real active build holds the management lock while a separate GC waits.
-    let short = f.write_json("short.json", &script_plan(&source_id, "short.sh", 120));
+    let short = plan("short.json", "short.sh", 120);
     let mut command = f.command(&["build", "--store"]);
     command
         .arg(&store)
@@ -1047,8 +1110,8 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
         .arg(&short)
         .args(["--root", "app"]);
     let mut active = Running::start(&mut command);
-    let (_, info) = active_container(&store);
-    assert_isolation(&info, true);
+    let (_, inner) = active_sandbox(&store);
+    assert_isolation(inner, true);
     let mut gc = Running::start(
         f.command(&["store", "gc", "--store"])
             .arg(&store)
@@ -1066,8 +1129,10 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
     active.finish().json();
     gc.finish().json();
 
-    let sentinel = SentinelContainer::new();
-    let slow = f.write_json("interrupted.json", &script_plan(&source_id, "slow.sh", 120));
+    // Killing the controller ends its sandbox (--die-with-parent); the journal
+    // stays until recovery verifies ownership and that the process is gone.
+    let mut sentinel = Sentinel::new();
+    let slow = plan("interrupted.json", "slow.sh", 120);
     let mut command = f.command(&["build", "--store"]);
     command
         .arg(&store)
@@ -1075,33 +1140,265 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
         .arg(&slow)
         .args(["--root", "app"]);
     let mut active = Running::start(&mut command);
-    let (journal, info) = active_container(&store);
-    assert_isolation(&info, true);
-    let owned_id = string(&info, "Id");
+    let (journal, inner) = active_sandbox(&store);
+    assert_isolation(inner, true);
+    let sandbox = journal["process"]["pid"].as_u64().unwrap() as u32;
+    let sandbox_start = start_time(sandbox);
     active.child.kill().unwrap();
     active.child.wait().unwrap();
     f.store("gc", &store, &[]).refused("recovery");
     let journal_path = store.join("transactions/execution.json");
     let original_journal = fs::read(&journal_path).unwrap();
-    let mut wrong_owner = journal;
+    let mut wrong_owner = journal.clone();
     wrong_owner["store_token"] = json!("foreign-generated-token");
     fs::write(&journal_path, serde_json::to_vec(&wrong_owner).unwrap()).unwrap();
     f.store("recover", &store, &[]).refused("ownership");
     sentinel.assert_alive();
     assert!(journal_path.exists());
-    fs::write(&journal_path, original_journal).unwrap();
+    fs::write(&journal_path, &original_journal).unwrap();
     let recovered = f.store("recover", &store, &[]).json();
     nonempty_result(&recovered, "recovered");
     let interrupted = active.finish();
     assert!(!interrupted.status.success());
     assert!(!journal_path.exists());
-    let removed = run(Command::new("docker").args(["container", "inspect", &owned_id]));
-    assert!(!removed.status.success());
+    assert!(
+        !running(sandbox, sandbox_start),
+        "killed controller left its sandbox running"
+    );
+    sentinel.assert_alive();
+
+    // A sandbox that outlived its controller is killed by recovery, and only it.
+    let mut orphan = Sentinel(
+        Command::new("/usr/bin/bwrap")
+            .args(["--ro-bind", "/", "/", "--unshare-all", "--", "sleep", "600"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    let mut orphan_start = None;
+    for _ in 0..200 {
+        if proc_text(orphan.0.id(), "comm").starts_with("bwrap") {
+            orphan_start = Some(start_time(orphan.0.id()));
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    let mut surviving = journal;
+    surviving["process"] = json!({"pid": orphan.0.id(), "start_time": orphan_start.unwrap()});
+    surviving["staging"] = json!("");
+    fs::write(&journal_path, serde_json::to_vec(&surviving).unwrap()).unwrap();
+    fs::set_permissions(&journal_path, fs::Permissions::from_mode(0o600)).unwrap();
+    f.store("gc", &store, &[]).refused("recovery");
+    nonempty_result(&f.store("recover", &store, &[]).json(), "recovered");
+    assert_eq!(orphan.0.wait().unwrap().signal(), Some(9));
+    assert!(!journal_path.exists());
     sentinel.assert_alive();
     f.store("verify", &store, &["--object", &winner]).json();
     nonempty_result(&f.build(&store, &short, &[]).json(), "reused");
+
+    // A root stays while pinned or while its image is retained; then GC retires it.
+    f.store("unpin-root", &store, &["--root", &builder]).json();
+    let kept = f.store("gc", &store, &[]).json();
+    assert_eq!(
+        kept["roots"],
+        json!([]),
+        "root of a retained image was collected"
+    );
+    f.store("unpin-image", &store, &["--image", BUILDER]).json();
+    let collected = f.store("gc", &store, &["--delete"]).json();
+    assert_eq!(collected["roots"], json!([builder]));
+    assert!(!store.join("rootfs").join(&builder).exists());
+    nonempty_result(&f.build(&store, &short, &[]).json(), "reused");
+    f.build(&store, &short, &["--rebuild"]).refused("no root");
     eprintln!(
-        "engine faults exercised: divergent winner, failing/timed-out/noisy builders, live isolation, concurrent GC, killed-controller recovery and foreign-owner refusal"
+        "engine faults exercised: divergent winner, offline and failing/timed-out/noisy builders, live isolation, concurrent GC, killed-controller and surviving-sandbox recovery, foreign-owner refusal and root collection"
+    );
+}
+
+fn hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// One uncompressed layer: (path, type, contents, link target).
+fn layer(entries: &[(&str, tar::EntryType, &[u8], Option<&str>)]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, kind, bytes, link) in entries {
+        let mut header = tar::Header::new_ustar();
+        header.set_entry_type(*kind);
+        header.set_path(path).unwrap();
+        header.set_mode(if kind.is_dir() { 0o755 } else { 0o644 });
+        header.set_size(bytes.len() as u64);
+        if let Some(link) = link {
+            header.set_link_name(link).unwrap();
+        }
+        header.set_cksum();
+        builder.append(&header, *bytes).unwrap();
+    }
+    builder.into_inner().unwrap()
+}
+
+/// A Docker 29 OCI save archive of native layers (blob, media type, diff ID);
+/// returns the image identity, the digest of its single manifest.
+fn oci_archive(path: &Path, layers: &[(Vec<u8>, &str, String)]) -> String {
+    let config = serde_json::to_vec(&json!({
+        "architecture":"arm64","os":"linux","config":{},
+        "rootfs":{"type":"layers","diff_ids":layers.iter().map(|l| l.2.clone()).collect::<Vec<_>>()},
+    }))
+    .unwrap();
+    let manifest = serde_json::to_vec(&json!({
+        "schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json",
+        "config":{"mediaType":"application/vnd.oci.image.config.v1+json",
+            "digest":format!("sha256:{}", hex(&config)),"size":config.len()},
+        "layers":layers.iter().map(|(blob, media, _)| json!({"mediaType":media,
+            "digest":format!("sha256:{}", hex(blob)),"size":blob.len()})).collect::<Vec<_>>(),
+    }))
+    .unwrap();
+    let image = format!("sha256:{}", hex(&manifest));
+    let index = serde_json::to_vec(&json!({
+        "schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json",
+        "manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json",
+            "digest":image,"size":manifest.len()}],
+    }))
+    .unwrap();
+    let docker = serde_json::to_vec(&json!([{
+        "Config":format!("blobs/sha256/{}", hex(&config)),
+        "Layers":layers.iter().map(|(blob, _, _)| format!("blobs/sha256/{}", hex(blob))).collect::<Vec<_>>(),
+    }]))
+    .unwrap();
+    let mut builder = tar::Builder::new(File::create(path).unwrap());
+    for directory in ["blobs/", "blobs/sha256/"] {
+        let mut header = tar::Header::new_ustar();
+        header.set_entry_type(tar::EntryType::Directory);
+        header.set_path(directory).unwrap();
+        header.set_mode(0o755);
+        header.set_size(0);
+        header.set_cksum();
+        builder.append(&header, &[][..]).unwrap();
+    }
+    let mut blobs = vec![config, manifest];
+    blobs.extend(layers.iter().map(|(blob, _, _)| blob.clone()));
+    for blob in &blobs {
+        append_tar_bytes(&mut builder, &format!("blobs/sha256/{}", hex(blob)), blob);
+    }
+    append_tar_bytes(&mut builder, "index.json", &index);
+    append_tar_bytes(&mut builder, "manifest.json", &docker);
+    append_tar_bytes(
+        &mut builder,
+        "oci-layout",
+        br#"{"imageLayoutVersion":"1.0.0"}"#,
+    );
+    builder.finish().unwrap();
+    image
+}
+
+fn plain(blob: Vec<u8>) -> (Vec<u8>, &'static str, String) {
+    let diff = format!("sha256:{}", hex(&blob));
+    (blob, "application/vnd.oci.image.layer.v1.tar", diff)
+}
+
+#[test]
+fn image_roots_unpack_saved_archives_without_a_daemon() {
+    use tar::EntryType::{Char, Directory, Link, Regular, Symlink};
+    let f = Fixture::new();
+    let store = f.path("store");
+    let lower = layer(&[
+        ("etc/", Directory, b"", None),
+        ("etc/keep", Regular, b"lower", None),
+        ("etc/gone", Regular, b"lower", None),
+        ("bin/", Directory, b"", None),
+        ("bin/tool", Regular, b"replaced by a device", None),
+        ("opaque/", Directory, b"", None),
+        ("opaque/old", Regular, b"hidden by opaque", None),
+        ("data/", Directory, b"", None),
+        ("data/x", Regular, b"linked", None),
+        ("data/y", Link, b"", Some("data/x")),
+        ("alias", Symlink, b"", Some("etc")),
+    ]);
+    // Whiteouts and the opaque marker follow same-layer entries they must keep.
+    let upper = layer(&[
+        ("etc/new", Regular, b"added", None),
+        ("etc/.wh.new", Regular, b"", None),
+        ("etc/.wh.gone", Regular, b"", None),
+        ("bin/tool", Char, b"", None),
+        ("opaque/fresh", Regular, b"same layer", None),
+        ("opaque/.wh..wh..opq", Regular, b"", None),
+    ]);
+    let archive = f.path("image.tar");
+    let image = oci_archive(&archive, &[plain(lower.clone()), plain(upper)]);
+    let admitted = f
+        .store(
+            "add-image",
+            &store,
+            &["--image", &image, "--archive", text(&archive)],
+        )
+        .json();
+    assert_eq!(admitted["image"], image);
+    let root = f.root(&store, &image);
+    assert_eq!(f.root(&store, &image), root, "image root was not reused");
+    let tree = store.join("rootfs").join(&root).join("tree");
+    let read = |path: &str| fs::read(tree.join(path)).ok();
+    assert_eq!(read("etc/keep").as_deref(), Some(&b"lower"[..]));
+    assert_eq!(read("etc/new").as_deref(), Some(&b"added"[..]));
+    assert_eq!(read("opaque/fresh").as_deref(), Some(&b"same layer"[..]));
+    for absent in ["etc/gone", "bin/tool", "opaque/old", "etc/.wh.gone"] {
+        assert!(
+            fs::symlink_metadata(tree.join(absent)).is_err(),
+            "{absent} survived its layer"
+        );
+    }
+    let x = fs::metadata(tree.join("data/x")).unwrap();
+    let y = fs::metadata(tree.join("data/y")).unwrap();
+    assert_eq!((x.dev(), x.ino()), (y.dev(), y.ino()));
+    assert_eq!(fs::read_link(tree.join("alias")).unwrap(), Path::new("etc"));
+    for point in ["dev", "proc", "tmp", "build", "usr/lib/sysroot/store"] {
+        assert!(tree.join(point).is_dir(), "missing mount point {point}");
+    }
+
+    // A later layer may not write through a lower symlink.
+    let escape = layer(&[("alias/escape", Regular, b"outside", None)]);
+    let archive = f.path("escape.tar");
+    let image = oci_archive(&archive, &[plain(lower.clone()), plain(escape)]);
+    f.store(
+        "add-image",
+        &store,
+        &["--image", &image, "--archive", text(&archive)],
+    )
+    .json();
+    f.store("add-root", &store, &["--image", &image])
+        .refused("traverses a non-directory");
+
+    // A compressed layer must decompress to its configured DiffID.
+    let compressed = f.path("lower.tar.gz");
+    fs::write(f.path("lower.tar"), &lower).unwrap();
+    let gzip = run(Command::new("gzip")
+        .args(["-n", "-k", "-f"])
+        .arg(f.path("lower.tar")))
+    .success();
+    assert!(gzip.stdout.is_empty());
+    let blob = fs::read(&compressed).unwrap();
+    let wrong = format!("sha256:{}", "0".repeat(64));
+    let archive = f.path("wrong-diff.tar");
+    let image = oci_archive(
+        &archive,
+        &[(blob, "application/vnd.oci.image.layer.v1.tar+gzip", wrong)],
+    );
+    f.store(
+        "add-image",
+        &store,
+        &["--image", &image, "--archive", text(&archive)],
+    )
+    .json();
+    f.store("add-root", &store, &["--image", &image])
+        .refused("uncompressed layer differs");
+    let collected = f.store("gc", &store, &[]).json();
+    assert_eq!(
+        collected["roots"],
+        json!([]),
+        "a refused root was published"
     );
 }
 
@@ -1400,190 +1697,4 @@ fn shared_source_dag_retains_each_dependency_once_and_collects_after_unpinning()
         objects.len()
     );
     assert_eq!(f.store("gc", &store, &[]).json()["objects"], json!([]));
-}
-
-struct PrivateDockerContexts {
-    directory: PathBuf,
-    endpoint: String,
-}
-
-impl PrivateDockerContexts {
-    fn new(f: &Fixture) -> Self {
-        let context_override = std::env::var("DOCKER_CONTEXT")
-            .ok()
-            .filter(|s| !s.is_empty());
-        let host_override = std::env::var("DOCKER_HOST").ok().filter(|s| !s.is_empty());
-        let endpoint = match (context_override, host_override) {
-            (None, Some(endpoint)) => endpoint,
-            (context_override, _) => {
-                let mut command = Command::new("docker");
-                command.args(["context", "inspect"]);
-                if let Some(context) = context_override {
-                    command.arg(context);
-                }
-                let context = run(&mut command).json();
-                context[0]["Endpoints"]["docker"]["Host"]
-                    .as_str()
-                    .unwrap()
-                    .to_owned()
-            }
-        };
-        assert!(
-            endpoint.starts_with("unix:///"),
-            "context-switch fixture requires the actual native Unix Docker socket: {endpoint}"
-        );
-        let directory = f.path("private-docker-config");
-        fs::create_dir(&directory).unwrap();
-        let contexts = Self {
-            directory,
-            endpoint,
-        };
-        run(contexts.docker().args([
-            "context",
-            "create",
-            "fixture-a",
-            "--docker",
-            &format!("host={}", contexts.endpoint),
-        ]))
-        .success();
-        run(contexts.docker().args([
-            "context",
-            "create",
-            "fixture-b",
-            "--docker",
-            &format!(
-                "host=unix:///tmp/kedra-engine-missing-{}-{}.sock",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ),
-        ]))
-        .success();
-        contexts.select("fixture-a");
-        let observed = run(contexts.docker().args(["info", "--format", "{{json .}}"])).json();
-        assert_eq!(observed["OSType"], "linux");
-        assert!(matches!(
-            observed["Architecture"].as_str(),
-            Some("aarch64" | "arm64")
-        ));
-        contexts
-    }
-
-    fn configure(&self, command: &mut Command) {
-        command.env("DOCKER_CONFIG", &self.directory);
-        for name in [
-            "DOCKER_CONTEXT",
-            "DOCKER_HOST",
-            "DOCKER_TLS",
-            "DOCKER_TLS_VERIFY",
-            "DOCKER_CERT_PATH",
-        ] {
-            command.env_remove(name);
-        }
-    }
-
-    fn docker(&self) -> Command {
-        let mut command = Command::new("docker");
-        self.configure(&mut command);
-        command.arg("--config").arg(&self.directory);
-        command
-    }
-
-    fn select(&self, context: &str) {
-        run(self.docker().args(["context", "use", context])).success();
-    }
-
-    fn assert_broken_selection(&self) {
-        let context = run(self.docker().args(["context", "show"])).success();
-        assert_eq!(
-            String::from_utf8(context.stdout).unwrap().trim(),
-            "fixture-b"
-        );
-        assert!(
-            !run(self.docker().args(["info", "--format", "{{.ID}}"]))
-                .status
-                .success(),
-            "fixture B unexpectedly reached a Docker daemon"
-        );
-    }
-}
-
-#[test]
-#[ignore = "requires native aarch64 Docker and retained pinned images; run --ignored"]
-fn executor_and_recovery_pin_the_connection_across_private_context_changes() {
-    let f = Fixture::new();
-    let store = f.path("store");
-    f.images(&store);
-    let source = c_source(&f, "context-fixture");
-    fs::write(
-        source.join("context.sh"),
-        "set -eu\nsleep 5\nprintf context-a > \"$1/data\"\n",
-    )
-    .unwrap();
-    let source_id = f.source(&store, &source);
-    let contexts = PrivateDockerContexts::new(&f);
-    let sentinel = SentinelContainer::new();
-    let plan = f.write_json(
-        "context-operation.json",
-        &script_plan(&source_id, "context.sh", 120),
-    );
-    let mut command = f.command(&["build", "--store"]);
-    command
-        .arg(&store)
-        .arg("--plan")
-        .arg(&plan)
-        .args(["--root", "app"]);
-    contexts.configure(&mut command);
-    let active = Running::start(&mut command);
-    let (journal, observed) = active_container(&store);
-    assert_eq!(journal["endpoint"], contexts.endpoint);
-    let owned_id = string(&observed, "Id");
-    contexts.select("fixture-b");
-    contexts.assert_broken_selection();
-    let result = active.finish().json();
-    let built = app_id(&result);
-    f.store("verify", &store, &["--object", &built]).json();
-    assert!(!store.join("transactions/execution.json").exists());
-    assert!(
-        !run(Command::new("docker").args(["container", "inspect", &owned_id]))
-            .status
-            .success()
-    );
-    contexts.assert_broken_selection();
-    sentinel.assert_alive();
-
-    contexts.select("fixture-a");
-    let interrupted_plan = f.write_json(
-        "context-interruption.json",
-        &script_plan(&source_id, "slow.sh", 120),
-    );
-    let mut command = f.command(&["build", "--store"]);
-    command
-        .arg(&store)
-        .arg("--plan")
-        .arg(&interrupted_plan)
-        .args(["--root", "app"]);
-    contexts.configure(&mut command);
-    let mut active = Running::start(&mut command);
-    let (journal, observed) = active_container(&store);
-    assert_eq!(journal["endpoint"], contexts.endpoint);
-    let owned_id = string(&observed, "Id");
-    contexts.select("fixture-b");
-    contexts.assert_broken_selection();
-    active.child.kill().unwrap();
-    active.child.wait().unwrap();
-    let mut recover = f.command(&["store", "recover", "--store"]);
-    recover.arg(&store);
-    contexts.configure(&mut recover);
-    let recovered = run(&mut recover).json();
-    nonempty_result(&recovered, "recovered");
-    assert!(!active.finish().status.success());
-    assert!(!store.join("transactions/execution.json").exists());
-    assert!(
-        !run(Command::new("docker").args(["container", "inspect", &owned_id]))
-            .status
-            .success()
-    );
-    contexts.assert_broken_selection();
-    sentinel.assert_alive();
-    f.store("verify", &store, &["--object", &built]).json();
 }

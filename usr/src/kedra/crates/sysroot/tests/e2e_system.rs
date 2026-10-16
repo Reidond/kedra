@@ -344,7 +344,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args[1] == "build" {
         let graph = BuildGraph { schema: 1, nodes: BTreeMap::from([("app".into(), BuildNode {
-            builder_image: args[3].clone(), runtime_image: args[4].clone(),
+            builder_root: args[3].clone(), runtime_image: args[4].clone(),
             inputs: BTreeMap::from([("source".into(), Input::Object(args[2].clone()))]),
             argv: vec![Argument::literal("/bin/sh"), Argument::input("source", "build.sh"), Argument::output("")],
             env: BTreeMap::new(), runtime_inputs: vec![], timeout_seconds: 120,
@@ -384,8 +384,12 @@ fn main() {
 }
 
 fn build_output(f: &Fixture, author: &Path, source: &str, runtime: &str, name: &str) -> String {
+    let builder = f.store("add-root", &["--image", BUILDER])["root"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let graph = json_output(run(
-        Command::new(author).args(["build", source, BUILDER, runtime])
+        Command::new(author).args(["build", source, &builder, runtime])
     ));
     let path = f.write_json(name, &graph);
     let mut command = f.cli(&["build", "--store"]);
@@ -444,7 +448,7 @@ fn artifact_hashes(context: &Path) -> BTreeMap<String, String> {
 }
 
 #[test]
-#[ignore = "requires native aarch64 Docker and retained exact images; run --ignored"]
+#[ignore = "requires native aarch64 Docker, bubblewrap and retained exact images; run --ignored"]
 fn native_system_composition_exports_verified_repeatable_context() {
     let f = Fixture::new();
     let revision = f.repository();

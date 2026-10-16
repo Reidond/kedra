@@ -28,6 +28,10 @@ pub use rpm_resolver::image_file;
 #[cfg(unix)]
 mod profile;
 #[cfg(unix)]
+mod rootfs;
+#[cfg(unix)]
+pub use rootfs::RootLayer;
+#[cfg(unix)]
 mod snapshot;
 #[cfg(unix)]
 mod store;

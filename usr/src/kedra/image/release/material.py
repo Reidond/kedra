@@ -220,8 +220,7 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
         pins = document(pins_data)
         require(isinstance(pins, dict), 'Invalid catalog material')
         recipes.extend((*language_material(root, source, pins, pins_data, binaries, target),
-                        IMAGE + 'catalog/prepare-sources.py', IMAGE + 'catalog/Containerfile',
-                        IMAGE + 'catalog/builder.sh'))
+                        IMAGE + 'catalog/prepare-sources.py'))
         artifacts['catalog-pins'] = catalog['pins']
         artifacts['catalog-author'] = binaries / 'sysroot'
     recipe_hashes = {}

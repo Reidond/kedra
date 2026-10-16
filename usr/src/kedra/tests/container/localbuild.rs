@@ -214,7 +214,7 @@ for role in $(jq -r '.builders | keys[]' "$pins"); do
     mv "$work/resolution.next.json" "$work/resolution.json"
 done
 jq --slurpfile resolution "$work/resolution.json"     '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_images:[$resolution[0].foundation],source_objects:(.archives|keys)}'     "$pins" > "$work/policy.json"
-uv run --quiet "$image/catalog/prepare-sources.py" --pins "$pins" --output "$work/sources"
+uv run --quiet "$image/catalog/prepare-sources.py" --pins "$pins" --output "$work/sources" >&2
 for expected in $(jq -r 'keys[]' "$work/sources/sources.json"); do
     source=$(jq -er --arg object "$expected" '.[$object]' "$work/sources/sources.json")
     test "$(sysroot store add-source --store "$store" --source "$source" | jq -er .object)" = "$expected"

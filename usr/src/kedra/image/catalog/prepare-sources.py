@@ -7,11 +7,13 @@
 import argparse
 import gzip
 import hashlib
+import http.client
 import io
 import json
 import re
 import tarfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -71,6 +73,27 @@ def acquire(pin, destination, local=None):
     require(total and digest.hexdigest() == pin['sha256'], 'Archive checksum differs from reviewed pin')
 
 
+def transient(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException))
+
+
+def fetch(pin, destination, local=None):
+    # Retry only transport failures. The size, deadline and checksum checks stay
+    # final, and a failed attempt's partial file is removed before the next one.
+    for attempt in range(1, 5):
+        try:
+            acquire(pin, destination, local)
+            return
+        except (OSError, http.client.HTTPException) as error:
+            if local is not None or isinstance(error, FileExistsError) or not transient(error) or attempt == 4:
+                raise
+            destination.unlink(missing_ok=True)
+            print(f'Transient download failure for {pin["url"]}: {error}; retrying', flush=True)
+            time.sleep(15 * attempt)
+
+
 def extract(archive, destination):
     destination.mkdir(mode=0o700)
     with gzip.open(archive, 'rb') as compressed, tarfile.open(fileobj=ExpandedArchive(compressed), mode='r:') as source:
@@ -121,7 +144,7 @@ def main():
         require(identity == pin['object'] and len(identity) == 68 and identity.startswith('src-'), 'Source object differs')
         archive = args.output / (str(index) + '.tar.gz')
         local = args.archives / (pin['sha256'] + '.tar.gz') if args.archives is not None else None
-        acquire(pin, archive, local)
+        fetch(pin, archive, local)
         paths[identity] = str(extract(archive, args.output / str(index)))
     (args.output / 'sources.json').write_text(json.dumps(paths, sort_keys=True, separators=(',', ':')) + '\n')
 

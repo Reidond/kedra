@@ -209,7 +209,12 @@ fn engine_image(
         .with_label(docker::KIND_LABEL, "builder")
         .with_security_opt("seccomp=unconfined")
         .with_security_opt("apparmor=unconfined")
-        .with_security_opt("systempaths=unconfined")
+        // The API form of `--security-opt systempaths=unconfined`, which the
+        // Docker CLI translates and the engine API refuses as an option.
+        .with_host_config_modifier(|config| {
+            config.masked_paths = Some(Vec::new());
+            config.readonly_paths = Some(Vec::new());
+        })
         .with_mount(Mount::bind_mount(
             "/var/run/docker.sock",
             "/var/run/docker.sock",

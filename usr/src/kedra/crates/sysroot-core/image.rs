@@ -1,5 +1,5 @@
-//! Bounded signed-image identity and monotonically ordered deployment receipts.
-use crate::{deployment::digest_valid, release::Scope, targets};
+//! Bounded signed-image identity and its ordering against the booted image.
+use crate::{protocol::PROTOCOL, release::Scope, targets};
 use serde::{Deserialize, Serialize};
 
 pub const LABEL: &str = "org.kedra.image.identity";
@@ -56,7 +56,7 @@ impl Identity {
             || self.run_number == 0
             || self.run_attempt == 0
             || self.minimum_protocol == 0
-            || self.minimum_protocol > 2
+            || self.minimum_protocol > PROTOCOL
             || !hex(&self.source_revision, 40)
             || !hex(&self.source_manifest_sha256, 64)
             || !hex(&self.resolved_inputs_sha256, 64)
@@ -77,16 +77,11 @@ pub struct Receipt {
 }
 
 impl Receipt {
-    pub fn validate(&self, scope: &Scope, now: u64) -> Result<(), &'static str> {
-        if !digest_valid(&self.digest) {
-            return Err("invalid image receipt digest");
-        }
-        self.identity.validate(scope, now)
-    }
-
+    /// Refuse an image older than `previous` (the booted one): a lower rank, the
+    /// same rank with another digest or identity, or an earlier package resolution.
     pub fn follows(&self, previous: &Self) -> Result<(), &'static str> {
         if self.identity.rank() < previous.identity.rank() {
-            return Err("signed image rank is below the retained high-water mark");
+            return Err("signed image rank is below the booted image");
         }
         if self.identity.rank() == previous.identity.rank() && self != previous {
             return Err("same signed image rank has different digest or identity");

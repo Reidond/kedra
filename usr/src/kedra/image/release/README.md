@@ -24,7 +24,7 @@ Runner queues affect delivery time. For each target the workflow resolves the re
 
 No-change does nothing: no new image or freshness renewal. Changed inputs build one candidate offline from the lock's fixed-output RPM objects, through the same engine steps for both targets: foundation (`compose.py foundation`), catalog packages, composition and derivation of the target's declared image steps (`compose.py compose`), then the public trust layer ([one image pipeline](../../docs/SYSTEM.md#one-image-pipeline)). Its installed RPM material must equal the lock, and its native receipt must match the steps the committed source declares. Failures never become a successful no-change result. Allowed RPM architectures are the target architecture and `noarch`, plus `i686` only for x86_64; the bootc RPM architecture must equal the target architecture.
 
-`usr/src/kedra/image/release/compatibility.json` is shared with the compiled helper and currently qualifies bootc 1.16.13. Lock and actual-image checks reject an unsupported bootc RPM before signing; publication repeats the compatibility check. A version change requires deliberately updating the contract/helper compatibility and passing native qualification, not bypassing the gate.
+`usr/src/kedra/image/release/compatibility.json` is shared with the compiled helper and sets the minimum bootc version (currently 1.16.13). Lock and actual-image checks reject an older bootc RPM before signing; publication repeats the check. Newer versions pass; raising the minimum requires native qualification.
 
 ## Automatic image signing
 

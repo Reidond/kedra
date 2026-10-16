@@ -1545,8 +1545,8 @@ fn import_recovery_refuses_a_symlinked_stage_without_touching_its_target() {
     let stage = store.join("transactions").join(&stage_name);
     let journal_path = store.join("transactions/import.json");
     let journal = serde_json::to_vec(&json!({
-        "schema":1,"token":marker["token"],"stage":stage_name,
-        "objects":[object],"images":[],"roots":[object]
+        "schema":2,"token":marker["token"],"stage":stage_name,
+        "objects":[object],"roots":[object]
     }))
     .unwrap();
 
@@ -1708,7 +1708,7 @@ fn shared_source_dag_retains_each_dependency_once_and_collects_after_unpinning()
     let mut expected = objects.clone();
     expected.sort();
     assert_eq!(closure["objects"], json!(expected));
-    assert_eq!(closure["images"], json!([]));
+    assert_eq!(closure["runtime_roots"], json!([]));
     for object in &objects[..objects.len() - 1] {
         f.store("unpin", &store, &["--object", object]).json();
     }

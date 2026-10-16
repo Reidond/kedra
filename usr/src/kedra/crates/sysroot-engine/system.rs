@@ -173,7 +173,7 @@ impl Store {
                 .iter()
                 .any(|s| s.is_empty() || s.len() > 4096 || s.bytes().any(|b| b < 32 || b == 127))
                 || !columns[1].bytes().all(|b| b.is_ascii_digit())
-                || !matches!(columns[4], "aarch64" | "noarch")
+                || !crate::native_rpm_architecture(columns[4])
                 || !plan::hex(columns[5])
                 || !plan::hex(columns[6])
                 || !identities.insert(columns[..5].join("\t"))
@@ -498,9 +498,13 @@ impl Store {
                 "system-foundation-check".into(),
             ];
             for file in chunk {
+                // The probe runs in the foundation's sealed image root, which keeps
+                // every mode bit except write (rootfs::seal), so it compares the
+                // mode without write bits; realizing the composition re-checks the
+                // exact mode in the loaded image (native_image check_foundation_paths).
                 argv.extend([
                     file.path.clone(),
-                    format!("{:o}", file.mode),
+                    format!("{:o}", file.mode & 0o7555),
                     file.sha256.clone(),
                 ]);
             }

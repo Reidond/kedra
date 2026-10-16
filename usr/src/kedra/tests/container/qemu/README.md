@@ -64,11 +64,11 @@ Verified native derivations can enter this same disposable VM path:
 
 ```sh
 kedra-lab vm image --image composition:/private/current-context --overlay none \
-  --composition-identity COMPOSITION_ID --native-plan /private/native.json \
-  --derivation-identity NATIVE_ID
+  --composition-identity COMPOSITION_ID --derivation-identity NATIVE_ID
 ```
 
-The complete tuple is required. The controller verifies native material and exact
+Both identities are required; the steps are the ones the composition's committed
+source declares (its target's `.kedra` block). The controller verifies native material and exact
 parent layers, rebuilds the fixed fixture recipe rather than adopting a tools tag,
 and checks native bytes again after fixture packages. Only generated schemas/
 initramfs may be restored after package triggers; differences are recorded. Disk

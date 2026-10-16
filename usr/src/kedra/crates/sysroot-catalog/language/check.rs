@@ -5,6 +5,7 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use sysroot_engine::NativeStep;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -43,6 +44,8 @@ pub struct Intent {
     pub builders: BTreeMap<String, BTreeSet<String>>,
     pub recipes: BTreeMap<String, RecipeIntent>,
     pub selected: BTreeSet<String>,
+    /// The target's image steps, applied by `sysroot derive` after composition.
+    pub native_steps: Vec<NativeStep>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -120,6 +123,8 @@ enum Type {
     Map,
     List,
     Boolean,
+    Systemd,
+    Initramfs,
 }
 
 #[derive(Clone)]
@@ -350,6 +355,7 @@ impl Checker {
         for name in self.strings(&base, "remove")? {
             self.request(&foundation, name, false)?;
         }
+        self.intent.native_steps = self.native_steps(&definition)?;
         let mut replacements = Vec::new();
         self.select_body(&target_key, &mut replacements, 0)?;
         let mut replaced = BTreeSet::new();
@@ -446,6 +452,69 @@ impl Checker {
             ));
         }
         Ok(())
+    }
+    fn flag(&self, definition: &Definition, field: &str) -> Result<bool> {
+        match definition.declaration.block.fields.get(field) {
+            Some(value) => match value.kind {
+                Kind::Boolean(flag) => Ok(flag),
+                _ => Err(self.error(&definition.module, value, "type", "expected boolean")),
+            },
+            None => Ok(false),
+        }
+    }
+    fn step_strings(&self, module: &str, block: &Block, field: &str) -> Result<Vec<String>> {
+        match block.fields.get(field) {
+            Some(value) => self
+                .list(module, value)?
+                .iter()
+                .map(|item| self.string(module, item))
+                .collect(),
+            None => Ok(Vec::new()),
+        }
+    }
+    /// The target's declared image steps in the engine's checked, ordered form.
+    fn native_steps(&self, definition: &Definition) -> Result<Vec<NativeStep>> {
+        let module = &definition.module;
+        let fields = &definition.declaration.block.fields;
+        let mut steps = Vec::new();
+        if self.flag(definition, "glib_schemas")? {
+            steps.push(NativeStep::GlibSchemas);
+        }
+        if let Some(value) = fields.get("systemd") {
+            let fields = ["enable", "disable", "mask", "default_target"];
+            let block = self.construct(module, value, "systemd", &fields)?;
+            let default_target = match block.fields.get("default_target") {
+                Some(target) => Some(self.string(module, target)?),
+                None => None,
+            };
+            steps.push(NativeStep::Systemd {
+                enable: self.step_strings(module, block, "enable")?,
+                disable: self.step_strings(module, block, "disable")?,
+                mask: self.step_strings(module, block, "mask")?,
+                default_target,
+            });
+        }
+        if self.flag(definition, "skel")? {
+            steps.push(NativeStep::InitialSkel);
+        }
+        if let Some(value) = fields.get("initramfs") {
+            let block = self.construct(module, value, "initramfs", &["modules", "drivers"])?;
+            steps.push(NativeStep::Initramfs {
+                modules: self.step_strings(module, block, "modules")?,
+                drivers: self.step_strings(module, block, "drivers")?,
+            });
+        }
+        if !steps.is_empty() {
+            sysroot_engine::normalize_native_steps(&mut steps).map_err(|error| {
+                fail(
+                    module,
+                    definition.declaration.span,
+                    "image",
+                    &error.to_string(),
+                )
+            })?;
+        }
+        Ok(steps)
     }
     fn select_body(
         &mut self,
@@ -1375,6 +1444,8 @@ impl Checker {
             "patch" => self.typed_patch(definition, value, block),
             "replacement" => self.typed_replacement(definition, value, block),
             "template" => self.typed_template(definition, value, block),
+            "systemd" => self.typed_systemd(definition, value, block),
+            "initramfs" => self.typed_initramfs(definition, value, block),
             _ => Err(self.error(
                 &definition.module,
                 value,
@@ -1468,6 +1539,41 @@ impl Checker {
         }
         Ok(Type::Replacement)
     }
+    /// Every present field of an image-step constructor is a list of strings,
+    /// except a string `default_target`.
+    fn typed_step_fields(&self, definition: &Definition, block: &Block) -> Result<()> {
+        let module = &definition.module;
+        for (name, field) in &block.fields {
+            if name == "default_target" {
+                self.string(module, field)?;
+            } else {
+                for item in self.list(module, field)? {
+                    self.string(module, item)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn typed_systemd(&self, definition: &Definition, value: &Value, block: &Block) -> Result<Type> {
+        let fields = ["enable", "disable", "mask", "default_target"];
+        self.construct(&definition.module, value, "systemd", &fields)?;
+        self.typed_step_fields(definition, block)?;
+        Ok(Type::Systemd)
+    }
+    fn typed_initramfs(
+        &self,
+        definition: &Definition,
+        value: &Value,
+        block: &Block,
+    ) -> Result<Type> {
+        let module = &definition.module;
+        self.construct(module, value, "initramfs", &["modules", "drivers"])?;
+        if !block.fields.contains_key("modules") {
+            return Err(self.error(module, value, "field", "initramfs requires modules"));
+        }
+        self.typed_step_fields(definition, block)?;
+        Ok(Type::Initramfs)
+    }
     fn typed_template(
         &self,
         definition: &Definition,
@@ -1505,7 +1611,17 @@ impl Checker {
             "set" => (&[], &["packages", "fedora", "remove", "use", "replace"]),
             "target" => (
                 &["foundation"],
-                &["packages", "fedora", "remove", "use", "replace"],
+                &[
+                    "packages",
+                    "fedora",
+                    "remove",
+                    "use",
+                    "replace",
+                    "glib_schemas",
+                    "systemd",
+                    "skel",
+                    "initramfs",
+                ],
             ),
             _ => (
                 &["version", "summary", "license", "source", "build"],
@@ -1562,6 +1678,9 @@ impl Checker {
             "files" | "replace_files" => Type::Files,
             "env" | "build_deps" | "runtime_deps" => Type::Map,
             "timeout" => Type::Integer,
+            "glib_schemas" | "skel" => Type::Boolean,
+            "systemd" => Type::Systemd,
+            "initramfs" => Type::Initramfs,
             _ => Type::String,
         };
         if ty != expected {
@@ -1792,6 +1911,7 @@ pub fn compile(
             builders: BTreeMap::new(),
             recipes: BTreeMap::new(),
             selected: BTreeSet::new(),
+            native_steps: Vec::new(),
         },
         active: BTreeSet::new(),
         selected_sets: BTreeSet::new(),

@@ -803,8 +803,8 @@ fn check_preflight(
     let catalog_pins_sha256 = hash(&pins_bytes);
     let author_sha256 = hash(&read_bytes(&std::env::current_exe()?, 64 * 1024 * 1024)?);
     if material["schema_version"] != 1
-        || material["source"]["target"]["id"] != "qemu-arm64"
-        || material["source"]["target"]["architecture"] != "aarch64"
+        || material["source"]["target"]["id"] != options.language.target.as_str()
+        || material["source"]["target"]["architecture"] != sysroot_engine::RPM_ARCHITECTURE
         || material["artifacts"]["catalog-pins"] != catalog_pins_sha256
         || material["artifacts"]["catalog-author"] != author_sha256
         || material["artifacts"]["sysroot"] != author_sha256

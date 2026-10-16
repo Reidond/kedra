@@ -27,8 +27,8 @@ reloaded before recording, so a failed reload is retried (PR48 review). A confli
 `<file>.kedra-new` and `pending/<path>`; deleting the conflict file resolves it.
 Never write conflict markers into a live file, never overwrite a `.kedra-new` an
 update did not write, never record N before check and reload succeed. New
-accounts get B from `/etc/skel/.local/state/kedra/home/applied/` (assemble.sh,
-lab overlay-apply.sh); without B a differing file becomes a conflict, not an
+accounts get B from `/etc/skel/.local/state/kedra/home/applied/` (the `skel`
+derive step, lab overlay-apply.sh); without B a differing file becomes a conflict, not an
 adoption.
 
 `capture` writes one live file to the checkout's source path (target overlay copy

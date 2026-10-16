@@ -3,7 +3,29 @@ use std::collections::BTreeMap;
 
 pub const LOGICAL_PREFIX: &str = "/usr/lib/sysroot/store";
 pub const MAX_JSON: u64 = 8 * 1024 * 1024;
+/// The engine is native: stores, images, builds and derivations all use the
+/// architecture this binary was compiled for. Cross-architecture work is refused.
+#[cfg(target_arch = "aarch64")]
 pub const PLATFORM: &str = "aarch64-linux";
+#[cfg(target_arch = "x86_64")]
+pub const PLATFORM: &str = "x86_64-linux";
+#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+compile_error!("the engine supports native aarch64 and x86_64 only");
+/// RPM architecture of [`PLATFORM`] (`uname -m`, Kedra target architecture).
+#[cfg(target_arch = "aarch64")]
+pub const RPM_ARCHITECTURE: &str = "aarch64";
+#[cfg(target_arch = "x86_64")]
+pub const RPM_ARCHITECTURE: &str = "x86_64";
+/// OCI/Docker architecture of [`PLATFORM`] images.
+#[cfg(target_arch = "aarch64")]
+pub const OCI_ARCHITECTURE: &str = "arm64";
+#[cfg(target_arch = "x86_64")]
+pub const OCI_ARCHITECTURE: &str = "amd64";
+/// `--platform` value of [`PLATFORM`] builds and containers.
+#[cfg(target_arch = "aarch64")]
+pub const OCI_PLATFORM: &str = "linux/arm64";
+#[cfg(target_arch = "x86_64")]
+pub const OCI_PLATFORM: &str = "linux/amd64";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

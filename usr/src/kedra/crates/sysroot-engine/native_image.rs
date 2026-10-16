@@ -2,8 +2,9 @@
 //! derivation. Builds run in BuildKit with networking disabled, no pulls and no
 //! host mounts; every result is bound to its daemon, labels and parent layers.
 use crate::{
-    Error, MAX_JSON, NativeImplementation, NativePlan, NativeReceipt, Result, SystemComposition,
-    SystemFileDisposition, VerifiedComposition,
+    Error, MAX_JSON, NativeImplementation, NativePlan, NativeReceipt, OCI_ARCHITECTURE,
+    OCI_PLATFORM, PLATFORM, Result, StepSelector, SystemComposition, SystemFileDisposition,
+    VerifiedComposition,
     executor::{self, Connection},
     native,
     native_apply::{Observation, RPM_FORMAT},
@@ -21,7 +22,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const IMPLEMENTATION: &str = "sysroot-native-v3-buildkit";
+const IMPLEMENTATION: &str = "sysroot-native-v4-buildkit";
 const OWNER_LABEL: &str = "dev.kedra.sysroot.owner";
 const OWNER: &str = "sysroot-derive";
 const KIND_LABEL: &str = "dev.kedra.sysroot.kind";
@@ -81,10 +82,10 @@ struct Executor {
 }
 impl Executor {
     fn current() -> Result<Self> {
-        if !cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-            return Err(invalid(
-                "native derivation runs only on native aarch64 Linux",
-            ));
+        if !cfg!(target_os = "linux") {
+            return Err(invalid(format!(
+                "native derivation runs only on native Linux ({PLATFORM})"
+            )));
         }
         let mut bytes = Vec::new();
         File::open("/proc/self/exe")?
@@ -361,7 +362,7 @@ impl Docker {
     fn image_id(&self, reference: &str) -> Result<Option<String>> {
         Ok(self.inspect(reference)?.map(|image| image.id))
     }
-    /// Exact native image without inherited ONBUILD or volumes.
+    /// Exact native-platform image without inherited ONBUILD or volumes.
     fn native(&self, image: &str) -> Result<Inspect> {
         plan::image_id(image)?;
         let inspected = self
@@ -370,13 +371,13 @@ impl Docker {
         let config = inspected.config.as_ref();
         if inspected.id != image
             || inspected.os != "linux"
-            || inspected.architecture != "arm64"
+            || inspected.architecture != OCI_ARCHITECTURE
             || config.is_some_and(|c| c.on_build.as_ref().is_some_and(|v| !v.is_empty()))
             || config.is_some_and(|c| c.volumes.as_ref().is_some_and(|v| !v.is_empty()))
         {
-            return Err(invalid(
-                "image ID/platform differs from native linux/arm64 or declares ONBUILD/volumes",
-            ));
+            return Err(invalid(format!(
+                "image ID/platform differs from native {OCI_PLATFORM} or declares ONBUILD/volumes"
+            )));
         }
         Ok(inspected)
     }
@@ -453,7 +454,7 @@ impl Docker {
             "--label",
             &kind,
             "--platform",
-            "linux/arm64",
+            OCI_PLATFORM,
             "--network",
             "none",
             "--read-only",
@@ -487,7 +488,7 @@ impl Docker {
                 "build",
                 "--progress=plain",
                 "--platform",
-                "linux/arm64",
+                OCI_PLATFORM,
                 "--network",
                 "none",
                 "--pull=false",
@@ -1056,17 +1057,18 @@ pub fn realize_composition(
     Ok(image)
 }
 
-/// Data-only plan; it builds nothing and runs no image tool.
+/// Data-only plan; it builds nothing and runs no image tool. The steps are the
+/// ones `steps` selects from the verified composition.
 pub fn plan_derivation(
     context: &Path,
     expected_identity: &str,
-    steps: &Path,
+    steps: StepSelector<'_>,
     state: &Path,
 ) -> Result<NativePlan> {
     let executor = Executor::current()?;
     let state = State::open(state)?;
     let verified = VerifiedComposition::open(context, expected_identity, &state.path)?;
-    let planned = native::read_native_steps(steps, expected_identity).and_then(|definition| {
+    let planned = native::native_definition(verified.composition(), steps).and_then(|definition| {
         native::plan_native(&verified, &definition, &executor.implementation())
     });
     let finished = verified.finish();
@@ -1079,7 +1081,7 @@ pub fn plan_derivation(
 pub fn derive_native(
     context: &Path,
     expected_identity: &str,
-    steps: &Path,
+    steps: StepSelector<'_>,
     expected_derivation: &str,
     state: &Path,
 ) -> Result<DerivedImage> {
@@ -1112,9 +1114,8 @@ struct Derivation<'a> {
     executor: &'a Executor,
 }
 impl Derivation<'_> {
-    fn run(&self, steps: &Path, expected: &str) -> Result<DerivedImage> {
-        let composition = self.verified.composition();
-        let definition = native::read_native_steps(steps, &composition.identity)?;
+    fn run(&self, steps: StepSelector<'_>, expected: &str) -> Result<DerivedImage> {
+        let definition = native::native_definition(self.verified.composition(), steps)?;
         let plan =
             native::plan_native(self.verified, &definition, &self.executor.implementation())?;
         if plan.identity != expected {

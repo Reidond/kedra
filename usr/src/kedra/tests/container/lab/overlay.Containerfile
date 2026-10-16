@@ -1,8 +1,8 @@
 # Test-only working-tree overlay over a lab image. Never sign, promote or install it.
-# Replays the payload half of the release Containerfile (binaries, payload.tar
-# and assemble.sh's home-baseline, schema and validation steps). Package
-# installation cannot be replayed: overlay-apply refuses package-list changes,
-# which need a full image build.
+# Replays the payload half of the release image (binaries, payload.tar,
+# assemble.sh's validations and the schema and skeleton derive steps). Package
+# installation, units and the initramfs cannot be replayed: overlay-apply refuses
+# package-list and systemd/initramfs step changes, which need a full image build.
 ARG BASE
 FROM ${BASE}
 LABEL dev.kedra.lab.owner=kedra-container-tests dev.kedra.lab.overlay=worktree

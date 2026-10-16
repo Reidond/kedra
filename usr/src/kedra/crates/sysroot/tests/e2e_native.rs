@@ -1,5 +1,6 @@
 //! Native derivation through the public `sysroot derive` commands; installed
-//! behavior uses the System harness.
+//! behavior uses the System harness. The fixture's committed `.kedra` target
+//! block declares the steps, as the product's targets do.
 #![cfg(unix)]
 
 use std::collections::BTreeMap;
@@ -13,7 +14,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use serde_json::{Value, json};
-use sysroot_engine::{NativeStep, PLATFORM, SystemContent, SystemDefinition, SystemFile};
+use sysroot_engine::{PLATFORM, RPM_ARCHITECTURE, SystemContent, SystemDefinition, SystemFile};
 
 const FOUNDATION: &str = "sha256:9d6eb030a55f86232e7f6df46551d5394599b70b2ad7837a41a5cde300550e71";
 const BASELINE: &[&str] = &[
@@ -21,6 +22,29 @@ const BASELINE: &[&str] = &[
     ".config/noctalia/config.toml",
     ".config/noctalia/palettes/Adwaita.json",
 ];
+/// Declared image steps of the fixture target; `{extra}` adds invalid variants.
+const STEPS: &str = r#"
+    glib_schemas = true;
+    systemd = systemd {
+        enable = ["sysroot-native-fixture.service"{enable}];
+        mask = ["sysroot-native-masked.service"{mask}];
+        default_target = "multi-user.target";
+    };
+    skel = true;
+    initramfs = initramfs {
+        modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block", "qemu"];
+        drivers = ["virtio_dma_buf", "virtio_gpu", "virtio_input"];
+    };{extra}
+"#;
+
+/// The Kedra target of this machine's native architecture.
+fn native_target() -> &'static str {
+    if RPM_ARCHITECTURE == "aarch64" {
+        "qemu-arm64"
+    } else {
+        "desktop"
+    }
+}
 
 struct Process(Child);
 impl Drop for Process {
@@ -213,22 +237,55 @@ impl Fixture {
         );
     }
 
+    /// Commit the catalog with the declared steps and optional invalid variants.
+    fn catalog(&self, enable: &str, mask: &str, extra: &str) {
+        let policy: Value =
+            serde_json::from_slice(&workspace_file("usr/src/kedra/image/package-policy.json"))
+                .unwrap();
+        let mut packages: Vec<String> = policy["required_packages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|name| format!("{:?}", name.as_str().unwrap()))
+            .collect();
+        packages.push("\"bash\"".into());
+        let steps = STEPS
+            .replace("{enable}", enable)
+            .replace("{mask}", mask)
+            .replace("{extra}", extra);
+        let catalog = format!(
+            "language 1;\nnamespace \"kedra\";\nfoundation system {{\n    fedora = 44;\n    packages = [{}];\n}}\ntarget \"{}\" {{\n    foundation = system;{steps}}}\n",
+            packages.join(", "),
+            native_target()
+        );
+        self.source(
+            "usr/src/kedra/image/packages/catalog.kedra",
+            catalog.as_bytes(),
+        );
+        self.commit();
+    }
+
     fn repository(&self) {
         fs::create_dir(self.producer("repo")).unwrap();
         git(
             &self.producer("repo"),
             &["init", "-q", "--template=", "-b", "fixture"],
         );
+        let target = format!(
+            "usr/src/kedra/image/targets/{}/target.toml",
+            native_target()
+        );
+        for path in ["usr/src/kedra/image/package-policy.json", &target] {
+            self.source(path, &workspace_file(path));
+        }
         for (name, contents) in [
-            ("usr/src/kedra/image/packages.list", "bash\n"),
-            ("usr/src/kedra/image/remove.list", "# none\n"),
             (
-                "usr/src/kedra/image/targets/qemu-arm64/packages.list",
-                "# none\n",
+                "usr/src/kedra/image/package-inputs.json",
+                "{\"schema_version\":1,\"format\":\"kedra\",\"entry\":\"packages/catalog.kedra\",\"lock\":\"packages/packages.lock.json\"}\n",
             ),
             (
-                "usr/src/kedra/image/targets/qemu-arm64/target.toml",
-                "id='qemu-arm64'\narchitecture='aarch64'\nimage='ghcr.io/reidond/kedra-qemu-arm64'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n",
+                "usr/src/kedra/image/packages/packages.lock.json",
+                "{\"schema_version\":1,\"sources\":{}}\n",
             ),
             (
                 "usr/share/glib-2.0/schemas/org.kedra.NativeFixture.gschema.xml",
@@ -247,18 +304,19 @@ impl Fixture {
             self.source(name, contents.as_bytes());
         }
         // These are reviewed product inputs from committed source, never the controller's home.
-        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(5)
-            .unwrap();
         for relative in BASELINE {
             let path = format!("etc/skel/{relative}");
-            self.source(
-                &path,
-                &git(workspace, &["show", &format!("HEAD:{path}")]).stdout,
-            );
+            self.source(&path, &workspace_file(&path));
         }
-        self.commit();
+        self.catalog("", "", "");
+    }
+
+    /// `sysroot source plan` of the fixture's current commit.
+    fn plan(&self) -> Output {
+        run(self
+            .cli(&["source", "plan", "--repo"])
+            .arg(self.producer("repo"))
+            .args(["--host", native_target(), "--json"]))
     }
 
     fn compose(&self, destination: &Path) -> Value {
@@ -286,7 +344,7 @@ impl Fixture {
         json_output(run(self
             .cli(&["system", "compose", "--repo"])
             .arg(self.producer("repo"))
-            .args(["--target", "qemu-arm64", "--store"])
+            .args(["--target", native_target(), "--store"])
             .arg(self.producer("store"))
             .args(["--foundation", &self.foundation, "--definition"])
             .arg(definition_path)
@@ -299,14 +357,12 @@ impl Fixture {
         command: &str,
         context: &Path,
         parent: &str,
-        steps: &Path,
         expected: Option<&str>,
     ) -> Output {
         let mut process = self.cli(&["derive", command, "--context"]);
         process
             .arg(context)
-            .args(["--expected-identity", parent, "--steps"])
-            .arg(steps)
+            .args(["--expected-identity", parent])
             .arg("--state")
             // KEDRA_LAB_ARTIFACTS=<retained root> lets the harness reuse these bindings.
             .arg(self.path("derive"));
@@ -327,24 +383,13 @@ impl Drop for Fixture {
     }
 }
 
-fn declaration() -> Vec<NativeStep> {
-    vec![
-        NativeStep::GlibSchemas,
-        NativeStep::Systemd {
-            enable: vec!["sysroot-native-fixture.service".into()],
-            disable: vec![],
-            mask: vec!["sysroot-native-masked.service".into()],
-            default_target: Some("multi-user.target".into()),
-        },
-        NativeStep::InitialSkel,
-        NativeStep::QemuInitramfs {
-            required_modules: sysroot_engine::default_native_modules(),
-        },
-    ]
-}
-
-fn write_steps(path: &Path, steps: &[NativeStep]) {
-    write_json(path, &json!({"schema_version": 1, "steps": steps}));
+/// The repository's own committed file, never the controller's home.
+fn workspace_file(path: &str) -> Vec<u8> {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .unwrap();
+    git(workspace, &["show", &format!("HEAD:{path}")]).stdout
 }
 
 fn reject_baseline_deletion(f: &Fixture) {
@@ -355,82 +400,65 @@ fn reject_baseline_deletion(f: &Fixture) {
     let context = f.path("deletion-context");
     let composition = f.compose(&context);
     let parent = composition["identity"].as_str().unwrap();
-    let spec = f.path("deletion-steps.json");
-    write_steps(&spec, &[NativeStep::InitialSkel]);
-    let planned = json_output(f.native("plan", &context, parent, &spec, None));
+    let planned = json_output(f.native("plan", &context, parent, None));
     refused(
-        f.native(
-            "build",
-            &context,
-            parent,
-            &spec,
-            planned["identity"].as_str(),
-        ),
+        f.native("build", &context, parent, planned["identity"].as_str()),
         "refuses deletion of an inherited managed baseline file",
     );
     remove_fixture(&context).unwrap();
-    fs::remove_file(spec).unwrap();
     fs::write(missing, original).unwrap();
     f.commit();
 }
 
-fn reject_invalid_plans(f: &Fixture, parent: &str, expected: &str) {
+/// Invalid step declarations are refused when the source is planned, before
+/// anything is composed or derived.
+fn reject_invalid_declarations(f: &Fixture) {
+    for (enable, mask, extra, message) in [
+        (
+            "",
+            "",
+            "\n    run = [\"touch\"];",
+            "unknown declaration field",
+        ),
+        (
+            "",
+            ", \"sysroot-native-fixture.service\"",
+            "",
+            "conflicting unit",
+        ),
+        (", \"../outside.service\"", "", "", "concrete unit"),
+    ] {
+        f.catalog(enable, mask, extra);
+        refused(f.plan(), message);
+    }
+    f.catalog("", "", "");
+    json_output(f.plan());
+}
+
+fn reject_invalid_derivations(f: &Fixture, parent: &str, expected: &str) {
     let context = f.path("context");
-    let spec = f.path("invalid-steps.json");
-    write_json(
-        &spec,
-        &json!({"schema_version":1,"steps":[{"kind":"run","argv":["touch","/unapproved"]}]}),
-    );
-    refused(
-        f.native("plan", &context, parent, &spec, None),
-        "unknown variant",
-    );
-    let mut invalid = declaration();
-    if let NativeStep::Systemd { mask, .. } = &mut invalid[1] {
-        mask.push("sysroot-native-fixture.service".into());
-    }
-    write_steps(&spec, &invalid);
-    refused(
-        f.native("plan", &context, parent, &spec, None),
-        "conflicting unit",
-    );
-    let mut invalid = declaration();
-    if let NativeStep::Systemd { enable, .. } = &mut invalid[1] {
-        enable[0] = "../outside.service".into();
-    }
-    write_steps(&spec, &invalid);
-    refused(
-        f.native("plan", &context, parent, &spec, None),
-        "concrete unit",
-    );
-    fs::remove_file(spec).unwrap();
     let wrong = if expected.starts_with('0') {
         "1".repeat(64)
     } else {
         "0".repeat(64)
     };
     refused(
-        f.native(
-            "build",
-            &context,
-            parent,
-            &f.path("native-steps.json"),
-            Some(&wrong),
-        ),
+        f.native("build", &context, parent, Some(&wrong)),
         "native derivation identity differs",
     );
     // The in-image executor refuses to run on an ordinary machine.
     refused(
-        run(f.cli(&["derive", "apply"]).arg(f.path("native-steps.json"))),
+        run(f.cli(&["derive", "apply"]).arg(f.path("native-plan.json"))),
         "runs only as root inside the offline sysroot derive build",
     );
 }
 
 #[test]
-#[ignore = "requires native ARM Docker with BuildKit and an exact retained foundation"]
+#[ignore = "requires native Docker with BuildKit and a retained Kedra foundation (KEDRA_CONTEXT_FOUNDATION)"]
 fn native_artifacts_derive_from_committed_configuration() {
     let f = Fixture::new();
     f.repository();
+    reject_invalid_declarations(&f);
     json_output(run(f
         .cli(&["store", "init", "--store"])
         .arg(f.producer("store"))));
@@ -442,19 +470,18 @@ fn native_artifacts_derive_from_committed_configuration() {
     let context = f.path("context");
     let composition = f.compose(&context);
     let parent = composition["identity"].as_str().unwrap();
-    let spec = f.path("native-steps.json");
-    write_steps(&spec, &declaration());
     remove_fixture(&f.path("producer")).unwrap();
     assert!(!f.path("producer").exists());
-    let planned = json_output(f.native("plan", &context, parent, &spec, None));
+    let planned = json_output(f.native("plan", &context, parent, None));
+    write_json(&f.path("native-plan.json"), &planned);
     let identity = planned["identity"].as_str().unwrap();
     assert_ne!(identity, parent);
     write_json(
         &f.path("expected-identity.json"),
         &json!({"composition_identity":parent,"derivation_identity":identity,"foundation":f.foundation}),
     );
-    reject_invalid_plans(&f, parent, identity);
-    let derived = json_output(f.native("build", &context, parent, &spec, Some(identity)));
+    reject_invalid_derivations(&f, parent, identity);
+    let derived = json_output(f.native("build", &context, parent, Some(identity)));
     assert_eq!(derived["material"]["identity"], identity);
     assert_eq!(derived["material"]["parent_identity"], parent);
     assert_eq!(derived["material"]["rpm_sha256"], planned["rpm_sha256"]);
@@ -466,7 +493,7 @@ fn native_artifacts_derive_from_committed_configuration() {
     );
     assert_ne!(derived["image"], derived["parent_image"]);
     // A retained binding is re-read from the image, not trusted, and reused.
-    let repeated = json_output(f.native("build", &context, parent, &spec, Some(identity)));
+    let repeated = json_output(f.native("build", &context, parent, Some(identity)));
     assert_eq!(repeated, derived);
     write_json(&f.path("derived-receipt.json"), &derived);
 }

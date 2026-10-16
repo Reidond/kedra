@@ -82,13 +82,14 @@ Closed native generation is product code: `sysroot derive plan|build` (see
 it. Static composition replay uses the same engine realization, with state in
 `target/kedra-lab/derive` (the artifact root's `derive` directory).
 
-The installed native case uses `KEDRA_LAB_IMAGE=composition:…`,
-`KEDRA_LAB_COMPOSITION_IDENTITY`, `KEDRA_LAB_NATIVE_PLAN` (a native steps file,
-`{"schema_version": 1, "steps": [...]}`), `KEDRA_LAB_DERIVATION_IDENTITY` and
-`KEDRA_LAB_SYSROOT`, a native Linux aarch64 `sysroot` binary that runs `derive
-build` (it is also the executor bound into the derivation identity), with filter
-`native_artifacts`. Both native variables are required together; ordinary and
-static-composition cases remain separate selections. It runs directly on the derived System-profile image without
+The installed native cases use `KEDRA_LAB_IMAGE=composition:…`,
+`KEDRA_LAB_COMPOSITION_IDENTITY`, `KEDRA_LAB_DERIVATION_IDENTITY` and
+`KEDRA_LAB_SYSROOT`, a native Linux `sysroot` binary of the engine's architecture
+that runs `derive build` (it is also the executor bound into the derivation
+identity), with filter `native_artifacts` (the `e2e_native` fixture) or
+`catalog` (a release composition). The steps are the ones the composition's
+committed source declares (its target's `.kedra` block); there is no separate
+steps file. Ordinary and static-composition cases remain separate selections. It runs directly on the derived System-profile image without
 a lab-tools adaptation. TLS Docker endpoints use the already locked ring provider;
 retained archive import allows600s while ordinary requests keep120s.
 
@@ -114,15 +115,16 @@ as a Docker Hub image name. The report retains the actual immutable local image 
 **Overlay** (default for published stages) layers the working tree over the stage in two steps:
 
 1. It snapshots the tree into a throwaway Git repository and archives the payload with the real `sysroot source archive`.
-2. It replays the payload half of the release build: binaries, `payload.tar`, the account baseline in `/etc/skel`, schema compilation, and niri/Noctalia validation. Files the base shipped and the tree removed are deleted.
+2. It replays the payload half of the release build: binaries, `payload.tar`, the derive steps that read the payload (schema compilation and the account baseline in `/etc/skel` with its applied home baseline), and `assemble.sh`'s niri/Noctalia validation. Files the base shipped and the tree removed are deleted.
 
-The overlay refuses package-list changes. It warns about image-build inputs (`Containerfile`, `assemble.sh`, agents, Bitwarden, release) that differ from the base's recorded source revision, because the overlay cannot apply them.
+The overlay refuses package-list changes and changes to the target's declared systemd or initramfs steps (when the base records its steps). It warns about image-build inputs (`Containerfile`, `assemble.sh`, `.kedra` packages, agents, Bitwarden, release) that differ from the base's recorded source revision, because the overlay cannot apply them.
 
 **Full local builds** replay the Actions candidate build in disposable containers:
 
 1. Linux binaries and `sysroot source archive` in the Rust builder.
 2. The pinned Codex and Bitwarden inputs through `image/agents/prepare.sh` and `image/bitwarden/prepare.py`, in a Fedora 44 builder with the pinned uv. The scripts accept `KEDRA_LOCAL_BUILDER=1` inside a container.
-3. The stage's own `Containerfile` and `assemble.sh` on `quay.io/fedora/fedora-bootc:44`, pinned to its platform digest. A stage with `image/catalog/install-rpms.sh` installs offline from an RPM lock: the host `sysroot catalog lock resolve` (the prepared host archiver, store `cache/rpm-store`) resolves it once per stage and base digest, and `lock repo` adds the foundation repository as `rpms/` ([package delivery](../../docs/PACKAGES.md#fedora-rpm-lock)). An interrupted resolution leaves staging that `sysroot store recover --store <artifacts>/cache/rpm-store` removes.
+3. The stage's own foundation (`Containerfile` and `assemble.sh`) on `quay.io/fedora/fedora-bootc:44`, pinned to its platform digest. A stage with `image/catalog/install-rpms.sh` installs offline from an RPM lock: the host `sysroot catalog lock resolve` (the prepared host archiver, store `cache/rpm-store`) resolves it once per stage and base digest, and `lock repo` adds the foundation repository as `rpms/` ([package delivery](../../docs/PACKAGES.md#fedora-rpm-lock)). An interrupted resolution leaves staging that `sysroot store recover --store <artifacts>/cache/rpm-store` removes.
+4. For a stage whose source declares image steps, the stage's own Linux `sysroot` composes that foundation with the snapshot's committed payload (`sysroot system compose`) and derives the declared steps (`sysroot derive build`), as the release does ([one image pipeline](../../docs/SYSTEM.md#one-image-pipeline)). It runs in a disposable builder container (the Rust builder also carries bubblewrap and the pinned Docker CLI with buildx) that reaches the lab's Docker socket at `/var/run/docker.sock` as an ordinary user in the socket's group, with seccomp, AppArmor and system paths unconfined so the engine's bubblewrap sandbox can observe the foundation; the engine store and contexts die with the container. Catalog source packages and the release trust layer are not built locally. An older stage builds its complete image in step 3.
 
 The result is an unsigned `kedra-local-<target>:<key>`. It is never pushed, signed or installed, and it has no release identity layers. `build:<revision>` needs the root-filesystem layout (PR #20 or later).
 

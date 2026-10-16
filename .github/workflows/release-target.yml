@@ -80,12 +80,10 @@ jobs:
           context="output/$KEDRA_TARGET-context"
           mkdir -p output/image-evidence "$context" output/release-context output/release-binaries
           cp target/release/sysroot target/release/sysroot-helper output/release-binaries/
-          if test "$KEDRA_TARGET" = qemu-arm64; then
-            output/release-binaries/sysroot catalog pins \
-              --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
-              --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
-              > output/release-binaries/catalog-pins.json
-          fi
+          output/release-binaries/sysroot catalog pins \
+            --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
+            --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
+            > output/release-binaries/catalog-pins.json
           target/release/sysroot source plan --host "$KEDRA_TARGET" --json > output/image-evidence/source-plan.json
           target/release/sysroot source archive --host "$KEDRA_TARGET" --output "$context/payload.tar"
           cp target/release/sysroot target/release/sysroot-helper usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh \
@@ -110,7 +108,7 @@ jobs:
           uv run usr/src/kedra/image/release/refresh.py prepare --target "$KEDRA_TARGET" --work output/image-evidence \
             --store "$RUNNER_TEMP/kedra-release-store"
       - name: Select the OCI-root Docker image store
-        if: steps.preflight.outputs.changed == 'true' && inputs.target == 'qemu-arm64'
+        if: steps.preflight.outputs.changed == 'true'
         timeout-minutes: 2
         run: |
           set -euo pipefail
@@ -135,107 +133,102 @@ jobs:
           sudo systemctl restart docker
           docker info --format '{{json .DriverStatus}}' | \
             jq --exit-status 'any(.[]; . == ["driver-type", "io.containerd.snapshotter.v1"])' >/dev/null
+      # One pipeline for every target, natively on its runner: lock (preflight) →
+      # foundation → catalog packages → compose → derive (the image steps the
+      # target's .kedra block declares) → public trust layer.
       - name: Build changed image with signed-config identity
         if: steps.preflight.outputs.changed == 'true'
-        env:
-          BASE_IMAGE: ${{ steps.preflight.outputs.base }}
         run: |
           set -euo pipefail
-          candidate="localhost/kedra-$KEDRA_TARGET:release-base"
-          if test "$KEDRA_TARGET" = qemu-arm64; then
-            input_hash=$(sha256sum output/image-evidence/resolved-inputs.json | cut -d ' ' -f 1)
-            uv run usr/src/kedra/image/release/compose.py foundation \
-              --target qemu-arm64 --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \
-              --inputs output/image-evidence/resolved-inputs.json --expected-inputs-sha256 "$input_hash" \
-              --context "output/$KEDRA_TARGET-context" --store "$RUNNER_TEMP/kedra-release-store" \
-              --binaries output/release-binaries --output-dir "$RUNNER_TEMP/kedra-release-foundation" \
-              > output/image-evidence/foundation.json
-            foundation_hash=$(sha256sum "$RUNNER_TEMP/kedra-release-foundation/foundation.json" | cut -d ' ' -f 1)
-            # Build tools only after changed preflight, offline from the run's RPM lock.
-            # Packages build in the engine's unprivileged bubblewrap sandbox, as on an
-            # installed Kedra. Ubuntu 24.04 confines unprivileged user namespaces through
-            # AppArmor; this disposable runner lifts that for the sandbox.
-            sudo apt-get install -y --no-install-recommends bubblewrap
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-            bwrap --unshare-all --unshare-user --disable-userns --ro-bind / / /bin/true
-            catalog_root="$RUNNER_TEMP/kedra-catalog"
-            mkdir -m 700 "$catalog_root"
-            foundation=$(jq -er .foundation_image "$RUNNER_TEMP/kedra-release-foundation/foundation.json")
-            printf '{"foundation":"%s","builders":{}}\n' "$foundation" > "$catalog_root/resolution.json"
-            mapfile -t roles < <(jq -r '.builders | keys[]' output/release-binaries/catalog-pins.json)
-            test "${#roles[@]}" -gt 0
-            index=0
-            for role in "${roles[@]}"; do
-              # The retained foundation's root plus this role's locked RPMs, installed
-              # offline by the root's own rpm in the sandbox; refused unless the result
-              # equals the role's locked inventory.
-              output/release-binaries/sysroot store add-root --store "$RUNNER_TEMP/kedra-release-store" \
-                --image "$foundation" --lock output/image-evidence/rpm-lock.json --builder "$role" \
-                > "$catalog_root/builder-$index.json"
-              builder=$(jq -er .root "$catalog_root/builder-$index.json")
-              jq --arg role "$role" --arg root "$builder" '.builders[$role]=$root' "$catalog_root/resolution.json" > "$catalog_root/resolution.next.json"
-              mv "$catalog_root/resolution.next.json" "$catalog_root/resolution.json"
-              index=$((index+1))
-            done
-            jq --slurpfile resolution "$catalog_root/resolution.json" \
-              '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_images:[$resolution[0].foundation],source_objects:(.archives|keys)}' \
-              output/release-binaries/catalog-pins.json > "$catalog_root/policy.json"
-            uv run usr/src/kedra/image/catalog/prepare-sources.py \
-              --pins output/release-binaries/catalog-pins.json --output "$catalog_root/sources"
-            mapfile -t source_objects < <(jq -r 'keys[]' "$catalog_root/sources/sources.json")
-            for expected in "${source_objects[@]}"; do
-              source=$(jq -er --arg object "$expected" '.[$object]' "$catalog_root/sources/sources.json")
-              output/release-binaries/sysroot store add-source --store "$RUNNER_TEMP/kedra-release-store" --source "$source" > "$catalog_root/$expected-source.json"
-              test "$(jq -er .object "$catalog_root/$expected-source.json")" = "$expected"
-            done
-            mapfile -t packages < <(jq -r '.packages | keys[]' output/release-binaries/catalog-pins.json)
-            for package in "${packages[@]}"; do
-              output/release-binaries/sysroot catalog build --store "$RUNNER_TEMP/kedra-release-store" --package "$package" \
-                --input-root usr/src/kedra/image/packages --entry catalog.kedra --target qemu-arm64 \
-                --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
-                --policy "$catalog_root/policy.json" --resolution "$catalog_root/resolution.json" > "$catalog_root/$package-build.json"
-            done
-            output/release-binaries/sysroot catalog contribute --store "$RUNNER_TEMP/kedra-release-store" \
-              --input-root usr/src/kedra/image/packages --entry catalog.kedra --target qemu-arm64 \
+          input_hash=$(sha256sum output/image-evidence/resolved-inputs.json | cut -d ' ' -f 1)
+          uv run usr/src/kedra/image/release/compose.py foundation \
+            --target "$KEDRA_TARGET" --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \
+            --inputs output/image-evidence/resolved-inputs.json --expected-inputs-sha256 "$input_hash" \
+            --context "output/$KEDRA_TARGET-context" --store "$RUNNER_TEMP/kedra-release-store" \
+            --binaries output/release-binaries --output-dir "$RUNNER_TEMP/kedra-release-foundation" \
+            > output/image-evidence/foundation.json
+          foundation_hash=$(sha256sum "$RUNNER_TEMP/kedra-release-foundation/foundation.json" | cut -d ' ' -f 1)
+          # Build tools only after changed preflight, offline from the run's RPM lock.
+          # Packages build, and `sysroot system compose` observes the foundation, in the
+          # engine's unprivileged bubblewrap sandbox, as on an installed Kedra. Ubuntu
+          # 24.04 confines unprivileged user namespaces through AppArmor; this disposable
+          # runner lifts that for the sandbox on both targets.
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bwrap --unshare-all --unshare-user --disable-userns --ro-bind / / /bin/true
+          catalog_root="$RUNNER_TEMP/kedra-catalog"
+          mkdir -m 700 "$catalog_root"
+          foundation=$(jq -er .foundation_image "$RUNNER_TEMP/kedra-release-foundation/foundation.json")
+          printf '{"foundation":"%s","builders":{}}\n' "$foundation" > "$catalog_root/resolution.json"
+          mapfile -t roles < <(jq -r '.builders | keys[]' output/release-binaries/catalog-pins.json)
+          test "${#roles[@]}" -gt 0
+          index=0
+          for role in "${roles[@]}"; do
+            # The retained foundation's root plus this role's locked RPMs, installed
+            # offline by the root's own rpm in the sandbox; refused unless the result
+            # equals the role's locked inventory.
+            output/release-binaries/sysroot store add-root --store "$RUNNER_TEMP/kedra-release-store" \
+              --image "$foundation" --lock output/image-evidence/rpm-lock.json --builder "$role" \
+              > "$catalog_root/builder-$index.json"
+            builder=$(jq -er .root "$catalog_root/builder-$index.json")
+            jq --arg role "$role" --arg root "$builder" '.builders[$role]=$root' "$catalog_root/resolution.json" > "$catalog_root/resolution.next.json"
+            mv "$catalog_root/resolution.next.json" "$catalog_root/resolution.json"
+            index=$((index+1))
+          done
+          jq --slurpfile resolution "$catalog_root/resolution.json" \
+            '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_images:[$resolution[0].foundation],source_objects:(.archives|keys)}' \
+            output/release-binaries/catalog-pins.json > "$catalog_root/policy.json"
+          uv run usr/src/kedra/image/catalog/prepare-sources.py \
+            --pins output/release-binaries/catalog-pins.json --output "$catalog_root/sources"
+          mapfile -t source_objects < <(jq -r 'keys[]' "$catalog_root/sources/sources.json")
+          for expected in "${source_objects[@]}"; do
+            source=$(jq -er --arg object "$expected" '.[$object]' "$catalog_root/sources/sources.json")
+            output/release-binaries/sysroot store add-source --store "$RUNNER_TEMP/kedra-release-store" --source "$source" > "$catalog_root/$expected-source.json"
+            test "$(jq -er .object "$catalog_root/$expected-source.json")" = "$expected"
+          done
+          mapfile -t packages < <(jq -r '.packages | keys[]' output/release-binaries/catalog-pins.json)
+          for package in "${packages[@]}"; do
+            output/release-binaries/sysroot catalog build --store "$RUNNER_TEMP/kedra-release-store" --package "$package" \
+              --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
               --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
-              --resolution "$catalog_root/resolution.json" --foundation "$foundation" \
-              --policy "$catalog_root/policy.json" --source-revision "$GITHUB_SHA" \
-              --input-material output/image-evidence/resolved-inputs.json --expected-input-material-sha256 "$input_hash" \
-              --output-dir "$catalog_root/contribution" > "$catalog_root/contribution-result.json"
-            definition_hash=$(jq -er .definition_sha256 "$catalog_root/contribution-result.json")
-            contribution_hash=$(jq -er .contribution_receipt_sha256 "$catalog_root/contribution-result.json")
-            mkdir output/image-evidence/catalog
-            cp "$catalog_root/"*.json output/image-evidence/catalog/
-            cp "$catalog_root/contribution/"*.json output/image-evidence/catalog/
-            uv run usr/src/kedra/image/release/compose.py compose \
-              --target qemu-arm64 --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \
-              --inputs output/image-evidence/resolved-inputs.json --expected-inputs-sha256 "$input_hash" \
-              --foundation-receipt "$RUNNER_TEMP/kedra-release-foundation/foundation.json" \
-              --expected-foundation-receipt-sha256 "$foundation_hash" --store "$RUNNER_TEMP/kedra-release-store" \
-              --definition "$catalog_root/contribution/system.json" --expected-definition-sha256 "$definition_hash" \
-              --contribution-receipt "$catalog_root/contribution/contribution.json" --expected-contribution-receipt-sha256 "$contribution_hash" \
-              --binaries output/release-binaries --output-dir "$RUNNER_TEMP/kedra-release-native" \
-              > output/image-evidence/native-candidate.json
-            candidate=$(jq -er .transfer.reference output/image-evidence/native-candidate.json)
-            expected=$(jq -er .transfer.destination_manifest_digest output/image-evidence/native-candidate.json)
-            actual="sha256:$(sudo skopeo inspect --raw "containers-storage:$candidate" | sha256sum | cut -d ' ' -f 1)"
-            test "$actual" = "$expected"
-            expected_id=$(jq -er .transfer.image output/image-evidence/native-candidate.json)
-            test "$(sudo podman image inspect "$candidate" --format '{{.Id}}')" = "${expected_id#sha256:}"
-            cp "$RUNNER_TEMP/kedra-release-native/native-plan.json" output/image-evidence/
-            cp "$RUNNER_TEMP/kedra-release-native/native-material/native-receipt.json" output/image-evidence/
-          else
-            sudo podman build --pull=always --no-cache --build-arg "BASE_IMAGE=$BASE_IMAGE" \
-              --tag "$candidate" "output/$KEDRA_TARGET-context" \
-              2>&1 | tee "output/image-evidence/$KEDRA_TARGET-build.log"
-          fi
+              --policy "$catalog_root/policy.json" --resolution "$catalog_root/resolution.json" > "$catalog_root/$package-build.json"
+          done
+          output/release-binaries/sysroot catalog contribute --store "$RUNNER_TEMP/kedra-release-store" \
+            --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
+            --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
+            --resolution "$catalog_root/resolution.json" --foundation "$foundation" \
+            --policy "$catalog_root/policy.json" --source-revision "$GITHUB_SHA" \
+            --input-material output/image-evidence/resolved-inputs.json --expected-input-material-sha256 "$input_hash" \
+            --output-dir "$catalog_root/contribution" > "$catalog_root/contribution-result.json"
+          definition_hash=$(jq -er .definition_sha256 "$catalog_root/contribution-result.json")
+          contribution_hash=$(jq -er .contribution_receipt_sha256 "$catalog_root/contribution-result.json")
+          mkdir output/image-evidence/catalog
+          cp "$catalog_root/"*.json output/image-evidence/catalog/
+          cp "$catalog_root/contribution/"*.json output/image-evidence/catalog/
+          uv run usr/src/kedra/image/release/compose.py compose \
+            --target "$KEDRA_TARGET" --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \
+            --inputs output/image-evidence/resolved-inputs.json --expected-inputs-sha256 "$input_hash" \
+            --foundation-receipt "$RUNNER_TEMP/kedra-release-foundation/foundation.json" \
+            --expected-foundation-receipt-sha256 "$foundation_hash" --store "$RUNNER_TEMP/kedra-release-store" \
+            --definition "$catalog_root/contribution/system.json" --expected-definition-sha256 "$definition_hash" \
+            --contribution-receipt "$catalog_root/contribution/contribution.json" --expected-contribution-receipt-sha256 "$contribution_hash" \
+            --binaries output/release-binaries --output-dir "$RUNNER_TEMP/kedra-release-native" \
+            > output/image-evidence/native-candidate.json
+          candidate=$(jq -er .transfer.reference output/image-evidence/native-candidate.json)
+          expected=$(jq -er .transfer.destination_manifest_digest output/image-evidence/native-candidate.json)
+          actual="sha256:$(sudo skopeo inspect --raw "containers-storage:$candidate" | sha256sum | cut -d ' ' -f 1)"
+          test "$actual" = "$expected"
+          expected_id=$(jq -er .transfer.image output/image-evidence/native-candidate.json)
+          test "$(sudo podman image inspect "$candidate" --format '{{.Id}}')" = "${expected_id#sha256:}"
+          cp "$RUNNER_TEMP/kedra-release-native/native-plan.json" output/image-evidence/
+          cp "$RUNNER_TEMP/kedra-release-native/native-material/native-receipt.json" output/image-evidence/
           identity=$(cat output/release-context/image-identity.json)
           sudo podman build --pull=never --network=none --build-arg "CANDIDATE_IMAGE=$candidate" \
             --build-arg "KEDRA_IDENTITY=$identity" --file usr/src/kedra/image/release/Containerfile \
             --tag "localhost/kedra-$KEDRA_TARGET:release-candidate" output/release-context \
             2>&1 | tee output/image-evidence/trust-build.log
       - name: Run installed catalog case on the exact composed native image
-        if: steps.preflight.outputs.changed == 'true' && inputs.target == 'qemu-arm64'
+        if: steps.preflight.outputs.changed == 'true'
         run: |
           set -euo pipefail
           native_root="$RUNNER_TEMP/kedra-release-native"
@@ -255,7 +248,6 @@ jobs:
           [[ "$expected_image" =~ ^sha256:[a-f0-9]{64}$ ]]
           jq -e --arg identity "$composition" '.identity == $identity' \
             "$native_root/composition/composition.json" > /dev/null
-          cmp "$native_root/native-steps.json" usr/src/kedra/image/release/native-steps.json
           jq -e --arg identity "$derivation" --arg parent "$composition" \
             '.identity == $identity and .definition.parent_identity == $parent' \
             "$native_root/native-plan.json" > /dev/null
@@ -263,7 +255,7 @@ jobs:
           test "$(docker --host "$endpoint" info --format '{{.ID}}')" = \
             "$(jq -er .engine "$native_root/candidate.json")"
           cp "$native_root/candidate.json" "$evidence/composer-candidate.json"
-          sha256sum "$native_root/composition/composition.json" "$native_root/native-steps.json" \
+          sha256sum "$native_root/composition/composition.json" \
             "$native_root/native-plan.json" > "$evidence/selected-inputs.sha256"
           # Match the established Ubuntu-host setup used by validate-candidate.
           sudo aa-status > "$evidence/apparmor-before.txt" 2>&1 || true
@@ -276,19 +268,18 @@ jobs:
           sudo aa-status > "$evidence/apparmor-after.txt" 2>&1 || true
           env -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH -u KEDRA_LAB_BINARIES \
             DOCKER_HOST="$endpoint" DOCKER_CONFIG="$native_root/home/.docker" \
-            KEDRA_LAB_TARGET=qemu-arm64 KEDRA_LAB_OVERLAY=none KEDRA_LAB_KEEP=never \
+            KEDRA_LAB_TARGET="$KEDRA_TARGET" KEDRA_LAB_OVERLAY=none KEDRA_LAB_KEEP=never \
             KEDRA_LAB_IMAGE="composition:$native_root/composition" \
             KEDRA_LAB_COMPOSITION_IDENTITY="$composition" \
-            KEDRA_LAB_NATIVE_PLAN="$native_root/native-steps.json" \
             KEDRA_LAB_SYSROOT="$GITHUB_WORKSPACE/output/release-binaries/sysroot" \
             KEDRA_LAB_DERIVATION_IDENTITY="$derivation" \
             rustup run 1.98.1 cargo test -p kedra-container-tests --test container --release --locked \
               -- native::catalog --exact --test-threads 1 2>&1 | tee "$evidence/harness.log"
           mapfile -t reports < <(find "$KEDRA_LAB_ARTIFACTS/runs" -mindepth 2 -maxdepth 2 -name report.json -type f)
           test "${#reports[@]}" -eq 1
-          jq -e --arg image "$expected_image" --arg source "native:$derivation" '
+          jq -e --arg target "$KEDRA_TARGET" --arg image "$expected_image" --arg source "native:$derivation" '
             .schema_version == 1 and .selected_count == 1 and .interrupted == false
-            and .image.target == "qemu-arm64" and .image.base == $image
+            and .image.target == $target and .image.base == $image
             and .image.name == "sha256" and .image.tag == ($image | ltrimstr("sha256:"))
             and .image.source == $source and .image.overlay == null
             and (.results | length) == 1 and .results[0].name == "native::catalog"
@@ -297,7 +288,7 @@ jobs:
           ' "${reports[0]}" > /dev/null
           cp "${reports[0]}" "$evidence/validated-report.json"
       - name: Preserve installed catalog diagnostics
-        if: always() && steps.preflight.outputs.changed == 'true' && inputs.target == 'qemu-arm64'
+        if: always() && steps.preflight.outputs.changed == 'true'
         run: |
           set -euo pipefail
           reports="$RUNNER_TEMP/kedra-release-store.release-lab/runs"

@@ -180,6 +180,12 @@ impl Fixture {
         );
         self.write_source(&format!("{IMAGE}/targets/qemu-arm64/target.toml"),
             "id='qemu-arm64'\narchitecture='aarch64'\nimage='ghcr.io/reidond/kedra-qemu-arm64'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n");
+        self.write_source(
+            &format!("{IMAGE}/targets/desktop/packages.list"),
+            "# none\n",
+        );
+        self.write_source(&format!("{IMAGE}/targets/desktop/target.toml"),
+            "id='desktop'\narchitecture='x86_64'\nimage='ghcr.io/reidond/kedra-desktop'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n");
         self.write_source("etc/kedra-fixture.conf", "baseline\n");
         self.write_source("etc/committed-fixture.conf", "committed\n");
         self.write_source(
@@ -288,15 +294,22 @@ fn empty_definition() -> Value {
 fn system_cli_refuses_unsupported_target_and_mismatched_authoring() {
     let f = Fixture::new();
     f.repository();
+    // Composition is native: the target of the other architecture is refused
+    // before any store or Docker use.
+    let foreign = if sysroot_engine::RPM_ARCHITECTURE == "aarch64" {
+        "desktop"
+    } else {
+        "qemu-arm64"
+    };
     let mut command = f.cli(&["system", "plan", "--repo"]);
     refused(
         run(command
             .arg(f.path("repo"))
-            .args(["--target", "desktop", "--store"])
+            .args(["--target", foreign, "--store"])
             .arg(f.path("store"))
             .args(["--foundation", FOUNDATION])
             .env("DOCKER_HOST", "unix:///nonexistent/kedra-system-e2e.sock")),
-        "only qemu-arm64",
+        "requires a native",
     );
     let mut definition = empty_definition();
     definition["foundation"] = json!(OTHER_RUNTIME);

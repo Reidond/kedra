@@ -34,11 +34,10 @@ pub enum VmCommand {
         #[arg(long, default_value = "worktree")]
         overlay: String,
         /// Independently retained identity of the composition context.
-        #[arg(long, requires_all = ["native_plan", "derivation_identity"])]
+        #[arg(long, requires = "derivation_identity")]
         composition_identity: Option<String>,
-        #[arg(long, requires_all = ["composition_identity", "derivation_identity"])]
-        native_plan: Option<PathBuf>,
-        #[arg(long, requires_all = ["composition_identity", "native_plan"])]
+        /// Independently selected identity of its declared native steps.
+        #[arg(long, requires = "composition_identity")]
         derivation_identity: Option<String>,
     },
     /// Build signed ARM64 installer media through the existing verification policy.
@@ -292,13 +291,12 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             image,
             overlay,
             composition_identity,
-            native_plan,
             derivation_identity,
         } => {
             let source = image.parse()?;
             let overlay = overlay.parse()?;
             let composed = matches!(source, crate::image::Source::Composition(_));
-            if composed != native_plan.is_some() {
+            if composed != derivation_identity.is_some() {
                 return Err(crate::invalid(
                     "VM composition requires the complete native identity tuple",
                 ));
@@ -326,13 +324,13 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 binaries: None,
                 composition_identity,
             };
-            let (image, provenance) = match (native_plan, derivation_identity) {
-                (Some(plan), Some(identity)) => {
+            let (image, provenance) = match derivation_identity {
+                Some(identity) => {
                     let (image, derived, reference) =
-                        crate::image::prepare_derived_vm(&docker, &request, &plan, &identity)?;
+                        crate::image::prepare_derived_vm(&docker, &request, &identity)?;
                     (image, Some((derived, reference)))
                 }
-                (None, None) if request.composition_identity.is_none() => {
+                None if request.composition_identity.is_none() => {
                     (crate::image::prepare_vm(&docker, &request)?, None)
                 }
                 _ => {

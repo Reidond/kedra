@@ -34,7 +34,7 @@ separate from these passes; no production image is published by this PR. See [pa
 ## Execution and integrity
 
 Package builds, `run`, `profile run` and `develop` execute without a daemon in an
-unprivileged bubblewrap (`bwrap`) sandbox on native aarch64 Linux, so they work on
+unprivileged bubblewrap (`bwrap`) sandbox on native Linux, so they work on
 an installed Kedra (the foundation carries `bubblewrap`) and need no Docker socket,
 which is effectively root. Each process gets new user, PID, network, IPC, UTS and
 cgroup namespaces (`--unshare-all --unshare-user --disable-userns`), runs as the
@@ -72,7 +72,9 @@ on use, not re-hashed; their receipts record the observed RPM inventory, entry
 count and size. `store gc` keeps pinned roots and the image roots of retained
 images.
 
-Source, image and root admission are explicit. Derived output paths are
+The engine is native: `PLATFORM` (`aarch64-linux` or `x86_64-linux`) is the
+architecture `sysroot` was compiled for, and it refuses images, daemons, roots and
+objects of any other. Source, image and root admission are explicit. Derived output paths are
 input-addressed and independently realized content is hashed separately. A
 rebuild compares the prior winner and preserves divergent evidence instead of
 replacing it. The exact builder root is the coarse build userspace. This does not
@@ -140,16 +142,18 @@ them. The lock document itself is `sysroot-catalog::rpm_lock`; see
 
 ## Boundaries
 
-The engine supports native ARM, one runtime image per closure, bubblewrap with
-unprivileged user namespaces (0.8 or later) and Docker 29 OCI save archives; image
-import from a daemon (`store add-image --image`) and RPM resolution still use the
-local Docker engine, while `store add-image --archive` imports a saved archive
-without one. Native x86_64 source builds,
-remote endpoints/caches, nixpkgs or `.nix` compatibility and an alternate OS
-backend remain unqualified. The `.kedra` Kedra policy currently refuses selected
-source packages for `desktop`; desktop may still select Fedora foundation
-requests. Complete kernel, boot, SELinux, installation and release signing use
-separate workflows.
+The engine supports one native architecture per machine (aarch64 or x86_64;
+cross-architecture builds are refused), one runtime image per closure, bubblewrap
+with unprivileged user namespaces (0.8 or later) and Docker 29 OCI save archives;
+image import from a daemon (`store add-image --image`), RPM resolution and native
+derivation still use the local Docker engine, while `store add-image --archive`
+imports a saved archive without one. Both release targets build through it
+([one image pipeline](SYSTEM.md#one-image-pipeline)) and both may select `.kedra`
+source packages. Native x86_64 builds run on the desktop release runner; their
+local qualification is recorded in [STATUS](STATUS.md). Remote endpoints/caches,
+nixpkgs or `.nix` compatibility and an alternate OS backend remain unqualified.
+Complete kernel, boot, SELinux, installation and release signing use separate
+workflows.
 
 Engine/package rollback does not roll back systemd service state, databases,
 writable home, credentials, bootc deployments or registry tags. A bundle hash is

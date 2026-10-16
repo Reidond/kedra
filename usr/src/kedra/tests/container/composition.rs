@@ -63,11 +63,12 @@ pub(crate) fn native_image(
     let inspected = docker.inspect_image(image)?;
     if inspected.id.as_deref() != Some(image)
         || inspected.os.as_deref() != Some("linux")
-        || inspected.architecture.as_deref() != Some("arm64")
+        || inspected.architecture.as_deref() != Some(sysroot_engine::OCI_ARCHITECTURE)
     {
-        return Err(invalid(
-            "composition image ID/platform differs from native linux/arm64",
-        ));
+        return Err(invalid(format!(
+            "composition image ID/platform differs from native {}",
+            sysroot_engine::OCI_PLATFORM
+        )));
     }
     if let Some(config) = &inspected.config
         && (config.on_build.as_ref().is_some_and(|v| !v.is_empty())
@@ -106,12 +107,11 @@ pub fn prepare(docker: &Docker, request: &Request) -> Result<Replay> {
         ));
     }
     let identity = request.composition_identity.as_deref().ok_or_else(|| invalid("composition replay requires an independently selected --composition-identity or KEDRA_LAB_COMPOSITION_IDENTITY"))?;
-    if request.target.id != "qemu-arm64"
-        || request.target.oci_architecture != "arm64"
-        || docker.architecture()? != "aarch64"
+    if request.target.oci_architecture != sysroot_engine::OCI_ARCHITECTURE
+        || docker.architecture()? != request.target.architecture
     {
         return Err(invalid(
-            "composition replay requires the native qemu-arm64 target",
+            "composition replay requires the engine's native target",
         ));
     }
     let realized = sysroot_engine::realize_composition(input, identity, &derive_state()?)

@@ -20,7 +20,6 @@ LIMIT = 4 * 1024**2
 LOCK_LIMIT = 8 * 1024**2
 LABEL = 'org.kedra.image.identity'
 IMAGE = 'usr/src/kedra/image/'
-NATIVE_RECIPE = IMAGE + 'release/native-steps.json'
 # Closed release target table, shared with the Rust helper (embedded at build
 # time), the image input tooling and the local installer. Each target has its
 # own repository, key and signing environment; any other (target, architecture)
@@ -203,7 +202,8 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
     lock = rpm_lock(rpm_lock_data, source, base, target)
     recipes = [IMAGE + name for name in (
         'Containerfile', 'assemble.sh', 'catalog/install-rpms.sh', 'release/Containerfile',
-        'release/prepare-trust.py', 'release/refresh.py', 'release/material.py', 'release/targets.json',
+        'release/compose.py', 'release/prepare-trust.py', 'release/refresh.py', 'release/material.py',
+        'release/targets.json',
         'release/compatibility.json', 'agents/prepare.sh', 'agents/package.py',
         'agents/fetch.py', 'agents/pins.py', 'agents/inputs.json', 'bitwarden/prepare.py',
         'bitwarden/inputs.json')]
@@ -211,11 +211,8 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
                     '.github/workflows/release.yml', '.github/workflows/release-target.yml',
                     spec['public_key'], spec['key_sha256']))
     artifacts = {name: context / name for name in ('sysroot', 'sysroot-helper', 'agents.tar', 'bitwarden.tar')}
-    if target == 'qemu-arm64':
-        recipes.extend((IMAGE + 'release/compose.py', NATIVE_RECIPE))
     if catalog is not None:
-        require(target == 'qemu-arm64' and isinstance(catalog, dict) and set(catalog) == {'pins'},
-                'Unsupported catalog material inputs')
+        require(isinstance(catalog, dict) and set(catalog) == {'pins'}, 'Unsupported catalog material inputs')
         pins_data = read(catalog['pins'])
         pins = document(pins_data)
         require(isinstance(pins, dict), 'Invalid catalog material')
@@ -225,10 +222,7 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
         artifacts['catalog-author'] = binaries / 'sysroot'
     recipe_hashes = {}
     for name in recipes:
-        data = read(root / name)
-        if name == NATIVE_RECIPE:
-            data = canonical(document(data))
-        recipe_hashes[name] = sha(data)
+        recipe_hashes[name] = sha(read(root / name))
     artifact_hashes = {}
     for name, path in artifacts.items():
         require(path.is_file() and not path.is_symlink() and path.stat().st_nlink == 1,
@@ -248,7 +242,15 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
             'recipes': recipe_hashes, 'artifacts': artifact_hashes, 'packages': rows}
 
 
-def verify_native(config, receipt_bytes, inputs, selected=None):
+def declared_steps(inputs):
+    """The image steps the committed source declares for its target (`sysroot derive`)."""
+    steps = inputs['source'].get('native_steps', [])
+    require(isinstance(steps, list) and all(isinstance(step, dict) and isinstance(step.get('kind'), str)
+                                            for step in steps), 'Invalid declared native steps')
+    return steps
+
+
+def verify_native(config, receipt_bytes, inputs, target, selected=None):
     """Validate signed native-receipt bindings; actual artifact execution is separate."""
     receipt = document(receipt_bytes)
     fields = {'schema', 'identity', 'parent_identity', 'implementation', 'driver_sha256',
@@ -259,21 +261,23 @@ def verify_native(config, receipt_bytes, inputs, selected=None):
     for field in ('identity', 'parent_identity', 'driver_sha256', 'recipe_sha256', 'rpm_sha256'):
         require(isinstance(receipt[field], str) and re.fullmatch('[a-f0-9]{64}', receipt[field]),
                 'Malformed native receipt identity')
+    steps = declared_steps(inputs)
+    initramfs = any(step['kind'] == 'initramfs' for step in steps)
     require(isinstance(receipt['foundation_image'], str)
             and re.fullmatch('sha256:[a-f0-9]{64}', receipt['foundation_image'])
             and isinstance(receipt['artifacts'], list) and receipt['artifacts']
-            and isinstance(receipt['kernels'], list) and receipt['kernels']
+            and isinstance(receipt['kernels'], list) and bool(receipt['kernels']) == initramfs
             and isinstance(receipt['tools'], dict) and receipt['tools'], 'Incomplete native material')
     labels = config.get('config', {}).get('Labels', {})
-    require(config.get('os') == 'linux' and config.get('architecture') == 'arm64'
-            and NATIVE_RECIPE in inputs['recipes']
+    require(config.get('os') == 'linux' and config.get('architecture') == target_spec(target)['oci_architecture']
+            and steps
             and labels.get('dev.kedra.native.identity') == receipt['identity']
             and labels.get('dev.kedra.composition.identity') == receipt['parent_identity'],
             'Native receipt differs from image composition labels')
     rpm_bytes = ('\n'.join('\t'.join(row) for row in inputs['packages']) + '\n').encode()
     require(sha(rpm_bytes) == receipt['rpm_sha256'], 'Native receipt differs from release RPM material')
     if selected is not None:
-        require(selected.get('schema_version') == 1 and selected.get('target') == 'qemu-arm64'
+        require(selected.get('schema_version') == 1 and selected.get('target') == target
                 and selected.get('input_material_sha256') == sha(canonical(inputs))
                 and selected.get('foundation_image') == receipt['foundation_image']
                 and selected.get('composition_identity') == receipt['parent_identity']

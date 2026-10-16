@@ -20,9 +20,31 @@ builder c_tools {
 target "desktop" {
     foundation = system;
     fedora = [];
+    packages = [jq(builder: c_tools, runtime: system), sqlite(builder: c_tools, runtime: system), hello(builder: c_tools, runtime: system)];
+    glib_schemas = true;
+    systemd = systemd {
+        enable = ["NetworkManager.service", "bluetooth.service", "greetd.service"];
+        mask = ["bootc-fetch-apply-updates.service", "bootc-fetch-apply-updates.timer"];
+        default_target = "graphical.target";
+    };
+    skel = true;
+    initramfs = initramfs {
+        modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block", "systemd-cryptsetup", "tpm2-tss"];
+    };
 }
 target "qemu-arm64" {
     foundation = system;
     fedora = ["qemu-guest-agent", "egl-utils"];
     packages = [jq(builder: c_tools, runtime: system), sqlite(builder: c_tools, runtime: system), hello(builder: c_tools, runtime: system)];
+    glib_schemas = true;
+    systemd = systemd {
+        enable = ["NetworkManager.service", "bluetooth.service", "greetd.service"];
+        mask = ["bootc-fetch-apply-updates.service", "bootc-fetch-apply-updates.timer"];
+        default_target = "graphical.target";
+    };
+    skel = true;
+    initramfs = initramfs {
+        modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block", "systemd-cryptsetup", "tpm2-tss", "qemu"];
+        drivers = ["virtio_dma_buf", "virtio_gpu", "virtio_input"];
+    };
 }

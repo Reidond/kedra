@@ -320,10 +320,11 @@ fn add_root(
     let layer = match (lock, builder) {
         (Some(lock), Some(builder)) => {
             let (lock, _) = crate::catalog_lock::read_lock(lock)?;
-            if lock.architecture != "aarch64" {
-                return Err(Error::Invalid(
-                    "engine roots are native aarch64 only".into(),
-                ));
+            if lock.architecture != sysroot_engine::RPM_ARCHITECTURE {
+                return Err(Error::Invalid(format!(
+                    "engine roots are native {} only",
+                    sysroot_engine::RPM_ARCHITECTURE
+                )));
             }
             let role = lock.role(Some(builder))?;
             Some(sysroot_engine::RootLayer {

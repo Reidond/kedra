@@ -120,6 +120,11 @@ pub fn rpm_architectures(architecture: &str) -> Result<BTreeSet<&'static str>> {
     }
 }
 
+/// Whether an installed RPM architecture belongs to the native platform.
+pub fn native_rpm_architecture(architecture: &str) -> bool {
+    rpm_architectures(crate::RPM_ARCHITECTURE).is_ok_and(|allowed| allowed.contains(architecture))
+}
+
 /// Predicted object identity of a single-file RPM object.
 pub fn rpm_object(file: &str, size: u64, sha256: &str) -> Result<String> {
     if !file.ends_with(".rpm") || file.contains('/') || !token(file, b"+._-~^") {

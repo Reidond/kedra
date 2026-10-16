@@ -99,7 +99,7 @@ sysroot catalog lock repo --store /private/rpm-store --lock rpm-lock.json \
   --foundation --output <context>/rpms
 ```
 
-Then build the context as the release does: `image/Containerfile` with
+Then build the foundation context as the release does: `image/Containerfile` with
 `image/catalog/install-rpms.sh` next to it, on the lock's `base`. A builder role
 needs no image build: `sysroot store add-root --store <store> --image <foundation>
 --lock rpm-lock.json --builder <role>` installs it offline over the foundation's
@@ -133,14 +133,38 @@ builder c_tools {
 
 target "desktop" {
     foundation = system;
+    packages = [hello(builder: c_tools, runtime: system)];
+    glib_schemas = true;
+    systemd = systemd {
+        enable = ["greetd.service", "NetworkManager.service"];
+        default_target = "graphical.target";
+    };
+    skel = true;
+    initramfs = initramfs {
+        modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block"];
+    };
 }
 
 target "qemu-arm64" {
     foundation = system;
     fedora = ["qemu-guest-agent", "egl-utils"];
     packages = [hello(builder: c_tools, runtime: system)];
+    initramfs = initramfs {
+        modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block", "qemu"];
+        drivers = ["virtio_gpu", "virtio_input"];
+    };
 }
 ```
+
+A target also declares its image steps, which `sysroot derive` applies after
+composition ([native artifacts](NATIVE.md)): `glib_schemas` and `skel` are
+booleans; `systemd` takes `enable`, `disable` and `mask` lists of concrete units
+and an optional `default_target`; `initramfs` takes the dracut `modules` to add
+and require and optional kernel `drivers`. The checker applies the engine's step
+rules (one operation per unit, concrete unit names, module and driver names).
+`sysroot source plan` records the checked steps as `native_steps` in the source
+manifest; they are part of the target's package intent and its hash. Both targets
+may select source packages; each builds natively on its own architecture.
 
 Packages and libraries take exactly one `Builder` and one `Foundation` role.
 Builders derive from the selected foundation and add compiler-only RPM requests.

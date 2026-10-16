@@ -166,10 +166,10 @@ def inspect_stored(spec, local, digest, work, label):
                       'Installed RPM lock differs from the signed resolved inputs')
             (work / (label + '-rpm-lock.json')).write_bytes(lock_bytes)
         native = None
-        if m.NATIVE_RECIPE in inputs['recipes']:
-            m.require(spec['id'] == 'qemu-arm64', 'Native release composition is ARM-only')
+        # Images built through the engine carry their target's declared steps.
+        if m.declared_steps(inputs):
             native_bytes = copied_file(container, '/usr/share/sysroot/native-receipt.json', m.LIMIT)
-            native = m.verify_native(config, native_bytes, inputs)
+            native = m.verify_native(config, native_bytes, inputs, spec['id'])
             (work / (label + '-native.json')).write_bytes(native_bytes)
         (work / (label + '-identity.json')).write_bytes(identity_bytes)
         (work / (label + '-inputs.json')).write_bytes(inputs_bytes)
@@ -234,9 +234,9 @@ def prepare(spec, args):
         '--entry', 'catalog.kedra', '--lock', 'packages.lock.json', '--target', spec['id'],
         '--target-policy', ROOT / (IMAGE + 'package-policy.json'), '--base', base, '--store', args.store,
         '--log-dir', args.work / 'rpm-resolution', '--output', lock_path, timeout=3600)
-    catalog = {'pins': binaries / 'catalog-pins.json'} if spec['id'] == 'qemu-arm64' else None
     inputs = m.resolved_inputs(ROOT, plan, base, context, binaries, m.read(lock_path, m.LOCK_LIMIT),
-                               spec['id'], catalog=catalog)
+                               spec['id'], catalog={'pins': binaries / 'catalog-pins.json'})
+    m.require(m.declared_steps(inputs), 'The committed target declares no image steps')
     material_bytes = m.canonical(inputs)
     (args.work / 'resolved-inputs.json').write_bytes(material_bytes)
     write(args.work / 'preflight-bootc-compatibility.json', m.bootc_compatibility(inputs['packages'], spec['architecture']))
@@ -280,13 +280,12 @@ def inspect_candidate(spec, args):
     state = m.document(m.read(args.work / 'build-state.json', 65536))
     m.require(state['target'] == spec['id'] and observed['identity'] == state['identity']
               and observed['identity']['source_revision'] == source, 'Built image differs from prepared identity')
-    if spec['id'] == 'qemu-arm64':
-        selected = m.document(m.read(args.work / 'native-candidate.json', m.LIMIT))
-        m.require(selected.get('source_revision') == source
-                  and selected.get('source_manifest_sha256') == state['identity']['source_manifest_sha256'],
-                  'Native selection differs from accepted source')
-        config = m.document(m.read(args.work / 'built-config.json'))
-        m.verify_native(config, m.read(args.work / 'built-native.json'), observed['inputs'], selected)
+    selected = m.document(m.read(args.work / 'native-candidate.json', m.LIMIT))
+    m.require(selected.get('source_revision') == source
+              and selected.get('source_manifest_sha256') == state['identity']['source_manifest_sha256'],
+              'Native selection differs from accepted source')
+    config = m.document(m.read(args.work / 'built-config.json'))
+    m.verify_native(config, m.read(args.work / 'built-native.json'), observed['inputs'], spec['id'], selected)
     write(args.work / 'built-bootc-compatibility.json',
           m.bootc_compatibility(observed['inputs']['packages'], spec['architecture']))
     m.require_bootc(observed['inputs']['packages'], spec['architecture'])

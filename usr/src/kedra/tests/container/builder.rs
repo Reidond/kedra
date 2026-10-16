@@ -637,7 +637,7 @@ fn oci_architecture(architecture: &str) -> &str {
 }
 
 /// Build (or reuse) the pinned builder image.
-fn builder_image(docker: &Docker, platform: &str) -> Result<GenericImage> {
+pub(crate) fn builder_image(docker: &Docker, platform: &str) -> Result<GenericImage> {
     let containerfile = crate::harness_dir().join("lab/builder.Containerfile");
     let key = content_key(&[&fs::read(&containerfile)?, platform.as_bytes()]);
     docker.build(&docker::Build {

@@ -325,14 +325,11 @@ fn main() -> ExitCode {
         .collect();
     let composition_source = std::env::var("KEDRA_LAB_IMAGE")
         .is_ok_and(|value| value.trim().starts_with("composition:"));
-    let native_plan = std::env::var_os("KEDRA_LAB_NATIVE_PLAN").map(PathBuf::from);
     let derivation_identity = std::env::var("KEDRA_LAB_DERIVATION_IDENTITY").ok();
-    let derivation_source = native_plan.is_some() && derivation_identity.is_some();
-    if native_plan.is_some() != derivation_identity.is_some()
-        || derivation_source && !composition_source
-    {
+    let derivation_source = derivation_identity.is_some();
+    if derivation_source && !composition_source {
         eprintln!(
-            "container tests: native plans require composition source, KEDRA_LAB_NATIVE_PLAN and KEDRA_LAB_DERIVATION_IDENTITY; nothing was provisioned"
+            "container tests: KEDRA_LAB_DERIVATION_IDENTITY requires composition source; nothing was provisioned"
         );
         return ExitCode::from(2);
     }
@@ -400,11 +397,9 @@ fn main() -> ExitCode {
     let execution = execution_id();
     let run_dir = artifact_root().join("runs").join(&execution);
     let preparation = Instant::now();
-    let prepared_image = match (&native_plan, &derivation_identity) {
-        (Some(plan), Some(identity)) => {
-            image::prepare_native_system(&docker, &request, plan, identity)
-        }
-        _ => image::prepare_system(&docker, &request),
+    let prepared_image = match &derivation_identity {
+        Some(identity) => image::prepare_native_system(&docker, &request, identity),
+        None => image::prepare_system(&docker, &request),
     };
     let image = match prepared_image {
         Ok(image) => image,

@@ -1,7 +1,7 @@
 # Runs inside the disposable VM guest with its own python3; uv applies to host-side scripts only.
 """Manual native recovery case in an already prepared, disposable signed A/B VM.
 
-Run after signed B has booted and its v2 journal retains A as native rollback.
+Run after signed B has booted with A retained as the native rollback deployment.
 The guest must use a disposable key, the marker below, and a generated owner's
 existing helper sudo authorization. This intentionally queues real rollback;
 the surrounding VM workflow then boots A and checks retained state. It never
@@ -44,14 +44,14 @@ def cli(*arguments, success=True):
 
 
 before = json.loads(cli('status', '--json').stdout)
-assert before['schema_version'] == 2 and before['enrolled']
-assert before['journal']['identity_health_error'] is None
+assert before['schema_version'] == 3 and before['installed_identity_error'] is None
 assert before['host']['rollback'] and not before['host']['rollback_queued'] and before['host']['staged'] is None
+assert not before['rollback_hold']
 expected_rollback = before['host']['rollback']['digest']
-high_water = before['journal']['high_water']
 path = Path('/usr/share/sysroot/image-identity.json')
 identity = json.loads(path.read_bytes())
-identity['run_attempt'] += 1
+# The booted identity must name the booted image's own source; another revision breaks that binding.
+identity['source_revision'] = 'f' * 40 if identity['source_revision'] != 'f' * 40 else 'e' * 40
 mounted = False
 try:
     with tempfile.TemporaryDirectory(prefix='kedra-native-identity-') as temporary:
@@ -60,19 +60,14 @@ try:
         replacement.chmod(0o600)
         subprocess.run(['/usr/bin/mount', '--bind', str(replacement), str(path)], check=True)
         mounted = True
-        damaged = json.loads(cli('status', '--json', success=False).stdout)
-        assert damaged['state'] == 'identity_mismatch'
-        assert damaged['journal']['high_water'] == high_water
-        assert damaged['journal']['identity_health_error']
-        for operation in ('check', 'enroll', 'stage'):
+        damaged = json.loads(cli('status', '--json').stdout)
+        assert damaged['state'] == 'identity_mismatch' and damaged['installed_identity_error']
+        assert damaged['host'] == before['host'] and not damaged['rollback_hold']
+        for operation in ('check', 'stage'):
             cli(operation, success=False)
         rolled = json.loads(cli('rollback').stdout)
-        assert rolled['host']['rollback_queued']
-        assert rolled['journal']['operation']['target_digest'] == expected_rollback
-        assert rolled['journal']['operation']['phase'] == 'awaiting_reboot'
-        assert rolled['journal']['rollback_hold']
-        assert rolled['journal']['high_water'] == high_water
-        assert rolled['journal']['identity_health_error']
+        assert rolled['host']['rollback_queued'] and rolled['host']['rollback']['digest'] == expected_rollback
+        assert rolled['rollback_hold'] and rolled['installed_identity_error']
         for name, value in [('before', before), ('mismatched', damaged), ('rollback', rolled)]:
             (args.output / (name + '.json')).write_text(json.dumps(value, indent=2) + '\n')
         subprocess.run(['/usr/bin/umount', str(path)], check=True)
@@ -82,8 +77,6 @@ finally:
         subprocess.run(['/usr/bin/umount', str(path)], check=True)
 
 after = json.loads(cli('status', '--json').stdout)
-assert after['journal']['identity_health_error'] is None
-assert after['journal']['high_water'] == high_water and after['journal']['rollback_hold']
-assert after['host']['rollback_queued']
+assert after['installed_identity_error'] is None and after['rollback_hold'] and after['host']['rollback_queued']
 (args.output / 'after-unmount.json').write_text(json.dumps(after, indent=2) + '\n')
-print('PASS: mismatched identity refuses forward work but queues authenticated retained rollback; reboot A next')
+print('PASS: a mismatched booted identity refuses forward work but queues the retained rollback; reboot A next')

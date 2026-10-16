@@ -20,7 +20,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::InvalidHost => "unsupported or malformed bootc host state",
-            Self::InvalidState => "invalid deployment journal; do not reset it",
+            Self::InvalidState => "invalid image digest or deployment state",
             Self::UnverifiedImage => "bootc image lacks container-policy enforcement",
             Self::ScopeMismatch => "bootc deployment is outside the installed target/repository",
             Self::PendingDeployment => {
@@ -185,21 +185,6 @@ pub fn observe(bytes: &[u8], scope: &Scope) -> Result<Host, Error> {
     })
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum OperationKind {
-    Stage,
-    Rollback,
-}
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum Phase {
-    Intent,
-    AwaitingReboot,
-    Booted,
-    NotApplied,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum StageAction {
     AlreadyBooted,
@@ -207,8 +192,8 @@ pub enum StageAction {
     Switch,
 }
 
-/// This preflight is advisory until the caller verifies signed metadata, holds
-/// its management lock, re-observes native state and durably records its intent.
+/// Decide how to stage `digest` from the observed native state. Advisory until the
+/// caller holds its management lock and re-observes native state before bootc runs.
 pub fn stage_action(
     host: &Host,
     digest: &str,

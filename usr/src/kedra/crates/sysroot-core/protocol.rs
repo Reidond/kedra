@@ -2,14 +2,13 @@
 use serde::{Deserialize, Serialize};
 
 pub const MAX_REQUEST: usize = 524_288;
+/// Version of channel requests and of the helper's status response.
+pub const PROTOCOL: u32 = 3;
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
     ChannelCheck {},
     ChannelStatus {},
-    ChannelEnroll {
-        expected_digest: Option<String>,
-    },
     ChannelStage {
         expected_digest: Option<String>,
         replace_staged: Option<String>,
@@ -35,7 +34,7 @@ pub fn decode(bytes: &[u8]) -> Result<Envelope, &'static str> {
         serde_json::from_slice(bytes).map_err(|_| "invalid helper protocol")?;
     // The installer media request keeps the version its fixed request file records.
     let installer = matches!(envelope.request, Request::VerifyInstaller {});
-    if envelope.schema_version != if installer { 1 } else { 2 } {
+    if envelope.schema_version != if installer { 1 } else { PROTOCOL } {
         return Err("unsupported helper protocol version");
     }
     Ok(envelope)

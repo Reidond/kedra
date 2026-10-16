@@ -17,6 +17,7 @@ its org.kedra.events port.
 import argparse
 import json
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -52,12 +53,16 @@ def arguments():
 
 
 def contract(evidence):
-    """The candidate carries the bootc version the release contract names."""
-    expected = json.loads((HERE.parents[2] / 'image/release/compatibility.json').read_bytes())['bootc_version']
+    """The candidate carries at least the bootc version the release contract names."""
+    minimum = json.loads((HERE.parents[2] / 'image/release/compatibility.json').read_bytes())['minimum_bootc_version']
     podman = ('run', '--rm', '--network=none', CANDIDATE)
     disk.podman(*podman, 'bootc', 'container', 'lint', output=evidence / 'final-lint.log')
     actual = disk.podman(*podman, 'rpm', '-q', '--qf', '%{VERSION} %{ARCH}', 'bootc', capture=True)
-    disk.require(actual == f'{expected} aarch64', f'Candidate bootc {actual!r} differs from the contract {expected}')
+    version, _, architecture = actual.partition(' ')
+    numeric = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', version)
+    disk.require(architecture == 'aarch64' and numeric is not None
+                 and tuple(map(int, version.split('.'))) >= tuple(map(int, minimum.split('.'))),
+                 f'Candidate bootc {actual!r} is older than the contract minimum {minimum}')
 
 
 def command(work, generated, accelerator):

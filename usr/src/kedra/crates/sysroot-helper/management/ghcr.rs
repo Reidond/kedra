@@ -1,196 +1,107 @@
 //! Direct signed registry updates. Caller input selects intent, never trust or references.
-use super::{
-    DIRECTORY, RECORD, Result, STORE, Trust, hash, load_trust, lock, observe, oci_cache, process,
-};
+//!
+//! bootc verifies image signatures itself: `bootc switch --enforce-container-sigpolicy`
+//! evaluates the installed strict policy before it fetches the image configuration or
+//! any layer. The helper adds what that policy cannot express: the signed identity's
+//! target and platform, ordering against the booted image (no downgrade), explicit
+//! staging without reboot and the hold that follows a rollback.
+use super::{Result, Trust, hash, lock, observe, output, process};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
-use std::fs::OpenOptions;
-use std::io::{Read, Write};
+use std::collections::BTreeMap;
 use std::os::fd::AsFd;
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::path::Path;
+use std::process::Stdio;
 use std::time::{SystemTime, UNIX_EPOCH};
+use sysroot_core::deployment::{self, Host, StageAction};
+use sysroot_core::image::{self, Identity, Receipt};
 use sysroot_core::protocol::Request;
-use sysroot_core::{
-    deployment::{self, Host, OperationKind, Phase, StageAction},
-    image::{self, Identity, Receipt},
-    targets,
-};
+use sysroot_core::{compatibility, targets};
 use sysroot_linux::{storage::Store, trusted_file};
 
 const IDENTITY: &str = "/usr/share/sysroot/image-identity.json";
 const MATERIAL: &str = "/usr/share/sysroot/resolved-inputs.json";
-const POLICY: &str = "/etc/containers/policy.json";
-static NEXT: AtomicU64 = AtomicU64::new(0);
+const BOOTC: &str = "/usr/bin/bootc";
+const SKOPEO: &str = "/usr/bin/skopeo";
+/// Root-only persistent state. It holds only the rollback hold.
+const STORE: &str = "/var/lib/sysroot/deployment";
+const RECORD: &str = "deployment";
+const STATE_SCHEMA: u32 = 3;
 
 fn now() -> Result<u64> {
     Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-struct Operation {
-    kind: OperationKind,
-    target_digest: String,
-    previous_booted: String,
-    previous_staged: Option<String>,
-    phase: Phase,
-}
-impl Operation {
-    fn observe(&mut self, host: &Host) {
-        self.phase = if host.booted.digest == self.target_digest
-            && host.staged.is_none()
-            && !host.rollback_queued
-        {
-            Phase::Booted
-        } else if host
-            .staged
-            .as_ref()
-            .is_some_and(|s| s.digest == self.target_digest && !s.download_only)
-            || host.rollback_queued
-                && host
-                    .rollback
-                    .as_ref()
-                    .is_some_and(|s| s.digest == self.target_digest)
-        {
-            Phase::AwaitingReboot
-        } else {
-            Phase::NotApplied
-        };
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Journal {
     schema_version: u32,
-    machine: String,
-    scope: sysroot_core::release::Scope,
-    key_fingerprint: String,
-    high_water: Receipt,
     rollback_hold: bool,
-    operation: Option<Operation>,
-    last_registry_check_at: Option<u64>,
-    identity_health_error: Option<String>,
 }
 
-struct Cache(PathBuf);
-impl Cache {
-    fn new() -> Result<Self> {
-        for _ in 0..128 {
-            let path = Path::new(DIRECTORY).join(format!(
-                "registry-{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
-            match std::fs::DirBuilder::new().mode(0o700).create(&path) {
-                Ok(()) => return Ok(Self(path)),
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(error) => return Err(error.into()),
+/// The rollback hold. A missing store means no rollback was ever requested;
+/// unknown or corrupt state is refused, never reset.
+struct Hold {
+    store: Option<(Store, u64)>,
+    held: bool,
+}
+impl Hold {
+    fn load() -> Result<Self> {
+        if !Path::new(STORE).try_exists()? {
+            return Ok(Self {
+                store: None,
+                held: false,
+            });
+        }
+        let store = Store::open(Path::new(STORE))?;
+        let record = store
+            .read(RECORD)?
+            .ok_or("deployment state lacks its record; do not reset it")?;
+        let journal: Journal = serde_json::from_slice(&record.bytes)
+            .map_err(|_| "incompatible deployment state; do not reset it")?;
+        if journal.schema_version != STATE_SCHEMA || serde_json::to_vec(&journal)? != record.bytes {
+            return Err("incompatible deployment state; do not reset it".into());
+        }
+        Ok(Self {
+            store: Some((store, record.revision)),
+            held: journal.rollback_hold,
+        })
+    }
+    fn set(&mut self, held: bool) -> Result<()> {
+        if held == self.held {
+            return Ok(());
+        }
+        let bytes = serde_json::to_vec(&Journal {
+            schema_version: STATE_SCHEMA,
+            rollback_hold: held,
+        })?;
+        match &mut self.store {
+            Some((store, revision)) => {
+                *revision = store
+                    .compare_exchange(RECORD, Some(*revision), &bytes)?
+                    .revision;
             }
+            None => self.store = Some((Store::create(Path::new(STORE), &[(RECORD, &bytes)])?, 1)),
         }
-        Err("cannot reserve private registry cache".into())
-    }
-}
-impl Drop for Cache {
-    fn drop(&mut self) {
-        // A newly reserved, root-private child of the already validated management directory.
-        let _ = std::fs::remove_dir_all(&self.0);
+        self.held = held;
+        Ok(())
     }
 }
 
-fn skopeo_command(arguments: &[&str], seconds: &str) -> Command {
-    let mut command = Command::new("/usr/bin/timeout");
-    command
-        .env_clear()
-        .env("PATH", "/usr/sbin:/usr/bin")
-        .env("HOME", DIRECTORY)
-        .env("LANG", "C.UTF-8")
-        .current_dir("/")
-        .args([
-            "--signal=TERM",
-            "--kill-after=10s",
-            seconds,
-            "/usr/bin/skopeo",
-        ])
-        .args(arguments)
-        .stdin(Stdio::null());
-    command
+/// Registry metadata only: anonymous, TLS-verified and bounded. It authorizes nothing.
+fn registry(arguments: &[&str]) -> Result<Vec<u8>> {
+    let mut all = vec!["inspect", "--no-creds", "--tls-verify=true"];
+    all.extend_from_slice(arguments);
+    output(SKOPEO, &all, 1_048_576)
 }
 
-/// A policy-enforcing copy whose native progress report (stdout) goes to the
-/// caller's terminal on stderr; the helper's stdout stays its response channel.
-fn skopeo_copy(arguments: &[&str], seconds: &str) -> Result<()> {
-    let progress = std::io::stderr().as_fd().try_clone_to_owned()?;
-    let status = skopeo_command(arguments, seconds)
-        .stdout(Stdio::from(progress))
-        .stderr(Stdio::inherit())
-        .status()?;
-    if !status.success() {
-        return Err("signed registry operation failed; no deployment authorized".into());
-    }
-    Ok(())
+#[derive(Deserialize)]
+struct Manifest {
+    config: Descriptor,
 }
-
-fn skopeo(arguments: &[&str], seconds: &str, limit: usize) -> Result<Vec<u8>> {
-    let mut child = skopeo_command(arguments, seconds)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()?;
-    let result = (|| -> Result<Vec<u8>> {
-        let mut bytes = Vec::new();
-        child
-            .stdout
-            .take()
-            .ok_or("registry output unavailable")?
-            .take(limit as u64 + 1)
-            .read_to_end(&mut bytes)?;
-        if bytes.len() > limit {
-            return Err("registry output exceeds bound".into());
-        }
-        if !child.wait()?.success() {
-            return Err("signed registry operation failed; no deployment authorized".into());
-        }
-        Ok(bytes)
-    })();
-    if result.is_err() {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-    result
+#[derive(Deserialize)]
+struct Descriptor {
+    digest: String,
 }
-
-fn resolve(trust: &Trust) -> Result<String> {
-    let cache = Cache::new()?;
-    let auth = cache.0.join("auth.json");
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&auth)?
-        .write_all(b"{}")?;
-    let reference = format!("docker://{}:{}", trust.scope.repository, image::CHANNEL);
-    let bytes = skopeo(
-        &[
-            "inspect",
-            "--raw",
-            "--tls-verify=true",
-            "--authfile",
-            auth.to_str().ok_or("cache path invalid")?,
-            &reference,
-        ],
-        "60s",
-        1_048_576,
-    )?;
-    let value: serde_json::Value = serde_json::from_slice(&bytes)?;
-    if value.get("manifests").is_some() || !value.get("config").is_some_and(|v| v.is_object()) {
-        return Err("stable must identify one signed platform manifest, not an index".into());
-    }
-    Ok(format!("sha256:{}", hash(&bytes)))
-}
-
 #[derive(Deserialize)]
 struct Config {
     architecture: String,
@@ -203,9 +114,61 @@ struct Runtime {
     labels: BTreeMap<String, String>,
 }
 
-fn installed(trust: &Trust) -> Result<(Identity, Vec<u8>)> {
-    let bytes = trusted_file::read(Path::new(IDENTITY), 0, image::MAX_IDENTITY)?;
-    let identity: Identity = serde_json::from_slice(&bytes)?;
+/// stable's digest, computed here from its manifest bytes, and that manifest's
+/// configuration digest. An index is refused: deployment needs one platform image.
+fn resolve(trust: &Trust) -> Result<(String, String)> {
+    let reference = format!("docker://{}:{}", trust.scope.repository, image::CHANNEL);
+    let bytes = registry(&["--raw", &reference])?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes)?;
+    if value.get("manifests").is_some() {
+        return Err("stable must identify one signed platform manifest, not an index".into());
+    }
+    let manifest: Manifest = serde_json::from_value(value)?;
+    Ok((format!("sha256:{}", hash(&bytes)), manifest.config.digest))
+}
+
+/// The identity label of `digest`, from a configuration whose hash is checked here
+/// against the manifest that the digest names: the label belongs to the exact image
+/// bootc later verifies and stages. No signature is checked here.
+fn candidate(trust: &Trust, digest: &str, config_digest: &str) -> Result<Receipt> {
+    if !deployment::digest_valid(digest) || !deployment::digest_valid(config_digest) {
+        return Err("invalid image digest".into());
+    }
+    let reference = format!("docker://{}@{digest}", trust.scope.repository);
+    let raw = registry(&["--raw", "--config", &reference])?;
+    if format!("sha256:{}", hash(&raw)) != config_digest {
+        return Err("image configuration differs from its manifest".into());
+    }
+    let config: Config = serde_json::from_slice(&raw)?;
+    if config.os != "linux"
+        || targets::oci_architecture(&trust.scope.architecture)
+            != Some(config.architecture.as_str())
+    {
+        return Err("image platform differs from the installed target".into());
+    }
+    let label = config
+        .config
+        .labels
+        .get(image::LABEL)
+        .ok_or("image identity label missing")?;
+    if label.len() > image::MAX_IDENTITY {
+        return Err("image identity label exceeds its bound".into());
+    }
+    let identity: Identity = serde_json::from_str(label)?;
+    identity.validate(&trust.scope, now()?)?;
+    Ok(Receipt {
+        digest: digest.to_owned(),
+        identity,
+    })
+}
+
+/// The booted image's identity file, bound to its installed source and resolved inputs.
+fn booted_identity(trust: &Trust) -> Result<Identity> {
+    let identity: Identity = serde_json::from_slice(&trusted_file::read(
+        Path::new(IDENTITY),
+        0,
+        image::MAX_IDENTITY,
+    )?)?;
     identity.validate(&trust.scope, now()?)?;
     if identity.source_revision != trust.source_revision
         || identity.source_manifest_sha256 != trust.source_manifest_hash
@@ -217,231 +180,71 @@ fn installed(trust: &Trust) -> Result<(Identity, Vec<u8>)> {
     {
         return Err("installed source/material differs from image identity".into());
     }
-    Ok((identity, bytes))
+    Ok(identity)
 }
 
-/// Digests whose transferred layers stay cached: the native deployments and
-/// the journal's operation. Anything else is pruned after the next copy.
-fn cached(host: &Host, journal: Option<&Journal>) -> BTreeSet<String> {
-    let mut digests: BTreeSet<String> = [
-        Some(&host.booted),
-        host.staged.as_ref(),
-        host.rollback.as_ref(),
-    ]
-    .into_iter()
-    .flatten()
-    .map(|slot| slot.digest.clone())
-    .collect();
-    if let Some(operation) = journal.and_then(|j| j.operation.as_ref()) {
-        digests.insert(operation.target_digest.clone());
-        digests.insert(operation.previous_booted.clone());
-        digests.extend(operation.previous_staged.clone());
-    }
-    digests.retain(|digest| deployment::digest_valid(digest));
-    digests
-}
-
-fn authenticate(
-    digest: &str,
-    trust: &Trust,
-    booted: bool,
-    retained: &BTreeSet<String>,
-) -> Result<Receipt> {
-    if !deployment::digest_valid(digest) {
-        return Err("invalid expected image digest".into());
-    }
-    let cache = Cache::new()?;
-    let auth = cache.0.join("auth.json");
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&auth)?
-        .write_all(b"{}")?;
-    let source = format!("docker://{}@{digest}", trust.scope.repository);
-    // Keep this digest even if its identity is refused below, so a repeated
-    // refusal does not transfer it again. Other images go before the transfer,
-    // so a failed one (for example on a full disk) never leaves them in place.
-    let mut keep = retained.clone();
-    keep.insert(digest.to_owned());
-    oci_cache::prepare(&keep)?;
-    let target = oci_cache::reference(digest)?;
-    // Full native policy enforcement, including missing/wrong signatures, precedes metadata use.
-    // The OCI layout destination cannot store signatures, so they are verified, not copied.
-    eprintln!(
-        "sysroot-helper: transferring {source} to verify its signature and identity; \
-         the first transfer downloads the whole image, later ones reuse cached layers \
-         and fetch only new ones"
-    );
-    skopeo_copy(
-        &[
-            "--policy",
-            POLICY,
-            "copy",
-            "--authfile",
-            auth.to_str().ok_or("cache path invalid")?,
-            "--src-tls-verify=true",
-            "--preserve-digests",
-            "--remove-signatures",
-            &source,
-            &target,
-        ],
-        "30m",
-    )?;
-    eprintln!("sysroot-helper: signature verified; checking the signed image identity");
-    let read_back = (|| -> Result<Vec<u8>> {
-        let manifest = skopeo(&["inspect", "--raw", &target], "30s", 1_048_576)?;
-        if format!("sha256:{}", hash(&manifest)) != digest {
-            return Err("verified cache manifest digest differs".into());
-        }
-        // containers/image rejects a config whose digest differs from this manifest.
-        skopeo(&["inspect", "--config", &target], "30s", 1_048_576)
-    })();
-    let raw = match read_back {
-        Ok(raw) => raw,
-        Err(error) => {
-            if let Err(cleanup) =
-                oci_cache::discard("layout read-back failed after a verified copy")
-            {
-                eprintln!("sysroot-helper: {cleanup}");
-            }
-            return Err(error);
-        }
+/// stable's image, refused unless its identity is in scope and not older than the
+/// booted image. bootc would deploy any validly signed digest, including older ones.
+fn available(trust: &Trust, host: &Host) -> Result<Receipt> {
+    let booted = Receipt {
+        digest: host.booted.digest.clone(),
+        identity: booted_identity(trust)?,
     };
-    // Unreferenced layers, including those of an interrupted copy, go too.
-    oci_cache::prune(&keep)?;
-    let config: Config = serde_json::from_slice(&raw)?;
-    if config.os != "linux"
-        || targets::oci_architecture(&trust.scope.architecture)
-            != Some(config.architecture.as_str())
-    {
-        return Err("signed image platform differs".into());
-    }
-    let label = config
-        .config
-        .labels
-        .get(image::LABEL)
-        .ok_or("signed image identity label missing")?;
-    if label.len() > image::MAX_IDENTITY {
-        return Err("signed identity label exceeds bound".into());
-    }
-    let identity: Identity = serde_json::from_str(label)?;
-    identity.validate(&trust.scope, now()?)?;
-    if booted {
-        let (local, bytes) = installed(trust)?;
-        if identity != local || label.as_bytes() != bytes {
-            return Err("booted image label and installed identity file differ".into());
-        }
-    }
-    Ok(Receipt {
-        digest: digest.to_owned(),
-        identity,
-    })
+    let (digest, config_digest) = resolve(trust)?;
+    let candidate = candidate(trust, &digest, &config_digest)?;
+    candidate.follows(&booted)?;
+    Ok(candidate)
 }
 
-fn receipt_name(digest: &str) -> Result<String> {
-    if !deployment::digest_valid(digest) {
-        return Err("bad receipt digest".into());
+fn state(
+    identity_valid: bool,
+    held: bool,
+    host: &Host,
+    available: Option<&Receipt>,
+) -> &'static str {
+    if !identity_valid {
+        return "identity_mismatch";
     }
-    Ok(format!("image.{}", &digest[7..]))
-}
-fn retain(store: &mut Store, receipt: &Receipt) -> Result<()> {
-    let name = receipt_name(&receipt.digest)?;
-    let bytes = serde_json::to_vec(receipt)?;
-    if let Some(prior) = store.read(&name)? {
-        if prior.bytes != bytes {
-            return Err("retained image receipt differs".into());
-        }
-    } else {
-        store.compare_exchange(&name, None, &bytes)?;
+    if held || host.rollback_queued {
+        return "held";
     }
-    Ok(())
-}
-fn recorded(store: &Store, digest: &str, trust: &Trust) -> Result<Receipt> {
-    let record = store
-        .read(&receipt_name(digest)?)?
-        .ok_or("signed image receipt missing; explicit enrollment is required")?;
-    let receipt: Receipt = serde_json::from_slice(&record.bytes)?;
-    receipt.validate(&trust.scope, now()?)?;
-    if receipt.digest != digest || serde_json::to_vec(&receipt)? != record.bytes {
-        return Err("image receipt is inconsistent".into());
+    let Some(candidate) = available else {
+        return if host.staged.is_some() {
+            "staged"
+        } else {
+            "booted"
+        };
+    };
+    match &host.staged {
+        Some(staged) if staged.digest != candidate.digest => "pending_other_deployment",
+        Some(staged) if staged.download_only => "downloaded",
+        Some(_) => "staged",
+        None if host.booted.digest == candidate.digest => "current",
+        None => "available",
     }
-    Ok(receipt)
 }
 
-fn save(store: &mut Store, revision: u64, journal: &Journal) -> Result<u64> {
-    Ok(store
-        .compare_exchange(RECORD, Some(revision), &serde_json::to_vec(journal)?)?
-        .revision)
-}
-fn load(store: &Store, trust: &Trust) -> Result<(u64, Journal)> {
-    let record = store
-        .read(RECORD)?
-        .ok_or("deployment journal missing; do not reset")?;
-    let journal: Journal = serde_json::from_slice(&record.bytes)
-        .map_err(|_| "incompatible image deployment state; do not reset")?;
-    if journal.schema_version != 2
-        || journal.machine != trust.machine
-        || journal.scope != trust.scope
-        || journal.key_fingerprint != sysroot_core::release::public_key_fingerprint(&trust.key)?
-        || serde_json::to_vec(&journal)? != record.bytes
-    {
-        return Err("incompatible image deployment state".into());
-    }
-    journal.high_water.validate(&trust.scope, now()?)?;
-    if let Some(op) = &journal.operation
-        && (!deployment::digest_valid(&op.target_digest)
-            || !deployment::digest_valid(&op.previous_booted)
-            || op
-                .previous_staged
-                .as_ref()
-                .is_some_and(|d| !deployment::digest_valid(d)))
-    {
-        return Err("invalid deployment operation".into());
-    }
-    Ok((record.revision, journal))
-}
-fn matches_booted(store: &Store, host: &Host, trust: &Trust) -> Result<()> {
-    let receipt = recorded(store, &host.booted.digest, trust)?;
-    if receipt.identity != installed(trust)?.0 {
-        return Err("booted image differs from retained identity".into());
-    }
-    Ok(())
-}
 fn response(
     trust: &Trust,
     host: &Host,
-    journal: Option<&Journal>,
+    held: bool,
     available: Option<&Receipt>,
     checked: bool,
 ) -> Result<()> {
     let time = now()?;
-    let identity = installed(trust).ok().map(|(identity, _)| identity);
-    let held = journal.is_some_and(|j| j.rollback_hold) || host.rollback_queued;
-    let state = if journal.is_some_and(|j| j.identity_health_error.is_some()) {
-        "identity_mismatch"
-    } else if held {
-        "held"
-    } else if journal.is_none() {
-        "enrollment_required"
-    } else if let Some(candidate) = available {
-        if let Some(staged) = &host.staged {
-            if staged.digest != candidate.digest {
-                "pending_other_deployment"
-            } else if staged.download_only {
-                "downloaded"
-            } else {
-                "staged"
-            }
-        } else if host.booted.digest == candidate.digest {
-            "current"
-        } else {
-            "available"
-        }
-    } else if host.staged.is_some() {
-        "staged"
-    } else {
-        "booted"
+    let identity = booted_identity(trust);
+    let state = state(identity.is_ok(), held, host, available);
+    // bootc verified a digest's signature when it deployed it as the booted or staged image.
+    let deployed = available.is_some_and(|candidate| {
+        host.booted.digest == candidate.digest
+            || host
+                .staged
+                .as_ref()
+                .is_some_and(|s| s.digest == candidate.digest && !s.download_only)
+    });
+    let (identity, identity_error) = match identity {
+        Ok(identity) => (Some(identity), None),
+        Err(error) => (None, Some(error.to_string())),
     };
     let resolution = available
         .map(|r| r.identity.resolved_at)
@@ -449,12 +252,11 @@ fn response(
     println!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
-            "schema_version":2,"kind":"signed_image_status","state":state,"enrolled":journal.is_some(),
+            "schema_version":sysroot_core::protocol::PROTOCOL,"kind":"signed_image_status","state":state,
             "scope":trust.scope,"channel":format!("{}:{}",trust.scope.repository,image::CHANNEL),
-            "host":host,"installed_identity":identity,"journal":journal,"available":available,
-        "registry_checked":checked,"signature_verified":checked,
-        "booted_receipt_verified":journal.is_some_and(|j|j.identity_health_error.is_none()),
-            "freshness":{"registry_checked_at":if checked{Some(time)}else{journal.and_then(|j|j.last_registry_check_at)},
+            "host":host,"installed_identity":identity,"installed_identity_error":identity_error,
+            "rollback_hold":held,"available":available,"registry_checked":checked,"signature_verified":deployed,
+            "freshness":{"registry_checked_at":checked.then_some(time),
             "signed_resolution_at":resolution,"resolution_age_seconds":resolution.map(|r|time.saturating_sub(r)),
             "resolution_stale_warning":resolution.map(|r|time.saturating_sub(r)>36*3600),"latest_upstream_resolution_proven":false},
             "reboot_performed":false,"activation_performed":false,"home_reconciliation_checked":false
@@ -463,150 +265,79 @@ fn response(
     Ok(())
 }
 
-fn check_enrollment_preconditions(before: &Host, expected_digest: Option<&str>) -> Result<()> {
-    if before.staged.is_some() || before.rollback_queued {
-        return Err("enrollment requires no pending deployment or queued rollback".into());
-    }
-    if expected_digest.is_some_and(|d| d != before.booted.digest) {
-        return Err("booted digest differs from explicit enrollment expectation".into());
-    }
-    // Store::create refuses any existing entry; refuse before transferring the image
-    // or pruning layers that an existing journal's operation still needs.
-    match std::fs::symlink_metadata(STORE) {
-        Ok(_) => return Err("already enrolled; use update status or check".into()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
-        Err(error) => return Err(error.into()),
-    }
-    Ok(())
+/// bootc with its progress on the caller's terminal; stdout stays the response channel.
+fn bootc(arguments: &[&str]) -> Result<bool> {
+    Ok(process(BOOTC, "30m", arguments)
+        .stdout(Stdio::from(std::io::stderr().as_fd().try_clone_to_owned()?))
+        .stderr(Stdio::inherit())
+        .status()?
+        .success())
 }
-fn enroll(trust: &Trust, before: &Host, expected_digest: Option<&str>) -> Result<()> {
-    check_enrollment_preconditions(before, expected_digest)?;
-    let booted = authenticate(&before.booted.digest, trust, true, &cached(before, None))?;
+
+fn check(trust: &Trust, before: &Host, held: bool) -> Result<()> {
+    let available = available(trust, before)?;
     if observe(&trust.scope)? != *before {
-        return Err("native deployment changed during enrollment".into());
+        return Err("native deployment changed during check".into());
     }
-    let journal = Journal {
-        schema_version: 2,
-        machine: trust.machine.clone(),
-        scope: trust.scope.clone(),
-        key_fingerprint: sysroot_core::release::public_key_fingerprint(&trust.key)?,
-        high_water: booted.clone(),
-        rollback_hold: false,
-        operation: None,
-        last_registry_check_at: Some(now()?),
-        identity_health_error: None,
-    };
-    let bytes = serde_json::to_vec(&journal)?;
-    let receipt = serde_json::to_vec(&booted)?;
-    Store::create(
-        Path::new(STORE),
-        &[(RECORD, &bytes), (&receipt_name(&booted.digest)?, &receipt)],
-    )?;
-    response(trust, before, Some(&journal), None, false)
-}
-fn check_unenrolled(trust: &Trust, before: &Host) -> Result<()> {
-    installed(trust)?;
-    let digest = resolve(trust)?;
-    let available = authenticate(&digest, trust, false, &cached(before, None))?;
-    if resolve(trust)? != digest || observe(&trust.scope)? != *before {
-        return Err("channel or deployment changed during check".into());
-    }
-    response(trust, before, None, Some(&available), true)
+    response(trust, before, held, Some(&available), true)
 }
 
-/// Loads the journal and records the observed operation phase and booted identity health.
-fn reconcile(store: &mut Store, before: &Host, trust: &Trust) -> Result<(u64, Journal)> {
-    let (mut revision, mut journal) = load(store, trust)?;
-    let old = journal.operation.clone();
-    if let Some(op) = &mut journal.operation {
-        op.observe(before);
-    }
-    let identity_error = matches_booted(store, before, trust)
-        .err()
-        .map(|error| error.to_string());
-    let health_changed = journal.identity_health_error != identity_error;
-    journal.identity_health_error = identity_error;
-    if old != journal.operation || health_changed {
-        revision = save(store, revision, &journal)?;
-    }
-    Ok((revision, journal))
-}
-fn verify_channel(journal: &Journal, before: &Host, trust: &Trust) -> Result<Receipt> {
-    let digest = resolve(trust)?;
-    let available = authenticate(
-        &digest,
-        trust,
-        digest == before.booted.digest,
-        &cached(before, Some(journal)),
-    )?;
-    available.follows(&journal.high_water)?;
-    if resolve(trust)? != digest || observe(&trust.scope)? != *before {
-        return Err("channel or deployment changed during verification".into());
-    }
-    Ok(available)
-}
-fn record_check(
-    store: &mut Store,
-    revision: u64,
-    journal: &mut Journal,
-    before: &Host,
+fn stage(
     trust: &Trust,
-) -> Result<()> {
-    let available = verify_channel(journal, before, trust)?;
-    // A verified observation advances replay protection, never a deployment slot.
-    retain(store, &available)?;
-    journal.high_water = available.clone();
-    journal.last_registry_check_at = Some(now()?);
-    save(store, revision, journal)?;
-    response(trust, before, Some(journal), Some(&available), true)
-}
-
-/// The native deployment a verified request authorizes once its intent is recorded.
-struct Plan {
-    kind: OperationKind,
-    target: String,
-    should_run: bool,
-}
-fn plan_stage(
-    store: &mut Store,
-    journal: &mut Journal,
     before: &Host,
-    trust: &Trust,
+    hold: &mut Hold,
     expected_digest: Option<&str>,
     replace_staged: Option<&str>,
     resume: bool,
-) -> Result<Plan> {
-    let available = verify_channel(journal, before, trust)?;
-    let digest = available.digest.clone();
-    if expected_digest.is_some_and(|d| d != digest) {
-        return Err("channel digest differs from explicit expectation".into());
+) -> Result<()> {
+    let available = available(trust, before)?;
+    if expected_digest.is_some_and(|digest| digest != available.digest) {
+        return Err("stable's digest differs from the explicit expectation".into());
     }
-    let action = deployment::stage_action(
-        before,
-        &digest,
-        replace_staged,
-        journal.rollback_hold,
-        resume,
-    )?;
-    retain(store, &available)?;
-    journal.high_water = available;
-    journal.last_registry_check_at = Some(now()?);
+    let action =
+        deployment::stage_action(before, &available.digest, replace_staged, hold.held, resume)?;
+    if action == StageAction::Switch {
+        if observe(&trust.scope)? != *before {
+            return Err("native deployment changed before staging".into());
+        }
+        let reference = format!("{}@{}", trust.scope.repository, available.digest);
+        eprintln!(
+            "sysroot-helper: staging {reference}; bootc verifies its signature with the \
+             installed policy and fetches only layers it does not already have"
+        );
+        if !bootc(&["switch", "--enforce-container-sigpolicy", &reference])? {
+            return Err(
+                "bootc refused or could not stage the image; inspect `sysroot update status`"
+                    .into(),
+            );
+        }
+    }
+    let after = observe(&trust.scope)?;
+    let deployed = if action == StageAction::AlreadyBooted {
+        after.booted.digest == available.digest && after.staged.is_none()
+    } else {
+        after
+            .staged
+            .as_ref()
+            .is_some_and(|s| s.digest == available.digest && !s.download_only)
+    };
+    if !deployed {
+        return Err(
+            "bootc did not stage the verified digest; inspect `sysroot update status`".into(),
+        );
+    }
     if resume {
-        journal.rollback_hold = false;
+        hold.set(false)?;
     }
-    Ok(Plan {
-        kind: OperationKind::Stage,
-        target: digest,
-        should_run: action == StageAction::Switch,
-    })
+    response(trust, &after, hold.held, Some(&available), true)
 }
-fn plan_rollback(
-    store: &Store,
-    journal: &mut Journal,
-    before: &Host,
+
+fn rollback(
     trust: &Trust,
+    before: &Host,
+    hold: &mut Hold,
     replace_staged: Option<&str>,
-) -> Result<Plan> {
+) -> Result<()> {
     let slot = before
         .rollback
         .as_ref()
@@ -614,92 +345,28 @@ fn plan_rollback(
     if slot.download_only {
         return Err("rollback slot is download-only".into());
     }
-    if before
-        .staged
-        .as_ref()
-        .is_some_and(|s| replace_staged != Some(&s.digest))
-        || before.staged.is_none() && replace_staged.is_some()
-    {
+    if before.staged.as_ref().map(|s| s.digest.as_str()) != replace_staged {
         return Err("explicit pending digest replacement is required".into());
     }
-    // Receipt was authenticated before staging/enrollment, so retained rollback works offline.
-    recorded(store, &slot.digest, trust)?;
-    journal.rollback_hold = true;
-    Ok(Plan {
-        kind: OperationKind::Rollback,
-        target: slot.digest.clone(),
-        should_run: !before.rollback_queued,
-    })
-}
-fn run_bootc(kind: &OperationKind, reference: &str) -> Result<bool> {
-    let arguments = match kind {
-        OperationKind::Stage => vec!["switch", "--enforce-container-sigpolicy", reference],
-        OperationKind::Rollback => vec!["rollback"],
-    };
-    if matches!(kind, OperationKind::Stage) {
-        eprintln!(
-            "sysroot-helper: staging {reference} with bootc; it fetches only layers it does not already have"
-        );
+    // bootc verified the retained deployment when it deployed it. Hold forward
+    // updates first, so an interrupted rollback still leaves them held.
+    hold.set(true)?;
+    if !before.rollback_queued {
+        if observe(&trust.scope)? != *before {
+            return Err("native deployment changed before rollback; updates are held".into());
+        }
+        if !bootc(&["rollback"])? {
+            return Err("bootc could not queue the rollback; updates are held".into());
+        }
     }
-    // bootc's own progress and messages go to the caller's terminal.
-    Ok(process("30m", &arguments)
-        .stdout(Stdio::from(std::io::stderr().as_fd().try_clone_to_owned()?))
-        .stderr(Stdio::inherit())
-        .status()?
-        .success())
-}
-fn deploy(
-    store: &mut Store,
-    mut revision: u64,
-    journal: &mut Journal,
-    before: &Host,
-    trust: &Trust,
-    plan: Plan,
-) -> Result<()> {
-    let Plan {
-        kind,
-        target,
-        should_run,
-    } = plan;
-    if observe(&trust.scope)? != *before {
-        return Err("native deployment changed before intent".into());
-    }
-    journal.operation = Some(Operation {
-        kind: kind.clone(),
-        target_digest: target.clone(),
-        previous_booted: before.booted.digest.clone(),
-        previous_staged: before.staged.as_ref().map(|s| s.digest.clone()),
-        phase: Phase::Intent,
-    });
-    revision = save(store, revision, journal)?;
-    let reference = format!("{}@{target}", trust.scope.repository);
-    let result = if should_run {
-        run_bootc(&kind, &reference)?
-    } else {
-        true
-    };
     let after = observe(&trust.scope)?;
-    let operation = journal
-        .operation
-        .as_mut()
-        .ok_or("missing deployment intent")?;
-    operation.observe(&after);
-    let completed = matches!(operation.phase, Phase::AwaitingReboot | Phase::Booted);
-    save(store, revision, journal)?;
-    response(trust, &after, Some(journal), None, false)?;
-    if !result || !completed {
-        return Err("native deployment incomplete; inspect recorded status before retrying".into());
+    if !after.rollback_queued || after.rollback.as_ref() != Some(slot) {
+        return Err("bootc did not queue the retained rollback; updates are held".into());
     }
-    Ok(())
+    response(trust, &after, hold.held, None, false)
 }
 
-pub(super) fn run(request: Request) -> Result<()> {
-    if rustix::process::getuid().as_raw() != 0 || rustix::process::geteuid().as_raw() != 0 {
-        return Err(
-            "installed registry management requires explicit administrator authorization".into(),
-        );
-    }
-    let trust = load_trust()?;
+pub(super) fn run(request: Request, trust: &Trust) -> Result<()> {
     // The scope must be an enabled production target built for this helper's own architecture.
     if targets::enabled(&trust.scope.target, &trust.scope.architecture)
         .is_none_or(|spec| spec.repository != trust.scope.repository)
@@ -708,63 +375,27 @@ pub(super) fn run(request: Request) -> Result<()> {
         return Err("no direct channel configured for installed scope".into());
     }
     let _lock = lock()?;
-    if super::output(&["--version"], 4096)?.as_slice()
-        != sysroot_core::compatibility::bootc_output()?.as_bytes()
-    {
-        return Err("installed bootc version is not qualified".into());
-    }
+    compatibility::require_bootc(&output(BOOTC, &["--version"], 4096)?)?;
     let before = observe(&trust.scope)?;
-    if let Request::ChannelEnroll { expected_digest } = request {
-        return enroll(&trust, &before, expected_digest.as_deref());
-    }
-    if matches!(
-        request,
-        Request::ChannelStatus {} | Request::ChannelCheck {}
-    ) && !Path::new(STORE).try_exists()?
-    {
-        if matches!(request, Request::ChannelCheck {}) {
-            return check_unenrolled(&trust, &before);
-        }
-        return response(&trust, &before, None, None, false);
-    }
-    let mut store = Store::open(Path::new(STORE))?;
-    let (revision, mut journal) = reconcile(&mut store, &before, &trust)?;
-    // A bad current identity cannot authorize forward work. Recovery is different:
-    // the retained rollback receipt and native rollback slot authorize only that slot.
-    if journal.identity_health_error.is_some()
-        && !matches!(request, Request::ChannelRollback { .. })
-    {
-        response(&trust, &before, Some(&journal), None, false)?;
-        return Err("booted identity health failed; high-water preserved, inspect status and recover explicitly".into());
-    }
-    let plan = match request {
-        Request::ChannelStatus {} => {
-            return response(&trust, &before, Some(&journal), None, false);
-        }
-        Request::ChannelCheck {} => {
-            return record_check(&mut store, revision, &mut journal, &before, &trust);
-        }
+    let mut hold = Hold::load()?;
+    match request {
+        Request::ChannelStatus {} => response(trust, &before, hold.held, None, false),
+        Request::ChannelCheck {} => check(trust, &before, hold.held),
         Request::ChannelStage {
             expected_digest,
             replace_staged,
             resume,
-        } => plan_stage(
-            &mut store,
-            &mut journal,
+        } => stage(
+            trust,
             &before,
-            &trust,
+            &mut hold,
             expected_digest.as_deref(),
             replace_staged.as_deref(),
             resume,
-        )?,
-        Request::ChannelRollback { replace_staged } => plan_rollback(
-            &store,
-            &mut journal,
-            &before,
-            &trust,
-            replace_staged.as_deref(),
-        )?,
-        _ => return Err("unsupported direct registry operation".into()),
-    };
-    deploy(&mut store, revision, &mut journal, &before, &trust, plan)
+        ),
+        Request::ChannelRollback { replace_staged } => {
+            rollback(trust, &before, &mut hold, replace_staged.as_deref())
+        }
+        Request::VerifyInstaller {} => Err("unsupported direct registry operation".into()),
+    }
 }

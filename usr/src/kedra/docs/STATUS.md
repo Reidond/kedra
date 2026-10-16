@@ -18,11 +18,15 @@ arm64): a `KEDRA_LAB_IMAGE=build` qemu-arm64 image passes the full container
 harness (13/13); a local replay of the release build job for qemu-arm64
 (foundation, catalog packages, compose, derive, transfer) passes the installed
 `native::catalog` case, `bootc container lint` and the full harness (13/13); the
-ignored `e2e_native` fixture and `native::native_artifacts` pass. Desktop on
-x86_64 is partial: under qemu-user emulation an x86_64 engine resolves the
-desktop RPM lock, but the foundation's RPM install failed there, so the desktop
-image, its derivation and harness are `not-run` until the first release run on
-the native x86_64 runner. No release run, boot, installation or publication
+ignored `e2e_native` fixture and `native::native_artifacts` pass. After the bubblewrap
+sandbox merged, the full container harness passes 14/14 on a qemu-arm64 image
+built foundation → compose (sandboxed foundation observation) → derive. Desktop
+on x86_64 is partial: under qemu-user emulation an x86_64 engine resolves the
+desktop RPM lock and the desktop foundation builds (offline RPM install,
+Bitwarden x64 libraries, niri/Noctalia validation, os-release, `sysroot
+--version`), but composing it in the emulated engine stopped inside the sandboxed
+foundation observation, so the desktop image, its derivation and harness are
+`not-run` until the first release run on the native x86_64 runner. No release run, boot, installation or publication
 follows from these results.
 
 ## Daemonless engine sandbox (2026-10-15)

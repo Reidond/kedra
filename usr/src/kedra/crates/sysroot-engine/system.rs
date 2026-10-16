@@ -498,9 +498,13 @@ impl Store {
                 "system-foundation-check".into(),
             ];
             for file in chunk {
+                // The probe runs in the foundation's sealed image root, which keeps
+                // every mode bit except write (rootfs::seal), so it compares the
+                // mode without write bits; realizing the composition re-checks the
+                // exact mode in the loaded image (native_image check_foundation_paths).
                 argv.extend([
                     file.path.clone(),
-                    format!("{:o}", file.mode),
+                    format!("{:o}", file.mode & 0o7555),
                     file.sha256.clone(),
                 ]);
             }

@@ -221,7 +221,7 @@ write() {
 language 1;
 namespace "shadowing";
 foundation system { fedora = 44; packages = ["bash"]; }
-builder shell { base = system; packages = ["bash"]; }
+builder tools { base = system; packages = ["bash"]; }
 package demo(builder: Builder, runtime: Foundation) {
     version = "1"; summary = "Shadowing fixture"; license = "MIT";
     source = files { "message" = text "kedra-shadowing\n"; };
@@ -234,7 +234,7 @@ package demo(builder: Builder, runtime: Foundation) {
     export command "$1" = "bin/$1";
     $2
 }
-target "fixture" { foundation = system; packages = [demo(builder: shell, runtime: system)]; }
+target "fixture" { foundation = system; packages = [demo(builder: tools, runtime: system)]; }
 KEDRA
 }
 build() {

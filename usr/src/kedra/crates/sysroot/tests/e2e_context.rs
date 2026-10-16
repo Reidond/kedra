@@ -473,10 +473,10 @@ fn killed_context_copy_recovers_without_removing_a_stopped_reader() {
     );
 }
 
-fn graph(source: &str, foundation: &str, builder: &str) -> BuildGraph {
+fn graph(source: &str, runtime: &str, builder: &str) -> BuildGraph {
     let library = BuildNode {
         builder_root: builder.into(),
-        runtime_image: foundation.into(),
+        runtime_root: runtime.into(),
         inputs: BTreeMap::from([("source".into(), Input::Object(source.into()))]),
         argv: vec![
             Argument::literal("/bin/sh"),
@@ -490,7 +490,7 @@ fn graph(source: &str, foundation: &str, builder: &str) -> BuildGraph {
     };
     let app = BuildNode {
         builder_root: builder.into(),
-        runtime_image: foundation.into(),
+        runtime_root: runtime.into(),
         inputs: BTreeMap::from([
             ("source".into(), Input::Object(source.into())),
             ("library".into(), Input::Node("library".into())),
@@ -598,16 +598,17 @@ fn compose(f: &Fixture) -> Value {
         .as_str()
         .unwrap()
         .to_owned();
+    // The foundation's own root holds exactly its RPM material.
+    let runtime = f.store("add-root", &["--image", &f.foundation])["root"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let source = package_source(f);
     let admitted = f.store("add-source", &["--source", text(&source)]);
     let graph_path = f.producer("build.json");
     write_json(
         &graph_path,
-        &graph(
-            admitted["object"].as_str().unwrap(),
-            &f.foundation,
-            &builder,
-        ),
+        &graph(admitted["object"].as_str().unwrap(), &runtime, &builder),
     );
     let built = json_output(run(f
         .cli(&["build", "--store"])

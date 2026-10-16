@@ -228,7 +228,7 @@ fn copy_artifact(
 fn validate_plan(composition: &SystemComposition, expected: &str) -> Result<()> {
     let plan = &composition.plan;
     if composition.schema != 1
-        || plan.schema != 1
+        || plan.schema != 2
         || composition.identity != expected
         || plan.identity != expected
     {
@@ -280,6 +280,7 @@ fn validate_plan(composition: &SystemComposition, expected: &str) -> Result<()> 
         return Err(invalid("foundation archive receipt differs"));
     }
     verify_observation(plan)?;
+    verify_runtimes(plan)?;
     verify_closure(plan)?;
     for file in &plan.files {
         system::validate_system_path(&file.path)?;
@@ -360,6 +361,39 @@ fn verify_observation(plan: &SystemPlan) -> Result<()> {
     }
     Ok(())
 }
+/// Each recorded runtime root is used, is the identity of its recipe and holds
+/// exactly the foundation's RPM material.
+fn verify_runtimes(plan: &SystemPlan) -> Result<()> {
+    let used: BTreeSet<&String> = plan
+        .objects
+        .values()
+        .filter_map(|receipt| receipt.runtime_root.as_ref())
+        .collect();
+    if plan.runtimes.len() > 256 || used.len() != plan.runtimes.len() {
+        return Err(invalid("runtime root records differ from the objects"));
+    }
+    for (id, runtime) in &plan.runtimes {
+        let recipe = &runtime.recipe;
+        let locked = recipe.rpms.as_ref().map(|rpms| {
+            rpms.packages
+                .iter()
+                .map(|row| format!("{}\n", row.join("\t")))
+                .collect::<String>()
+        });
+        if !used.contains(id)
+            || crate::rootfs::root_identity(recipe)? != *id
+            || recipe.schema != 1
+            || recipe.platform != PLATFORM
+            || runtime.rpm_sha256 != plan.foundation.rpm_sha256
+            || locked.is_some_and(|rows| rows != plan.foundation.rpm_inventory)
+        {
+            return Err(invalid(
+                "runtime root differs from the foundation RPM material",
+            ));
+        }
+    }
+    Ok(())
+}
 fn verify_closure(plan: &SystemPlan) -> Result<()> {
     if plan.objects.len() > 100_000 || plan.files.len() > 10_000 {
         return Err(invalid("plan exceeds entry limits"));
@@ -378,9 +412,9 @@ fn verify_closure(plan: &SystemPlan) -> Result<()> {
                 return Err(invalid("missing runtime reference"));
             }
         }
-        match (&receipt.derivation, &receipt.runtime_image) {
+        match (&receipt.derivation, &receipt.runtime_root) {
             (None, None) if *id == format!("src-{}", receipt.tree_sha256) => {}
-            (Some(spec), Some(image)) if image == &plan.definition.foundation => {
+            (Some(spec), Some(runtime)) if plan.runtimes.contains_key(runtime) => {
                 let mut aliases = Vec::new();
                 for runtime in &spec.runtime_inputs {
                     aliases.push(
@@ -397,7 +431,7 @@ fn verify_closure(plan: &SystemPlan) -> Result<()> {
                         "context".into(),
                         BuildNode {
                             builder_root: spec.builder_root.clone(),
-                            runtime_image: spec.runtime_image.clone(),
+                            runtime_root: spec.runtime_root.clone(),
                             inputs: spec
                                 .inputs
                                 .iter()
@@ -411,25 +445,25 @@ fn verify_closure(plan: &SystemPlan) -> Result<()> {
                     )]),
                 };
                 let rebuilt = crate::plan(&graph, "context")?;
-                if spec.runtime_image != *image
+                if spec.runtime_root != *runtime
                     || rebuilt.outputs["context"] != *id
                     || serde_json::to_vec(&rebuilt.specs["context"])? != serde_json::to_vec(spec)?
                 {
                     return Err(invalid("output derivation differs"));
                 }
             }
-            _ => return Err(invalid("object kind or runtime foundation differs")),
+            _ => return Err(invalid("object kind or runtime root differs")),
         }
     }
     let mut visited = BTreeSet::new();
     let mut active = BTreeSet::new();
     for root in plan.definition.outputs.values() {
-        if plan
-            .objects
-            .get(root)
-            .is_none_or(|r| r.runtime_image.as_ref() != Some(&plan.definition.foundation))
-        {
-            return Err(invalid("selected output missing or foundation differs"));
+        if plan.objects.get(root).is_none_or(|r| {
+            r.runtime_root
+                .as_ref()
+                .is_none_or(|runtime| !plan.runtimes.contains_key(runtime))
+        }) {
+            return Err(invalid("selected output missing or runtime root differs"));
         }
         let mut pending = vec![(root.as_str(), false)];
         while let Some((id, exit)) = pending.pop() {
@@ -468,6 +502,7 @@ struct PayloadReceipt<'a> {
     identity: &'a str,
     foundation: &'a crate::FoundationObservation,
     objects: &'a BTreeMap<String, ObjectReceipt>,
+    runtimes: &'a BTreeMap<String, crate::RuntimeRoot>,
 }
 struct HashWriter(Sha256);
 impl Write for HashWriter {
@@ -487,10 +522,11 @@ fn verify_payload(
     validate_tar_envelope(path)?;
     let plan = &composition.plan;
     let receipt = serde_json::to_vec(&PayloadReceipt {
-        schema: 1,
+        schema: 2,
         identity: &plan.identity,
         foundation: &plan.foundation,
         objects: &plan.objects,
+        runtimes: &plan.runtimes,
     })?;
     let files: BTreeMap<_, _> = plan
         .files

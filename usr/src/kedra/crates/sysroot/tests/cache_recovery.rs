@@ -134,10 +134,17 @@ fn signed_closure_refuses_untrusted_changes_then_runs_without_producer() {
     let receiver = f.path("receiver");
     f.images(&producer);
     let builder = f.root(&producer, super::BUILDER);
+    let runtime = f.root(&producer, super::RUNTIME);
     let author = authoring_consumer(&f);
     let source = c_source(&f, "signed-cache");
     let source_id = f.source(&producer, &source);
-    let graph = authored_plan(&f, &author, &builder, &source_id, "cache-plan.json");
+    let graph = authored_plan(
+        &f,
+        &author,
+        (&builder, &runtime),
+        &source_id,
+        "cache-plan.json",
+    );
     let output = app_id(&f.build(&producer, &graph, &[]).json());
     let root = f.store("verify", &producer, &["--object", &output]).json();
     let bundle = f.path("cache.tar");
@@ -176,6 +183,9 @@ fn signed_closure_refuses_untrusted_changes_then_runs_without_producer() {
     )
     .unwrap();
     let sentinel = f.source(&receiver, &sentinel_source);
+    // Runtime roots are not transferred; the receiver creates the same one.
+    f.images(&receiver);
+    assert_eq!(f.root(&receiver, super::RUNTIME), runtime);
     let roots_before = fs::read(receiver.join("roots/state.json")).unwrap();
     let admission = Admission {
         store: &receiver,
@@ -267,7 +277,6 @@ fn signed_closure_refuses_untrusted_changes_then_runs_without_producer() {
     assert_eq!(reused["reused"].as_array().unwrap().len(), 2);
     let regenerated_source = c_source(&f, "signed-cache");
     assert_eq!(f.source(&receiver, &regenerated_source), source_id);
-    f.images(&receiver);
     // Roots are not transferred: the receiver creates the same input-addressed root.
     f.build(&receiver, &graph, &["--rebuild"])
         .refused("no root");

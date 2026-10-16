@@ -28,8 +28,8 @@ impl Store {
         relative(program, false)?;
         validate_run_args(args)?;
         let receipt = self.verify(id)?;
-        let image = receipt
-            .runtime_image
+        let runtime = receipt
+            .runtime_root
             .ok_or_else(|| Error::Invalid("profile requires a realized output".into()))?;
         let path = self.path().join("profiles").join(profile);
         let is_new = !path.exists();
@@ -56,7 +56,7 @@ impl Store {
             object: id.into(),
             program: program.into(),
             args: args.into(),
-            runtime_image: image,
+            runtime_root: runtime,
         };
         let digest = hash(&serde_json::to_vec(&record)?);
         let stage = if is_new { Some(self.staging()?) } else { None };
@@ -123,8 +123,8 @@ impl Store {
             relative(&generation.program, false)?;
             validate_run_args(&generation.args)?;
             let receipt = self.verify(&generation.object)?;
-            if receipt.runtime_image.as_ref() != Some(&generation.runtime_image) {
-                return Err(Error::Corrupt("profile runtime image differs".into()));
+            if receipt.runtime_root.as_ref() != Some(&generation.runtime_root) {
+                return Err(Error::Corrupt("profile runtime root differs".into()));
             }
             if number == index.selected {
                 object = generation.object.clone();
@@ -198,7 +198,7 @@ impl Store {
         executor::execute(
             self,
             executor::Execution {
-                image: &generation.runtime_image,
+                root: &generation.runtime_root,
                 mounts: &closure.objects,
                 output: None,
                 argv: &argv,

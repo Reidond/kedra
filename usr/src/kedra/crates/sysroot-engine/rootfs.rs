@@ -1,8 +1,9 @@
 //! Store root filesystems: the trees sandboxed processes run in.
 //!
 //! A root is input-addressed by its recipe: an exact store image, unpacked here
-//! without a container daemon, and optionally one RPM lock role installed over
-//! it offline by the root's own rpm inside the sandbox. Roots are reused by
+//! without a container daemon, and optionally RPM lock roles installed over it
+//! offline by the root's own rpm inside the sandbox, one role per root, each over
+//! its parent root. Roots are reused by
 //! identity and never re-hashed on use: they are owner-private like the rest of
 //! the store, and their recipe, not their bytes, names them. Ownership is not
 //! represented (every entry belongs to the store owner), device nodes are
@@ -86,6 +87,7 @@ fn image_recipe(image: &str) -> RootRecipe {
         schema: 1,
         platform: PLATFORM.into(),
         image: image.into(),
+        parent: None,
         rpms: None,
     }
 }
@@ -99,14 +101,17 @@ impl Store {
         self.root_path(id).join("tree")
     }
 
-    /// Create (or reuse) and pin the root of an exact store image, optionally
-    /// with one locked RPM role installed offline over it.
-    pub fn add_root(&self, image: &str, layer: Option<RootLayer>) -> Result<RootReceipt> {
-        let base = self.image_root(image)?;
-        let receipt = match layer {
-            None => self.root(&base)?,
-            Some(layer) => self.rpm_root(&base, image, layer)?,
-        };
+    /// Create (or reuse) and pin the root of an exact store image with the
+    /// locked RPM roles installed offline in order, each over the previous root.
+    /// Every intermediate root is created or reused by its own identity.
+    pub fn add_root(&self, image: &str, layers: Vec<RootLayer>) -> Result<RootReceipt> {
+        let mut current = self.image_root(image)?;
+        let mut parent = None;
+        for layer in layers {
+            current = self.rpm_root(&current, image, parent, layer)?.root;
+            parent = Some(current.clone());
+        }
+        let receipt = self.root(&current)?;
         let mut roots = self.roots()?;
         roots.rootfs.insert(receipt.root.clone());
         self.save_roots(&roots)?;
@@ -138,11 +143,15 @@ impl Store {
             || root_identity(&receipt.recipe)? != id
             || receipt.recipe.schema != 1
             || receipt.recipe.platform != PLATFORM
+            || (receipt.recipe.parent.is_some() && receipt.recipe.rpms.is_none())
             || plan::hash(receipt.rpm_inventory.as_bytes()) != receipt.rpm_sha256
         {
             return Err(Error::Corrupt(format!("root receipt differs for {id}")));
         }
         image_id(&receipt.recipe.image)?;
+        if let Some(parent) = &receipt.recipe.parent {
+            root_id(parent)?;
+        }
         Ok(receipt)
     }
 
@@ -167,7 +176,20 @@ impl Store {
         Ok(id)
     }
 
-    fn rpm_root(&self, base: &str, image: &str, layer: RootLayer) -> Result<RootReceipt> {
+    /// One role over `base`: the image root itself (`parent` none) or the
+    /// parent root of the same image.
+    fn rpm_root(
+        &self,
+        base: &str,
+        image: &str,
+        parent: Option<String>,
+        layer: RootLayer,
+    ) -> Result<RootReceipt> {
+        if parent.is_some() && self.root(base)?.recipe.image != image {
+            return Err(Error::Invalid(
+                "a parent root must belong to the same image".into(),
+            ));
+        }
         let files = layer
             .files
             .iter()
@@ -185,6 +207,7 @@ impl Store {
                 remove: layer.remove.iter().cloned().collect(),
                 packages: layer.packages.clone(),
             }),
+            parent,
             ..image_recipe(image)
         };
         let id = root_identity(&recipe)?;
@@ -325,11 +348,24 @@ impl Store {
         inventory(&run.stdout)
     }
 
-    /// Roots retained by pins and by the images the store retains.
-    pub(crate) fn retained_roots(&self, images: &BTreeSet<String>) -> Result<BTreeSet<String>> {
-        let mut keep = self.roots()?.rootfs;
+    /// Roots retained by pins, by the runtime roots of retained objects and by
+    /// the images the store retains, with the parents they were layered over.
+    pub(crate) fn retained_roots(
+        &self,
+        images: &BTreeSet<String>,
+        runtime: &BTreeSet<String>,
+    ) -> Result<BTreeSet<String>> {
+        let mut pending: Vec<String> = self.roots()?.rootfs.into_iter().collect();
+        pending.extend(runtime.iter().cloned());
         for image in images {
-            keep.insert(root_identity(&image_recipe(image))?);
+            pending.push(root_identity(&image_recipe(image))?);
+        }
+        let mut keep = BTreeSet::new();
+        while let Some(id) = pending.pop() {
+            if !keep.insert(id.clone()) || !self.root_path(&id).exists() {
+                continue;
+            }
+            pending.extend(self.root(&id)?.recipe.parent);
         }
         Ok(keep)
     }

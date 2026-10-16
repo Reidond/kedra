@@ -28,7 +28,7 @@ let graph = BuildGraph {
     schema: 1,
     nodes: BTreeMap::from([("application".into(), BuildNode {
         builder_root: "root-<exact-builder-root-id>".into(),
-        runtime_image: "sha256:<exact-runtime-id>".into(),
+        runtime_root: "root-<exact-runtime-root-id>".into(),
         inputs: BTreeMap::from([("source".into(), Input::Object(
             "src-<exact-source-id>".into(),
         ))]),
@@ -92,7 +92,7 @@ bounded, stable, non-private input admission. The CLI adapter supplies the
 repository's no-symlink/single-link/recheck rules. Neither path executes author
 code during parsing/checking/lowering.
 
-`lower` requires exact builder roots and a runtime foundation already allowed by
+`lower` requires exact builder roots and a runtime root already allowed by
 the independent `sysroot_catalog::Policy`. It emits a strict legacy-compatible
 `Catalog`, canonical resource trees and symbolic-to-graph node names. Build scripts
 become `build.sh` resources invoked through typed arguments. Inline source files
@@ -101,7 +101,7 @@ the fixed admitted `prepare.py`; the original source remains read-only.
 
 The pre-existing catalog API remains supported independently:
 `sysroot_catalog::{Catalog, Package, Recipe, Source, Policy}` is strict serde data,
-and `Catalog::resolve` checks namespace, package, builder root, runtime image and
+and `Catalog::resolve` checks namespace, package, builder root, runtime root and
 source allowlists before
 returning a `ResolvedPackage`. CLI `--catalog FILE` selects this reader. The built-in
 jq/SQLite Rust recipes also remain during migration. There is no implicit
@@ -115,22 +115,25 @@ production publication is implied. See [package declarations](../../docs/PACKAGE
 
 ## CLI workflow
 
-Admit exact sources and images into a private store and create the builder root
-before building a graph:
+Admit exact sources and images into a private store and create the runtime and
+builder roots before building a graph:
 
 ```sh
 sysroot store init --store STORE
 sysroot store add-source --store STORE --source SELECTED_SOURCE_DIRECTORY
-sysroot store add-image --store STORE --image sha256:EXACT_RUNTIME_ID --archive SAVED.tar
-sysroot store add-root --store STORE --image sha256:EXACT_RUNTIME_ID \
+sysroot store add-image --store STORE --image sha256:EXACT_BASE_ID --archive SAVED.tar
+sysroot store add-root --store STORE --image sha256:EXACT_BASE_ID --lock rpm-lock.json
+sysroot store add-root --store STORE --image sha256:EXACT_BASE_ID \
   --lock rpm-lock.json --builder ROLE
-sysroot store add-root --store STORE --image sha256:EXACT_BUILDER_ID
+sysroot store add-root --store STORE --image sha256:EXACT_OTHER_IMAGE_ID
 sysroot build --store STORE --plan GENERATED_GRAPH.json --root application --dry-run
 sysroot build --store STORE --plan GENERATED_GRAPH.json --root application
 sysroot run --store STORE --object OUTPUT_ID --program bin/program
 sysroot build --store STORE --plan GENERATED_GRAPH.json --root application --rebuild
 sysroot store export --store STORE --object OUTPUT_ID --output closure.tar
 sysroot store init --store RECEIVER
+sysroot store add-image --store RECEIVER --image sha256:EXACT_BASE_ID --archive SAVED.tar
+sysroot store add-root --store RECEIVER --image sha256:EXACT_BASE_ID --lock rpm-lock.json
 sysroot store import --store RECEIVER --bundle closure.tar --expected-sha256 EXPECTED_SHA256
 sysroot profile switch --store RECEIVER --name development --object OUTPUT_ID --program bin/program
 sysroot profile run --store RECEIVER --name development
@@ -144,15 +147,16 @@ sysroot store recover --store STORE
 Placeholder identities must be replaced with actual admission/result IDs. `add-image`
 without `--archive` saves the image from the local Docker engine; with `--archive`
 it admits a `docker image save` archive without a daemon. `add-root` prints the
-root identity a graph's `builder_root` names: an image's unpacked root, or that root
-plus one RPM lock builder role installed offline (its locked RPM objects must
+root identity a graph's `builder_root` or `runtime_root` names: an image's unpacked
+root, that root plus an RPM lock's foundation role (`--lock`), or that runtime root
+plus one builder role (`--builder`), installed offline (the locked RPM objects must
 already be in the store, see `sysroot catalog lock fetch`). Image admission never
-pulls or installs tools. Runtime image archives are retained and transferred; the
-runtime image's root is created on first use. Builder roots and build-only sources
-need not enter a runtime export. Every output in one runtime closure must use the
-same foundation. `develop` runs a command with private scratch and the declared
-closure in the runtime image's root; it does not mount the host working directory
-or offer an interactive host shell.
+pulls or installs tools. Roots are not exported: a receiver creates the same
+runtime root before `import`. Builder roots and build-only sources need not enter a
+runtime export. Every output in one runtime closure must use the same runtime
+root. `develop` runs a command with private scratch and the declared closure in
+the runtime root; it does not mount the host working directory or offer an
+interactive host shell.
 
 The language-aware CLI adds pure `sysroot catalog check`, `fmt`, `pins`, `plan`
 and `resolve` operations plus store-backed `build` and post-build `contribute`.

@@ -7,7 +7,7 @@
 mod cache_recovery;
 
 use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Write};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
@@ -21,8 +21,10 @@ use sha2::{Digest, Sha256};
 
 const BUILDER: &str = "sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546";
 const RUNTIME: &str = "sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3";
-/// A well-formed root identity for pure planning; no store holds it.
+/// Well-formed root identities for pure planning; no store holds them.
 const PLANNED_ROOT: &str = "root-3333333333333333333333333333333333333333333333333333333333333333";
+const PLANNED_RUNTIME: &str =
+    "root-4444444444444444444444444444444444444444444444444444444444444444";
 const CAPTURE_LIMIT: usize = 2 * 1024 * 1024;
 const COMMAND_DEADLINE: Duration = Duration::from_secs(600);
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -328,52 +330,38 @@ fn append_tar_bytes<W: Write>(builder: &mut tar::Builder<W>, path: &str, bytes: 
     builder.append(&header, bytes).unwrap();
 }
 
-fn bundle_with_self_consistent_wrong_image(original: &Path, output: &Path) {
-    let mut fake = tar::Builder::new(Vec::new());
-    append_tar_bytes(&mut fake, "payload", b"ordinary tar; not the claimed image");
-    fake.finish().unwrap();
-    let fake = fake.into_inner().unwrap();
-    let fake_sha256: String = Sha256::digest(&fake)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    let image_member = format!("images/{}.tar", RUNTIME.strip_prefix("sha256:").unwrap());
+/// Point the closure root's receipt at another runtime root, keeping every
+/// member and the outer digest self-consistent.
+fn bundle_with_forged_runtime_root(original: &Path, output: &Path, object: &str, runtime: &str) {
     let mut archive = tar::Archive::new(File::open(original).unwrap());
     let mut builder = tar::Builder::new(File::create(output).unwrap());
-    let mut changed_manifest = false;
-    let mut changed_image = false;
+    let mut changed = false;
     for entry in archive.entries().unwrap() {
         let mut entry = entry.unwrap();
-        let path = entry.path().unwrap().into_owned();
-        if path == Path::new("manifest.json") {
+        if entry.path().unwrap().as_ref() == Path::new("manifest.json") {
             let mut manifest: Value = serde_json::from_reader(&mut entry).unwrap();
-            assert_eq!(manifest["images"][RUNTIME]["image"], RUNTIME);
-            manifest["images"][RUNTIME]["sha256"] = json!(fake_sha256);
-            manifest["images"][RUNTIME]["bytes"] = json!(fake.len());
+            let receipt = &mut manifest["objects"][object]["receipt"];
+            assert_ne!(receipt["runtime_root"], runtime);
+            receipt["runtime_root"] = json!(runtime);
+            receipt["derivation"]["runtime_root"] = json!(runtime);
             append_tar_bytes(
                 &mut builder,
                 "manifest.json",
                 &serde_json::to_vec(&manifest).unwrap(),
             );
-            changed_manifest = true;
-        } else if path == Path::new(&image_member) {
-            append_tar_bytes(&mut builder, &image_member, &fake);
-            changed_image = true;
+            changed = true;
         } else {
             let header = entry.header().clone();
             builder.append(&header, &mut entry).unwrap();
         }
     }
-    assert!(
-        changed_manifest && changed_image,
-        "forgery did not alter the admitted image and its matching receipt"
-    );
+    assert!(changed, "forgery did not alter the bundle manifest");
     builder.finish().unwrap();
 }
 
 fn bare_graph() -> Value {
     json!({"schema":1,"nodes":{"app":{
-        "builder_root":PLANNED_ROOT,"runtime_image":RUNTIME,"inputs":{},
+        "builder_root":PLANNED_ROOT,"runtime_root":PLANNED_RUNTIME,"inputs":{},
         "argv":[[{"kind":"literal","value":"/bin/true"}]],
         "env":{},"runtime_inputs":[],"timeout_seconds":120
     }}})
@@ -573,14 +561,14 @@ fn main() {
     let builder = &args[2];
     let runtime = &args[3];
     let library = BuildNode {
-        builder_root: builder.clone(), runtime_image: runtime.clone(),
+        builder_root: builder.clone(), runtime_root: runtime.clone(),
         inputs: BTreeMap::from([("source".into(), Input::Object(source.clone()))]),
         argv: vec![Argument::literal("/bin/sh"), Argument::input("source", "library.sh"),
             Argument::input("source", "library.c"), Argument::output("")],
         env: BTreeMap::new(), runtime_inputs: vec![], timeout_seconds: 120,
     };
     let app = BuildNode {
-        builder_root: builder.clone(), runtime_image: runtime.clone(),
+        builder_root: builder.clone(), runtime_root: runtime.clone(),
         inputs: BTreeMap::from([("source".into(), Input::Object(source.clone())),
             ("library".into(), Input::Node("library".into()))]),
         argv: vec![Argument::literal("/bin/sh"), Argument::input("source", "app.sh"),
@@ -602,8 +590,15 @@ fn main() {
     target.join("debug/author")
 }
 
-fn authored_plan(f: &Fixture, author: &Path, builder: &str, source: &str, name: &str) -> PathBuf {
-    let value = run(Command::new(author).args([source, builder, RUNTIME])).json();
+fn authored_plan(
+    f: &Fixture,
+    author: &Path,
+    roots: (&str, &str),
+    source: &str,
+    name: &str,
+) -> PathBuf {
+    let (builder, runtime) = roots;
+    let value = run(Command::new(author).args([source, builder, runtime])).json();
     f.write_json(name, &value)
 }
 
@@ -639,11 +634,18 @@ fn package_build_transfer_profiles_and_collection() {
     f.images(&producer);
     let builder = f.root(&producer, BUILDER);
     assert_eq!(f.root(&producer, BUILDER), builder, "root not reused");
+    let runtime = f.root(&producer, RUNTIME);
     let author = authoring_consumer(&f);
     let source_one = c_source(&f, "version-one");
     let source_one_id = f.source(&producer, &source_one);
     assert_eq!(f.source(&producer, &source_one), source_one_id);
-    let plan_one = authored_plan(&f, &author, &builder, &source_one_id, "one.json");
+    let plan_one = authored_plan(
+        &f,
+        &author,
+        (&builder, &runtime),
+        &source_one_id,
+        "one.json",
+    );
     let planned = f.build(&f.path("unused"), &plan_one, &["--dry-run"]).json();
     assert!(!f.path("unused").exists());
     let first = f.build(&producer, &plan_one, &[]).json();
@@ -660,7 +662,13 @@ fn package_build_transfer_profiles_and_collection() {
     let source_two = c_source(&f, "version-two");
     let source_two_id = f.source(&producer, &source_two);
     assert_ne!(source_one_id, source_two_id);
-    let plan_two = authored_plan(&f, &author, &builder, &source_two_id, "two.json");
+    let plan_two = authored_plan(
+        &f,
+        &author,
+        (&builder, &runtime),
+        &source_two_id,
+        "two.json",
+    );
     let second = f.build(&producer, &plan_two, &[]).json();
     let two = app_id(&second);
     assert_ne!(one, two);
@@ -670,7 +678,31 @@ fn package_build_transfer_profiles_and_collection() {
         2,
         "compiler sources leaked into runtime closure: {closure}"
     );
-    assert_eq!(closure["images"], json!([RUNTIME]));
+    assert_eq!(closure["runtime_roots"], json!([runtime]));
+    // Runtime roots are not transferred: a receiver without the same
+    // input-addressed root refuses before admitting anything.
+    let rootless = f.path("rootless-receiver");
+    let rootless_bundle = f.path("rootless.tar");
+    f.store(
+        "export",
+        &producer,
+        &["--object", &one, "--output", text(&rootless_bundle)],
+    )
+    .json();
+    f.store(
+        "import",
+        &rootless,
+        &[
+            "--bundle",
+            text(&rootless_bundle),
+            "--expected-sha256",
+            &sha256(&rootless_bundle),
+        ],
+    )
+    .refused("no root");
+    assert!(!rootless.join("objects").join(&one).exists());
+    f.images(&receiver);
+    assert_eq!(f.root(&receiver, RUNTIME), runtime);
     let mut bundles = Vec::new();
     for (label, object) in [("one", &one), ("two", &two)] {
         let bundle = f.path(&format!("{label}.tar"));
@@ -778,10 +810,21 @@ fn package_build_transfer_profiles_and_collection() {
     }
     f.store("unpin-image", &receiver, &["--image", RUNTIME])
         .json();
+    f.store("unpin-root", &receiver, &["--root", &runtime])
+        .json();
     f.store("gc", &receiver, &[]).json();
     f.store("verify", &receiver, &["--object", &orphan]).json();
     f.store("gc", &receiver, &["--delete"]).json();
     assert!(!receiver.join("objects").join(&orphan).exists());
+    // The unpinned image archive goes; the runtime root the profiles' objects
+    // run in stays, and running never reads the archive.
+    assert!(
+        !receiver
+            .join("images")
+            .join(RUNTIME.strip_prefix("sha256:").unwrap())
+            .exists()
+    );
+    assert!(receiver.join("rootfs").join(&runtime).exists());
     assert_version(f.program(&receiver, &one, &[]), "version-one");
     assert_version(f.program(&receiver, &two, &[]), "version-two");
 
@@ -816,28 +859,6 @@ fn package_build_transfer_profiles_and_collection() {
     fs::set_permissions(&binary, fs::Permissions::from_mode(0o555)).unwrap();
     assert_version(f.program(&receiver, &one, &[]), "version-one");
 
-    let image_archive = receiver
-        .join("images")
-        .join(RUNTIME.strip_prefix("sha256:").unwrap())
-        .join("image.tar");
-    fs::set_permissions(&image_archive, fs::Permissions::from_mode(0o600)).unwrap();
-    let mut image = fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(&image_archive)
-        .unwrap();
-    let mut original_byte = [0_u8; 1];
-    image.read_exact(&mut original_byte).unwrap();
-    image.seek(SeekFrom::Start(0)).unwrap();
-    image.write_all(&[original_byte[0] ^ 1]).unwrap();
-    image.sync_all().unwrap();
-    f.program(&receiver, &one, &[]).refused("image evidence");
-    image.seek(SeekFrom::Start(0)).unwrap();
-    image.write_all(&original_byte).unwrap();
-    image.sync_all().unwrap();
-    drop(image);
-    fs::set_permissions(&image_archive, fs::Permissions::from_mode(0o444)).unwrap();
-    assert_version(f.program(&receiver, &one, &[]), "version-one");
     let tampered_bundle = f.path("unknown-member.tar");
     bundle_with_extra_member(&bundles[0].0, &tampered_bundle);
     f.store(
@@ -851,11 +872,13 @@ fn package_build_transfer_profiles_and_collection() {
         ],
     )
     .refused("member");
-    let forged_bundle = f.path("self-consistent-wrong-image.tar");
-    bundle_with_self_consistent_wrong_image(&bundles[0].0, &forged_bundle);
-    let forged_receiver = f.path("forged-image-receiver");
-    // The outer digest and image receipt agree with the forged bytes. Only the
-    // archive's claimed image identity is wrong.
+    let forged_bundle = f.path("forged-runtime-root.tar");
+    bundle_with_forged_runtime_root(&bundles[0].0, &forged_bundle, &one, &builder);
+    let forged_receiver = f.path("forged-runtime-receiver");
+    f.images(&forged_receiver);
+    f.root(&forged_receiver, BUILDER);
+    // The outer digest agrees with the forged bytes and the receiver holds the
+    // forged root. Only the derivation no longer names this output.
     f.store(
         "import",
         &forged_receiver,
@@ -866,21 +889,21 @@ fn package_build_transfer_profiles_and_collection() {
             &sha256(&forged_bundle),
         ],
     )
-    .refused("image archive");
+    .refused("derivation identity");
     assert!(!forged_receiver.join("objects").join(&one).exists());
     assert!(!forged_receiver.join("profiles/fixture").exists());
     let empty = f.store("gc", &forged_receiver, &[]).json();
     assert_eq!(empty["objects"], json!([]));
-    assert_eq!(empty["images"], json!([]));
     assert_version(f.program(&receiver, &one, &[]), "version-one");
     eprintln!(
         "engine lifecycle exercised: authoring, real compile, reuse/rebuild, closure transfer, profiles/develop, GC and corruption"
     );
 }
 
-fn script_plan(builder: &str, source: &str, script: &str, timeout: u64) -> Value {
+fn script_plan(roots: (&str, &str), source: &str, script: &str, timeout: u64) -> Value {
+    let (builder, runtime) = roots;
     json!({"schema":1,"nodes":{"app":{
-        "builder_root":builder,"runtime_image":RUNTIME,
+        "builder_root":builder,"runtime_root":runtime,
         "inputs":{"source":{"kind":"object","value":source}},
         "argv":[[{"kind":"literal","value":"/bin/sh"}],
             [{"kind":"input","name":"source","path":script}],
@@ -1042,6 +1065,7 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
     let store = f.path("store");
     f.images(&store);
     let builder = f.root(&store, BUILDER);
+    let runtime = f.root(&store, RUNTIME);
     let source = c_source(&f, "faults");
     fs::write(
         source.join("fail.sh"),
@@ -1067,7 +1091,10 @@ fn executor_failures_rebuild_divergence_and_owned_recovery() {
     .unwrap();
     let source_id = f.source(&store, &source);
     let plan = |name: &str, script: &str, timeout: u64| {
-        f.write_json(name, &script_plan(&builder, &source_id, script, timeout))
+        f.write_json(
+            name,
+            &script_plan((&builder, &runtime), &source_id, script, timeout),
+        )
     };
     let entropy = plan("entropy.json", "entropy.sh", 120);
     let first = f.build(&store, &entropy, &[]).json();

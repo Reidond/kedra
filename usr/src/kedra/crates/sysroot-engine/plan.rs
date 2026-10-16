@@ -86,7 +86,7 @@ pub fn plan(graph: &BuildGraph, root: &str) -> Result<Plan> {
     for (key, node) in &graph.nodes {
         name(key)?;
         root_id(&node.builder_root)?;
-        image_id(&node.runtime_image)?;
+        root_id(&node.runtime_root)?;
         if node.inputs.len() > 256
             || node.argv.is_empty()
             || node.argv.len() > 256
@@ -206,10 +206,10 @@ fn resolve(
     runtime_inputs.dedup();
     for alias in &node.runtime_inputs {
         if let Input::Node(n) = &node.inputs[alias]
-            && graph.nodes[n].runtime_image != node.runtime_image
+            && graph.nodes[n].runtime_root != node.runtime_root
         {
             return Err(Error::Invalid(
-                "runtime closure has different image foundations".into(),
+                "runtime closure has different runtime roots".into(),
             ));
         }
     }
@@ -219,7 +219,7 @@ fn resolve(
         prefix: LOGICAL_PREFIX.into(),
         policy: "v2:bwrap:uid-owner:userns:netnone:ro-root:ro-inputs:timeout".into(),
         builder_root: node.builder_root.clone(),
-        runtime_image: node.runtime_image.clone(),
+        runtime_root: node.runtime_root.clone(),
         inputs,
         argv: node.argv.clone(),
         env: node.env.clone(),

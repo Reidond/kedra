@@ -55,22 +55,30 @@ recipe and reused by identity:
 - an image root is the store's archive of an exact image, unpacked without a
   daemon (layers verified against their uncompressed digests, whiteouts applied,
   device nodes skipped, set-ID bits cleared, every entry owned by the store owner
-  and owner-readable). `run`, `profile run`, `develop` and foundation observation
-  create the root of the output's runtime image on first use;
-- a builder root is an image root plus one builder role of a
-  [Fedora RPM lock](#fedora-rpm-lock), installed offline from the lock's
-  fixed-output RPM objects by the root's own `rpm` inside the sandbox
-  (`sysroot store add-root --image <id> --lock <lock> --builder <role>`). Every
-  file's Fedora signature is checked first, and the root is refused unless its
-  RPM inventory equals the role's locked inventory. A non-root `rpm` keeps file
-  ownership instead of changing it, which is what lets an ordinary user install.
+  and owner-readable). Foundation observation creates it on first use;
+- an RPM root is an image root plus roles of a [Fedora RPM lock](#fedora-rpm-lock),
+  one role per root over its parent root, installed offline from the lock's
+  fixed-output RPM objects by the root's own `rpm` inside the sandbox. `sysroot
+  store add-root --image <base> --lock <lock>` installs the foundation role over
+  the lock's Fedora base (a runtime root); `--builder <role>` installs that builder
+  role over the runtime root (a builder root). Every file's Fedora signature is
+  checked first, and a root is refused unless its RPM inventory equals the role's
+  locked inventory. A non-root `rpm` keeps file ownership instead of changing it,
+  which is what lets an ordinary user install.
 
-A graph node names its `builder_root` and its `runtime_image`. Roots are not
-transferred in bundles; a receiver creates the same input-addressed root from the
-same image archive and lock. Roots are verified by owner, mode and recipe identity
-on use, not re-hashed; their receipts record the observed RPM inventory, entry
-count and size. `store gc` keeps pinned roots and the image roots of retained
-images.
+A graph node names its `builder_root` and its `runtime_root`; `run`, `profile
+run` and `develop` execute in the output's runtime root. Both are part of the
+output identity, so a package's `out-` identity follows the Fedora base digest,
+the locked RPMs and its own inputs only. In a release neither is built from the
+per-run Kedra foundation image, whose ID changes with every commit; a composition
+accepts an output only over a foundation whose RPM inventory equals the runtime
+root's exactly ([SYSTEM](SYSTEM.md#plan-and-compose)). Roots are not transferred
+in bundles; a receiver creates the same input-addressed roots from the same image
+archive and lock before it imports. Roots are verified by owner, mode and recipe
+identity on use, not re-hashed; their receipts record the observed RPM inventory,
+entry count and size. `store gc` keeps pinned roots, the runtime roots of retained
+objects and profiles, the image roots of retained images and the parents of all of
+these.
 
 The engine is native: `PLATFORM` (`aarch64-linux` or `x86_64-linux`) is the
 architecture `sysroot` was compiled for, and it refuses images, daemons, roots and
@@ -104,8 +112,9 @@ The language adapter compares authored requests to this actual material before
 resource admission/build.
 
 Bundle import requires an independently expected whole-bundle hash, validates
-allowlisted members and complete references, then registers dependencies first.
-Runtime image archives are retained and transferred. Profiles publish complete
+allowlisted members and complete references, refuses unless the receiver already
+holds every runtime root, then registers dependencies first. Bundles carry no
+image archives. Profiles publish complete
 staged generations and use atomic index replacement. One store lock spans
 management and execution; unknown/corrupt state and uncertain cleanup refuse and
 preserve recovery evidence.
@@ -143,7 +152,7 @@ them. The lock document itself is `sysroot-catalog::rpm_lock`; see
 ## Boundaries
 
 The engine supports one native architecture per machine (aarch64 or x86_64;
-cross-architecture builds are refused), one runtime image per closure, bubblewrap
+cross-architecture builds are refused), one runtime root per closure, bubblewrap
 with unprivileged user namespaces (0.8 or later) and Docker 29 OCI save archives;
 image import from a daemon (`store add-image --image`), RPM resolution and native
 derivation still use the local Docker engine, while `store add-image --archive`

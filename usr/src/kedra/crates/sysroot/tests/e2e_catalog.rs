@@ -30,7 +30,7 @@ package hello(builder: Builder, runtime: Foundation) {
 target "demo" { foundation = system; packages = [hello(builder: compiler, runtime: system)]; }
 "##;
 const BUILDER: &str = "root-1111111111111111111111111111111111111111111111111111111111111111";
-const RUNTIME: &str = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+const RUNTIME: &str = "root-2222222222222222222222222222222222222222222222222222222222222222";
 
 struct Fixture {
     root: PathBuf,
@@ -136,7 +136,7 @@ fn language_edit_format_plan_and_refusal() {
         serde_json::from_slice(&success(fixture.language_run("check", &args, &[])).stdout).unwrap();
     assert_eq!(before["intent"], after["intent"]);
     assert_ne!(before["inputs"], after["inputs"]);
-    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}));
+    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]}));
     let selection = [
         "--package",
         "hello",
@@ -226,7 +226,7 @@ fn language_import_admission_and_no_effects() {
 fn language_packet_publication_is_complete_and_preserves_existing_winner() {
     let fixture = Fixture::new();
     let args = fixture.language(LANGUAGE_SAMPLE);
-    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}));
+    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]}));
     let packet = fixture.path("plan.tar");
     let selection = [
         "--package",
@@ -429,7 +429,7 @@ fn language_expansion_counts_preparation_nodes_in_the_graph_bound() {
             selected.join(",")
         ));
         let args = fixture.language(&source);
-        let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":names.into_iter().take(256).collect::<Vec<_>>(),"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}));
+        let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":names.into_iter().take(256).collect::<Vec<_>>(),"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]}));
         let output = fixture.language_run(
             "plan",
             &args,
@@ -497,11 +497,11 @@ fn formatter_admits_the_complete_bounded_selection_before_writing() {
 fn language_real_inline_build_transfer_and_rebuild() {
     let fixture = Fixture::new();
     let builder_image = std::env::var("KEDRA_CATALOG_BUILDER").expect("set exact retained builder");
-    let runtime = std::env::var("KEDRA_CATALOG_RUNTIME").expect("set exact retained runtime");
+    let runtime_image = std::env::var("KEDRA_CATALOG_RUNTIME").expect("set exact retained runtime");
     let args = fixture.language(LANGUAGE_SAMPLE);
     let store = fixture.path("language-store");
     success(fixture.run(&["store", "init", "--store", text(&store)]));
-    for image in [&builder_image, &runtime] {
+    for image in [&builder_image, &runtime_image] {
         success(fixture.run(&[
             "store",
             "add-image",
@@ -512,7 +512,8 @@ fn language_real_inline_build_transfer_and_rebuild() {
         ]));
     }
     let builder = fixture.root(&store, &builder_image);
-    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[builder],"runtime_images":[runtime],"source_objects":[]}));
+    let runtime = fixture.root(&store, &runtime_image);
+    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[builder],"runtime_roots":[runtime],"source_objects":[]}));
     let build = [
         "--package",
         "hello",
@@ -564,6 +565,16 @@ fn language_real_inline_build_transfer_and_rebuild() {
     ]));
     let receiver = fixture.path("language-receiver");
     success(fixture.run(&["store", "init", "--store", text(&receiver)]));
+    // Runtime roots are not transferred; the receiver creates the same one.
+    success(fixture.run(&[
+        "store",
+        "add-image",
+        "--store",
+        text(&receiver),
+        "--image",
+        &runtime_image,
+    ]));
+    assert_eq!(fixture.root(&receiver, &runtime_image), runtime);
     success(fixture.run(&[
         "store",
         "import",
@@ -636,7 +647,7 @@ fn language_real_inline_build_transfer_and_rebuild() {
             &patch_image,
         ]));
         let patch_builder = fixture.root(&store, &patch_image);
-        let patch_policy = fixture.write("patch-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[patch_builder],"runtime_images":[runtime],"source_objects":[]}));
+        let patch_policy = fixture.write("patch-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[patch_builder],"runtime_roots":[runtime],"source_objects":[]}));
         let patch_build: Value = serde_json::from_slice(
             &success(fixture.language_run(
                 "build",
@@ -770,7 +781,7 @@ fn remove_owned(path: &Path) {
 fn catalog_planning_and_policy_refusal_precede_store_access() {
     let fixture = Fixture::new();
     let args = fixture.language(LANGUAGE_SAMPLE);
-    let policy = json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]});
+    let policy = json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]});
     let path = fixture.write("engine-policy.json", &policy);
     let selection = |policy: &Path| {
         vec![
@@ -808,7 +819,7 @@ fn catalog_planning_and_policy_refusal_precede_store_access() {
             "catalog policy denied: package",
         ),
         ("builder_roots", json!([]), "denied/incompatible image role"),
-        ("runtime_images", json!([]), "denied frontend namespace"),
+        ("runtime_roots", json!([]), "denied frontend namespace"),
     ] {
         let mut value = policy.clone();
         value[field] = replacement;

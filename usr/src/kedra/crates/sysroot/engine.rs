@@ -53,15 +53,17 @@ enum StoreCommand {
         #[arg(long)]
         archive: Option<PathBuf>,
     },
-    /// Create or reuse and pin the root filesystem of a retained image,
-    /// optionally with one RPM lock builder role installed offline over it.
+    /// Create or reuse and pin the root filesystem of a retained image. With
+    /// an RPM lock, its foundation role is installed offline over the image (a
+    /// runtime root) and, with a builder role, that role over the result.
     AddRoot {
         #[command(flatten)]
         path: StorePath,
         #[arg(long)]
         image: String,
-        /// RPM lock whose builder role objects the store already holds.
-        #[arg(long, requires = "builder")]
+        /// RPM lock whose role objects the store already holds; `--image` is
+        /// its Fedora base.
+        #[arg(long)]
         lock: Option<PathBuf>,
         #[arg(long, requires = "lock")]
         builder: Option<String>,
@@ -317,27 +319,31 @@ fn add_root(
     lock: Option<&Path>,
     builder: Option<&str>,
 ) -> Result<ExitCode> {
-    let layer = match (lock, builder) {
-        (Some(lock), Some(builder)) => {
-            let (lock, _) = crate::catalog_lock::read_lock(lock)?;
-            if lock.architecture != sysroot_engine::RPM_ARCHITECTURE {
-                return Err(Error::Invalid(format!(
-                    "engine roots are native {} only",
-                    sysroot_engine::RPM_ARCHITECTURE
-                )));
-            }
-            let role = lock.role(Some(builder))?;
-            Some(sysroot_engine::RootLayer {
-                role: builder.into(),
-                fedora_release: lock.fedora_release,
-                files: lock.files(role).into_iter().cloned().collect(),
-                remove: role.remove.clone(),
-                packages: role.packages.clone(),
-            })
+    let mut layers = Vec::new();
+    if let Some(lock) = lock {
+        let (lock, _) = crate::catalog_lock::read_lock(lock)?;
+        if lock.architecture != sysroot_engine::RPM_ARCHITECTURE {
+            return Err(Error::Invalid(format!(
+                "engine roots are native {} only",
+                sysroot_engine::RPM_ARCHITECTURE
+            )));
         }
-        _ => None,
-    };
-    let receipt = Store::open(store)?.add_root(image, layer)?;
+        // Builder roles were resolved over the foundation transaction, so a
+        // builder root is the runtime root plus that role.
+        for (name, role) in
+            std::iter::once(("foundation", None)).chain(builder.map(|b| (b, Some(b))))
+        {
+            let role_lock = lock.role(role)?;
+            layers.push(sysroot_engine::RootLayer {
+                role: name.into(),
+                fedora_release: lock.fedora_release,
+                files: lock.files(role_lock).into_iter().cloned().collect(),
+                remove: role_lock.remove.clone(),
+                packages: role_lock.packages.clone(),
+            });
+        }
+    }
+    let receipt = Store::open(store)?.add_root(image, layers)?;
     json(&serde_json::json!({
         "root": receipt.root, "recipe": receipt.recipe, "rpm_sha256": receipt.rpm_sha256,
         "entries": receipt.entries, "bytes": receipt.bytes,

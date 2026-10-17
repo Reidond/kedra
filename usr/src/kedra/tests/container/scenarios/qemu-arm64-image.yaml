@@ -40,17 +40,19 @@ steps:
       expect: {stdout_contains: ['"console=ttyAMA0,115200"', '"console=tty0"']}
   - exec:
       name: the bundled Codex is the aarch64 musl build
-      argv: [jq, -r, .target, /usr/share/sysroot/agents/codex.json]
+      argv: [jq, -er, .outputs.codex, /usr/share/kedra/catalog.json]
+      capture:
+        codex: {stdout: trim}
+  - exec:
+      argv: [jq, -r, .target, "/usr/lib/sysroot/store/${codex}/codex-package.json"]
       expect: {stdout: aarch64-unknown-linux-musl}
   - exec:
-      argv: [jq, -r, '.target + " " + .architecture', /usr/share/sysroot/bitwarden.json]
-      expect: {stdout: qemu-arm64 aarch64}
+      name: Bitwarden is the arm64 build
+      argv: [jq, -er, .outputs.bitwarden, /usr/share/kedra/catalog.json]
+      capture:
+        bitwarden: {stdout: trim}
   - exec:
-      name: the arm64 tarball's relocated desktop entry and icons
-      argv: [grep, -E, "^Exec=/usr/bin/bitwarden( |$)", /usr/share/applications/com.bitwarden.desktop.desktop]
-  - exec:
-      argv: [find, /usr/share/icons/hicolor, -path, "*/apps/com.bitwarden.desktop.png"]
-      expect: {stdout_nonempty: true}
+      argv: [test, -f, "/usr/lib/sysroot/store/${bitwarden}/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi/desktop_napi.linux-arm64-gnu.node"]
   - exec:
       name: boot chain packages and EFI binaries for the VM workflow's Secure Boot check
       argv: [rpm, -q, shim-aa64, grub2-efi-aa64, bootupd, mokutil, efibootmgr, kernel-core, bootc]

@@ -11,16 +11,20 @@ script is executed.
 The desktop (x86_64) and qemu-arm64 (aarch64) images each bundle two unmodified
 non-Fedora runtimes for their own architecture:
 
-- Codex, from the pinned official release archive with Sigstore verification:
+- Codex, from the pinned official release archive, whose Sigstore signatures
+  are verified when the pin is added or bumped:
   `codex-package-x86_64-unknown-linux-musl` for desktop and
   `codex-package-aarch64-unknown-linux-musl` for qemu-arm64, both from the same
-  0.153.4 release. Its corresponding source and notices ship beside it
-  (`usr/src/kedra/image/agents/`).
-- Bitwarden Desktop, from the pinned official release package and matching
-  client source, relocated to `/usr/lib/bitwarden` without running package
-  scripts (`usr/src/kedra/image/bitwarden/`): the x86_64 RPM for desktop and,
-  because no aarch64 RPM is published, the official
-  `bitwarden_2026.8.0_arm64.tar.gz` for qemu-arm64.
+  0.153.4 release (`usr/src/kedra/image/packages/codex.kedra`). Its license,
+  notices, component licenses and corresponding source ship as the
+  `codex_licenses` and `codex_components` store outputs that
+  `/usr/share/kedra/catalog.json` names.
+- Bitwarden Desktop 2026.8.0, the unchanged official Linux tarball
+  (`bitwarden_2026.8.0_x64.tar.gz` for desktop, `bitwarden_2026.8.0_arm64.tar.gz`
+  for qemu-arm64) in the engine store, with its license files and matching client
+  source in the `bitwarden_licenses` output
+  (`usr/src/kedra/image/packages/bitwarden.kedra`). The tarball has no package
+  scripts.
 
 Each pin records an exact size and SHA-256 and was reviewed for distribution
 when it was added. A public download URL, private registry or subscription is

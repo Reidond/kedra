@@ -31,4 +31,6 @@ package jq(builder: Builder, runtime: Foundation) {
         rm -rf "$scratch"
         """;
     export command "jq" = "bin/jq";
+    // Fedora's foundation has jq; this build replaces it on PATH deliberately.
+    replaces = ["jq"];
 }

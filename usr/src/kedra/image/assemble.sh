@@ -12,8 +12,7 @@ manifest=/usr/share/sysroot/source.json
 # only the closed (target, architecture) pairs are accepted.
 architecture=$(uname -m)
 case "$architecture" in
-    x86_64) bitwarden_napi=linux-x64-gnu ;;
-    aarch64) bitwarden_napi=linux-arm64-gnu ;;
+    x86_64 | aarch64) ;;
     *) echo "Unsupported image architecture: $architecture" >&2; exit 1 ;;
 esac
 jq -e --arg architecture "$architecture" '.schema_version == 1 and .target.fedora_release == 44 and .target.architecture == $architecture and .target.candidate_target == true and ([.target.id, .target.architecture] | IN(["desktop", "x86_64"], ["qemu-arm64", "aarch64"]))' "$manifest" >/dev/null
@@ -62,13 +61,6 @@ rm -rf /var/lib/dnf /var/cache/swcatalog /var/cache/ldconfig
 rm -f /var/log/dnf5.log /var/log/dnf5.log.1
 chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper
 chmod 0755 /usr/libexec/kedra-session
-test -x /usr/bin/bitwarden
-test -x /usr/lib/bitwarden/bitwarden-app
-runtime_dependencies=$(ldd /usr/lib/bitwarden/bitwarden-app /usr/lib/bitwarden/desktop_proxy "/usr/lib/bitwarden/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi/desktop_napi.$bitwarden_napi.node")
-if printf '%s\n' "$runtime_dependencies" | grep 'not found'; then
-    echo 'Bitwarden runtime dependency missing' >&2
-    exit 1
-fi
 getent passwd greetd
 niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl
 NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \

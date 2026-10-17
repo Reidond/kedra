@@ -241,6 +241,18 @@ fn load_admitted(inputs: &Inputs) -> Result<Loaded> {
     }
     let intent = language::compile(&modules, &inputs.entry, &inputs.target, lock, &policy)
         .map_err(|e| Error::Invalid(e.to_string()))?;
+    // A closed release target's declared architecture must be the table's.
+    if let Some(architecture) = &intent.architecture
+        && ["aarch64", "x86_64"]
+            .into_iter()
+            .any(|other| sysroot_core::targets::enabled(&inputs.target, other).is_some())
+        && sysroot_core::targets::enabled(&inputs.target, architecture).is_none()
+    {
+        return Err(Error::Invalid(format!(
+            "target {} declares architecture {architecture}, which differs from the release target table",
+            inputs.target
+        )));
+    }
     let mut names = BTreeSet::new();
     for recipe in intent.recipes.values() {
         let mut contents = vec![&recipe.build];

@@ -1,0 +1,32 @@
+language 1;
+namespace "fixture";
+// The engine-built demo packages the shipped targets carried until 2026-10-16.
+// jq replaces the foundation's Fedora jq deliberately; sqlite3 and kedra-hello
+// are new commands.
+import {
+    jq
+} from "./jq.kedra";
+import {
+    sqlite
+} from "./sqlite.kedra";
+import {
+    hello
+} from "./hello.kedra";
+foundation system {
+    fedora = 44;
+    packages = ["jq"];
+}
+builder c_tools {
+    base = system;
+    packages = ["gcc", "make", "autoconf", "automake", "libtool", "binutils", "diffutils", "findutils", "tar", "gzip", "coreutils", "gawk", "grep", "sed", "pkgconf-pkg-config"];
+}
+target "desktop" {
+    architecture = "x86_64";
+    foundation = system;
+    packages = [jq(builder: c_tools, runtime: system), sqlite(builder: c_tools, runtime: system), hello(builder: c_tools, runtime: system)];
+}
+target "qemu-arm64" {
+    architecture = "aarch64";
+    foundation = system;
+    packages = [jq(builder: c_tools, runtime: system), sqlite(builder: c_tools, runtime: system), hello(builder: c_tools, runtime: system)];
+}

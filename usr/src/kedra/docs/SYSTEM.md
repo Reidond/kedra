@@ -28,8 +28,15 @@ The Kedra adapter resolves one committed source revision, including target overl
 and home baselines, then observes an exact retained Fedora 44 image of the target's
 architecture, which must be the machine's own (`aarch64` for `qemu-arm64`,
 `x86_64` for `desktop`).
-All desired RPM names must already be present and removed names absent. Engine
-outputs must share that foundation. Composition itself performs no DNF transaction.
+All desired RPM names must already be present and removed names absent. Each
+engine output names the runtime root it was built for; composition accepts it only
+if that root's RPM inventory (name, epoch, version, release, architecture, header
+and payload SHA-256) equals the foundation's exactly, nothing missing or extra, and
+records the root's recipe and inventory hash in the plan and in the installed
+`/usr/share/sysroot/composition.json`. The runtime root never has to be the
+foundation image itself: a release builds it from the RPM lock over the Fedora
+base, so package identities do not change with each commit's foundation image.
+Composition itself performs no DNF transaction.
 
 ```sh
 sysroot system plan --repo . --target qemu-arm64 --store /private/engine-store \
@@ -58,7 +65,9 @@ and its expected SHA-256. It writes a new mode-0700 directory containing:
 - `catalog-results.json`: verified realized object receipts.
 
 The adapter verifies every selected graph node against the expected derivation and
-foundation, verifies each runtime closure, includes runtime-library outputs, and
+runtime root, checks that the system foundation and the runtime root hold exactly
+the preflight's foundation RPMs, verifies each runtime closure, includes
+runtime-library outputs, and
 binds the exact frontend binary to the same `sysroot` artifact used by preflight.
 This is public build authority only; it does not sign or publish an image.
 

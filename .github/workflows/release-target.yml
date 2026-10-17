@@ -157,16 +157,28 @@ jobs:
           catalog_root="$RUNNER_TEMP/kedra-catalog"
           mkdir -m 700 "$catalog_root"
           foundation=$(jq -er .foundation_image "$RUNNER_TEMP/kedra-release-foundation/foundation.json")
-          printf '{"foundation":"%s","builders":{}}\n' "$foundation" > "$catalog_root/resolution.json"
+          # Package identities follow the Fedora material only, never this run's
+          # foundation image: the runtime root is the lock's exact Fedora base plus its
+          # foundation role, and each builder root that runtime root plus one builder
+          # role, all installed offline by the root's own rpm in the sandbox and
+          # refused unless the result equals the role's locked inventory. Contribute
+          # and compose accept the packages only because the runtime root's RPMs equal
+          # the foundation's exactly.
+          base=$(jq -er .base output/image-evidence/rpm-lock.json)
+          docker pull --quiet "$base"
+          base_id=$(docker image inspect --format '{{.Id}}' "$base")
+          output/release-binaries/sysroot store add-image --store "$RUNNER_TEMP/kedra-release-store" \
+            --image "$base_id" > "$catalog_root/base.json"
+          output/release-binaries/sysroot store add-root --store "$RUNNER_TEMP/kedra-release-store" \
+            --image "$base_id" --lock output/image-evidence/rpm-lock.json > "$catalog_root/runtime.json"
+          runtime=$(jq -er .root "$catalog_root/runtime.json")
+          printf '{"runtime":"%s","builders":{}}\n' "$runtime" > "$catalog_root/resolution.json"
           mapfile -t roles < <(jq -r '.builders | keys[]' output/release-binaries/catalog-pins.json)
           test "${#roles[@]}" -gt 0
           index=0
           for role in "${roles[@]}"; do
-            # The retained foundation's root plus this role's locked RPMs, installed
-            # offline by the root's own rpm in the sandbox; refused unless the result
-            # equals the role's locked inventory.
             output/release-binaries/sysroot store add-root --store "$RUNNER_TEMP/kedra-release-store" \
-              --image "$foundation" --lock output/image-evidence/rpm-lock.json --builder "$role" \
+              --image "$base_id" --lock output/image-evidence/rpm-lock.json --builder "$role" \
               > "$catalog_root/builder-$index.json"
             builder=$(jq -er .root "$catalog_root/builder-$index.json")
             jq --arg role "$role" --arg root "$builder" '.builders[$role]=$root' "$catalog_root/resolution.json" > "$catalog_root/resolution.next.json"
@@ -174,7 +186,7 @@ jobs:
             index=$((index+1))
           done
           jq --slurpfile resolution "$catalog_root/resolution.json" \
-            '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_images:[$resolution[0].foundation],source_objects:(.archives|keys)}' \
+            '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_roots:[$resolution[0].runtime],source_objects:(.archives|keys)}' \
             output/release-binaries/catalog-pins.json > "$catalog_root/policy.json"
           uv run usr/src/kedra/image/catalog/prepare-sources.py \
             --pins output/release-binaries/catalog-pins.json --output "$catalog_root/sources"

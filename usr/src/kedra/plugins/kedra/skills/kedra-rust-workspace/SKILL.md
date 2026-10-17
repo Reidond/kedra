@@ -16,7 +16,11 @@ Use typed errors, explicit process arguments and separate stdout data/stderr dia
 since 2026-10-15 builds, `run`, `profile run`, `develop` and foundation
 observation execute without a daemon in an unprivileged bubblewrap sandbox on
 native aarch64 Linux, inside input-addressed store roots (`rootfs/`; graph nodes
-name `builder_root`). Docker remains only for image import, RPM resolution and
+name `builder_root` and, since 2026-10-16, `runtime_root`). Release package roots
+are the RPM lock's Fedora base plus its foundation role (runtime) and one builder
+role over that (builder), so `out-` identities follow the base digest and locked
+RPMs, not the per-commit foundation image whose ID changes every run (it is a
+`--no-cache` build of that commit's binaries and payload). Docker remains only for image import, RPM resolution and
 image composition. CLI adapters live in `sysroot/engine.rs`. This is separate
 from installed helper authority, OS composition, home state and signed releases.
 Read `usr/src/kedra/docs/ENGINE.md` and the crate README for operations/limits.
@@ -24,8 +28,9 @@ Read `usr/src/kedra/docs/ENGINE.md` and the crate README for operations/limits.
 The typed `SystemDefinition`/`SystemFile` API and `sysroot system plan/compose`
 export static config/runtime contexts over an exact retained Fedora44 ARM
 foundation (2026-10-01). Keep source materialization tied to one resolved plan;
-never re-resolve HEAD while archiving. Match actual seven-column RPM material and
-one runtime foundation. Files outside config overlays require exact foundation
+never re-resolve HEAD while archiving. Match actual seven-column RPM material; a
+composition accepts an output only if its runtime root's RPM inventory equals the
+foundation's exactly (2026-10-16). Files outside config overlays require exact foundation
 bytes/mode and are explicit passthrough, never replacements. Export uses
 no-replace publication and refuses unsafe foundation aliases. Read
 `usr/src/kedra/docs/SYSTEM.md` and `.specs/nix-system-composition/verification.md`.

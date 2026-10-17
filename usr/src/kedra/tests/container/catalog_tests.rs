@@ -215,7 +215,7 @@ root=$(sysroot store add-root --store "$store" --image "$image" | field root)
 mkdir -p "$catalog"
 printf '{"schema_version":1,"sources":{}}\n' > "$catalog/lock.json"
 printf '{"schema_version":1,"namespace":"shadowing","targets":["fixture"],"repositories":["fedora","updates"],"required_packages":["bash"]}\n' > "$catalog/target-policy.json"
-printf '{"namespace":"shadowing","packages":["demo"],"builder_roots":["%s"],"runtime_images":["%s"],"source_objects":[]}\n' "$root" "$image" > "$catalog/policy.json"
+printf '{"namespace":"shadowing","packages":["demo"],"builder_roots":["%s"],"runtime_roots":["%s"],"source_objects":[]}\n' "$root" "$root" > "$catalog/policy.json"
 write() {
     cat > "$catalog/catalog.kedra" <<KEDRA
 language 1;
@@ -240,7 +240,7 @@ KEDRA
 build() {
     sysroot catalog build --store "$store" --package demo --input-root "$catalog" --entry catalog.kedra \
         --target fixture --lock lock.json --target-policy "$catalog/target-policy.json" \
-        --policy "$catalog/policy.json" --builder "$root" --runtime "$image"
+        --policy "$catalog/policy.json" --builder "$root" --runtime "$root"
 }
 write cat ''
 if build > refused.out 2> refused.err; then

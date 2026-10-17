@@ -357,7 +357,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args[1] == "build" {
         let graph = BuildGraph { schema: 1, nodes: BTreeMap::from([("app".into(), BuildNode {
-            builder_root: args[3].clone(), runtime_image: args[4].clone(),
+            builder_root: args[3].clone(), runtime_root: args[4].clone(),
             inputs: BTreeMap::from([("source".into(), Input::Object(args[2].clone()))]),
             argv: vec![Argument::literal("/bin/sh"), Argument::input("source", "build.sh"), Argument::output("")],
             env: BTreeMap::new(), runtime_inputs: vec![], timeout_seconds: 120,
@@ -396,13 +396,18 @@ fn main() {
     target.join("debug/author")
 }
 
-fn build_output(f: &Fixture, author: &Path, source: &str, runtime: &str, name: &str) -> String {
-    let builder = f.store("add-root", &["--image", BUILDER])["root"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+/// Build in the builder image's root; the output runs in `image`'s own root.
+fn build_output(f: &Fixture, author: &Path, source: &str, image: &str, name: &str) -> String {
+    let root = |image: &str| -> String {
+        f.store("add-root", &["--image", image])["root"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let builder = root(BUILDER);
+    let runtime = root(image);
     let graph = json_output(run(
-        Command::new(author).args(["build", source, &builder, runtime])
+        Command::new(author).args(["build", source, &builder, &runtime])
     ));
     let path = f.write_json(name, &graph);
     let mut command = f.cli(&["build", "--store"]);
@@ -702,7 +707,11 @@ fn refusal_matrix(f: &Fixture, definition: &Value, author: &Path, source: &str, 
     let other = build_output(f, author, source, OTHER_RUNTIME, "other-runtime.json");
     let mut mixed = definition.clone();
     mixed["outputs"]["foreign"] = json!(other);
-    f.reject_definition(&mixed, "mixed-runtime", "runtime foundation");
+    f.reject_definition(
+        &mixed,
+        "mixed-runtime",
+        "RPM material differs from the foundation",
+    );
     let mut wrong = empty_definition();
     wrong["foundation"] = json!(OTHER_RUNTIME);
     let wrong_path = f.write_json("wrong-foundation.json", &wrong);

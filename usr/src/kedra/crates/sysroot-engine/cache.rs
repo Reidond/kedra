@@ -127,7 +127,7 @@ pub fn verify_cache_receipt(
         || root.references.len() > 256
         || expected_bytes.len() as u64 > MAX_JSON
         || root.object != plan::derivation_id(expected)?
-        || root.runtime_image.as_deref() != Some(expected.runtime_image.as_str())
+        || root.runtime_root.as_deref() != Some(expected.runtime_root.as_str())
         || serde_json::to_vec(actual)? != expected_bytes
     {
         return Err(invalid(

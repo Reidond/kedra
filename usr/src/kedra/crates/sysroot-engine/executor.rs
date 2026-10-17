@@ -313,9 +313,9 @@ pub(crate) struct Journal {
     pub staging: String,
 }
 
-/// Run in the unpacked root of an exact store image (created on first use).
+/// Run in an existing store root filesystem.
 pub(crate) struct Execution<'a> {
-    pub image: &'a str,
+    pub root: &'a str,
     pub mounts: &'a [String],
     pub output: Option<(&'a str, &'a Path)>,
     pub argv: &'a [String],
@@ -323,11 +323,11 @@ pub(crate) struct Execution<'a> {
     pub seconds: u64,
 }
 pub(crate) fn execute(store: &Store, exec: Execution<'_>) -> Result<RunResult> {
-    let root = store.image_root(exec.image)?;
+    store.root(exec.root)?;
     sandbox(
         store,
         Sandbox {
-            root: &store.root_tree(&root),
+            root: &store.root_tree(exec.root),
             writable_root: false,
             stage: exec.output.and_then(|(_, path)| path.parent()),
             mounts: exec.mounts,

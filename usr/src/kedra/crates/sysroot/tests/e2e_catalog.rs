@@ -55,7 +55,7 @@ target "demo" { foundation = system; packages = [tool(builder: tools, runtime: s
 const AARCH64_OBJECT: &str = "src-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const X86_64_OBJECT: &str = "src-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const BUILDER: &str = "root-1111111111111111111111111111111111111111111111111111111111111111";
-const RUNTIME: &str = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+const RUNTIME: &str = "root-2222222222222222222222222222222222222222222222222222222222222222";
 
 struct Fixture {
     root: PathBuf,
@@ -188,7 +188,7 @@ fn language_edit_format_plan_and_refusal() {
         serde_json::from_slice(&success(fixture.language_run("check", &args, &[])).stdout).unwrap();
     assert_eq!(before["intent"], after["intent"]);
     assert_ne!(before["inputs"], after["inputs"]);
-    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}));
+    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]}));
     let selection = [
         "--package",
         "hello",
@@ -274,7 +274,7 @@ fn language_architecture_sources_private_exports_and_replacements() {
             pins["packages"]["tool"]["exports"]["tool"]["kind"],
             "libexec"
         );
-        let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["tool"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[object]}));
+        let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["tool"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[object]}));
         let graph: Value = serde_json::from_slice(
             &success(fixture.language_run(
                 "plan",
@@ -405,7 +405,7 @@ fn fixture_catalog_keeps_the_former_demo_packages() {
             .keys()
             .cloned()
             .collect();
-        let policy = fixture.write("fixture-policy.json", &json!({"namespace":"fixture","packages":["hello","jq","sqlite"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":sources}));
+        let policy = fixture.write("fixture-policy.json", &json!({"namespace":"fixture","packages":["hello","jq","sqlite"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":sources}));
         let graph: Value = serde_json::from_slice(
             &success(fixture.language_run(
                 "plan",
@@ -462,7 +462,7 @@ fn language_import_admission_and_no_effects() {
 fn language_packet_publication_is_complete_and_preserves_existing_winner() {
     let fixture = Fixture::new();
     let args = fixture.language(LANGUAGE_SAMPLE);
-    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}));
+    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]}));
     let packet = fixture.path("plan.tar");
     let selection = [
         "--package",
@@ -665,7 +665,7 @@ fn language_expansion_counts_preparation_nodes_in_the_graph_bound() {
             selected.join(",")
         ));
         let args = fixture.language(&source);
-        let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":names.into_iter().take(256).collect::<Vec<_>>(),"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}));
+        let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":names.into_iter().take(256).collect::<Vec<_>>(),"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]}));
         let output = fixture.language_run(
             "plan",
             &args,
@@ -733,11 +733,11 @@ fn formatter_admits_the_complete_bounded_selection_before_writing() {
 fn language_real_inline_build_transfer_and_rebuild() {
     let fixture = Fixture::new();
     let builder_image = std::env::var("KEDRA_CATALOG_BUILDER").expect("set exact retained builder");
-    let runtime = std::env::var("KEDRA_CATALOG_RUNTIME").expect("set exact retained runtime");
+    let runtime_image = std::env::var("KEDRA_CATALOG_RUNTIME").expect("set exact retained runtime");
     let args = fixture.language(LANGUAGE_SAMPLE);
     let store = fixture.path("language-store");
     success(fixture.run(&["store", "init", "--store", text(&store)]));
-    for image in [&builder_image, &runtime] {
+    for image in [&builder_image, &runtime_image] {
         success(fixture.run(&[
             "store",
             "add-image",
@@ -748,7 +748,8 @@ fn language_real_inline_build_transfer_and_rebuild() {
         ]));
     }
     let builder = fixture.root(&store, &builder_image);
-    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[builder],"runtime_images":[runtime],"source_objects":[]}));
+    let runtime = fixture.root(&store, &runtime_image);
+    let policy = fixture.write("engine-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[builder],"runtime_roots":[runtime],"source_objects":[]}));
     let build = [
         "--package",
         "hello",
@@ -822,6 +823,16 @@ fn language_real_inline_build_transfer_and_rebuild() {
     ]));
     let receiver = fixture.path("language-receiver");
     success(fixture.run(&["store", "init", "--store", text(&receiver)]));
+    // Runtime roots are not transferred; the receiver creates the same one.
+    success(fixture.run(&[
+        "store",
+        "add-image",
+        "--store",
+        text(&receiver),
+        "--image",
+        &runtime_image,
+    ]));
+    assert_eq!(fixture.root(&receiver, &runtime_image), runtime);
     success(fixture.run(&[
         "store",
         "import",
@@ -894,7 +905,7 @@ fn language_real_inline_build_transfer_and_rebuild() {
             &patch_image,
         ]));
         let patch_builder = fixture.root(&store, &patch_image);
-        let patch_policy = fixture.write("patch-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[patch_builder],"runtime_images":[runtime],"source_objects":[]}));
+        let patch_policy = fixture.write("patch-policy.json", &json!({"namespace":"example","packages":["hello"],"builder_roots":[patch_builder],"runtime_roots":[runtime],"source_objects":[]}));
         let patch_build: Value = serde_json::from_slice(
             &success(fixture.language_run(
                 "build",
@@ -1028,7 +1039,7 @@ fn remove_owned(path: &Path) {
 fn catalog_planning_and_policy_refusal_precede_store_access() {
     let fixture = Fixture::new();
     let args = fixture.language(LANGUAGE_SAMPLE);
-    let policy = json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]});
+    let policy = json!({"namespace":"example","packages":["hello"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]});
     let path = fixture.write("engine-policy.json", &policy);
     let selection = |policy: &Path| {
         vec![
@@ -1066,7 +1077,7 @@ fn catalog_planning_and_policy_refusal_precede_store_access() {
             "catalog policy denied: package",
         ),
         ("builder_roots", json!([]), "denied/incompatible image role"),
-        ("runtime_images", json!([]), "denied frontend namespace"),
+        ("runtime_roots", json!([]), "denied frontend namespace"),
     ] {
         let mut value = policy.clone();
         value[field] = replacement;
@@ -1081,7 +1092,7 @@ fn catalog_planning_and_policy_refusal_precede_store_access() {
 
 /// A selected `kedra` package for the x86_64 `desktop` target resolves, and its
 /// build takes the same path as any other target's: into the store, where this
-/// empty one lacks the foundation image. Realizing it needs a native x86_64 run.
+/// empty one lacks the runtime root. Realizing it needs a native x86_64 run.
 #[test]
 fn kedra_desktop_selection_resolves_and_builds_like_any_target() {
     let fixture = Fixture::new();
@@ -1097,7 +1108,7 @@ fn kedra_desktop_selection_resolves_and_builds_like_any_target() {
         let args = fixture.language_for(&source, namespace, target);
         let policy = fixture.write(
             "engine-policy.json",
-            &json!({"namespace":namespace,"packages":["hello"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}),
+            &json!({"namespace":namespace,"packages":["hello"],"builder_roots":[BUILDER],"runtime_roots":[RUNTIME],"source_objects":[]}),
         );
         let mut extra = vec![
             "--package",
@@ -1119,6 +1130,6 @@ fn kedra_desktop_selection_resolves_and_builds_like_any_target() {
     assert_eq!(resolved["namespace"], "kedra");
     assert_eq!(resolved["recipe"]["program"], "bin/hello");
     let desktop = run("build", "kedra", "desktop");
-    denied(desktop.clone(), "No such file or directory");
+    denied(desktop.clone(), "no root");
     assert_eq!(desktop.stderr, run("build", "example", "demo").stderr);
 }

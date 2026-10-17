@@ -1,7 +1,7 @@
 //! Typed native configuration and verified runtime closure export.
 use crate::{
     Argument, Error, ImageReceipt, LOGICAL_PREFIX, MAX_JSON, ObjectReceipt, PLATFORM, Result,
-    Segment, Store, executor, plan,
+    RootRecipe, Segment, Store, executor, plan,
     store::{hash_file, nonce},
     tree::{self, Kind},
 };
@@ -82,6 +82,14 @@ pub enum SystemFileDisposition {
     Payload,
     Foundation,
 }
+/// The runtime root a composed output was built for. Its RPM material equals
+/// the foundation's; the recipe names the exact image and locked RPM roles.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeRoot {
+    pub recipe: RootRecipe,
+    pub rpm_sha256: String,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SystemPlan {
@@ -91,6 +99,8 @@ pub struct SystemPlan {
     pub foundation: FoundationObservation,
     #[serde(deserialize_with = "crate::model::unique_map")]
     pub objects: BTreeMap<String, ObjectReceipt>,
+    #[serde(deserialize_with = "crate::model::unique_map")]
+    pub runtimes: BTreeMap<String, RuntimeRoot>,
     pub files: Vec<ResolvedSystemFile>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -108,6 +118,26 @@ pub struct SystemComposition {
     pub plan: SystemPlan,
     #[serde(deserialize_with = "crate::model::unique_map")]
     pub artifacts: BTreeMap<String, SystemArtifact>,
+}
+
+/// Up to three package rows only one side holds, for a refusal message.
+fn inventory_difference(runtime: &str, foundation: &str) -> String {
+    let runtime: BTreeSet<&str> = runtime.lines().collect();
+    let foundation: BTreeSet<&str> = foundation.lines().collect();
+    let name = |row: &&str| row.split('\t').take(5).collect::<Vec<_>>().join("-");
+    let only = |a: &BTreeSet<&str>, b: &BTreeSet<&str>| {
+        let rows: Vec<String> = a.difference(b).take(3).map(name).collect();
+        if rows.is_empty() {
+            "none".to_owned()
+        } else {
+            rows.join(", ")
+        }
+    };
+    format!(
+        "only in the runtime root: {}; only in the foundation: {}",
+        only(&runtime, &foundation),
+        only(&foundation, &runtime)
+    )
 }
 
 pub fn read_system(path: &Path) -> Result<SystemDefinition> {
@@ -200,13 +230,20 @@ impl Store {
         })
     }
 
-    /// The subset of `names` the retained foundation provides as commands in its
-    /// default PATH directories (any entry, including alternatives symlinks).
+    /// The subset of `names` the retained foundation image provides as commands
+    /// in its default PATH directories (any entry, including alternatives symlinks).
     pub fn foundation_commands(
         &self,
         foundation: &str,
         names: &BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
+        self.verify_image(foundation)?;
+        let root = self.image_root(foundation)?;
+        self.root_commands(&root, names)
+    }
+
+    /// The same probe in an existing store root, such as a package runtime root.
+    pub fn root_commands(&self, root: &str, names: &BTreeSet<String>) -> Result<BTreeSet<String>> {
         if names.is_empty() {
             return Ok(BTreeSet::new());
         }
@@ -220,7 +257,6 @@ impl Store {
         }) {
             return Err(Error::Invalid("invalid command name".into()));
         }
-        self.verify_image(foundation)?;
         // Names are positional arguments, never shell source.
         let script = "for name do for dir in /usr/local/bin /usr/local/sbin /usr/bin /usr/sbin /bin /sbin; do if [ -e \"$dir/$name\" ] || [ -L \"$dir/$name\" ]; then printf '%s\\n' \"$name\"; break; fi; done; done";
         let mut argv = vec![
@@ -230,14 +266,25 @@ impl Store {
             "foundation-commands".into(),
         ];
         argv.extend(names.iter().cloned());
-        let found: BTreeSet<String> = self
-            .system_command(foundation, &argv)?
+        let result = executor::checked(executor::execute(
+            self,
+            executor::Execution {
+                root,
+                mounts: &[],
+                output: None,
+                argv: &argv,
+                env: &BTreeMap::new(),
+                seconds: 120,
+            },
+        )?)?;
+        let found: BTreeSet<String> = String::from_utf8(result.stdout)
+            .map_err(|_| Error::Invalid("command probe output is not UTF-8".into()))?
             .lines()
             .map(str::to_owned)
             .collect();
         if !found.is_subset(names) {
             return Err(Error::Invalid(
-                "foundation command probe returned unrequested names".into(),
+                "command probe returned unrequested names".into(),
             ));
         }
         Ok(found)
@@ -252,29 +299,22 @@ impl Store {
         definition.required_packages.sort();
         definition.removed_packages.sort();
         let mut objects = BTreeMap::new();
+        let mut runtimes = BTreeSet::new();
         for id in definition.outputs.values() {
+            // `verify` refuses a closure whose objects name different runtime roots.
             let root = self.verify(id)?;
-            if root.runtime_image.as_deref() != Some(&definition.foundation) {
-                return Err(Error::Invalid(format!(
-                    "output {id} has no matching runtime foundation"
-                )));
-            }
+            let runtime = root
+                .runtime_root
+                .ok_or_else(|| Error::Invalid(format!("output {id} has no runtime root")))?;
+            runtimes.insert(runtime);
             for object in self.closure(id)?.objects {
                 let receipt = self.verify(&object)?;
-                if receipt
-                    .runtime_image
-                    .as_ref()
-                    .is_some_and(|image| image != &definition.foundation)
-                {
-                    return Err(Error::Invalid(format!(
-                        "mixed runtime foundation for {object}"
-                    )));
-                }
                 objects.insert(object, receipt);
             }
         }
         let files = self.resolve_system_files(&definition, &objects)?;
         let foundation = self.observe_foundation(&definition.foundation)?;
+        let runtimes = self.runtime_material(&runtimes, &foundation)?;
         let installed: BTreeSet<_> = foundation
             .rpm_inventory
             .lines()
@@ -296,17 +336,46 @@ impl Store {
         }
         self.check_foundation_paths(&definition.foundation, &files, &objects)?;
         let mut result = SystemPlan {
-            schema: 1,
+            schema: 2,
             identity: String::new(),
             definition,
             foundation,
             objects,
+            runtimes,
             files,
         };
         let mut identity = b"sysroot-system-v1\0".to_vec();
         identity.extend(serde_json::to_vec(&result)?);
         result.identity = plan::hash(&identity);
         Ok(result)
+    }
+
+    /// Outputs run in the foundation, so each runtime root they were built for
+    /// must hold exactly the foundation's RPMs: name, epoch, version, release,
+    /// architecture, header and payload SHA-256, nothing missing or extra.
+    fn runtime_material(
+        &self,
+        ids: &BTreeSet<String>,
+        foundation: &FoundationObservation,
+    ) -> Result<BTreeMap<String, RuntimeRoot>> {
+        let mut runtimes = BTreeMap::new();
+        for id in ids {
+            let root = self.root(id)?;
+            if root.rpm_inventory != foundation.rpm_inventory {
+                return Err(Error::Invalid(format!(
+                    "runtime root {id} RPM material differs from the foundation: {}",
+                    inventory_difference(&root.rpm_inventory, &foundation.rpm_inventory)
+                )));
+            }
+            runtimes.insert(
+                id.clone(),
+                RuntimeRoot {
+                    recipe: root.recipe,
+                    rpm_sha256: root.rpm_sha256,
+                },
+            );
+        }
+        Ok(runtimes)
     }
 
     /// Publishes an offline context; it neither builds nor installs an OS image.
@@ -367,10 +436,11 @@ impl Store {
     }
 
     fn system_command(&self, image: &str, argv: &[String]) -> Result<String> {
+        let root = self.image_root(image)?;
         let result = executor::checked(executor::execute(
             self,
             executor::Execution {
-                image,
+                root: &root,
                 mounts: &[],
                 output: None,
                 argv,
@@ -577,12 +647,14 @@ impl Store {
             identity: &'a str,
             foundation: &'a FoundationObservation,
             objects: &'a BTreeMap<String, ObjectReceipt>,
+            runtimes: &'a BTreeMap<String, RuntimeRoot>,
         }
         let receipt = serde_json::to_vec(&PayloadReceipt {
-            schema: 1,
+            schema: 2,
             identity: &plan.identity,
             foundation: &plan.foundation,
             objects: &plan.objects,
+            runtimes: &plan.runtimes,
         })?;
         append_file(&mut archive, &RECEIPT_PATH[1..], 0o644, &receipt)?;
         let mut total = 0u64;

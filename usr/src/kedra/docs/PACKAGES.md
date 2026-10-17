@@ -108,10 +108,11 @@ sysroot catalog lock repo --store /private/rpm-store --lock rpm-lock.json \
 ```
 
 Then build the foundation context as the release does: `image/Containerfile` with
-`image/catalog/install-rpms.sh` next to it, on the lock's `base`. A builder role
-needs no image build: `sysroot store add-root --store <store> --image <foundation>
---lock rpm-lock.json --builder <role>` installs it offline over the foundation's
-root in the engine sandbox and prints the root a graph's `builder_root` names.
+`image/catalog/install-rpms.sh` next to it, on the lock's `base`. Packages need no
+image build: `sysroot store add-root --store <store> --image <base> --lock
+rpm-lock.json` installs the lock's foundation role offline over the retained base's
+root in the engine sandbox (the runtime root a graph's `runtime_root` names), and
+`--builder <role>` installs that builder role over it in turn (a `builder_root`).
 `fetch` downloads from the recorded mirror, then from Koji, and admits only the
 locked bytes. `kedra-lab build` resolves a lock with the host `sysroot` and
 installs from it in the same way.
@@ -280,21 +281,27 @@ sysroot catalog plan --package hello --policy /private/catalog-policy.json \
 publishes a new tar packet atomically and refuses an existing destination. The
 packet includes `graph.json`, admitted resource objects and `frontend.json`.
 `resolve` emits selected metadata and identities. `build` adds `--store` and
-executes the resolved graph after observing the exact Fedora 44 runtime and
-compiler-role RPM material. `contribute` requires already realized outputs,
+executes the resolved graph after checking the RPM material the runtime and
+compiler-role roots recorded at admission. `contribute` requires already realized outputs,
 canonical independently hashed release input material, an exact lowercase source
 commit and a new private output directory.
 
-Exact image resolution is separate from authored requests:
+Exact root resolution is separate from authored requests:
 
 ```json
 {
-  "foundation": "sha256:<64 lowercase hex digits>",
+  "runtime": "root-<64 lowercase hex digits>",
   "builders": {
     "catalog.kedra#tools": "root-<64 lowercase hex digits>"
   }
 }
 ```
+
+In a release both are made from the RPM lock over its exact Fedora base, so a
+package's identity changes only with the base digest, the locked RPMs or the
+package's own inputs, never with the per-run Kedra foundation image. `contribute`
+and `sysroot system compose` accept the outputs only over a foundation whose RPM
+inventory equals the runtime root's exactly.
 
 ## Exports and PATH
 
@@ -310,10 +317,11 @@ codex` uses it). `/usr/share/kedra/catalog.json` (schema 2) lists `commands` and
 `libexec` with their package, output path, launcher and, for commands, `replaces`.
 Global RPM paths are never replaced.
 
-No silent shadowing: `sysroot catalog build` and `contribute` probe the exact
-foundation (in the engine sandbox) for each exported command name in
-`/usr/local/bin`, `/usr/local/sbin`, `/usr/bin`, `/usr/sbin`, `/bin` and `/sbin`. An
-export the foundation already provides is refused unless its package declares it:
+No silent shadowing: in the engine sandbox, `sysroot catalog build` probes the
+runtime root (the foundation's locked RPMs) and `contribute` the complete
+foundation image for each exported command name in `/usr/local/bin`,
+`/usr/local/sbin`, `/usr/bin`, `/usr/sbin`, `/bin` and `/sbin`. An export the
+foundation already provides is refused unless its package declares it:
 
 ```text
 export command "jq" = "bin/jq";
@@ -328,7 +336,7 @@ survive a foundation change.
 
 Both targets select two prebuilt official packages, unchanged, built with the
 `tools` builder (coreutils, findutils, glibc-common, grep, gzip, tar; all already
-in the foundation, so the role installs nothing):
+in the foundation role, so the builder role installs nothing):
 
 | Package | Source per architecture | Exports | Runtime libraries |
 |---|---|---|---|
@@ -337,8 +345,8 @@ in the foundation, so the role installs nothing):
 
 The Codex build checks that the binary runs and reports the declared version; the
 Bitwarden build checks with `ldd` that the runtime, `desktop_proxy` and the native
-module resolve every library in the builder root (the foundation plus build
-tools), and declares the Electron libraries it needs as `runtime_requires`. The
+module resolve every library in the builder root (the locked foundation RPMs
+plus build tools), and declares the Electron libraries it needs as `runtime_requires`. The
 desktop entry's `Exec=` and `Icon=` are typed paths of the exact output. Its
 upstream launcher resolves its own directory through `readlink -f`. The x86_64
 image now uses the official x64 tarball like arm64, not the RPM; package scripts
@@ -369,10 +377,10 @@ Verifying at build time instead would put Cosign, its Sigstore trust root and
 network access into every release build for no added protection: the pin already
 binds the build to the verified bytes, and a mismatch fails the download.
 
-The engine observes each retained image's actual seven-column RPM inventory. It
-refuses a runtime missing a requested Fedora package, containing a requested
-removal, or a builder missing either its compiler requests or the selected
-foundation requests. Package names and pins do not prove installed bytes.
+Each root records its actual seven-column RPM inventory, observed in the sandbox
+when it was made. The adapter refuses a runtime missing a requested Fedora package,
+containing a requested removal, or a builder missing either its compiler requests
+or the selected foundation requests. Package names and pins do not prove installed bytes.
 
 ## Resource and execution boundary
 

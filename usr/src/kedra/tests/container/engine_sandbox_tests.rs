@@ -47,7 +47,7 @@ sleep 60
 mkdir -p "$1"
 BUILD
 graph() {
-    printf '{"schema":1,"nodes":{"app":{"builder_root":"%s","runtime_image":"%s","inputs":{"source":{"kind":"object","value":"%s"}},"argv":[[{"kind":"literal","value":"/bin/sh"}],[{"kind":"input","name":"source","path":"%s"}],[{"kind":"output","path":""}]],"env":{},"runtime_inputs":[],"timeout_seconds":120}}}' "$root" "$image" "$source" "$1"
+    printf '{"schema":1,"nodes":{"app":{"builder_root":"%s","runtime_root":"%s","inputs":{"source":{"kind":"object","value":"%s"}},"argv":[[{"kind":"literal","value":"/bin/sh"}],[{"kind":"input","name":"source","path":"%s"}],[{"kind":"output","path":""}]],"env":{},"runtime_inputs":[],"timeout_seconds":120}}}' "$root" "$root" "$source" "$1"
 }
 source=$(sysroot store add-source --store "$store" --source source | field object)
 graph build.sh > build.json

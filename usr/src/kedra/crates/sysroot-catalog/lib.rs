@@ -54,7 +54,7 @@ pub struct Policy {
     pub namespace: String,
     pub packages: BTreeSet<String>,
     pub builder_roots: BTreeSet<String>,
-    pub runtime_images: BTreeSet<String>,
+    pub runtime_roots: BTreeSet<String>,
     pub source_objects: BTreeSet<String>,
 }
 
@@ -158,11 +158,8 @@ impl Catalog {
             if !policy.builder_roots.contains(&node.builder_root) {
                 return Err(Error::Denied(format!("builder root {}", node.builder_root)));
             }
-            if !policy.runtime_images.contains(&node.runtime_image) {
-                return Err(Error::Denied(format!(
-                    "runtime image {}",
-                    node.runtime_image
-                )));
+            if !policy.runtime_roots.contains(&node.runtime_root) {
+                return Err(Error::Denied(format!("runtime root {}", node.runtime_root)));
             }
             for input in node.inputs.values() {
                 if let Input::Object(object) = input {
@@ -196,7 +193,7 @@ impl Policy {
         if [
             self.packages.len(),
             self.builder_roots.len(),
-            self.runtime_images.len(),
+            self.runtime_roots.len(),
             self.source_objects.len(),
         ]
         .into_iter()
@@ -212,8 +209,8 @@ impl Policy {
         for root in &self.builder_roots {
             identity(root, "root-")?;
         }
-        for image in &self.runtime_images {
-            identity(image, "sha256:")?;
+        for root in &self.runtime_roots {
+            identity(root, "root-")?;
         }
         for source in &self.source_objects {
             identity(source, "src-")?;

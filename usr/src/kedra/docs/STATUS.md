@@ -26,6 +26,21 @@ provide; outside the sandbox the x86_64 Codex runs and Bitwarden x64 resolves
 every library. No release run, boot,
 installation or publication follows from these results.
 
+## Package identity from Fedora material (2026-10-16)
+
+Branch claude/engine-cache-725395 makes package identities independent of the
+per-run foundation image, the precondition for a binary cache: graph nodes name a
+`runtime_root` instead of a `runtime_image`, and a release makes the runtime root
+from the RPM lock's Fedora base plus its foundation role and each builder root from
+the runtime root plus one builder role ([ENGINE](ENGINE.md#execution-and-integrity)).
+Composition accepts an output only if its runtime root's RPM inventory equals the
+foundation's exactly ([SYSTEM](SYSTEM.md#plan-and-compose)). Locally (worklog
+WL-20261016-ENGINE-RUNTIME-ROOTS-01) a fixture E2E shows the same root and `out-`
+ids for two different foundation images of one lock, new ids for a changed lock and
+the compose refusal; a real qemu-arm64 runtime root (base plus 905 locked RPMs)
+builds in 192 s and the real `hello` package builds and runs in it. The release run
+is `not-run`; the GHCR cache itself is a follow-up PR.
+
 ## One engine image pipeline (2026-10-15)
 
 Both targets build through the engine, natively on their own runner: lock →

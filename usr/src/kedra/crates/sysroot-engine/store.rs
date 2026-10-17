@@ -54,7 +54,7 @@ pub fn single_file_source_receipt(member: &str, bytes: &[u8]) -> Result<ObjectRe
             .into(),
         object,
         references: Vec::new(),
-        runtime_image: None,
+        runtime_root: None,
         derivation: None,
     })
 }
@@ -70,7 +70,7 @@ pub fn verify_single_file_source(
         || receipt.object != expected.object
         || receipt.tree_sha256 != expected.tree_sha256
         || !receipt.references.is_empty()
-        || receipt.runtime_image.is_some()
+        || receipt.runtime_root.is_some()
         || receipt.derivation.is_some()
     {
         return Err(Error::Corrupt(
@@ -315,7 +315,7 @@ impl Store {
                 object: object.clone(),
                 tree_sha256: tree.digest,
                 references: tree.references.into_iter().collect(),
-                runtime_image: None,
+                runtime_root: None,
                 derivation: None,
             };
             self.admit_object(&stage, &receipt)?;
@@ -365,7 +365,7 @@ impl Store {
                 object: expected,
                 tree_sha256: inspected.digest,
                 references: inspected.references.into_iter().collect(),
-                runtime_image: None,
+                runtime_root: None,
                 derivation: None,
             };
             self.admit_object(&stage, &receipt)?;
@@ -443,7 +443,7 @@ impl Store {
         for id in &refs {
             object_id(id)?;
         }
-        match (&receipt.derivation, &receipt.runtime_image) {
+        match (&receipt.derivation, &receipt.runtime_root) {
             (None, None) => {
                 if receipt.object != format!("src-{}", tree.digest) || refs != tree.references {
                     return Err(Error::Corrupt(
@@ -451,9 +451,9 @@ impl Store {
                     ));
                 }
             }
-            (Some(spec), Some(image)) => {
-                image_id(image)?;
-                if spec.runtime_image != *image
+            (Some(spec), Some(runtime)) => {
+                plan::root_id(runtime)?;
+                if spec.runtime_root != *runtime
                     || plan::derivation_id(spec)? != receipt.object
                     || spec.schema != 1
                     || spec.platform != PLATFORM
@@ -476,14 +476,12 @@ impl Store {
         let mut visiting = BTreeSet::new();
         let mut verified = BTreeMap::new();
         let receipt = self.verify_inner(id, &mut visiting, &mut verified)?;
-        let foundations: BTreeSet<_> = verified
+        let runtimes: BTreeSet<_> = verified
             .values()
-            .filter_map(|value| value.runtime_image.as_ref())
+            .filter_map(|value| value.runtime_root.as_ref())
             .collect();
-        if foundations.len() > 1 {
-            return Err(Error::Corrupt(
-                "transitive runtime image foundations differ".into(),
-            ));
+        if runtimes.len() > 1 {
+            return Err(Error::Corrupt("transitive runtime roots differ".into()));
         }
         Ok(receipt)
     }
@@ -513,8 +511,8 @@ impl Store {
             return Err(Error::Corrupt(format!("tree digest differs for {id}")));
         }
         self.validate_receipt(&receipt, &tree)?;
-        if let Some(image) = &receipt.runtime_image {
-            self.verify_image(image)?;
+        if let Some(runtime) = &receipt.runtime_root {
+            self.root(runtime)?;
         }
         for reference in &receipt.references {
             if reference == id {
@@ -523,10 +521,10 @@ impl Store {
                 ));
             }
             let dep = self.verify_inner(reference, visiting, verified)?;
-            if let (Some(a), Some(b)) = (&receipt.runtime_image, &dep.runtime_image)
+            if let (Some(a), Some(b)) = (&receipt.runtime_root, &dep.runtime_root)
                 && a != b
             {
-                return Err(Error::Corrupt("runtime image foundation differs".into()));
+                return Err(Error::Corrupt("runtime root differs".into()));
             }
         }
         visiting.remove(id);
@@ -649,28 +647,28 @@ impl Store {
     pub fn closure(&self, id: &str) -> Result<Closure> {
         self.verify(id)?;
         let mut objects = BTreeSet::new();
-        let mut images = BTreeSet::new();
-        self.collect(id, &mut objects, &mut images)?;
+        let mut runtime_roots = BTreeSet::new();
+        self.collect(id, &mut objects, &mut runtime_roots)?;
         Ok(Closure {
             objects: objects.into_iter().collect(),
-            images: images.into_iter().collect(),
+            runtime_roots: runtime_roots.into_iter().collect(),
         })
     }
     fn collect(
         &self,
         id: &str,
         objects: &mut BTreeSet<String>,
-        images: &mut BTreeSet<String>,
+        runtime_roots: &mut BTreeSet<String>,
     ) -> Result<()> {
         if !objects.insert(id.into()) {
             return Ok(());
         }
         let r: ObjectReceipt = read_json(&self.object_path(id).join("receipt.json"))?;
-        if let Some(image) = r.runtime_image {
-            images.insert(image);
+        if let Some(runtime) = r.runtime_root {
+            runtime_roots.insert(runtime);
         }
         for reference in r.references {
-            self.collect(&reference, objects, images)?;
+            self.collect(&reference, objects, runtime_roots)?;
         }
         Ok(())
     }
@@ -713,7 +711,7 @@ impl Store {
                 result.reused.push(name.clone());
                 continue;
             }
-            self.verify_image(&spec.runtime_image)?;
+            self.root(&spec.runtime_root)?;
             self.root(&spec.builder_root)?;
             let mut mounts = BTreeSet::new();
             for input in spec.inputs.values() {
@@ -722,12 +720,12 @@ impl Store {
             for reference in &spec.runtime_inputs {
                 let closure = self.closure(reference)?;
                 if closure
-                    .images
+                    .runtime_roots
                     .iter()
-                    .any(|image| image != &spec.runtime_image)
+                    .any(|runtime| runtime != &spec.runtime_root)
                 {
                     return Err(Error::Invalid(
-                        "declared runtime closure images differ".into(),
+                        "declared runtime closure roots differ".into(),
                     ));
                 }
             }
@@ -777,12 +775,12 @@ impl Store {
                 for reference in &refs {
                     let closure = self.closure(reference)?;
                     if closure
-                        .images
+                        .runtime_roots
                         .iter()
-                        .any(|image| image != &spec.runtime_image)
+                        .any(|runtime| runtime != &spec.runtime_root)
                     {
                         return Err(Error::Invalid(
-                            "detected runtime closure images differ".into(),
+                            "detected runtime closure roots differ".into(),
                         ));
                     }
                 }
@@ -791,7 +789,7 @@ impl Store {
                     object: id.clone(),
                     tree_sha256: tree.digest,
                     references: refs.into_iter().collect(),
-                    runtime_image: Some(spec.runtime_image.clone()),
+                    runtime_root: Some(spec.runtime_root.clone()),
                     derivation: Some(spec.clone()),
                 };
                 if let Some(old) = &existing {
@@ -834,12 +832,12 @@ impl Store {
     ) -> Result<RunResult> {
         plan::relative(program, false)?;
         let receipt = self.verify(id)?;
-        let image = receipt
-            .runtime_image
-            .ok_or_else(|| Error::Invalid("source has no runtime foundation".into()))?;
+        let runtime = receipt
+            .runtime_root
+            .ok_or_else(|| Error::Invalid("source has no runtime root".into()))?;
         let closure = self.closure(id)?;
-        if closure.images.iter().any(|i| i != &image) {
-            return Err(Error::Corrupt("closure runtime images differ".into()));
+        if closure.runtime_roots.iter().any(|r| r != &runtime) {
+            return Err(Error::Corrupt("closure runtime roots differ".into()));
         }
         let mut argv = vec![format!("{LOGICAL_PREFIX}/{id}/{program}")];
         argv.extend_from_slice(args);
@@ -847,7 +845,7 @@ impl Store {
         executor::execute(
             self,
             executor::Execution {
-                image: &image,
+                root: &runtime,
                 mounts: &closure.objects,
                 output: None,
                 argv: &argv,
@@ -859,24 +857,25 @@ impl Store {
     fn retained(&self) -> Result<(BTreeSet<String>, BTreeSet<String>, BTreeSet<String>)> {
         let roots = self.roots()?;
         let mut keep = BTreeSet::new();
-        let mut images = roots.images;
+        let images = roots.images;
+        let mut runtime = BTreeSet::new();
         for id in &roots.objects {
             let c = self.closure(id)?;
             keep.extend(c.objects);
-            images.extend(c.images);
+            runtime.extend(c.runtime_roots);
         }
         for name in list_names(&self.path.join("profiles"))? {
             let profile = self.profile_list(&name)?;
             for generation in profile.generations {
                 let c = self.closure(&generation.object)?;
                 keep.extend(c.objects);
-                images.extend(c.images);
+                runtime.extend(c.runtime_roots);
             }
         }
         for image in &images {
             self.verify_image(image)?;
         }
-        let rootfs = self.retained_roots(&images)?;
+        let rootfs = self.retained_roots(&images, &runtime)?;
         Ok((keep, images, rootfs))
     }
     pub fn gc(&self, delete: bool) -> Result<GcResult> {
@@ -1009,13 +1008,13 @@ impl Store {
                 }
             }
             if receipt
-                .runtime_image
+                .runtime_root
                 .as_ref()
-                .is_some_and(|image| targets.images.contains(image))
+                .is_some_and(|runtime| targets.rootfs.contains(runtime))
                 && !positions.contains_key(&id)
             {
                 return Err(Error::RecoveryRequired(
-                    "GC journal includes an image used by a surviving object".into(),
+                    "GC journal includes a runtime root used by a surviving object".into(),
                 ));
             }
         }

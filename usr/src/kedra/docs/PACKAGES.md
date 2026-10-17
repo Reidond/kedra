@@ -100,10 +100,11 @@ sysroot catalog lock repo --store /private/rpm-store --lock rpm-lock.json \
 ```
 
 Then build the foundation context as the release does: `image/Containerfile` with
-`image/catalog/install-rpms.sh` next to it, on the lock's `base`. A builder role
-needs no image build: `sysroot store add-root --store <store> --image <foundation>
---lock rpm-lock.json --builder <role>` installs it offline over the foundation's
-root in the engine sandbox and prints the root a graph's `builder_root` names.
+`image/catalog/install-rpms.sh` next to it, on the lock's `base`. Packages need no
+image build: `sysroot store add-root --store <store> --image <base> --lock
+rpm-lock.json` installs the lock's foundation role offline over the retained base's
+root in the engine sandbox (the runtime root a graph's `runtime_root` names), and
+`--builder <role>` installs that builder role over it in turn (a `builder_root`).
 `fetch` downloads from the recorded mirror, then from Koji, and admits only the
 locked bytes. `kedra-lab build` resolves a lock with the host `sysroot` and
 installs from it in the same way.
@@ -256,30 +257,36 @@ sysroot catalog plan --package hello --policy /private/catalog-policy.json \
 publishes a new tar packet atomically and refuses an existing destination. The
 packet includes `graph.json`, admitted resource objects and `frontend.json`.
 `resolve` emits selected metadata and identities. `build` adds `--store` and
-executes the resolved graph after observing the exact Fedora 44 runtime and
-compiler-role RPM material. `contribute` requires already realized outputs,
+executes the resolved graph after checking the RPM material the runtime and
+compiler-role roots recorded at admission. `contribute` requires already realized outputs,
 canonical independently hashed release input material, an exact lowercase source
 commit and a new private output directory.
 
-Exact image resolution is separate from authored requests:
+Exact root resolution is separate from authored requests:
 
 ```json
 {
-  "foundation": "sha256:<64 lowercase hex digits>",
+  "runtime": "root-<64 lowercase hex digits>",
   "builders": {
-    "catalog.kedra#c_tools": "sha256:<64 lowercase hex digits>"
+    "catalog.kedra#c_tools": "root-<64 lowercase hex digits>"
   }
 }
 ```
+
+In a release both are made from the RPM lock over its exact Fedora base, so a
+package's identity changes only with the base digest, the locked RPMs or the
+package's own inputs, never with the per-run Kedra foundation image. `contribute`
+and `sysroot system compose` accept the outputs only over a foundation whose RPM
+inventory equals the runtime root's exactly.
 
 Command exports with a different alias from their output filename receive a typed
 launcher under `/usr/share/kedra/catalog-bin`. Exact-store paths for matching
 command names are preserved; global RPM paths are never replaced.
 
-The engine observes each retained image's actual seven-column RPM inventory. It
-refuses a runtime missing a requested Fedora package, containing a requested
-removal, or a builder missing either its compiler requests or the selected
-foundation requests. Package names and pins do not prove installed bytes.
+Each root records its actual seven-column RPM inventory, observed in the sandbox
+when it was made. The adapter refuses a runtime missing a requested Fedora package,
+containing a requested removal, or a builder missing either its compiler requests
+or the selected foundation requests. Package names and pins do not prove installed bytes.
 
 ## Resource and execution boundary
 

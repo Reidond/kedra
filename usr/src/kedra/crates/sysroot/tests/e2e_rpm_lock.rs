@@ -491,9 +491,10 @@ package probe_{name}(builder: Builder, runtime: Foundation) {{
     .to_vec()
 }
 
+/// Resolve into `store`; the lock and logs are named after the store.
 fn resolve(fixture: &Fixture, inputs: &[String], base: &str, store: &Path) -> (Value, PathBuf) {
-    let output = fixture.path("rpm-lock.json");
-    let logs = fixture.path("resolver-logs");
+    let output = store.with_extension("rpm-lock.json");
+    let logs = store.with_extension("resolver-logs");
     let mut arguments: Vec<&str> = vec!["resolve"];
     arguments.extend(inputs.iter().map(String::as_str));
     arguments.extend([
@@ -657,11 +658,15 @@ fn build_image(
     fs::read_to_string(iid).unwrap().trim().to_owned()
 }
 
-#[test]
-#[ignore = "requires a native Linux Docker engine and network for the Fedora 44 fixture images"]
-fn fixture_repository_lock_installs_offline_and_refuses_changed_rpms() {
-    let fixture = Fixture::new();
-    let (target, architecture) = native_target();
+/// A running signed fixture mirror and a Fedora 44 base that trusts it.
+struct FixtureMirror {
+    server: String,
+    mirror: String,
+    base: String,
+    base_tag: String,
+}
+
+fn fixture_mirror(fixture: &Fixture, resources: &mut Resources) -> FixtureMirror {
     let nonce = fixture
         .root
         .file_name()
@@ -669,9 +674,8 @@ fn fixture_repository_lock_installs_offline_and_refuses_changed_rpms() {
         .to_str()
         .unwrap()
         .to_owned();
-    let mut resources = Resources(Vec::new());
     let repository_image = build_image(
-        &fixture,
+        fixture,
         "fixture-repository",
         &format!(
             "FROM {FEDORA}\n\
@@ -705,7 +709,7 @@ fn fixture_repository_lock_installs_offline_and_refuses_changed_rpms() {
     let mirror = format!("http://{address}:8080");
     // Never reuse a cached base: it embeds the key of an earlier fixture repository.
     let base = build_image(
-        &fixture,
+        fixture,
         "fixture-base",
         &fixture_base(&mirror),
         &[],
@@ -722,6 +726,33 @@ fn fixture_repository_lock_installs_offline_and_refuses_changed_rpms() {
     resources
         .0
         .push(vec!["image".into(), "rm".into(), base_tag.clone()]);
+    FixtureMirror {
+        server,
+        mirror,
+        base,
+        base_tag,
+    }
+}
+
+#[test]
+#[ignore = "requires a native Linux Docker engine and network for the Fedora 44 fixture images"]
+fn fixture_repository_lock_installs_offline_and_refuses_changed_rpms() {
+    let fixture = Fixture::new();
+    let (target, architecture) = native_target();
+    let mut resources = Resources(Vec::new());
+    let FixtureMirror {
+        server,
+        mirror,
+        base,
+        base_tag,
+    } = fixture_mirror(&fixture, &mut resources);
+    let nonce = fixture
+        .root
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned();
 
     // One resolution: upgrade, install with dependencies, then remove; two
     // builder roles, the first from a commit of the resolved foundation.
@@ -955,6 +986,369 @@ fn fixture_repository_lock_installs_offline_and_refuses_changed_rpms() {
     assert!(!refused_store.join("objects").join(object).exists());
 }
 
+/// A catalog with one built command over the `tools` builder role.
+fn identity_catalog(fixture: &Fixture, name: &str, target: &str, foundation: &str) -> Vec<String> {
+    let root = fixture.path(name);
+    fs::create_dir(&root).unwrap();
+    fs::write(
+        root.join("catalog.kedra"),
+        format!(
+            r##"language 1;
+namespace "kedra";
+foundation system {{ fedora = 44; {foundation} }}
+builder tools {{ base = system; packages = ["kedra-fixture-tool"]; }}
+package probe(builder: Builder, runtime: Foundation) {{
+    version = "1"; summary = "Identity probe"; license = "MIT";
+    source = files {{ "probe.txt" = text "probe\n"; }};
+    build = shell """
+        mkdir -p "$out/bin"
+        printf '#!/bin/sh\necho %s\n' "$(cat "$src/probe.txt")" > "$out/bin/probe"
+        chmod 755 "$out/bin/probe"
+        """;
+    export command "probe" = "bin/probe";
+}}
+target "{target}" {{ foundation = system; packages = [probe(builder: tools, runtime: system)]; }}
+"##
+        ),
+    )
+    .unwrap();
+    fs::write(
+        root.join("packages.lock.json"),
+        br#"{"schema_version":1,"sources":{}}"#,
+    )
+    .unwrap();
+    let policy = fixture.path(&format!("{name}-policy.json"));
+    fs::write(
+        &policy,
+        serde_json::to_vec(&json!({"schema_version":1,"namespace":"kedra","targets":[target],"repositories":["fedora","updates"],"required_packages":[]})).unwrap(),
+    )
+    .unwrap();
+    [
+        "--input-root",
+        text(&root),
+        "--entry",
+        "catalog.kedra",
+        "--lock",
+        "packages.lock.json",
+        "--target",
+        target,
+        "--target-policy",
+        text(&policy),
+    ]
+    .map(String::from)
+    .to_vec()
+}
+
+/// The ids one release run realizes: runtime root, builder root and package output.
+#[derive(Debug, PartialEq, Eq)]
+struct Realized {
+    runtime: String,
+    builder: String,
+    output: String,
+}
+
+/// One release run's package step in its own store: fetch the lock's objects,
+/// make the runtime and builder roots over the Fedora base, build the package.
+fn realize(
+    fixture: &Fixture,
+    store: &Path,
+    inputs: &[String],
+    lock: &Path,
+    base: &str,
+) -> Realized {
+    fixture.json(&["fetch", "--store", text(store), "--lock", text(lock)]);
+    let engine = |arguments: &[&str]| -> Value {
+        let output = Command::new(&fixture.binary)
+            .args(arguments)
+            .output()
+            .unwrap();
+        serde_json::from_slice(&success(output).stdout).unwrap()
+    };
+    let root = |builder: Option<&str>| -> String {
+        let mut arguments = vec![
+            "store",
+            "add-root",
+            "--store",
+            text(store),
+            "--image",
+            base,
+            "--lock",
+            text(lock),
+        ];
+        arguments.extend(
+            builder
+                .map(|role| ["--builder", role])
+                .into_iter()
+                .flatten(),
+        );
+        engine(&arguments)["root"].as_str().unwrap().to_owned()
+    };
+    engine(&[
+        "store",
+        "add-image",
+        "--store",
+        text(store),
+        "--image",
+        base,
+    ]);
+    let runtime = root(None);
+    let builder = root(Some("catalog.kedra#tools"));
+    let resolution = store.with_extension("resolution.json");
+    fs::write(
+        &resolution,
+        serde_json::to_vec(&json!({"runtime":runtime,"builders":{"catalog.kedra#tools":builder}}))
+            .unwrap(),
+    )
+    .unwrap();
+    let policy = store.with_extension("policy.json");
+    fs::write(
+        &policy,
+        serde_json::to_vec(&json!({"namespace":"kedra","packages":["probe"],"builder_roots":[builder],"runtime_roots":[runtime],"source_objects":[]})).unwrap(),
+    )
+    .unwrap();
+    let mut arguments = vec!["catalog", "build"];
+    arguments.extend(inputs.iter().map(String::as_str));
+    arguments.extend([
+        "--package",
+        "probe",
+        "--policy",
+        text(&policy),
+        "--resolution",
+        text(&resolution),
+        "--store",
+        text(store),
+    ]);
+    let built = engine(&arguments);
+    let output = built["result"]["outputs"][built["root"].as_str().unwrap()]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let ran = success(
+        Command::new(&fixture.binary)
+            .args(["run", "--store", text(store), "--object", &output])
+            .args(["--program", "bin/probe"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(ran.stdout, b"probe\n");
+    Realized {
+        runtime,
+        builder,
+        output,
+    }
+}
+
+/// A committed source tree `sysroot system plan` composes from.
+fn committed_repository(fixture: &Fixture) -> PathBuf {
+    let repository = fixture.path("repo");
+    let image = repository.join("usr/src/kedra/image");
+    for (path, contents) in [
+        ("packages.list", "bash\n".to_owned()),
+        ("remove.list", "# none\n".into()),
+        ("targets/qemu-arm64/packages.list", "# none\n".into()),
+        ("targets/qemu-arm64/target.toml", "id='qemu-arm64'\narchitecture='aarch64'\nimage='ghcr.io/reidond/kedra-qemu-arm64'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n".into()),
+        ("targets/desktop/packages.list", "# none\n".into()),
+        ("targets/desktop/target.toml", "id='desktop'\narchitecture='x86_64'\nimage='ghcr.io/reidond/kedra-desktop'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n".into()),
+    ] {
+        let path = image.join(path);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, contents).unwrap();
+    }
+    let git = |arguments: &[&str]| {
+        success(
+            Command::new("git")
+                .arg("-C")
+                .arg(&repository)
+                .args([
+                    "-c",
+                    "user.name=Kedra E2E",
+                    "-c",
+                    "user.email=e2e@kedra.invalid",
+                ])
+                .args(arguments)
+                .output()
+                .unwrap(),
+        );
+    };
+    git(&["init", "-q", "--template=", "-b", "fixture"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "fixture"]);
+    repository
+}
+
+/// `sysroot system plan` of one output over a retained foundation image.
+fn plan_over(
+    fixture: &Fixture,
+    store: &Path,
+    target: &str,
+    foundation: &str,
+    output: &str,
+) -> Output {
+    let definition = store.with_extension(format!("{}.json", &foundation[7..19]));
+    fs::write(
+        &definition,
+        serde_json::to_vec(&json!({"schema":1,"platform":sysroot_engine::PLATFORM,
+            "foundation":foundation,"provenance":{},"outputs":{"probe":output},
+            "required_packages":[],"removed_packages":[],"files":[]}))
+        .unwrap(),
+    )
+    .unwrap();
+    Command::new(&fixture.binary)
+        .args(["system", "plan", "--repo"])
+        .arg(fixture.path("repo"))
+        .args([
+            "--target",
+            target,
+            "--store",
+            text(store),
+            "--foundation",
+            foundation,
+        ])
+        .arg("--definition")
+        .arg(&definition)
+        .output()
+        .unwrap()
+}
+
+#[test]
+#[ignore = "requires a native Linux Docker engine, bubblewrap and network for the Fedora 44 fixture images"]
+fn package_identity_follows_fedora_material_not_the_foundation() {
+    let fixture = Fixture::new();
+    let (target, _) = native_target();
+    assert_eq!(target, "qemu-arm64", "system plan fixture is aarch64 only");
+    let mut resources = Resources(Vec::new());
+    let FixtureMirror { base, base_tag, .. } = fixture_mirror(&fixture, &mut resources);
+    committed_repository(&fixture);
+    let foundation_one = r#"packages = ["kedra-fixture-app"]; remove = ["kedra-fixture-old"];"#;
+    let inputs = identity_catalog(&fixture, "catalog-one", target, foundation_one);
+    let (lock, lock_path) = resolve(&fixture, &inputs, &base, &fixture.path("resolve-one"));
+
+    // Two release runs of different commits: the same lock, two foundation
+    // images whose Kedra content (here one file) differs.
+    let repository = fixture.path("foundation-repository");
+    fixture.json(&[
+        "repo",
+        "--store",
+        text(&fixture.path("resolve-one")),
+        "--lock",
+        text(&lock_path),
+        "--foundation",
+        "--output",
+        text(&repository),
+    ]);
+    success(offline_build(
+        &fixture,
+        "foundation-build",
+        &base_tag,
+        &["foundation"],
+        &repository,
+    ));
+    let fedora = fs::read_to_string(fixture.path("foundation-build/image.iid"))
+        .unwrap()
+        .trim()
+        .to_owned();
+    resources.0.push(vec![
+        "image".into(),
+        "rm".into(),
+        "--force".into(),
+        fedora.clone(),
+    ]);
+    assert_eq!(
+        installed_rows(&fedora),
+        rows(&lock["foundation"]["packages"])
+    );
+    // BuildKit resolves FROM by reference, never by a bare image ID.
+    let fedora_tag = format!(
+        "localhost/kedra-identity-fedora:{}",
+        fixture.root.file_name().unwrap().to_str().unwrap()
+    );
+    docker(&["tag", &fedora, &fedora_tag]);
+    resources
+        .0
+        .push(vec!["image".into(), "rm".into(), fedora_tag.clone()]);
+    let mut commit = |name: &str| {
+        let image = build_image(
+            &fixture,
+            name,
+            &format!(
+                "FROM {fedora_tag}\nRUN printf '%s\\n' {name} > /usr/share/kedra-fixture-commit\n"
+            ),
+            &[],
+            &["--pull=false", "--network", "none"],
+        );
+        resources.0.push(vec![
+            "image".into(),
+            "rm".into(),
+            "--force".into(),
+            image.clone(),
+        ]);
+        image
+    };
+    let foundations = [commit("commit-a"), commit("commit-b")];
+    assert_ne!(foundations[0], foundations[1]);
+    let mut runs = Vec::new();
+    for (index, foundation) in foundations.iter().enumerate() {
+        let store = fixture.path(&format!("run-{index}"));
+        let realized = realize(&fixture, &store, &inputs, &lock_path, &base);
+        Command::new(&fixture.binary)
+            .args([
+                "store",
+                "add-image",
+                "--store",
+                text(&store),
+                "--image",
+                foundation,
+            ])
+            .output()
+            .map(success)
+            .unwrap();
+        let planned: Value = serde_json::from_slice(
+            &success(plan_over(
+                &fixture,
+                &store,
+                target,
+                foundation,
+                &realized.output,
+            ))
+            .stdout,
+        )
+        .unwrap();
+        assert_eq!(
+            planned["runtimes"][&realized.runtime]["recipe"]["image"],
+            base.as_str()
+        );
+        assert_eq!(
+            planned["runtimes"][&realized.runtime]["rpm_sha256"],
+            planned["foundation"]["rpm_sha256"]
+        );
+        runs.push((store, realized));
+    }
+    assert_eq!(
+        runs[0].1, runs[1].1,
+        "package identities followed the foundation image"
+    );
+
+    // A changed lock changes every identity, and its output is refused over a
+    // foundation built from the earlier lock.
+    let foundation_two = r#"packages = ["kedra-fixture-app", "kedra-fixture-extra"]; remove = ["kedra-fixture-old"];"#;
+    let inputs_two = identity_catalog(&fixture, "catalog-two", target, foundation_two);
+    let (lock_two, resolved_two) =
+        resolve(&fixture, &inputs_two, &base, &fixture.path("resolve-two"));
+    assert_ne!(
+        lock_two["foundation"]["packages"],
+        lock["foundation"]["packages"]
+    );
+    let (store, first) = &runs[0];
+    let changed = realize(&fixture, store, &inputs_two, &resolved_two, &base);
+    assert_ne!(changed.runtime, first.runtime);
+    assert_ne!(changed.builder, first.builder);
+    assert_ne!(changed.output, first.output);
+    denied(
+        plan_over(&fixture, store, target, &foundations[0], &changed.output),
+        "RPM material differs from the foundation",
+    );
+}
+
 #[test]
 #[ignore = "requires a native Linux Docker engine, bubblewrap and network access to Fedora mirrors and Koji"]
 fn real_fedora_lock_installs_offline_and_koji_serves_the_locked_bytes() {
@@ -1035,8 +1429,9 @@ fn real_fedora_lock_installs_offline_and_koji_serves_the_locked_bytes() {
         rows(&lock["foundation"]["packages"])
     );
 
-    // A builder root: this exact image unpacked without a daemon, then the
-    // locked builder role installed offline by rpm in the bubblewrap sandbox.
+    // The runtime root: the exact Fedora base unpacked without a daemon, then
+    // the lock's foundation role installed offline by rpm in the bubblewrap
+    // sandbox; the builder root adds the builder role over it.
     let engine = |arguments: &[&str]| -> Value {
         let output = Command::new(&fixture.binary)
             .args(arguments)
@@ -1051,21 +1446,40 @@ fn real_fedora_lock_installs_offline_and_koji_serves_the_locked_bytes() {
         .next()
         .unwrap()
         .clone();
+    let base_id = docker(&["image", "inspect", "--format", "{{.Id}}", &base]);
     engine(&[
         "store",
         "add-image",
         "--store",
         text(&store),
         "--image",
-        &image,
+        &base_id,
     ]);
+    let runtime = engine(&[
+        "store",
+        "add-root",
+        "--store",
+        text(&store),
+        "--image",
+        &base_id,
+        "--lock",
+        text(&lock_path),
+    ]);
+    let foundation_inventory: String = rows(&lock["foundation"]["packages"])
+        .iter()
+        .map(|row| format!("{}\n", row.join("\t")))
+        .collect();
+    assert_eq!(
+        runtime["rpm_sha256"].as_str(),
+        Some(hash(foundation_inventory.as_bytes()).as_str())
+    );
     let add_root = [
         "store",
         "add-root",
         "--store",
         text(&store),
         "--image",
-        &image,
+        &base_id,
         "--lock",
         text(&lock_path),
         "--builder",
@@ -1104,7 +1518,7 @@ fn real_fedora_lock_installs_offline_and_koji_serves_the_locked_bytes() {
     fs::write(
         &graph,
         serde_json::to_vec(&json!({"schema":1,"nodes":{"app":{
-            "builder_root":root["root"],"runtime_image":image,
+            "builder_root":root["root"],"runtime_root":runtime["root"],
             "inputs":{"source":{"kind":"object","value":source["object"]}},
             "argv":[[{"kind":"literal","value":"/usr/bin/make"}],[{"kind":"literal","value":"-f"}],
                 [{"kind":"input","name":"source","path":"Makefile"}],

@@ -4,10 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use sysroot_engine::{Argument, BuildGraph, BuildNode, Input, SourceFile, source_identity};
 
+/// Exact store roots for the symbolic `.kedra` roles: the runtime root every
+/// package runs in and one builder root per builder role. In a release both are
+/// the Fedora base image plus locked RPM roles, so package identities follow the
+/// Fedora material, not the per-run Kedra foundation image.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Images {
-    pub foundation: String,
+    pub runtime: String,
     #[serde(deserialize_with = "sysroot_engine::deserialize_unique_map")]
     pub builders: BTreeMap<String, String>,
 }
@@ -84,7 +88,7 @@ pub fn lower(
         || intent.recipes.len() > 256
         || images.builders.len() != intent.builders.len()
         || images.builders.keys().ne(intent.builders.keys())
-        || !policy.runtime_images.contains(&images.foundation)
+        || !policy.runtime_roots.contains(&images.runtime)
         || intent.namespace != policy.namespace
     {
         return Err(invalid(
@@ -162,7 +166,7 @@ pub fn lower(
                 prepare_name.clone(),
                 BuildNode {
                     builder_root: builder.clone(),
-                    runtime_image: images.foundation.clone(),
+                    runtime_root: images.runtime.clone(),
                     inputs: inputs.clone(),
                     argv: vec![
                         Argument::literal("/usr/bin/python3"),
@@ -209,7 +213,7 @@ pub fn lower(
             name.clone(),
             BuildNode {
                 builder_root: builder.clone(),
-                runtime_image: images.foundation.clone(),
+                runtime_root: images.runtime.clone(),
                 inputs,
                 argv: vec![
                     Argument::literal("/bin/sh"),

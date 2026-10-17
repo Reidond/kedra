@@ -78,10 +78,13 @@ struct Contribution {
     language: crate::catalog_language::Inputs,
     #[arg(long)]
     store: PathBuf,
-    #[arg(long, conflicts_with = "resolution")]
+    #[arg(long, conflicts_with = "resolution", requires = "runtime")]
     builder: Option<String>,
+    #[arg(long, conflicts_with = "resolution", requires = "builder")]
+    runtime: Option<String>,
     #[arg(long)]
     resolution: Option<PathBuf>,
+    /// Exact retained system foundation image the contribution composes over.
     #[arg(long)]
     foundation: String,
     #[arg(long)]
@@ -114,7 +117,7 @@ struct ContributionReceipt {
 struct Selection {
     #[command(flatten)]
     language: crate::catalog_language::Inputs,
-    /// Exact independently approved foundation image and builder roots per role.
+    /// Exact independently approved runtime root and builder roots per role.
     #[arg(long, conflicts_with_all = ["builder", "runtime"])]
     resolution: Option<PathBuf>,
     #[arg(long)]
@@ -125,7 +128,7 @@ struct Selection {
     /// Exact admitted builder root for every builder role.
     #[arg(long, requires = "runtime")]
     builder: Option<String>,
-    /// Exact admitted foundation (runtime) image.
+    /// Exact admitted runtime root.
     #[arg(long, requires = "builder")]
     runtime: Option<String>,
 }
@@ -173,7 +176,7 @@ fn resolve(selection: Selection) -> Result<Authorized> {
         read::<sysroot_catalog::language::Images>(path)?
     } else {
         sysroot_catalog::language::Images {
-            foundation: selection.runtime.clone().ok_or_else(|| {
+            runtime: selection.runtime.clone().ok_or_else(|| {
                 Error::Invalid("language lowering requires exact --runtime or --resolution".into())
             })?,
             builders: loaded
@@ -266,14 +269,15 @@ fn observe_roles(
     intent: &sysroot_catalog::language::Intent,
     images: &sysroot_catalog::language::Images,
 ) -> Result<serde_json::Value> {
-    let foundation = store.observe_foundation(&images.foundation)?;
+    // A root records the inventory its sandbox observed at admission.
+    let runtime = store.root(&images.runtime)?;
     let names = |inventory: &str| {
         inventory
             .lines()
             .filter_map(|line| line.split_once('\t').map(|(name, _)| name.to_owned()))
             .collect::<std::collections::BTreeSet<_>>()
     };
-    let installed = names(&foundation.rpm_inventory);
+    let installed = names(&runtime.rpm_inventory);
     if !intent.packages.is_subset(&installed) || !intent.remove.is_disjoint(&installed) {
         return Err(Error::Invalid(
             "runtime Fedora requests differ from admitted image material".into(),
@@ -281,7 +285,6 @@ fn observe_roles(
     }
     let mut builders = BTreeMap::new();
     for (role, required) in &intent.builders {
-        // A builder root records the inventory its sandbox observed at admission.
         let root = &images.builders[role];
         let observed = store.root(root)?;
         let installed = names(&observed.rpm_inventory);
@@ -292,7 +295,10 @@ fn observe_roles(
         }
         builders.insert(role.clone(), serde_json::json!({"root":root,"rpm_sha256":observed.rpm_sha256,"rpm_inventory":observed.rpm_inventory}));
     }
-    Ok(serde_json::json!({"foundation":foundation,"builders":builders}))
+    Ok(serde_json::json!({
+        "runtime": {"root":images.runtime,"rpm_sha256":runtime.rpm_sha256,"rpm_inventory":runtime.rpm_inventory},
+        "builders": builders,
+    }))
 }
 
 fn publish_plan(authorized: &Authorized, output: &Path) -> Result<serde_json::Value> {
@@ -683,8 +689,14 @@ fn contribute(options: Contribution) -> Result<ExitCode> {
         .collect::<Result<Vec<_>>>()?;
     let preflight = check_preflight(&options, &loaded)?;
     let store = Store::open(&options.store)?;
-    verify_observed_rpms(&store, &loaded.intent, &images, &preflight.material)?;
-    let mut realized = verify_realized_packages(&store, selected, &options.foundation)?;
+    verify_observed_rpms(
+        &store,
+        &loaded.intent,
+        &images,
+        &options.foundation,
+        &preflight.material,
+    )?;
+    let mut realized = verify_realized_packages(&store, selected, &images.runtime)?;
     alias_runtime_outputs(&loaded.intent, &lowered.names, &mut realized)?;
     let definition = language_definition(
         &loaded,
@@ -747,11 +759,6 @@ fn lower_contribution(
     sysroot_catalog::language::Images,
 )> {
     let images = contribution_images(options, &loaded.intent)?;
-    if images.foundation != options.foundation {
-        return Err(Error::Invalid(
-            "resolved foundation differs from contribution".into(),
-        ));
-    }
     let lowered =
         sysroot_catalog::language::lower(&loaded.intent, &loaded.resources, &images, policy)
             .map_err(|e| Error::Invalid(e.to_string()))?;
@@ -769,7 +776,10 @@ fn contribution_images(
         return read(path);
     }
     Ok(sysroot_catalog::language::Images {
-        foundation: options.foundation.clone(),
+        runtime: options
+            .runtime
+            .clone()
+            .ok_or_else(|| Error::Invalid("--runtime or --resolution required".into()))?,
         builders: intent
             .builders
             .keys()
@@ -834,18 +844,27 @@ fn read_input_material(options: &Contribution) -> Result<(serde_json::Value, Str
     Ok((material, material_hash))
 }
 
+/// The system foundation and the runtime root hold exactly the preflight's
+/// foundation RPMs, and each builder root its role's.
 fn verify_observed_rpms(
     store: &Store,
     intent: &sysroot_catalog::language::Intent,
     images: &sysroot_catalog::language::Images,
+    foundation: &str,
     material: &serde_json::Value,
 ) -> Result<()> {
     let observed = observe_roles(store, intent, images)?;
-    if serde_json::to_value(observed_rpm_rows(&observed["foundation"]["rpm_inventory"])?)?
+    let system = store.observe_foundation(foundation)?;
+    if serde_json::to_value(observed_rpm_rows(&serde_json::json!(system.rpm_inventory))?)?
         != material["packages"]
     {
         return Err(Error::Invalid(
             "contribution foundation RPM material differs from preflight".into(),
+        ));
+    }
+    if observed["runtime"]["rpm_inventory"].as_str() != Some(system.rpm_inventory.as_str()) {
+        return Err(Error::Invalid(
+            "runtime root RPM material differs from the foundation".into(),
         ));
     }
     let builders = observed["builders"]
@@ -880,7 +899,7 @@ fn observed_rpm_rows(value: &serde_json::Value) -> Result<Vec<Vec<String>>> {
 fn verify_realized_packages(
     store: &Store,
     selected: Vec<ResolvedPackage>,
-    foundation: &str,
+    runtime: &str,
 ) -> Result<RealizedPackages> {
     let mut realized = RealizedPackages::default();
     for package in selected {
@@ -896,11 +915,11 @@ fn verify_realized_packages(
                 ));
             }
             let actual = store.verify(object)?;
-            if actual.runtime_image.as_deref() != Some(foundation)
+            if actual.runtime_root.as_deref() != Some(runtime)
                 || serde_json::to_value(&actual.derivation)? != serde_json::to_value(Some(spec))?
             {
                 return Err(Error::Invalid(
-                    "realized catalog object differs from selected recipe/foundation".into(),
+                    "realized catalog object differs from selected recipe/runtime root".into(),
                 ));
             }
             realized.objects.insert(object.clone(), actual);

@@ -393,7 +393,7 @@ mod store_rpm {
                 object: format!("src-{}", tree.digest),
                 tree_sha256: tree.digest,
                 references: tree.references.into_iter().collect(),
-                runtime_image: None,
+                runtime_root: None,
                 derivation: None,
             };
             if receipt.object != rpm.object || !receipt.references.is_empty() {

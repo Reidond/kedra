@@ -1,5 +1,5 @@
 use crate::{
-    plan::{hex, image_id, object_id, relative},
+    plan::{hex, object_id, relative, root_id},
     store::{hash_file, private, read_json, write_json_new},
     tree::{self, Entry, Kind},
     *,
@@ -14,6 +14,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 const MAX_BUNDLE: u64 = 16 * 1024 * 1024 * 1024;
+/// A closure's objects. Runtime roots are not transferred: the receiver creates
+/// the same input-addressed roots (image plus locked RPM roles) before import.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Bundle {
@@ -21,8 +23,6 @@ struct Bundle {
     roots: Vec<String>,
     #[serde(deserialize_with = "crate::model::unique_map")]
     objects: BTreeMap<String, BundledObject>,
-    #[serde(deserialize_with = "crate::model::unique_map")]
-    images: BTreeMap<String, ImageReceipt>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -37,17 +37,15 @@ struct ImportJournal {
     token: String,
     stage: String,
     objects: Vec<String>,
-    images: Vec<String>,
     roots: Vec<String>,
 }
 impl Store {
     pub fn export(&self, id: &str, output: &Path) -> Result<ExportResult> {
         let closure = self.closure(id)?;
         let mut manifest = Bundle {
-            schema: 1,
+            schema: 2,
             roots: vec![id.into()],
             objects: BTreeMap::new(),
-            images: BTreeMap::new(),
         };
         for object in &closure.objects {
             let receipt = self.verify(object)?;
@@ -55,11 +53,6 @@ impl Store {
             manifest
                 .objects
                 .insert(object.clone(), BundledObject { receipt, entries });
-        }
-        for image in &closure.images {
-            manifest
-                .images
-                .insert(image.clone(), self.verify_image(image)?);
         }
         let bytes = serde_json::to_vec(&manifest)?;
         if bytes.len() as u64 > MAX_JSON {
@@ -88,14 +81,6 @@ impl Store {
                     )?;
                 }
             }
-        }
-        for (id, image) in &manifest.images {
-            append(
-                &mut tar,
-                &format!("images/{}.tar", &id[7..]),
-                image.bytes,
-                File::open(self.image_path(id).join("image.tar"))?,
-            )?;
         }
         tar.finish()?;
         tar.into_inner()?.sync_all()?;
@@ -182,15 +167,15 @@ impl Store {
         for (id, object) in &manifest.objects {
             self.verify_staged_object(stage, id, object)?;
         }
-        for (id, receipt) in &manifest.images {
-            self.verify_staged_image(stage, id, receipt)?;
-        }
         let order = dependency_order(&manifest)?;
+        for runtime in runtime_roots(&manifest) {
+            self.root(runtime)?;
+        }
         if let Some(authorization) = authorization {
             authorize_bundle(authorization, &manifest, sha256, bundle_bytes)?;
         }
         let journal = ImportJournal {
-            schema: 1,
+            schema: 2,
             token: self.token.clone(),
             stage: stage
                 .file_name()
@@ -198,13 +183,9 @@ impl Store {
                 .ok_or_else(|| Error::Invalid("stage name unavailable".into()))?
                 .into(),
             objects: order.clone(),
-            images: manifest.images.keys().cloned().collect(),
             roots: manifest.roots.clone(),
         };
         self.publish_import_journal(&journal)?;
-        for (id, receipt) in &manifest.images {
-            self.admit_image(&stage.join("images").join(&id[7..]), receipt)?;
-        }
         for id in order {
             self.admit_object(
                 &stage.join("objects").join(&id),
@@ -241,29 +222,6 @@ impl Store {
         }
         Ok(())
     }
-    fn verify_staged_image(&self, stage: &Path, id: &str, receipt: &ImageReceipt) -> Result<()> {
-        let (sha, bytes) = hash_file(
-            &stage.join("images").join(&id[7..]).join("image.tar"),
-            8 * 1024 * 1024 * 1024,
-        )?;
-        if sha != receipt.sha256 || bytes != receipt.bytes {
-            return Err(Error::Corrupt("bundle image archive differs".into()));
-        }
-        crate::image_archive::verify(
-            &stage.join("images").join(&id[7..]).join("image.tar"),
-            &receipt.image,
-            &receipt.platform,
-        )?;
-        if self.image_path(id).exists() {
-            let old = self.verify_image(id)?;
-            if old.sha256 != receipt.sha256 {
-                return Err(Error::Corrupt(
-                    "bundle conflicts with stored image archive".into(),
-                ));
-            }
-        }
-        Ok(())
-    }
     pub(crate) fn recover_import(&self) -> Result<()> {
         self.retire_import_next()?;
         let path = self.path().join("transactions/import.json");
@@ -272,20 +230,13 @@ impl Store {
         }
         private(&path, false)?;
         let journal: ImportJournal = read_json(&path)?;
-        if journal.schema != 1 || journal.token != self.token {
+        if journal.schema != 2 || journal.token != self.token {
             return Err(Error::RecoveryRequired(
                 "import journal identity differs".into(),
             ));
         }
         crate::store::stage_name(&journal.stage)?;
         let mut roots = self.roots()?;
-        for image in &journal.images {
-            image_id(image)?;
-            if self.image_path(image).exists() {
-                self.verify_image(image)?;
-                roots.images.insert(image.clone());
-            }
-        }
         for object in &journal.objects {
             object_id(object)?;
             if self.object_path(object).exists() {
@@ -349,7 +300,7 @@ impl Store {
                     ));
                 }
                 let journal: ImportJournal = read_json(&destination)?;
-                if journal.schema != 1 || journal.token != self.token {
+                if journal.schema != 2 || journal.token != self.token {
                     return Err(Error::RecoveryRequired(
                         "import journal identity differs".into(),
                     ));
@@ -405,7 +356,6 @@ fn read_manifest(members: &mut tar::Entries<'_, File>) -> Result<(Bundle, u64)> 
 }
 fn create_staged_directories(stage: &Path, manifest: &Bundle) -> Result<()> {
     fs::create_dir(stage.join("objects"))?;
-    fs::create_dir(stage.join("images"))?;
     for (id, object) in &manifest.objects {
         let data = stage.join("objects").join(id).join("data");
         fs::create_dir_all(&data)?;
@@ -415,9 +365,6 @@ fn create_staged_directories(stage: &Path, manifest: &Bundle) -> Result<()> {
                 fs::set_permissions(data.join(&entry.path), Permissions::from_mode(0o755))?;
             }
         }
-    }
-    for id in manifest.images.keys() {
-        fs::create_dir(stage.join("images").join(&id[7..]))?;
     }
     Ok(())
 }
@@ -500,11 +447,10 @@ fn authorize_bundle(
     authorization.validate_bundle(&manifest.roots, &root.receipt, sha256, bundle_bytes, now)
 }
 fn validate_manifest(manifest: &Bundle) -> Result<BTreeMap<String, (String, u64)>> {
-    if manifest.schema != 1
+    if manifest.schema != 2
         || manifest.roots.is_empty()
         || manifest.roots.len() > 256
         || manifest.objects.len() > 256
-        || manifest.images.len() > 256
     {
         return Err(Error::Invalid("unsupported bundle schema/count".into()));
     }
@@ -560,26 +506,9 @@ fn validate_manifest(manifest: &Bundle) -> Result<BTreeMap<String, (String, u64)
                 return Err(Error::Invalid("bundle missing runtime reference".into()));
             }
         }
-        if let Some(image) = &object.receipt.runtime_image
-            && !manifest.images.contains_key(image)
-        {
-            return Err(Error::Invalid("bundle missing runtime image".into()));
+        if let Some(runtime) = &object.receipt.runtime_root {
+            root_id(runtime)?;
         }
-    }
-    for (id, image) in &manifest.images {
-        image_id(id)?;
-        if image.image != *id
-            || image.schema != 1
-            || image.platform != PLATFORM
-            || image.bytes > 8 * 1024 * 1024 * 1024
-            || !hex(&image.sha256)
-        {
-            return Err(Error::Invalid("bundle image identity/limit invalid".into()));
-        }
-        allow.insert(
-            format!("images/{}.tar", &id[7..]),
-            (format!("images/{}/image.tar", &id[7..]), image.bytes),
-        );
     }
     dependency_order(manifest)?;
     Ok(allow)
@@ -592,8 +521,8 @@ fn dependency_order(manifest: &Bundle) -> Result<Vec<String>> {
         done: &mut BTreeMap<String, BTreeSet<String>>,
         order: &mut Vec<String>,
     ) -> Result<BTreeSet<String>> {
-        if let Some(images) = done.get(id) {
-            return Ok(images.clone());
+        if let Some(runtimes) = done.get(id) {
+            return Ok(runtimes.clone());
         }
         if !active.insert(id.into()) {
             return Err(Error::Invalid("bundle reference cycle".into()));
@@ -602,37 +531,38 @@ fn dependency_order(manifest: &Bundle) -> Result<Vec<String>> {
             .objects
             .get(id)
             .ok_or_else(|| Error::Invalid("bundle missing referenced object".into()))?;
-        let mut images = BTreeSet::new();
-        if let Some(image) = &object.receipt.runtime_image {
-            images.insert(image.clone());
+        let mut runtimes = BTreeSet::new();
+        if let Some(runtime) = &object.receipt.runtime_root {
+            runtimes.insert(runtime.clone());
         }
         for dep in &object.receipt.references {
-            images.extend(visit(dep, m, active, done, order)?);
+            runtimes.extend(visit(dep, m, active, done, order)?);
         }
-        if images.len() > 1 {
-            return Err(Error::Invalid("bundle runtime foundations differ".into()));
+        if runtimes.len() > 1 {
+            return Err(Error::Invalid("bundle runtime roots differ".into()));
         }
         active.remove(id);
-        done.insert(id.into(), images.clone());
+        done.insert(id.into(), runtimes.clone());
         order.push(id.into());
-        Ok(images)
+        Ok(runtimes)
     }
     let mut order = Vec::new();
     let mut done = BTreeMap::new();
-    let mut used_images = BTreeSet::new();
     for root in &manifest.roots {
-        used_images.extend(visit(
-            root,
-            manifest,
-            &mut BTreeSet::new(),
-            &mut done,
-            &mut order,
-        )?);
+        visit(root, manifest, &mut BTreeSet::new(), &mut done, &mut order)?;
     }
-    if done.len() != manifest.objects.len() || used_images.len() != manifest.images.len() {
+    if done.len() != manifest.objects.len() {
         return Err(Error::Invalid(
             "bundle contains unreferenced members".into(),
         ));
     }
     Ok(order)
+}
+/// The runtime roots a receiver must already hold.
+fn runtime_roots(manifest: &Bundle) -> BTreeSet<&String> {
+    manifest
+        .objects
+        .values()
+        .filter_map(|object| object.receipt.runtime_root.as_ref())
+        .collect()
 }

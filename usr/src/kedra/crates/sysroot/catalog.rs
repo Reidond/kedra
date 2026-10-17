@@ -172,14 +172,6 @@ fn resolve(selection: Selection) -> Result<Authorized> {
     let mut policy: Policy = read(&selection.policy)?;
     let inputs = &selection.language;
     let loaded = crate::catalog_language::load(inputs)?;
-    if loaded.intent.namespace == "kedra"
-        && inputs.target == "desktop"
-        && !loaded.intent.selected.is_empty()
-    {
-        return Err(Error::Invalid(
-            "native x86 source package realization is not supported".into(),
-        ));
-    }
     let images = if let Some(path) = &selection.resolution {
         read::<sysroot_catalog::language::Images>(path)?
     } else {

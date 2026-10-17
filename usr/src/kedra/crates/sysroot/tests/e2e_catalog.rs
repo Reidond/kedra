@@ -39,16 +39,20 @@ struct Fixture {
 
 impl Fixture {
     fn language(&self, source: &str) -> Vec<String> {
+        self.language_for(source, "example", "demo")
+    }
+
+    fn language_for(&self, source: &str, namespace: &str, target: &str) -> Vec<String> {
         fs::write(self.path("catalog.kedra"), source).unwrap();
         self.write("pins.json", &json!({"schema_version":1,"sources":{}}));
-        self.write("target-policy.json", &json!({"schema_version":1,"namespace":"example","targets":["demo"],"repositories":["fedora","updates"],"required_packages":["coreutils"]}));
+        self.write("target-policy.json", &json!({"schema_version":1,"namespace":namespace,"targets":[target],"repositories":["fedora","updates"],"required_packages":["coreutils"]}));
         vec![
             "--entry".into(),
             "catalog.kedra".into(),
             "--input-root".into(),
             text(&self.root).into(),
             "--target".into(),
-            "demo".into(),
+            target.into(),
             "--lock".into(),
             "pins.json".into(),
             "--target-policy".into(),
@@ -819,4 +823,48 @@ fn catalog_planning_and_policy_refusal_precede_store_access() {
         denied(fixture.language_run("build", &args, &extra), expected);
         assert!(!absent_store.exists());
     }
+}
+
+/// A selected `kedra` package for the x86_64 `desktop` target resolves, and its
+/// build takes the same path as any other target's: into the store, where this
+/// empty one lacks the foundation image. Realizing it needs a native x86_64 run.
+#[test]
+fn kedra_desktop_selection_resolves_and_builds_like_any_target() {
+    let fixture = Fixture::new();
+    let store = fixture.path("store");
+    success(fixture.run(&["store", "init", "--store", text(&store)]));
+    let run = |operation: &str, namespace: &str, target: &str| {
+        let source = LANGUAGE_SAMPLE
+            .replace(
+                "namespace \"example\"",
+                &format!("namespace \"{namespace}\""),
+            )
+            .replace("target \"demo\"", &format!("target \"{target}\""));
+        let args = fixture.language_for(&source, namespace, target);
+        let policy = fixture.write(
+            "engine-policy.json",
+            &json!({"namespace":namespace,"packages":["hello"],"builder_roots":[BUILDER],"runtime_images":[RUNTIME],"source_objects":[]}),
+        );
+        let mut extra = vec![
+            "--package",
+            "hello",
+            "--builder",
+            BUILDER,
+            "--runtime",
+            RUNTIME,
+            "--policy",
+            text(&policy),
+        ];
+        if operation == "build" {
+            extra.extend(["--store", text(&store)]);
+        }
+        fixture.language_run(operation, &args, &extra)
+    };
+    let resolved: Value =
+        serde_json::from_slice(&success(run("resolve", "kedra", "desktop")).stdout).unwrap();
+    assert_eq!(resolved["namespace"], "kedra");
+    assert_eq!(resolved["recipe"]["program"], "bin/hello");
+    let desktop = run("build", "kedra", "desktop");
+    denied(desktop.clone(), "No such file or directory");
+    assert_eq!(desktop.stderr, run("build", "example", "demo").stderr);
 }

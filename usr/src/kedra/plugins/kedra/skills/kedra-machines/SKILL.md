@@ -86,5 +86,7 @@ Package-input cutover (2026-10-06, PR38): source plan selects one committed
 package-inputs.json format, reads raw admitted modules/resources and binds intent
 plus input hashes. New format/list authority cannot coexist or fall back. Old
 committed lists/layouts remain readable. Namespace/targets/required base policy
-are independent; native x86 source realization refuses, while desktop Fedora
-requests are resolved. Evidence: .specs/nix-package-dsl and worklog PKGDSL entries.
+are independent. Both targets realize selected source packages natively on their
+own architecture (the x86 refusal was removed after PR54, 2026-10-16: release run
+38943248086 failed desktop on it). Evidence: .specs/nix-package-dsl, worklog
+PKGDSL and ENGINE-UNIFY entries.

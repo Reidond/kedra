@@ -56,6 +56,8 @@ jobs:
           test "$(jq -er .runner <<< "$spec")" = "$KEDRA_RUNNER"
           test "$(jq -er .architecture <<< "$spec")" = "$(uname -m)"
           environment=$(jq -er .environment <<< "$spec")
+          # The environment the signer job declares (sign-image below).
+          test "$environment" = "kedra-$KEDRA_TARGET-signing"
           gh api "repos/Reidond/kedra/environments/$environment" > "$RUNNER_TEMP/signing-environment.json"
           jq -e '.can_admins_bypass == false and .deployment_branch_policy.custom_branch_policies == true and
             all(.protection_rules[]; .type == "branch_policy")' "$RUNNER_TEMP/signing-environment.json" >/dev/null

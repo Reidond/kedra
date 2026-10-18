@@ -6,6 +6,8 @@ use kedra_container_tests::{Error, Result};
 use serde_json::Value;
 use sysroot_engine::LOGICAL_PREFIX;
 
+use crate::native::{archive_identity, local_image};
+
 fn ensure(condition: bool, message: &str) -> Result<()> {
     if condition {
         Ok(())
@@ -197,8 +199,12 @@ pub fn installed_catalog(context: &Context<'_>) -> Result<()> {
 /// Docker Official Images' Fedora 44 index: a small exact Fedora 44 foundation
 /// with RPM, saved on the harness engine because the image under test has none.
 const FEDORA: &str = "docker.io/library/fedora@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80";
-const FEDORA_IMAGE: &str =
-    "sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80";
+/// Its configuration digests for the two targets' platforms, which pin the saved
+/// content on both Docker image stores ([`archive_identity`]).
+const FEDORA_ARM64_CONFIG: &str =
+    "sha256:da5ed9cff0af80751b165c7e8f8dbe795498b56f5a436e8533d09402aa7b1249";
+const FEDORA_AMD64_CONFIG: &str =
+    "sha256:ccb55df1d2413428166d80b08aa37a4bdcb61a63d09fff6f8abc0d561f311053";
 
 /// `sysroot catalog build` on the installed system with a Fedora foundation that
 /// has `cat`: an export named `cat` is refused until its package declares
@@ -270,14 +276,12 @@ pub fn shadowing_refusal(context: &Context<'_>) -> Result<()> {
         .user
         .as_ref()
         .ok_or_else(|| Error::Invalid("shadowing case requires a disposable user".into()))?;
-    let platform = match context.target.as_str() {
-        "desktop" => "linux/amd64",
-        _ => "linux/arm64",
+    let (platform, config) = match context.target.as_str() {
+        "desktop" => ("linux/amd64", FEDORA_AMD64_CONFIG),
+        _ => ("linux/arm64", FEDORA_ARM64_CONFIG),
     };
-    if docker.image(FEDORA_IMAGE)?.is_none() {
-        docker.pull(FEDORA, platform)?;
-    }
-    let archive = docker.save(FEDORA_IMAGE)?;
+    let archive = docker.save(&local_image(docker, FEDORA, platform)?)?;
+    let image = archive_identity(&archive, config)?;
     docker.write_file(
         container,
         &format!("{}/fedora.tar", user.home),
@@ -288,7 +292,7 @@ pub fn shadowing_refusal(context: &Context<'_>) -> Result<()> {
     let output = context.environment.exec(
         docker,
         &user
-            .exec(["/bin/sh", "-c", SHADOWING, "shadowing", FEDORA_IMAGE])
+            .exec(["/bin/sh", "-c", SHADOWING, "shadowing", image.as_str()])
             .timeout(std::time::Duration::from_secs(600)),
     )?;
     std::fs::write(context.artifacts.join("shadowing.stdout"), &output.stdout)?;

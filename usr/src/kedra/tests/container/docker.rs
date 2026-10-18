@@ -435,6 +435,60 @@ impl Docker {
         Ok(cleaned)
     }
 
+    /// Remove the engine-published names of images a `sysroot derive` state
+    /// binds (`kedra-<kind>:<identity>`, `kedra-<kind>-pending:<nonce>` and the
+    /// `sysroot-foundation:<id>` build name), so no final tag outlives its
+    /// binding: the engine refuses such a tag. Only images the engine labels as
+    /// its own are touched; an image whose last name goes is deleted.
+    pub fn remove_engine_images(
+        &self,
+        images: &std::collections::BTreeSet<String>,
+    ) -> Result<Vec<String>> {
+        const NAMES: [&str; 5] = [
+            "kedra-composition:",
+            "kedra-native:",
+            "kedra-composition-pending:",
+            "kedra-native-pending:",
+            "sysroot-foundation:",
+        ];
+        let mut removed = Vec::new();
+        for image in images {
+            let inspected = match self.runtime.block_on(self.api.inspect_image(image)) {
+                Ok(inspected) => inspected,
+                Err(bollard::errors::Error::DockerResponseServerError {
+                    status_code: 404, ..
+                }) => continue,
+                Err(error) => return Err(error.into()),
+            };
+            let owned = inspected
+                .config
+                .and_then(|config| config.labels)
+                .and_then(|labels| labels.get("dev.kedra.sysroot.owner").cloned())
+                .is_some_and(|owner| owner == "sysroot-derive");
+            if !owned {
+                continue;
+            }
+            for tag in inspected.repo_tags.unwrap_or_default() {
+                if !NAMES.iter().any(|name| tag.starts_with(name)) {
+                    continue;
+                }
+                match self.runtime.block_on(self.api.remove_image(
+                    &tag,
+                    None::<bollard::query_parameters::RemoveImageOptions>,
+                    None,
+                )) {
+                    Ok(_) => removed.push(tag),
+                    Err(bollard::errors::Error::DockerResponseServerError {
+                        status_code: 404,
+                        ..
+                    }) => {}
+                    Err(error) => return Err(error.into()),
+                }
+            }
+        }
+        Ok(removed)
+    }
+
     /// Labeled images by ID, then the scoped tags of unlabeled ones. A child
     /// image can hold its parent, so retry until a pass removes nothing.
     fn remove_checkout_images(
@@ -762,7 +816,11 @@ impl Docker {
             Ok::<_, Error>(())
         }))??;
         // Pulled images stay unlabeled (a label would change the image under
-        // test); record them so they can be removed once no checkout uses them.
+        // test); record what they resolved to, so they can be removed by exact
+        // ID once no checkout uses them.
+        let (id, digests) = self
+            .image(reference)?
+            .ok_or_else(|| invalid(format!("{reference} is missing after pulling it")))?;
         let root = crate::artifact_root();
         std::fs::create_dir_all(&root)?;
         use std::io::Write;
@@ -771,7 +829,8 @@ impl Docker {
                 .create(true)
                 .append(true)
                 .open(root.join("pulled-images.txt"))?,
-            "{reference} {platform}"
+            "{reference} {platform} {id} {}",
+            digests.join(",")
         )?;
         Ok(())
     }

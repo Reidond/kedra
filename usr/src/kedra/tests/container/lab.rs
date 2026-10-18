@@ -361,6 +361,35 @@ fn down(docker: &Docker, selector: Option<&str>) -> Result<String> {
 /// Artifact trees `clean` removes: build caches, engine stores and contexts.
 const LARGE_ARTIFACTS: [&str; 4] = ["cache", "derive", "composition", "native"];
 
+/// Image IDs a `sysroot derive` state records in its bindings and journals.
+fn bound_images(state: &std::path::Path) -> Result<std::collections::BTreeSet<String>> {
+    let mut images = std::collections::BTreeSet::new();
+    let entries = match std::fs::read_dir(state) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(images),
+        Err(error) => return Err(error.into()),
+    };
+    for entry in entries {
+        let path = entry?.path();
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        if !(name.ends_with("-binding.json") || name.ends_with("-transaction.json")) {
+            continue;
+        }
+        let record: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)
+            .map_err(|error| Error::Invalid(format!("{}: {error}", path.display())))?;
+        if let Some(image) = record["image"].as_str().filter(|image| !image.is_empty()) {
+            images.insert(image.to_owned());
+        }
+        if let Some(tag) = record["tag"].as_str() {
+            images.insert(tag.to_owned());
+        }
+    }
+    Ok(images)
+}
+
 fn clean(docker: &Docker) -> Result<()> {
     let checkout = kedra_container_tests::checkout_id();
     let cleaned = docker.clean_checkout()?;
@@ -381,6 +410,11 @@ fn clean(docker: &Docker) -> Result<()> {
         _ => false,
     };
     if inside {
+        // The engine refuses a final tag whose binding is gone: remove the images
+        // the derive state binds before the state itself.
+        for tag in docker.remove_engine_images(&bound_images(&root.join("derive"))?)? {
+            println!("removed engine image name {tag}");
+        }
         for name in LARGE_ARTIFACTS {
             let path = root.join(name);
             if path.symlink_metadata().is_ok() {

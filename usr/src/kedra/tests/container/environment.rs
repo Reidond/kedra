@@ -73,6 +73,7 @@ impl Environment {
             .with_hostname("kedra-lab")
             .with_container_name(&name)
             .with_label(docker::OWNER_LABEL, docker::OWNER)
+            .with_label(docker::CHECKOUT_LABEL, crate::checkout_id())
             .with_label(docker::KIND_LABEL, kind_label)
             .with_label(docker::EXECUTION_LABEL, &execution)
             .with_label(docker::TARGET_LABEL, &image.target)

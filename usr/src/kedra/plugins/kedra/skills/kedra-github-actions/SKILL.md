@@ -12,7 +12,8 @@ Owner decision (2026-10-08): Actions produces releases; testing of changes is lo
 - `iso.yml` is a full new installer release that the owner dispatches for one target. It builds an ISO from the target's current signed `stable` digest with usr/src/kedra/installer/build-local.py, splits it into parts below 2 GiB and attaches them with PARTS.SHA256SUMS, the builder's unchanged single-line SHA256SUMS (installer/macos/media.py verify requires that format) and installer.json marked `"uploaded": true` to a new GitHub Release tagged `<target>-<digest16>`. It never replaces a release, holds no signing secret and never builds, signs or moves an image. Only the owner dispatches it.
 - `check.yml` and the eight `test-*.yml` workflows were removed (last present at `3e33867`). Changes are tested locally and merge on the `signoff` commit status (AGENTS.md "Local testing and sign-off"; usr/src/kedra/tests/signoff.py). Main's branch protection needs `signoff` as its required status in place of `rust`; that setting is the owner's. The boot-level drivers under usr/src/kedra/tests/vm no longer depend on Actions variables: they run on a disposable Linux host behind `--disposable-host`, through the shared launcher usr/src/kedra/tests/common/qemu.py and guest check common/secure_boot_check.py (tests/README.md). Never re-add a check that a driver runs only in Actions.
 - The release build job builds the binaries without repeating the source checks the sign-off covers. `validate-candidate` and the qemu-arm64 installed catalog case still test each exact candidate before signing, because nightly refreshes produce images no sign-off saw.
-- `release-target.yml` is hashed into resolved-input recipes (usr/src/kedra/image/release/material.py), so editing it rebuilds each target once.
+- Since 2026-10-18 the workflow files are not resolved-input recipes: every content-affecting step lives in a recipe script (`refresh.py prepare`, `build.sh`, `compose.py`, `catalog/build-packages.sh`, `prepare-trust.py`, `trust.py`; usr/src/kedra/image/release/material.py lists them) and the workflows only call those with the target, commit and scratch paths, so a workflow-only edit rebuilds and re-signs nothing. Never inline a step that changes image inputs or the build in a workflow; put it in a recipe script.
+- Each property is checked once where it is needed: exact main at the end of preflight, in the signer before key use and right before `stable` advances; bootc compatibility on the RPM lock in preflight; the candidate's signature by publication's strict pull (preflight verifies the previous stable). Pins and the source archive are produced once per run (material.catalog_pins, compose.py foundation).
 
 Machine bundles and release metadata signatures are not published.
 
@@ -21,7 +22,7 @@ The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and comple
 Build jobs have public trust. Automatic isolated signing executes no checkout/candidate/repository code while production keys exist. The main-only environment has no human approval gate. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
 
 Per-target releases (implemented 2026-09-25; release 36617035503 passes both targets on 2026-09-29):
-- release.yml keeps one non-cancelling `release-44` group. It calls reusable `release-target.yml` independently for desktop (`ubuntu-24.04`) and qemu-arm64 (`ubuntu-24.04-arm`).
+- release.yml keeps one non-cancelling `release-44` group. It calls reusable `release-target.yml` as a fail-fast-off matrix read from usr/src/kedra/image/release/targets.json at the exact commit (desktop on `ubuntu-24.04`, qemu-arm64 on `ubuntu-24.04-arm`); jobs without a checkout (signer, `iso.yml`'s target job) read that file as data through the contents API.
 - Each target uses its own `kedra-<target>-signing` environment, secrets, builds repository and artifacts.
 - The callers use `secrets: inherit`, and only the signer job declares the environment. Observed 2026-09-25 (release run 36190624411 failed closed with empty signing secrets; probe run 36191986665): a called job that declares `environment:` sees that environment's secrets as empty unless the caller inherits secrets, despite the reusable-workflow docs. The repository has no repository-level secrets, so inheriting exposes nothing else.
 
@@ -110,9 +111,14 @@ not replace signed payload identity or waive TLS, deadline or capacity gates.
 Hosted Docker28.0.4/overlay2 image retention (2026-10-04): the real public tiny
 preflight selected a config digest while Docker save emitted a different single
 OCI root manifest. Strict store add-image correctly refused78; this is not a
-multiple-root or CDN failure. Keep the engine's root/graph binding. The QEMU
-workflow explicitly selects containerd-snapshotter and must pass the unchanged
-public preflight before full candidate work; configuration alone is not a pass.
+multiple-root or CDN failure. Keep the engine's root/graph binding. Every
+Docker-using release job (build and validate-candidate) selects
+containerd-snapshotter first through `image/release/runner-containerd.sh`
+(since 2026-10-18; before, only the build job did, and validate-candidate's
+classic store broke `native::engine_sandbox`, runs 39027034006 and later).
+Local OrbStack uses the containerd store too, so a local harness pass is the
+CI-equivalent result; no separate classic-store re-test is required. Harness
+cases still read image IDs from the daemon and stay correct on both stores.
 Preserve other daemon settings, refuse existing containers before switching,
 and retain bounded backend/root/config metadata plus actual cleanup exits.
 Sources: `.specs/nix-release-composition/verification.md`, runs37199831847 and

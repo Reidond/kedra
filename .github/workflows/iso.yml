@@ -22,10 +22,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  iso:
+  # The target's native runner and repository come from the closed target table
+  # at this exact commit; the choice above only names a key of it.
+  target:
     if: github.repository == 'Reidond/kedra' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      runner: ${{ steps.table.outputs.runner }}
+      repository: ${{ steps.table.outputs.repository }}
+    steps:
+      - name: Read the target from the closed release target table
+        id: table
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEDRA_TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github.raw+json' \
+            "repos/Reidond/kedra/contents/usr/src/kedra/image/release/targets.json?ref=$GITHUB_SHA" > "$RUNNER_TEMP/targets.json"
+          jq -er --arg target "$KEDRA_TARGET" 'if .schema_version == 1 and (.targets | has($target))
+            then .targets[$target] | "runner=\(.runner)\nrepository=\(.repository)" else error("Unsupported target") end' \
+            "$RUNNER_TEMP/targets.json" >> "$GITHUB_OUTPUT"
+
+  iso:
+    needs: target
     # The pinned image-builder only builds media for its own architecture.
-    runs-on: ${{ inputs.target == 'qemu-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    runs-on: ${{ needs.target.outputs.runner }}
     timeout-minutes: 180
     permissions:
       contents: write
@@ -54,9 +79,10 @@ jobs:
         id: image
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ needs.target.outputs.repository }}
         run: |
           set -euo pipefail
-          repository=$(jq -er --arg target "$KEDRA_TARGET" '.targets[$target].repository' usr/src/kedra/image/release/targets.json)
+          repository=$REPOSITORY
           digest="sha256:$(skopeo inspect --raw "docker://$repository:stable" | sha256sum | cut -d ' ' -f 1)"
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
           tag="$KEDRA_TARGET-${digest:7:16}"

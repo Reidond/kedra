@@ -82,7 +82,26 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
 
 
-def language_material(root, source, pins, pins_data, binaries, target):
+def catalog_pins(root, binaries, target, destination):
+    """Derive the run's pin envelope once, through the selected frontend.
+
+    This is trusted public preflight, before signing: the pinned `sysroot` derives
+    the envelope from the committed intent and this function writes it to a new
+    file, so no caller-supplied pin file or claimed hash is ever trusted.
+    """
+    process = subprocess.run([str(binaries / 'sysroot'), 'catalog', 'pins',
+                              '--input-root', str(root / (IMAGE + 'packages')),
+                              '--entry', 'catalog.kedra', '--lock', 'packages.lock.json',
+                              '--target', target, '--target-policy', str(root / (IMAGE + 'package-policy.json'))],
+                             stdin=subprocess.DEVNULL, capture_output=True, timeout=60, check=False)
+    require(process.returncode == 0 and 0 < len(process.stdout) <= 8 * 1024**2,
+            'Catalog pin derivation failed: ' + process.stderr.decode(errors='replace')[:1500])
+    with destination.open('xb') as stream:
+        stream.write(process.stdout)
+    return process.stdout
+
+
+def language_material(root, source, pins, target):
     frontend = source.get('package_frontend')
     require(isinstance(frontend, dict) and frontend.get('schema_version') == 1
             and frontend.get('format') == 'kedra' and pins.get('schema_version') == 2
@@ -104,15 +123,6 @@ def language_material(root, source, pins, pins_data, binaries, target):
                 and all(part not in ('', '.', '..') for part in path.split('/'))
                 and sha(read(root / path, 8 * 1024**2)) == expected,
                 'Frontend input differs from committed admission')
-    # This is trusted public preflight, before signing. Rederive the entire pin
-    # envelope through the selected frontend rather than trusting claimed hashes.
-    process = subprocess.run([str(binaries / 'sysroot'), 'catalog', 'pins',
-                              '--input-root', str(root / (IMAGE + 'packages')),
-                              '--entry', 'catalog.kedra', '--lock', 'packages.lock.json',
-                              '--target', target, '--target-policy', str(root / (IMAGE + 'package-policy.json'))],
-                             stdin=subprocess.DEVNULL, capture_output=True, timeout=60, check=False)
-    require(process.returncode == 0 and len(process.stdout) <= 8 * 1024**2
-            and process.stdout == pins_data, 'Frontend pin envelope differs from independent preflight')
     return sorted(inputs)
 
 
@@ -187,7 +197,9 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
     branch fixtures use their own frozen source. This function grants neither
     publication nor installed trust and performs no package or registry operation.
     Every RPM comes from the run's lock: its foundation inventory is the image's
-    package material and its pins hash is the `rpm-lock` artifact.
+    package material and its pins hash is the `rpm-lock` artifact. With `catalog`,
+    the run's pin envelope is derived here once and written to `catalog['pins']`.
+    The bootc compatibility of the lock is checked here, once per run.
     """
     spec = target_spec(target)
     require(source.get('schema_version') == 1 and source.get('target', {}).get('id') == target
@@ -200,22 +212,21 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
     require(re.fullmatch(r'quay\.io/fedora/fedora-bootc@sha256:[a-f0-9]{64}', base),
             'Unreviewed Fedora base')
     lock = rpm_lock(rpm_lock_data, source, base, target)
+    # Everything that decides image content. The release workflows only orchestrate
+    # these reviewed scripts (an edit to them alone cannot change an image), so
+    # they are not recipes and a workflow-only change rebuilds and re-signs nothing.
     recipes = [IMAGE + name for name in (
-        'Containerfile', 'assemble.sh', 'catalog/install-rpms.sh', 'release/Containerfile',
-        'release/compose.py', 'release/prepare-trust.py', 'release/refresh.py', 'release/material.py',
-        'release/targets.json',
+        'Containerfile', 'assemble.sh', 'catalog/install-rpms.sh', 'catalog/build-packages.sh',
+        'release/Containerfile', 'release/build.sh', 'release/compose.py', 'release/prepare-trust.py',
+        'release/trust.py', 'release/refresh.py', 'release/material.py', 'release/targets.json',
         'release/compatibility.json')]
-    recipes.extend(('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml',
-                    '.github/workflows/release.yml', '.github/workflows/release-target.yml',
-                    spec['public_key'], spec['key_sha256']))
+    recipes.extend(('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', spec['public_key'], spec['key_sha256']))
     artifacts = {name: context / name for name in ('sysroot', 'sysroot-helper')}
     if catalog is not None:
         require(isinstance(catalog, dict) and set(catalog) == {'pins'}, 'Unsupported catalog material inputs')
-        pins_data = read(catalog['pins'])
-        pins = document(pins_data)
+        pins = document(catalog_pins(root, binaries, target, catalog['pins']))
         require(isinstance(pins, dict), 'Invalid catalog material')
-        recipes.extend((*language_material(root, source, pins, pins_data, binaries, target),
-                        IMAGE + 'catalog/prepare-sources.py'))
+        recipes.extend((*language_material(root, source, pins, target), IMAGE + 'catalog/prepare-sources.py'))
         artifacts['catalog-pins'] = catalog['pins']
         artifacts['catalog-author'] = binaries / 'sysroot'
     recipe_hashes = {}

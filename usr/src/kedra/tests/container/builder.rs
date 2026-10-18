@@ -639,7 +639,10 @@ fn oci_architecture(architecture: &str) -> &str {
 /// Build (or reuse) the pinned builder image.
 pub(crate) fn builder_image(docker: &Docker, platform: &str) -> Result<GenericImage> {
     let containerfile = crate::harness_dir().join("lab/builder.Containerfile");
-    let key = content_key(&[&fs::read(&containerfile)?, platform.as_bytes()]);
+    let key = docker::scoped_tag(&content_key(&[
+        &fs::read(&containerfile)?,
+        platform.as_bytes(),
+    ]));
     docker.build(&docker::Build {
         tag: &format!("kedra-lab-builder:{key}"),
         what: "lab builder",
@@ -682,20 +685,20 @@ pub fn prepare(
     }
 
     eprintln!("kedra-lab: preparing Linux sysroot binaries and the {target} payload");
+    // This checkout's own Cargo volumes: a target directory shared between
+    // checkouts let Cargo's mtime fingerprints reuse another tree's crates.
+    let checkout = crate::checkout_id();
+    let registry = docker.volume(&format!("kedra-lab-{checkout}-cargo-registry"))?;
+    let target_volume = docker.volume(&format!("kedra-lab-{checkout}-target-{architecture}"))?;
     let request = builder_image(docker, &format!("linux/{}", oci_architecture(architecture)))?
         .with_cmd(["sleep", "infinity"])
         .with_label(docker::OWNER_LABEL, docker::OWNER)
+        .with_label(docker::CHECKOUT_LABEL, checkout)
         .with_label(docker::KIND_LABEL, "builder")
         .with_env_var("CARGO_TARGET_DIR", "/target")
         .with_env_var("RUSTUP_TOOLCHAIN", "1.98.1")
-        .with_mount(Mount::volume_mount(
-            "kedra-lab-cargo-registry",
-            "/usr/local/cargo/registry",
-        ))
-        .with_mount(Mount::volume_mount(
-            format!("kedra-lab-target-{architecture}"),
-            "/target",
-        ))
+        .with_mount(Mount::volume_mount(registry, "/usr/local/cargo/registry"))
+        .with_mount(Mount::volume_mount(target_volume, "/target"))
         .with_mount(
             Mount::bind_mount(snapshot_dir.to_string_lossy(), "/snapshot")
                 .with_access_mode(testcontainers::core::AccessMode::ReadOnly),
@@ -707,7 +710,7 @@ pub fn prepare(
 
     let sysroot;
     let helper;
-    // Prebuilt binaries never enter the shared Cargo target volume.
+    // Prebuilt binaries never enter the checkout's Cargo target volume.
     let archiver;
     match prebuilt {
         Some(directory) => {
@@ -721,8 +724,8 @@ pub fn prepare(
             docker.write_file(&id, archiver, &fs::read(&sysroot)?, "root", "0755")?;
         }
         None => {
-            // The Cargo volume is shared across checkouts and engines' clients.
-            // Hold its lock through copying into this container's private /tmp.
+            // Concurrent runs of this checkout share its Cargo volume. Hold
+            // its lock through copying into this container's private /tmp.
             let mut build = Exec::new([
                 "flock", "--timeout", "1800", "/target/kedra-build.lock", "sh", "-ec",
                 "cargo build --release --locked -p sysroot -p sysroot-helper; cp /target/release/sysroot /tmp/kedra-sysroot; cp /target/release/sysroot-helper /tmp/kedra-sysroot-helper",

@@ -29,13 +29,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Independent callers: a failure in one target never blocks the other.
+  # The closed target table is usr/src/kedra/image/release/targets.json at this
+  # exact commit, read as data through the API.
+  targets:
+    if: github.repository == 'Reidond/kedra' && github.ref == 'refs/heads/main' && vars.KEDRA_RELEASES_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.table.outputs.matrix }}
+    steps:
+      - name: Read the closed release target table
+        id: table
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github.raw+json' \
+            "repos/Reidond/kedra/contents/usr/src/kedra/image/release/targets.json?ref=$GITHUB_SHA" > "$RUNNER_TEMP/targets.json"
+          matrix=$(jq -ce 'if .schema_version == 1 then {include: [.targets | to_entries[] | {target: .key, runner: .value.runner}]}
+            else error("Unsupported release target table") end' "$RUNNER_TEMP/targets.json")
+          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
+
+  # Independent targets: a failure in one never blocks the other (fail-fast off).
   # A called job sees its environment's secrets only when the caller inherits
   # secrets (probe run 36191986665: empty without inherit, present with it).
   # The repository has no repository-level secrets; each signer job still reads
   # only its own protected environment inside release-target.yml.
-  desktop:
-    if: github.repository == 'Reidond/kedra' && github.ref == 'refs/heads/main' && vars.KEDRA_RELEASES_ENABLED == 'true'
+  release:
+    needs: targets
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
     uses: ./.github/workflows/release-target.yml
     permissions:
       contents: read
@@ -43,17 +69,5 @@ jobs:
       packages: write
     secrets: inherit
     with:
-      target: desktop
-      runner: ubuntu-24.04
-
-  qemu-arm64:
-    if: github.repository == 'Reidond/kedra' && github.ref == 'refs/heads/main' && vars.KEDRA_RELEASES_ENABLED == 'true'
-    uses: ./.github/workflows/release-target.yml
-    permissions:
-      contents: read
-      actions: read
-      packages: write
-    secrets: inherit
-    with:
-      target: qemu-arm64
-      runner: ubuntu-24.04-arm
+      target: ${{ matrix.target }}
+      runner: ${{ matrix.runner }}

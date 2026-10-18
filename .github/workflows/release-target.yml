@@ -6,11 +6,11 @@ on:
   workflow_call:
     inputs:
       target:
-        description: Closed Kedra release target (desktop or qemu-arm64)
+        description: Closed Kedra release target, a key of usr/src/kedra/image/release/targets.json
         type: string
         required: true
       runner:
-        description: Native GitHub-hosted runner label for that target
+        description: That target's native GitHub-hosted runner label from targets.json
         type: string
         required: true
 
@@ -18,6 +18,11 @@ permissions:
   contents: read
 
 jobs:
+  # Content-affecting logic lives in reviewed recipe scripts that material.py hashes
+  # into the resolved inputs (refresh.py, build.sh, compose.py, build-packages.sh,
+  # prepare-trust.py, trust.py and the Containerfiles). This file only orchestrates
+  # them, so it is not a recipe: an edit here rebuilds and re-signs nothing. Keep
+  # every step that changes image inputs or the build in those scripts.
   build:
     if: github.repository == 'Reidond/kedra' && github.ref == 'refs/heads/main' && vars.KEDRA_RELEASES_ENABLED == 'true'
     runs-on: ${{ inputs.runner }}
@@ -32,29 +37,37 @@ jobs:
     outputs:
       changed: ${{ steps.preflight.outputs.changed }}
       digest: ${{ steps.publish.outputs.digest }}
-      fingerprint: ${{ steps.trust.outputs.fingerprint }}
+      fingerprint: ${{ steps.preflight.outputs.fingerprint }}
       identity_sha256: ${{ steps.inspect.outputs.identity_sha256 }}
+      cache: ${{ steps.target.outputs.cache }}
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - name: Require a closed native target and main-only unattended signing environment
+        id: target
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          case "$KEDRA_TARGET:$KEDRA_RUNNER:$(uname -m)" in
-            desktop:ubuntu-24.04:x86_64 | qemu-arm64:ubuntu-24.04-arm:aarch64) ;;
-            *) echo 'Unsupported release target, runner or native architecture'; exit 1 ;;
-          esac
-          environment="kedra-$KEDRA_TARGET-signing"
+          spec=$(jq -ce --arg target "$KEDRA_TARGET" 'if .schema_version == 1 and (.targets | has($target))
+            then .targets[$target] else error("Unsupported release target") end' usr/src/kedra/image/release/targets.json)
+          test "$(jq -er .runner <<< "$spec")" = "$KEDRA_RUNNER"
+          test "$(jq -er .architecture <<< "$spec")" = "$(uname -m)"
+          environment=$(jq -er .environment <<< "$spec")
           gh api "repos/Reidond/kedra/environments/$environment" > "$RUNNER_TEMP/signing-environment.json"
           jq -e '.can_admins_bypass == false and .deployment_branch_policy.custom_branch_policies == true and
             all(.protection_rules[]; .type == "branch_policy")' "$RUNNER_TEMP/signing-environment.json" >/dev/null
           gh api "repos/Reidond/kedra/environments/$environment/deployment-branch-policies" > "$RUNNER_TEMP/signing-branches.json"
           jq -e '.total_count == 1 and .branch_policies[0].name == "main" and .branch_policies[0].type == "branch"' "$RUNNER_TEMP/signing-branches.json" >/dev/null
           test "$(gh api repos/Reidond/kedra/branches/main --jq .protected)" = true
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+          printf 'cache=%s\n' "$(jq -er .cache <<< "$spec")" >> "$GITHUB_OUTPUT"
+      # Every Docker-using release job selects the containerd image store before its
+      # first Docker operation, so CI behaves as local OrbStack does.
+      - name: Select the containerd Docker image store
+        timeout-minutes: 2
+        run: usr/src/kedra/image/release/runner-containerd.sh
       - name: Install pinned uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
@@ -63,189 +76,31 @@ jobs:
       # Source checks run locally before a change is signed off (AGENTS.md);
       # this step only builds the binaries the image needs. The exact
       # candidate is still validated in its own job before signing.
-      - name: Build source tooling
-        run: |
-          rustup toolchain install 1.98.1 --profile minimal
-          cargo build --workspace --release --locked
-      - name: Prepare bounded image inputs and public trust
-        id: trust
+      - name: Build source tooling and install image tools
         run: |
           set -euo pipefail
+          rustup toolchain install 1.98.1 --profile minimal
+          cargo build --workspace --release --locked
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo openssl
-          authority="usr/src/kedra/image/release/authority/$KEDRA_TARGET"
-          if ! test -f "$authority.pub" || ! test -f "$authority.sha256"; then
-            echo "The $KEDRA_TARGET public signing authority is not provisioned"; exit 1
-          fi
-          context="output/$KEDRA_TARGET-context"
-          mkdir -p output/image-evidence "$context" output/release-context output/release-binaries
-          cp target/release/sysroot target/release/sysroot-helper output/release-binaries/
-          output/release-binaries/sysroot catalog pins \
-            --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
-            --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
-            > output/release-binaries/catalog-pins.json
-          target/release/sysroot source plan --host "$KEDRA_TARGET" --json > output/image-evidence/source-plan.json
-          target/release/sysroot source archive --host "$KEDRA_TARGET" --output "$context/payload.tar"
-          cp target/release/sysroot target/release/sysroot-helper usr/src/kedra/image/Containerfile usr/src/kedra/image/assemble.sh \
-            usr/src/kedra/image/catalog/install-rpms.sh "$context/"
-          fingerprint=$(cat "$authority.sha256")
-          uv run usr/src/kedra/image/release/prepare-trust.py --source output/image-evidence/source-plan.json \
-            --public-key "$authority.pub" --expected-fingerprint "$fingerprint" \
-            --sysroot target/release/sysroot --output output/release-context/trust
-          printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
-          sudo mkdir -p /etc/containers/registries.d
-          sudo cp output/release-context/trust/registries.yaml /etc/containers/registries.d/kedra.yaml
+          sudo apt-get install -y --no-install-recommends podman skopeo openssl bubblewrap
       # The run's only Fedora package resolution: every later build installs
-      # offline from this RPM lock's fixed-output store objects.
+      # offline from this RPM lock's fixed-output store objects. Preflight stages
+      # the binaries, source plan, pin envelope and build context, compares with
+      # the signature-verified stable image and checks exact main once at its end.
       - name: Resolve the RPM lock and compare strictly verified stable image
         id: preflight
         env:
           GH_TOKEN: ${{ github.token }}
-          APPROVED_FINGERPRINT: ${{ steps.trust.outputs.fingerprint }}
         run: |
+          mkdir -p output/image-evidence
           uv run usr/src/kedra/image/release/refresh.py prepare --target "$KEDRA_TARGET" --work output/image-evidence \
             --store "$RUNNER_TEMP/kedra-release-store"
-      - name: Select the OCI-root Docker image store
+      - name: Keep Ubuntu host AppArmor policy off the build sandbox and candidate
         if: steps.preflight.outputs.changed == 'true'
-        timeout-minutes: 2
-        run: |
-          set -euo pipefail
-          # This hosted disposable runner has no candidate state yet. Preserve
-          # unrelated daemon settings and refuse to hide existing containers.
-          containers=$(docker ps --all --quiet)
-          test -z "$containers"
-          test ! -L /etc/docker/daemon.json
-          config=$(mktemp -d "$RUNNER_TEMP/kedra-docker-config.XXXXXXXX")
-          trap 'rm -rf -- "$config"' EXIT
-          if sudo test -e /etc/docker/daemon.json; then
-            sudo test -f /etc/docker/daemon.json
-            sudo cat /etc/docker/daemon.json > "$config/original.json"
-          else
-            printf '{}\n' > "$config/original.json"
-          fi
-          jq --exit-status 'type == "object" and ((.features // {}) | type == "object")' "$config/original.json" >/dev/null
-          jq '.features = ((.features // {}) + {"containerd-snapshotter": true})' \
-            "$config/original.json" > "$config/daemon.json"
-          sudo dockerd --validate --config-file "$config/daemon.json" > "$config/validate.log" 2>&1
-          sudo install -m 0600 -o root -g root "$config/daemon.json" /etc/docker/daemon.json
-          sudo systemctl restart docker
-          docker info --format '{{json .DriverStatus}}' | \
-            jq --exit-status 'any(.[]; . == ["driver-type", "io.containerd.snapshotter.v1"])' >/dev/null
-      # One pipeline for every target, natively on its runner: lock (preflight) →
-      # foundation → catalog packages → compose → derive (the image steps the
-      # target's .kedra block declares) → public trust layer.
+        run: usr/src/kedra/image/release/runner-apparmor.sh output/image-evidence/catalog-installed
       - name: Build changed image with signed-config identity
         if: steps.preflight.outputs.changed == 'true'
-        run: |
-          set -euo pipefail
-          input_hash=$(sha256sum output/image-evidence/resolved-inputs.json | cut -d ' ' -f 1)
-          uv run usr/src/kedra/image/release/compose.py foundation \
-            --target "$KEDRA_TARGET" --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \
-            --inputs output/image-evidence/resolved-inputs.json --expected-inputs-sha256 "$input_hash" \
-            --context "output/$KEDRA_TARGET-context" --store "$RUNNER_TEMP/kedra-release-store" \
-            --binaries output/release-binaries --output-dir "$RUNNER_TEMP/kedra-release-foundation" \
-            > output/image-evidence/foundation.json
-          foundation_hash=$(sha256sum "$RUNNER_TEMP/kedra-release-foundation/foundation.json" | cut -d ' ' -f 1)
-          # Build tools only after changed preflight, offline from the run's RPM lock.
-          # Packages build, and `sysroot system compose` observes the foundation, in the
-          # engine's unprivileged bubblewrap sandbox, as on an installed Kedra. Ubuntu
-          # 24.04 confines unprivileged user namespaces through AppArmor; this disposable
-          # runner lifts that for the sandbox on both targets.
-          sudo apt-get install -y --no-install-recommends bubblewrap
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          bwrap --unshare-all --unshare-user --disable-userns --ro-bind / / /bin/true
-          catalog_root="$RUNNER_TEMP/kedra-catalog"
-          mkdir -m 700 "$catalog_root"
-          foundation=$(jq -er .foundation_image "$RUNNER_TEMP/kedra-release-foundation/foundation.json")
-          # Package identities follow the Fedora material only, never this run's
-          # foundation image: the runtime root is the lock's exact Fedora base plus its
-          # foundation role, and each builder root that runtime root plus one builder
-          # role, all installed offline by the root's own rpm in the sandbox and
-          # refused unless the result equals the role's locked inventory. Contribute
-          # and compose accept the packages only because the runtime root's RPMs equal
-          # the foundation's exactly.
-          base=$(jq -er .base output/image-evidence/rpm-lock.json)
-          docker pull --quiet "$base"
-          base_id=$(docker image inspect --format '{{.Id}}' "$base")
-          output/release-binaries/sysroot store add-image --store "$RUNNER_TEMP/kedra-release-store" \
-            --image "$base_id" > "$catalog_root/base.json"
-          output/release-binaries/sysroot store add-root --store "$RUNNER_TEMP/kedra-release-store" \
-            --image "$base_id" --lock output/image-evidence/rpm-lock.json > "$catalog_root/runtime.json"
-          runtime=$(jq -er .root "$catalog_root/runtime.json")
-          printf '{"runtime":"%s","builders":{}}\n' "$runtime" > "$catalog_root/resolution.json"
-          mapfile -t roles < <(jq -r '.builders | keys[]' output/release-binaries/catalog-pins.json)
-          test "${#roles[@]}" -gt 0
-          index=0
-          for role in "${roles[@]}"; do
-            output/release-binaries/sysroot store add-root --store "$RUNNER_TEMP/kedra-release-store" \
-              --image "$base_id" --lock output/image-evidence/rpm-lock.json --builder "$role" \
-              > "$catalog_root/builder-$index.json"
-            builder=$(jq -er .root "$catalog_root/builder-$index.json")
-            jq --arg role "$role" --arg root "$builder" '.builders[$role]=$root' "$catalog_root/resolution.json" > "$catalog_root/resolution.next.json"
-            mv "$catalog_root/resolution.next.json" "$catalog_root/resolution.json"
-            index=$((index+1))
-          done
-          jq --slurpfile resolution "$catalog_root/resolution.json" \
-            '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_roots:[$resolution[0].runtime],source_objects:(.archives|keys)}' \
-            output/release-binaries/catalog-pins.json > "$catalog_root/policy.json"
-          uv run usr/src/kedra/image/catalog/prepare-sources.py \
-            --pins output/release-binaries/catalog-pins.json --output "$catalog_root/sources"
-          mapfile -t source_objects < <(jq -r 'keys[]' "$catalog_root/sources/sources.json")
-          for expected in "${source_objects[@]}"; do
-            source=$(jq -er --arg object "$expected" '.[$object]' "$catalog_root/sources/sources.json")
-            output/release-binaries/sysroot store add-source --store "$RUNNER_TEMP/kedra-release-store" --source "$source" > "$catalog_root/$expected-source.json"
-            test "$(jq -er .object "$catalog_root/$expected-source.json")" = "$expected"
-          done
-          # Binary cache: a package closure the previous signature-verified stable image
-          # records (its composition.json, copied by preflight) is pulled anonymously
-          # from the cache and admitted only if every object equals its record;
-          # anything else, and any cache failure, builds. The registry is never trusted.
-          cache_args=()
-          if test -s output/image-evidence/previous-composition.json; then
-            cache_args=(--cache "ghcr.io/reidond/kedra-cache-$KEDRA_TARGET" --trusted output/image-evidence/previous-composition.json)
-          fi
-          mapfile -t packages < <(jq -r '.packages | keys[]' output/release-binaries/catalog-pins.json)
-          for package in "${packages[@]}"; do
-            output/release-binaries/sysroot catalog build --store "$RUNNER_TEMP/kedra-release-store" --package "$package" \
-              --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
-              --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
-              --policy "$catalog_root/policy.json" --resolution "$catalog_root/resolution.json" "${cache_args[@]}" \
-              > "$catalog_root/$package-build.json"
-          done
-          output/release-binaries/sysroot catalog contribute --store "$RUNNER_TEMP/kedra-release-store" \
-            --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
-            --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
-            --resolution "$catalog_root/resolution.json" --foundation "$foundation" \
-            --policy "$catalog_root/policy.json" --source-revision "$GITHUB_SHA" \
-            --input-material output/image-evidence/resolved-inputs.json --expected-input-material-sha256 "$input_hash" \
-            --output-dir "$catalog_root/contribution" > "$catalog_root/contribution-result.json"
-          definition_hash=$(jq -er .definition_sha256 "$catalog_root/contribution-result.json")
-          contribution_hash=$(jq -er .contribution_receipt_sha256 "$catalog_root/contribution-result.json")
-          mkdir output/image-evidence/catalog
-          cp "$catalog_root/"*.json output/image-evidence/catalog/
-          cp "$catalog_root/contribution/"*.json output/image-evidence/catalog/
-          uv run usr/src/kedra/image/release/compose.py compose \
-            --target "$KEDRA_TARGET" --repo "$GITHUB_WORKSPACE" --source-revision "$GITHUB_SHA" \
-            --inputs output/image-evidence/resolved-inputs.json --expected-inputs-sha256 "$input_hash" \
-            --foundation-receipt "$RUNNER_TEMP/kedra-release-foundation/foundation.json" \
-            --expected-foundation-receipt-sha256 "$foundation_hash" --store "$RUNNER_TEMP/kedra-release-store" \
-            --definition "$catalog_root/contribution/system.json" --expected-definition-sha256 "$definition_hash" \
-            --contribution-receipt "$catalog_root/contribution/contribution.json" --expected-contribution-receipt-sha256 "$contribution_hash" \
-            --binaries output/release-binaries --output-dir "$RUNNER_TEMP/kedra-release-native" \
-            > output/image-evidence/native-candidate.json
-          candidate=$(jq -er .transfer.reference output/image-evidence/native-candidate.json)
-          expected=$(jq -er .transfer.destination_manifest_digest output/image-evidence/native-candidate.json)
-          actual="sha256:$(sudo skopeo inspect --raw "containers-storage:$candidate" | sha256sum | cut -d ' ' -f 1)"
-          test "$actual" = "$expected"
-          expected_id=$(jq -er .transfer.image output/image-evidence/native-candidate.json)
-          test "$(sudo podman image inspect "$candidate" --format '{{.Id}}')" = "${expected_id#sha256:}"
-          cp "$RUNNER_TEMP/kedra-release-native/native-plan.json" output/image-evidence/
-          cp "$RUNNER_TEMP/kedra-release-native/native-material/native-receipt.json" output/image-evidence/
-          identity=$(cat output/release-context/image-identity.json)
-          sudo podman build --pull=never --network=none --build-arg "CANDIDATE_IMAGE=$candidate" \
-            --build-arg "KEDRA_IDENTITY=$identity" --file usr/src/kedra/image/release/Containerfile \
-            --tag "localhost/kedra-$KEDRA_TARGET:release-candidate" output/release-context \
-            2>&1 | tee output/image-evidence/trust-build.log
+        run: usr/src/kedra/image/release/build.sh "$KEDRA_TARGET" "$GITHUB_SHA" "$RUNNER_TEMP"
       - name: Run installed catalog case on the exact composed native image
         if: steps.preflight.outputs.changed == 'true'
         run: |
@@ -276,15 +131,6 @@ jobs:
           cp "$native_root/candidate.json" "$evidence/composer-candidate.json"
           sha256sum "$native_root/composition/composition.json" \
             "$native_root/native-plan.json" > "$evidence/selected-inputs.sha256"
-          # Match the established Ubuntu-host setup used by validate-candidate.
-          sudo aa-status > "$evidence/apparmor-before.txt" 2>&1 || true
-          if test -f /etc/apparmor.d/unix-chkpwd; then
-            sudo apparmor_parser --remove /etc/apparmor.d/unix-chkpwd
-          fi
-          if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          fi
-          sudo aa-status > "$evidence/apparmor-after.txt" 2>&1 || true
           env -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH -u KEDRA_LAB_BINARIES \
             DOCKER_HOST="$endpoint" DOCKER_CONFIG="$native_root/home/.docker" \
             KEDRA_LAB_TARGET="$KEDRA_TARGET" KEDRA_LAB_OVERLAY=none KEDRA_LAB_KEEP=never \
@@ -318,8 +164,6 @@ jobs:
       - name: Validate actual image identity and material without execution
         id: inspect
         if: steps.preflight.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: uv run usr/src/kedra/image/release/refresh.py inspect-candidate --target "$KEDRA_TARGET" --work output/image-evidence
       # After a successful build, offer every realized package closure to the cache.
       # Consumers admit one only against a signed image's records, so a failed push
@@ -329,6 +173,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          KEDRA_CACHE: ${{ steps.target.outputs.cache }}
         run: |
           set -euo pipefail
           auth="$RUNNER_TEMP/kedra-cache-auth.json"
@@ -338,9 +183,11 @@ jobs:
           mapfile -t objects < <(jq -r '[.outputs[]] | unique[]' "$RUNNER_TEMP/kedra-catalog/contribution-result.json")
           for object in "${objects[@]}"; do
             output/release-binaries/sysroot store push --store "$RUNNER_TEMP/kedra-release-store" --object "$object" \
-              --cache "ghcr.io/reidond/kedra-cache-$KEDRA_TARGET" --cache-authfile "$auth" --source "https://github.com/$GITHUB_REPOSITORY" \
+              --cache "$KEDRA_CACHE" --cache-authfile "$auth" --source "https://github.com/$GITHUB_REPOSITORY" \
               | tee -a output/image-evidence/catalog/cache-push.jsonl
           done
+      # Unsigned builds grant nothing; the exact-main guard runs at preflight and
+      # again before the signer and stable publication use this digest.
       - name: Publish immutable unsigned build for isolated signing
         id: publish
         if: steps.preflight.outputs.changed == 'true'
@@ -348,12 +195,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
           auth="$RUNNER_TEMP/kedra-build-auth.json"
           umask 077
           trap 'rm -f -- "$auth"' EXIT
           printf '%s' "$GH_TOKEN" | skopeo login --authfile "$auth" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
-          destination="ghcr.io/reidond/kedra-$KEDRA_TARGET-builds:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          builds=$(jq -er --arg target "$KEDRA_TARGET" '.targets[$target].builds' usr/src/kedra/image/release/targets.json)
+          destination="$builds:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           if skopeo inspect --authfile "$auth" --raw "docker://$destination" > /dev/null 2> "$RUNNER_TEMP/build-tag-lookup.log"; then
             echo 'Immutable build tag already exists'; exit 1
           fi
@@ -397,15 +244,15 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Select the containerd Docker image store
+        timeout-minutes: 2
+        run: usr/src/kedra/image/release/runner-containerd.sh
       - name: Select the immutable public candidate by digest
         run: |
           set -euo pipefail
           [[ "$CANDIDATE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          test "$(jq -er --arg target "$KEDRA_TARGET" '.targets[$target].architecture' usr/src/kedra/image/release/targets.json)" = "$(uname -m)"
           builds=$(jq -er --arg target "$KEDRA_TARGET" '.targets[$target].builds' usr/src/kedra/image/release/targets.json)
-          case "$KEDRA_TARGET:$builds:$(uname -m)" in
-            desktop:ghcr.io/reidond/kedra-desktop-builds:x86_64 | qemu-arm64:ghcr.io/reidond/kedra-qemu-arm64-builds:aarch64) ;;
-            *) echo 'Unsupported candidate target, repository or native architecture'; exit 1 ;;
-          esac
           reference="$builds@$CANDIDATE_DIGEST"
           mkdir -p "$KEDRA_LAB_ARTIFACTS"
           printf 'KEDRA_LAB_IMAGE=ref:%s\n' "$reference" >> "$GITHUB_ENV"
@@ -425,15 +272,7 @@ jobs:
             docker info --format '{{.CgroupVersion}} {{.CgroupDriver}} {{.Driver}}'
           } > "$KEDRA_LAB_ARTIFACTS/environment.txt"
       - name: Keep Ubuntu host AppArmor policy off the candidate's programs
-        run: |
-          sudo aa-status > "$KEDRA_LAB_ARTIFACTS/apparmor-before.txt" 2>&1 || true
-          if test -f /etc/apparmor.d/unix-chkpwd; then
-            sudo apparmor_parser --remove /etc/apparmor.d/unix-chkpwd
-          fi
-          if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          fi
-          sudo aa-status > "$KEDRA_LAB_ARTIFACTS/apparmor-after.txt" 2>&1 || true
+        run: usr/src/kedra/image/release/runner-apparmor.sh "$KEDRA_LAB_ARTIFACTS"
       - name: Validate scenarios before provisioning anything
         run: cargo test -p kedra-container-tests --test container --locked -- --list
       - name: Run the full container harness against the exact candidate
@@ -490,7 +329,8 @@ jobs:
       digest: ${{ steps.sign.outputs.digest }}
       fingerprint: ${{ steps.sign.outputs.fingerprint }}
     steps:
-      # No checkout, artifact execution or candidate process in this job.
+      # No checkout, artifact execution, candidate process or repository script in
+      # this job. The closed target table is read as data at the exact commit.
       - name: Prepare native signer and validate public image identity
         env:
           GH_TOKEN: ${{ github.token }}
@@ -500,25 +340,28 @@ jobs:
         run: |
           set -euo pipefail
           test "$CANDIDATE_DIGEST" = "$BUILD_DIGEST"
-          case "$KEDRA_TARGET:$(uname -m)" in
-            desktop:x86_64 | qemu-arm64:aarch64) ;;
-            *) echo 'Unsupported signing target or native architecture'; exit 1 ;;
-          esac
+          gh api -H 'Accept: application/vnd.github.raw+json' \
+            "repos/Reidond/kedra/contents/usr/src/kedra/image/release/targets.json?ref=$GITHUB_SHA" > "$RUNNER_TEMP/targets.json"
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends skopeo openssl
+          # The signer writes sigstore attachments; it runs no repository script, so
+          # this is the one inline copy of trust.py's registries entry.
           sudo mkdir -p /etc/containers/registries.d
           printf 'docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n' | sudo tee /etc/containers/registries.d/kedra.yaml >/dev/null
           python3 - <<'PY'
-          import hashlib, json, os, re, subprocess
-          # Closed target table (usr/src/kedra/image/release/targets.json); this job has no checkout.
-          targets = {'desktop': ('x86_64', 'amd64'), 'qemu-arm64': ('aarch64', 'arm64')}
+          import hashlib, json, os, platform, re, subprocess
+          table = json.loads(open(os.path.join(os.environ['RUNNER_TEMP'], 'targets.json'), 'rb').read(16384))
+          assert table['schema_version'] == 1
           target = os.environ['KEDRA_TARGET']
-          architecture, oci_architecture = targets[target]
-          repository = 'ghcr.io/reidond/kedra-' + target
+          spec = table['targets'][target]
+          architecture, oci_architecture = spec['architecture'], spec['oci_architecture']
+          repository = spec['repository']
+          assert platform.machine() == architecture
+          assert repository == 'ghcr.io/reidond/kedra-' + target and spec['builds'] == repository + '-builds'
           digest = os.environ['CANDIDATE_DIGEST']
           assert re.fullmatch(r'sha256:[a-f0-9]{64}', digest)
           config = json.loads(subprocess.check_output(['skopeo', 'inspect', '--config', '--raw',
-              'docker://' + repository + '-builds@' + digest]))
+              'docker://' + spec['builds'] + '@' + digest]))
           raw = config['config']['Labels']['org.kedra.image.identity']
           assert hashlib.sha256(raw.encode()).hexdigest() == os.environ['IDENTITY_SHA256']
           identity = json.loads(raw)
@@ -531,7 +374,8 @@ jobs:
           assert identity['run_number'] == int(os.environ['GITHUB_RUN_NUMBER'])
           assert identity['run_attempt'] == int(os.environ['GITHUB_RUN_ATTEMPT'])
           PY
-          destination="ghcr.io/reidond/kedra-$KEDRA_TARGET:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          repository=$(jq -er --arg target "$KEDRA_TARGET" '.targets[$target].repository' "$RUNNER_TEMP/targets.json")
+          destination="$repository:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           if skopeo inspect --raw "docker://$destination" >/dev/null 2>"$RUNNER_TEMP/signed-tag-lookup.log"; then
             echo 'Immutable signed run tag already exists'; exit 1
           fi
@@ -554,7 +398,10 @@ jobs:
           test "$CANDIDATE_DIGEST" = "$BUILD_DIGEST"
           [[ "$APPROVED_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]
           test "$BUILD_FINGERPRINT" = "$APPROVED_FINGERPRINT"
+          # Exact main immediately before the private key is used.
           test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
+          repository=$(jq -er --arg target "$KEDRA_TARGET" '.targets[$target].repository' "$RUNNER_TEMP/targets.json")
+          builds=$(jq -er --arg target "$KEDRA_TARGET" '.targets[$target].builds' "$RUNNER_TEMP/targets.json")
           # Separate commands: under bash -e a failing left side of && does not stop the step.
           test -n "$RELEASE_PRIVATE_KEY"
           test -n "$RELEASE_PASSPHRASE"
@@ -570,8 +417,8 @@ jobs:
           printf '%s' "$GH_TOKEN" | skopeo login --authfile "$private/auth.json" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
           skopeo copy --authfile "$private/auth.json" --preserve-digests --digestfile "$private/signed.digest" \
             --sign-by-sigstore-private-key "$private/release.private" --sign-passphrase-file "$private/passphrase" \
-            "docker://ghcr.io/reidond/kedra-$KEDRA_TARGET-builds@$CANDIDATE_DIGEST" \
-            "docker://ghcr.io/reidond/kedra-$KEDRA_TARGET:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            "docker://$builds@$CANDIDATE_DIGEST" \
+            "docker://$repository:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           test "$(cat "$private/signed.digest")" = "$CANDIDATE_DIGEST"
           printf 'digest=%s\n' "$CANDIDATE_DIGEST" >> "$GITHUB_OUTPUT"
           printf 'fingerprint=%s\n' "$APPROVED_FINGERPRINT" >> "$GITHUB_OUTPUT"
@@ -607,15 +454,13 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends podman skopeo openssl
-          sudo mkdir -p /etc/containers/registries.d
-          printf 'docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n' | sudo tee /etc/containers/registries.d/kedra.yaml >/dev/null
           umask 077
           auth_dir=$(mktemp -d "$RUNNER_TEMP/kedra-publish-auth.XXXXXXXX")
           auth="$auth_dir/auth.json"
           trap 'rm -rf -- "$auth_dir"' EXIT
           printf '%s' "$GH_TOKEN" | skopeo login --authfile "$auth" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
           export KEDRA_REGISTRY_AUTH="$auth"
-          test "$(gh api repos/Reidond/kedra/git/ref/heads/main --jq .object.sha)" = "$GITHUB_SHA"
+          # refresh.py checks exact main and the preflight's stable digest once, right before the stable write.
           uv run usr/src/kedra/image/release/refresh.py publish --target "$KEDRA_TARGET" --work output/image-evidence
       - name: Preserve public stable publication receipt
         if: always()
@@ -639,6 +484,7 @@ jobs:
       packages: write
     env:
       KEDRA_TARGET: ${{ inputs.target }}
+      KEDRA_CACHE: ${{ needs.build.outputs.cache }}
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -656,7 +502,8 @@ jobs:
           jq -es --argjson expected "$expected" \
             'length == $expected and all(.[]; .tag | test("^closure-[0-9a-f]{64}$"))' "$catalog/cache-push.jsonl" >/dev/null
           jq -r '.tag' "$catalog/cache-push.jsonl" | sort -u > "$RUNNER_TEMP/kedra-cache-keep"
-          package="kedra-cache-$KEDRA_TARGET"
+          [[ "$KEDRA_CACHE" =~ ^ghcr\.io/reidond/kedra-cache-[a-z0-9-]+$ ]]
+          package="${KEDRA_CACHE#ghcr.io/reidond/}"
           gh api --paginate "/users/Reidond/packages/container/$package/versions" \
             --jq '.[] | [(.id | tostring), ((.metadata.container.tags // []) | join(" "))] | @tsv' > "$RUNNER_TEMP/kedra-cache-versions"
           while IFS=$'\t' read -r id tags; do

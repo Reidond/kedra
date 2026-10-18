@@ -1742,6 +1742,43 @@ fn binary_cache_admits_only_closures_the_trusted_records_hold() {
             .contains("differs from its trusted record")
     );
 
+    // A trusted tag whose artifact is not even a tar archive is a miss too.
+    let garbage = vec![b'A'; 1024];
+    let config = b"{}".to_vec();
+    let layout = fixture.path("garbage-layout");
+    fs::create_dir(&layout).unwrap();
+    fs::write(layout.join(hash(&garbage)), &garbage).unwrap();
+    fs::write(layout.join(hash(&config)), &config).unwrap();
+    fs::write(
+        layout.join("manifest.json"),
+        serde_json::to_vec(&json!({"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json",
+            "config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":format!("sha256:{}", hash(&config)),"size":config.len()},
+            "layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar","digest":format!("sha256:{}", hash(&garbage)),"size":garbage.len()}]}))
+        .unwrap(),
+    )
+    .unwrap();
+    fs::write(layout.join("version"), "Directory Transport Version: 1.1\n").unwrap();
+    success(
+        Command::new("skopeo")
+            .arg("--policy")
+            .arg(&policy)
+            .args(["copy", "--quiet", "--dest-tls-verify=false"])
+            .arg(format!("dir:{}", layout.display()))
+            .arg(format!(
+                "docker://{cache}:{}",
+                pushed_probe["tag"].as_str().unwrap()
+            ))
+            .output()
+            .unwrap(),
+    );
+    let corrupt = fixture.path("corrupt");
+    let corrupt_roots = roots(&fixture, &corrupt, &lock_path, &base);
+    let recovered = build_json(&corrupt, &corrupt_roots, "probe", &trust);
+    let node = recovered["root"].as_str().unwrap();
+    assert_eq!(recovered["result"]["built"], json!([node]));
+    assert!(recovered["result"]["cache_misses"][node].is_string());
+    assert_eq!(program(&fixture, &corrupt, &probe, "bin/probe"), b"probe\n");
+
     // No trusted record: refused before any registry is contacted, and built.
     let unreachable = "127.0.0.1:9/kedra-cache";
     denied(

@@ -842,8 +842,9 @@ impl Store {
         }
         Ok(result)
     }
-    /// Whether `id` came from the cache. A refusal or an unavailable cache is
-    /// recorded and the node is built; recovery and store failures propagate.
+    /// Whether `id` came from the cache. Any failure to substitute, including an
+    /// artifact that does not even parse, is recorded and the node is built; only
+    /// a store left needing recovery (an import journal remains) propagates.
     fn substitute_node(
         &self,
         cache: &crate::Substitution<'_>,
@@ -860,7 +861,12 @@ impl Store {
                 result.substituted.push(name.into());
                 Ok(true)
             }
-            Err(error @ (Error::RecoveryRequired(_) | Error::Io(_))) => Err(error),
+            Err(error)
+                if matches!(error, Error::RecoveryRequired(_))
+                    || self.path.join("transactions/import.json").exists() =>
+            {
+                Err(error)
+            }
             Err(error) => {
                 result.cache_misses.insert(name.into(), error.to_string());
                 Ok(false)

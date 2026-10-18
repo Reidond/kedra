@@ -242,9 +242,15 @@ check output, logs and temporary files (`TMPDIR=$PWD/target/tmp`). Not `$HOME`,
 under `target/`. Only Docker's own image store and the toolchain download caches
 (`~/.cargo`, the uv cache) live elsewhere.
 
-Label every Docker container, volume and image `kedra.worktree=<branch>`, run
-one-shot containers with `--rm`, and remove the labeled objects once the checks
-are recorded. Delete large `target/` subtrees a pending re-check does not need.
+Docker ownership is keyed by checkout, not branch: a branch name can repeat
+across clones and a detached checkout has none. The checkout id is the first 12
+hex digits of the SHA-256 of the canonical checkout path (`git rev-parse
+--show-toplevel`). Label every container, volume and locally built image
+`kedra.checkout=<id>`, run one-shot containers with `--rm`, and remove the
+labeled objects once the checks are recorded. Pulled images stay unlabeled,
+because a label would change the exact image under test. Record each digest a
+checkout pulls under `target/` and remove those images when no other checkout
+still uses them. Delete large `target/` subtrees a pending re-check does not need.
 Engine store objects are sealed read-only: `chmod -R u+w` before `rm -rf`. Stop
 and report before a run would leave less than 100 GiB free on the host disk.
 

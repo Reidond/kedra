@@ -7,7 +7,8 @@ Branch claude/engine-cache-ghcr adds the [binary cache](ENGINE.md#binary-cache):
 build` share realized closures through an OCI registry, admitting one only if every
 object equals a receipt of a signature-verified image's installed
 `composition.json`. The release pulls before the catalog build and pushes after the
-candidate inspection ([RELEASES](RELEASES.md)). Locally (worklog
+candidate inspection, one cache package per target, pruned after each stable
+publication to what the new stable image records ([RELEASES](RELEASES.md)). Locally (worklog
 WL-20261018-ENGINE-CACHE-01) an E2E against a disposable `registry:2` passes:
 substitution into a fresh store, a hostile-registry content mismatch refused, a
 missing record refused, an unreachable cache falling back to building. The release

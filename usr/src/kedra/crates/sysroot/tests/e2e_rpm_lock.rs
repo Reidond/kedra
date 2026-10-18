@@ -404,8 +404,23 @@ fn fixed_output_rpms_fetch_materialize_and_refuse_other_bytes() {
     assert!(!second.exists());
 }
 
+/// `--label` for the containers and images a case creates, from
+/// `KEDRA_TEST_DOCKER_LABEL` (`key=value`), so a runner can find and remove them.
+fn labels() -> Vec<String> {
+    std::env::var("KEDRA_TEST_DOCKER_LABEL")
+        .ok()
+        .filter(|label| !label.is_empty())
+        .map(|label| vec!["--label".to_owned(), label])
+        .unwrap_or_default()
+}
+
 fn docker(arguments: &[&str]) -> String {
-    String::from_utf8(success(Command::new("docker").args(arguments).output().unwrap()).stdout)
+    let mut command = Command::new("docker");
+    match arguments.split_first() {
+        Some((verb @ (&"run" | &"build"), rest)) => command.arg(verb).args(labels()).args(rest),
+        _ => command.args(arguments),
+    };
+    String::from_utf8(success(command.output().unwrap()).stdout)
         .unwrap()
         .trim()
         .to_owned()
@@ -544,7 +559,9 @@ fn offline_build(
     )
     .unwrap();
     Command::new("docker")
-        .args(["build", "--pull=false", "--network", "none", "--iidfile"])
+        .arg("build")
+        .args(labels())
+        .args(["--pull=false", "--network", "none", "--iidfile"])
         .arg(context.join("image.iid"))
         .args(["--file"])
         .arg(context.join("Containerfile"))

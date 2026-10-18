@@ -160,6 +160,11 @@ so they follow the base digest and the locked RPMs ([runtime
 roots](#execution-and-integrity)): a release hits when it rebuilds packages whose
 base, lock roles and inputs the previous stable image already realized.
 
+Admission does not depend on what else the registry holds, so a cache can be
+pruned freely: Kedra releases keep one cache package per target and delete every
+closure the newly published stable image does not record
+([RELEASES](RELEASES.md)).
+
 ## Fedora RPM lock
 
 Fedora RPMs are input-addressed. `Store::resolve_rpms` is the only networked

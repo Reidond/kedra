@@ -23,7 +23,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
+sys.path.insert(1, str(ROOT / 'usr/src/kedra/image/release'))
 import smoke
+import trust
 
 # One closed target table, shared with the release tooling and embedded by the
 # Rust helper; never guess a target.
@@ -122,14 +124,7 @@ def main():
         context, media, evidence = (work / name for name in ('context', 'media', 'evidence'))
         for directory in (context, media, evidence):
             directory.mkdir()
-        registry_config = work / 'registries.d'
-        registry_config.mkdir()
-        (registry_config / 'kedra.yaml').write_text('docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n')
-        policy = work / 'policy.json'
-        requirement = {'type': 'sigstoreSigned', 'keyPath': str(public),
-                       'signedIdentity': {'type': 'exactRepository', 'dockerRepository': repository}}
-        policy.write_text(json.dumps({'default': [{'type': 'reject'}],
-            'transports': {'docker': {repository: [requirement]}, 'containers-storage': {'': [requirement]}}}) + '\n')
+        policy, registry_config = trust.host_configuration(work, repository, public)
         run([tools['sudo'], tools['skopeo'], '--policy', policy, '--registries.d', registry_config,
              'copy', '--preserve-digests', '--digestfile', work / 'payload.digest',
              'docker://' + args.image, 'containers-storage:' + args.image])
@@ -143,38 +138,36 @@ def main():
         container = run([tools['sudo'], tools['podman'], 'create', '--network=none',
                          '--entrypoint', '/usr/bin/true', args.image], capture=True).decode().strip()
         require(re.fullmatch('[a-f0-9]{64}', container), 'Unexpected inspection container ID')
-        trust = context / 'trust'
-        trust.mkdir()
+        installed = context / 'trust'
+        installed.mkdir()
         files = {
-            '/usr/share/sysroot/source.json': trust / 'source.json',
+            '/usr/share/sysroot/source.json': installed / 'source.json',
             '/usr/libexec/sysroot/helper': context / 'helper',
-            '/usr/lib/sysroot/trust/release.pub': trust / 'release.pub',
-            '/usr/lib/sysroot/trust/release-policy.json': trust / 'release-policy.json',
-            '/etc/containers/policy.json': trust / 'policy.json',
-            '/etc/containers/registries.d/kedra.yaml': trust / 'registries.yaml',
-            '/usr/lib/bootc/install/10-kedra.toml': trust / 'install.toml',
+            '/usr/lib/sysroot/trust/release.pub': installed / 'release.pub',
+            '/usr/lib/sysroot/trust/release-policy.json': installed / 'release-policy.json',
+            '/etc/containers/policy.json': installed / 'policy.json',
+            '/etc/containers/registries.d/kedra.yaml': installed / 'registries.yaml',
+            '/usr/lib/bootc/install/10-kedra.toml': installed / 'install.toml',
         }
         for source, destination in files.items():
             run([tools['sudo'], tools['podman'], 'cp', container + ':' + source, destination])
             require(destination.is_file() and not destination.is_symlink(), 'Signed payload input is not a regular file')
             run([tools['sudo'], 'chown', '--no-dereference', str(os.getuid()) + ':' + str(os.getgid()), destination])
-        require((trust / 'release.pub').read_bytes() == public.read_bytes(), 'Installed public key differs')
-        source = json_file(trust / 'source.json')
+        require((installed / 'release.pub').read_bytes() == public.read_bytes(), 'Installed public key differs')
+        source = json_file(installed / 'source.json')
         target = source['target']
         require(target['id'] == target_name and target['architecture'] == spec['architecture']
                 and target['fedora_release'] == 44 and target['image'] == repository,
                 'Signed image source has the wrong target')
-        release_policy = json_file(trust / 'release-policy.json')
+        release_policy = json_file(installed / 'release-policy.json')
         require(release_policy['key_fingerprint'] == fingerprint and release_policy['scope'] == {
             'target': target_name, 'architecture': spec['architecture'], 'fedora_release': 44, 'repository': repository},
             'Installed release policy differs from reviewed scope')
-        installed_requirement = dict(requirement, keyPath='/usr/lib/sysroot/trust/release.pub')
-        require(json_file(trust / 'policy.json') == {'default': [{'type': 'reject'}], 'transports': {
-            'docker': {repository: [installed_requirement]}, 'containers-storage': {'': [installed_requirement]}}},
-            'Signed payload does not retain the strict container policy')
-        require(tomllib.loads((trust / 'install.toml').read_text()) == {'install': {'enforce-container-sigpolicy': True}},
+        require(json_file(installed / 'policy.json') == trust.policy(repository, trust.INSTALLED_KEY),
+                'Signed payload does not retain the strict container policy')
+        require(tomllib.loads((installed / 'install.toml').read_text()) == {'install': {'enforce-container-sigpolicy': True}},
                 'Signed payload does not enforce initial-install signature policy')
-        require((trust / 'registries.yaml').read_text() == 'docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n',
+        require((installed / 'registries.yaml').read_text() == trust.REGISTRIES,
                 'Signed payload attachment discovery differs')
         resolved = work / 'resolved-inputs.json'
         run([tools['sudo'], tools['podman'], 'cp', container + ':/usr/share/sysroot/resolved-inputs.json', resolved])

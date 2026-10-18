@@ -130,6 +130,23 @@ pub fn repository_root() -> PathBuf {
         .unwrap_or_else(|| manifest.to_path_buf())
 }
 
+/// The checkout's Docker ownership id (AGENTS.md "Artifacts stay in the
+/// checkout"): the first 12 hex digits of the SHA-256 of the canonical
+/// checkout path. Every container, volume and image the harness creates
+/// carries it as `kedra.checkout`, and `kedra-lab clean` selects only it.
+pub fn checkout_id() -> &'static str {
+    static ID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    ID.get_or_init(|| {
+        use sha2::{Digest, Sha256};
+        let root = repository_root();
+        let canonical = root.canonicalize().unwrap_or(root);
+        Sha256::digest(canonical.as_os_str().as_encoded_bytes())[..6]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    })
+}
+
 /// Directory of this crate's non-Rust inputs (lab layer, scenarios, probes).
 pub fn harness_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -141,6 +158,33 @@ pub fn artifact_root() -> PathBuf {
         Some(path) if !path.is_empty() => PathBuf::from(path),
         _ => repository_root().join("target/kedra-lab"),
     }
+}
+
+/// Remove a directory tree that may hold sealed (read-only) engine store
+/// objects: restore owner write permission on every directory first. Symbolic
+/// links are removed, never followed.
+pub fn remove_tree(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    fn writable(path: &Path) -> Result<()> {
+        let metadata = std::fs::symlink_metadata(path)?;
+        if metadata.is_dir() {
+            let mode = metadata.permissions().mode();
+            if mode & 0o700 != 0o700 {
+                std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode | 0o700))?;
+            }
+            for entry in std::fs::read_dir(path)? {
+                writable(&entry?.path())?;
+            }
+        }
+        Ok(())
+    }
+    if std::fs::symlink_metadata(path)?.is_dir() {
+        writable(path)?;
+        std::fs::remove_dir_all(path)?;
+    } else {
+        std::fs::remove_file(path)?;
+    }
+    Ok(())
 }
 
 /// Unique, sortable identifier for one execution: `<unix seconds>-<pid>`.

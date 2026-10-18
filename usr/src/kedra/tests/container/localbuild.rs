@@ -169,12 +169,11 @@ fn engine_string(value: &serde_json::Value, pointer: &str) -> Result<String> {
         .ok_or_else(|| invalid(format!("engine result lacks {pointer}")))
 }
 
-/// The release's catalog steps (release-target.yml, "Build changed image"), as
-/// the ordinary user in the engine container: the runtime and builder roots from
-/// the run's RPM lock over its Fedora base (all locked RPMs fetched into the
-/// container's store), the reviewed archives through image/catalog/prepare-sources.py, every
-/// selected package build, then the contribution with the public preflight
-/// material image/release/material.py records for the release. Prints
+/// The release's catalog steps, as the ordinary user in the engine container:
+/// the public preflight material image/release/material.py records for the
+/// release (including the run's single pin envelope), the lock's RPMs fetched
+/// into the container's store, then the stage's own
+/// image/catalog/build-packages.sh, the script the release build runs. Prints
 /// `{"definition": path}`, or `{}` when the target selects no package.
 const CATALOG: &str = r#"set -euo pipefail
 target=$1 foundation=$2 base=$3 revision=$4
@@ -183,18 +182,19 @@ image=/snapshot/usr/src/kedra/image
 work=$HOME/catalog
 lock=$HOME/rpm-lock.json
 context=$HOME/context
-mkdir -m 700 "$work"
-language=(--input-root "$image/packages" --entry catalog.kedra --target "$target"
-    --lock packages.lock.json --target-policy "$image/package-policy.json")
-pins=$work/catalog-pins.json
-sysroot catalog pins "${language[@]}" > "$pins"
-if test "$(jq '.packages | length' "$pins")" = 0; then
+pins=$HOME/catalog-pins.json
+if test "$(sysroot catalog pins --input-root "$image/packages" --entry catalog.kedra --target "$target" \
+    --lock packages.lock.json --target-policy "$image/package-policy.json" | jq '.packages | length')" = 0; then
     echo '{}'
     exit 0
 fi
-sysroot source plan --repo /snapshot --host "$target" --json > "$work/source-plan.json"
-uv run --quiet --no-project python - "$work/source-plan.json" "$base" "$context" "$lock" "$target" "$pins" \
-    > "$work/resolved-inputs.json" <<'PY'
+if ! test -x "$image/catalog/build-packages.sh"; then
+    echo "this stage has no usr/src/kedra/image/catalog/build-packages.sh; build a newer stage" >&2
+    exit 1
+fi
+sysroot source plan --repo /snapshot --host "$target" --json > "$HOME/source-plan.json"
+uv run --quiet --no-project python - "$HOME/source-plan.json" "$base" "$context" "$lock" "$target" "$pins" \
+    > "$HOME/resolved-inputs.json" <<'PY'
 import pathlib, sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, '/snapshot/usr/src/kedra/image/release')
@@ -205,36 +205,11 @@ inputs = m.resolved_inputs(pathlib.Path('/snapshot'), m.document(m.read(pathlib.
                            context, m.read(pathlib.Path(lock), m.LOCK_LIMIT), target, catalog={'pins': pathlib.Path(pins)})
 sys.stdout.buffer.write(m.canonical(inputs))
 PY
-# Package identities follow the Fedora material, as in the release: the runtime
-# root is the lock's base plus its foundation role, each builder root the base
-# plus one builder role, installed offline from the lock's RPMs.
 sysroot catalog lock fetch --store "$store" --lock "$lock" > /dev/null
 base_id=$(docker image inspect --format '{{.Id}}' "$base")
-sysroot store add-image --store "$store" --image "$base_id" > /dev/null
-runtime=$(sysroot store add-root --store "$store" --image "$base_id" --lock "$lock" | jq -er .root)
-jq -n --arg runtime "$runtime" '{runtime:$runtime,builders:{}}' > "$work/resolution.json"
-for role in $(jq -r '.builders | keys[]' "$pins"); do
-    root=$(sysroot store add-root --store "$store" --image "$base_id" --lock "$lock" --builder "$role" | jq -er .root)
-    jq --arg role "$role" --arg root "$root" '.builders[$role]=$root' "$work/resolution.json" > "$work/resolution.next.json"
-    mv "$work/resolution.next.json" "$work/resolution.json"
-done
-jq --slurpfile resolution "$work/resolution.json" \
-    '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_roots:[$resolution[0].runtime],source_objects:(.archives|keys)}' \
-    "$pins" > "$work/policy.json"
-uv run --quiet "$image/catalog/prepare-sources.py" --pins "$pins" --output "$work/sources" >&2
-for expected in $(jq -r 'keys[]' "$work/sources/sources.json"); do
-    source=$(jq -er --arg object "$expected" '.[$object]' "$work/sources/sources.json")
-    test "$(sysroot store add-source --store "$store" --source "$source" | jq -er .object)" = "$expected"
-done
-for package in $(jq -r '.packages | keys[]' "$pins"); do
-    sysroot catalog build --store "$store" --package "$package" "${language[@]}" \
-        --policy "$work/policy.json" --resolution "$work/resolution.json" > "$work/$package-build.json"
-done
-material=$(sha256sum "$work/resolved-inputs.json" | cut -d ' ' -f 1)
-sysroot catalog contribute --store "$store" "${language[@]}" --resolution "$work/resolution.json" \
-    --foundation "$foundation" --policy "$work/policy.json" --source-revision "$revision" \
-    --input-material "$work/resolved-inputs.json" --expected-input-material-sha256 "$material" \
-    --output-dir "$work/contribution" > /dev/null
+"$image/catalog/build-packages.sh" --sysroot "$(command -v sysroot)" --store "$store" --target "$target" \
+    --lock "$lock" --base-image "$base_id" --foundation "$foundation" --source-revision "$revision" \
+    --inputs "$HOME/resolved-inputs.json" --pins "$pins" --work "$work" >&2
 jq -n --arg definition "$work/contribution/system.json" '{definition:$definition}'
 "#;
 
@@ -342,6 +317,7 @@ fn engine_image(docker: &Docker, target: &Target, build: &EngineBuild<'_>) -> Re
     let container = builder::builder_image(docker, &target.platform())?
         .with_cmd(["sleep", "infinity"])
         .with_label(docker::OWNER_LABEL, docker::OWNER)
+        .with_label(docker::CHECKOUT_LABEL, crate::checkout_id())
         .with_label(docker::KIND_LABEL, "builder")
         .with_security_opt("seccomp=unconfined")
         .with_security_opt("apparmor=unconfined")
@@ -533,9 +509,13 @@ pub fn local(
         key_parts.push(builder::file_sha256(path)?.into_bytes());
     }
     let parts: Vec<&[u8]> = key_parts.iter().map(Vec::as_slice).collect();
-    let key = content_key(&parts);
+    let key = docker::scoped_tag(&content_key(&parts));
     let reference = if engine {
-        format!("kedra-local-{}:{}", target.id, engine_key(&key, &snapshot)?)
+        format!(
+            "kedra-local-{}:{}",
+            target.id,
+            docker::scoped_tag(&engine_key(&key, &snapshot)?)
+        )
     } else {
         format!("kedra-local-{}:{key}", target.id)
     };

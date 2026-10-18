@@ -34,7 +34,7 @@
     }
   },
   "firmware": {
-    "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/e/edk2/qemu-efi-aarch64_2024.02-2ubuntu0.9_all.deb",
+    "url": "https://launchpad.net/ubuntu/+archive/primary/+files/qemu-efi-aarch64_2024.02-2ubuntu0.9_all.deb",
     "sha256": "50d7c5f780f215db81677e08d21e681b61295ffe9040429cff9d9c2a0d03fe3d",
     "code": "AAVMF_CODE.secboot.fd",
     "code_sha256": "e37b6dcdce78c96f629ab7f48803e809a76df5c1c2582c6d997fad3041aadf60",

@@ -28,6 +28,10 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+# Instance sockets are bound and reached by these names relative to the instance
+# directory (every process runs with it as its working directory), because the
+# absolute path under a checkout's target/ can exceed the 104-byte AF_UNIX limit.
+QMP_SOCKET, TPM_SOCKET, QGA_SOCKET = Path('qmp.sock'), Path('tpm.sock'), Path('qga.sock')
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE.parents[1] / 'common'))
 import qemu as launcher
@@ -141,9 +145,16 @@ def runtime_check(runtime):
     run(['uv', 'run', '--offline', '--script', HERE / 'check-runtime.py', '--runtime', runtime], stdout=subprocess.DEVNULL)
 
 
+def socket_name(directory, name):
+    """The relative socket name, only from inside the instance directory."""
+    if Path.cwd() != directory:
+        raise ValueError('instance sockets are reached only from the instance directory')
+    return name
+
+
 def qmp(directory, state, execute, arguments=None):
     try:
-        with launcher.Qmp(directory / 'qmp.sock', timeout=5, identity=state['identity']) as session:
+        with launcher.Qmp(socket_name(directory, QMP_SOCKET), timeout=5, identity=state['identity']) as session:
             return session.execute(execute, arguments if arguments is not None else {})
     except launcher.VmError as error:
         raise ValueError(str(error)) from None
@@ -291,7 +302,7 @@ def up(directory, state):
         raise ValueError('instance runtime has changed')
     if owned_process(state, 'swtpm'):
         raise ValueError('previous TPM process remains; use down --force before starting')
-    for name in ['qmp.sock', 'tpm.sock', 'qga.sock']:
+    for name in (QMP_SOCKET, TPM_SOCKET, QGA_SOCKET):
         (directory / name).unlink(missing_ok=True)
     if state['mode'] == 'lab':
         with socket.socket() as port:
@@ -304,15 +315,16 @@ def up(directory, state):
     env = dict(os.environ, DYLD_FALLBACK_LIBRARY_PATH=str(runtime / 'lib'))
     with (directory / 'swtpm.log').open('ab') as log:
         process = subprocess.Popen([runtime / 'bin/swtpm', 'socket', '--tpm2', '--tpmstate', 'dir=' + str(directory / 'tpm'),
-                                    '--ctrl', 'type=unixio,path=' + str(directory / 'tpm.sock'), '--terminate'],
-                                   stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, start_new_session=True)
+                                    '--ctrl', 'type=unixio,path=' + str(TPM_SOCKET), '--terminate'],
+                                   stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, cwd=directory,
+                                   start_new_session=True)
     state['swtpm'] = {'pid': process.pid, 'identity': process_identity(process.pid)}
     write_json(directory / 'state.json', state)
     # Agent shells may inherit Darwin background I/O policy. Restore normal
     # scheduling only for our new process; never change workstation-wide policy.
     run(['/usr/sbin/taskpolicy', '-B', '-t', '0', '-l', '0', '-p', str(process.pid)])
     for _ in range(50):
-        if (directory / 'tpm.sock').exists():
+        if (directory / TPM_SOCKET).exists():
             break
         if process.poll() is not None:
             raise ValueError('swtpm failed; see swtpm.log')
@@ -321,15 +333,15 @@ def up(directory, state):
     disk_serial = 'KEDRALAB' if state['mode'] == 'lab' else 'KEDRAINSTALL'
     command = [runtime / 'Kedra QEMU.app/Contents/MacOS/qemu-system-aarch64', *launcher.machine_argv(
                    'aarch64', 'hvf', code=runtime / 'firmware/AAVMF_CODE.secboot.fd', variables=directory / 'vars.fd',
-                   qmp=directory / 'qmp.sock', serial=directory / 'serial.log', cpus=state['cpus'],
+                   qmp=QMP_SOCKET, serial=directory / 'serial.log', cpus=state['cpus'],
                    memory_mib=state['memory_mib'], name=state['identity']),
                '-nodefaults', '-display', 'cocoa,gl=es',
                '-device', f'virtio-gpu-gl-pci,xres={display["width"]},yres={display["height"]}',
                '-device', 'virtio-keyboard-pci', '-device', 'virtio-tablet-pci',
                *launcher.disk_argv('os', directory / 'disk.qcow2', serial=disk_serial),
                *launcher.network_argv(True, forward),
-               '-chardev', f'socket,id=tpm,path={directory}/tpm.sock', '-tpmdev', 'emulator,id=tpm,chardev=tpm', '-device', 'tpm-tis-device,tpmdev=tpm',
-               '-device', 'virtio-serial-pci', '-chardev', f'socket,id=qga,path={directory}/qga.sock,server=on,wait=off',
+               '-chardev', f'socket,id=tpm,path={TPM_SOCKET}', '-tpmdev', 'emulator,id=tpm,chardev=tpm', '-device', 'tpm-tis-device,tpmdev=tpm',
+               '-device', 'virtio-serial-pci', '-chardev', f'socket,id=qga,path={QGA_SOCKET},server=on,wait=off',
                '-device', 'virtserialport,chardev=qga,name=org.qemu.guest_agent.0',
                '-audiodev', 'coreaudio,id=audio,out.fixed-settings=false', '-device', 'virtio-sound-pci,audiodev=audio,streams=1']
     if state['mode'] == 'lab':
@@ -345,7 +357,8 @@ def up(directory, state):
         command += ['-drive', f'if=none,id=sentinel,format=raw,file={directory}/sentinel.raw',
                     '-device', 'virtio-blk-pci,drive=sentinel,serial=KEDRASENTINEL']
     with (directory / 'qemu.log').open('ab') as log:
-        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, start_new_session=True)
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, cwd=directory,
+                                   start_new_session=True)
     state['qemu'] = {'pid': process.pid, 'identity': process_identity(process.pid)}
     write_json(directory / 'state.json', state)
     run(['/usr/sbin/taskpolicy', '-B', '-t', '0', '-l', '0', '-p', str(process.pid)])
@@ -540,8 +553,8 @@ def build_parser():
 
 
 def check_instance_location(parser, args, directory):
-    if any(char in str(directory) + str(args.runtime) for char in ',\n\r') or len(str(directory / 'qmp.sock').encode()) >= 104:
-        parser.error('QEMU paths must fit Unix socket limits and contain no commas/newlines')
+    if any(char in str(directory) + str(args.runtime) for char in ',\n\r'):
+        parser.error('QEMU paths must contain no commas/newlines')
     if directory.is_symlink() or directory.parent.is_symlink():
         parser.error('instance directory or its parent is a symlink')
     if not directory.exists() and args.operation not in ('up', 'installer'):
@@ -757,6 +770,7 @@ def main():
     check_instance_location(parser, args, directory)
     directory.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     if args.operation == 'status':
+        os.chdir(directory)
         print_status(directory)
         return
     with (directory.parent / (args.name + '.lock')).open('w') as lock:
@@ -768,6 +782,9 @@ def main():
             state = create_new_instance(parser, args, directory)
         if args.operation in ('exec', 'shot', 'logs', 'sync', 'check') and state['mode'] != 'lab':
             raise ValueError('guest automation is available only in a disposable lab fixture')
+        if args.operation != 'remove':
+            # QEMU, swtpm and every QMP client use the instance's relative socket names.
+            os.chdir(directory)
         run_operation(parser, args, directory, state, record)
 
 

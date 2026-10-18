@@ -76,7 +76,7 @@ The ISO boots as a CD through UEFI Secure Boot without disks. The check passes o
 
 ## Native QEMU on an Apple Silicon Mac
 
-The `qemu-arm64` target runs in `kedra-lab vm`: standalone QEMU with HVF, Cocoa with VirGL/ANGLE Metal, a private Microsoft-enrolled Secure Boot variable store and swtpm. Prepare the runtime once, then:
+The `qemu-arm64` target runs in `kedra-lab vm`: standalone QEMU with HVF, Cocoa with VirGL/ANGLE Metal, a private Microsoft-enrolled Secure Boot variable store and swtpm. Its runtime, prepared disks and VM instances live in this checkout's `target/kedra-lab/qemu`; `kedra-lab clean` removes stopped instances and disks (`--vm-runtime` also the runtime). Prepare the runtime once per checkout, then:
 
 ```sh
 target/debug/kedra-lab vm tools prepare

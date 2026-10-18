@@ -13,7 +13,9 @@ import io
 import os
 import platform
 import re
+import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import threading
@@ -22,10 +24,17 @@ import uuid
 from pathlib import Path
 
 import material as m
+import trust
 
 ROOT = Path(__file__).resolve().parents[5]
 IMAGE = 'usr/src/kedra/image/'
 WORKFLOW = '.github/workflows/release.yml'
+OUTPUT = ROOT / 'output'
+BINARIES = OUTPUT / 'release-binaries'
+DERIVATIVE = OUTPUT / 'release-context'
+# Foundation build context: compose.py freezes the payload archive itself.
+CONTEXT_FILES = {'Containerfile': IMAGE + 'Containerfile', 'assemble.sh': IMAGE + 'assemble.sh',
+                 'install-rpms.sh': IMAGE + 'catalog/install-rpms.sh'}
 # The engine's bound for an installed composition receipt.
 COMPOSITION_LIMIT = 64 * 1024**2
 
@@ -71,13 +80,21 @@ def write(path, value):
     os.replace(temporary, path)
 
 
-def current_source():
+def accepted_source():
+    """The dispatched accepted-main revision, checked out. No registry or API call."""
     m.require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('GITHUB_REPOSITORY') == 'Reidond/kedra'
               and os.environ.get('GITHUB_REF') == 'refs/heads/main', 'Only accepted-main Actions may publish images')
     source = os.environ['GITHUB_SHA']
-    current = m.document(run('gh', 'api', 'repos/Reidond/kedra/git/ref/heads/main', '--jq', '.object').stdout)['sha']
-    m.require(current == source and run('git', 'rev-parse', 'HEAD').stdout.decode().strip() == source, 'Accepted main changed')
+    m.require(re.fullmatch('[a-f0-9]{40}', source) is not None
+              and run('git', 'rev-parse', 'HEAD').stdout.decode().strip() == source, 'Checkout differs from the dispatched source')
     return source
+
+
+def require_current_main(source):
+    """The exact-main guard: once at the end of preflight and once right before stable
+    advances. The isolated signer checks it once more before it uses the private key."""
+    current = m.document(run('gh', 'api', 'repos/Reidond/kedra/git/ref/heads/main', '--jq', '.object').stdout)['sha']
+    m.require(current == source, 'Accepted main changed')
 
 
 def manifest_digest(reference, missing=False):
@@ -99,24 +116,25 @@ def target(name):
     return dict(spec, id=name, stable=spec['repository'] + ':stable')
 
 
-def unchanged(spec, previous):
+def unchanged(spec, previous, source):
+    """Stable still names the preflight's digest and main is still this source."""
     m.require(manifest_digest(spec['stable'], missing=True) == previous, 'Stable changed after preflight; refusing publication')
-    current_source()
+    require_current_main(source)
 
 
-def host_policy(spec, work):
-    # Build uses the already validated source fingerprint. Publication receives
-    # this value from the isolated signer, which checks protected environment authority.
+def host_trust(spec, work, approved=None):
+    """Signature policy and attachment discovery for this target's verified pulls.
+
+    The committed key must match its committed fingerprint. Publication also
+    passes the fingerprint the isolated signer checked against the protected
+    environment's authority.
+    """
     key = ROOT / spec['public_key']
     fingerprint = m.sha(run('openssl', 'pkey', '-pubin', '-in', key, '-outform', 'DER').stdout)
     expected = (ROOT / spec['key_sha256']).read_text().strip()
-    m.require(fingerprint == expected == os.environ['APPROVED_FINGERPRINT'], 'Independent public authority differs')
-    requirement = {'type': 'sigstoreSigned', 'keyPath': str(key), 'signedIdentity': {
-        'type': 'exactRepository', 'dockerRepository': spec['repository']}}
-    path = work / 'host-policy.json'
-    write(path, {'default': [{'type': 'reject'}], 'transports': {
-        'docker': {spec['repository']: [requirement]}, 'containers-storage': {'': [requirement]}}})
-    return path
+    m.require(fingerprint == expected and approved in (None, fingerprint), 'Independent public authority differs')
+    policy, registries = trust.host_configuration(work / 'host-trust', spec['repository'], key)
+    return {'fingerprint': fingerprint, 'policy': policy, 'registries': registries}
 
 
 def copied_file(container, path, maximum):
@@ -130,18 +148,19 @@ def copied_file(container, path, maximum):
     return data
 
 
-def verified_image(spec, digest, work, label, policy):
+def verified_image(spec, digest, work, label, host):
     m.require(re.fullmatch('sha256:[a-f0-9]{64}', digest), 'Invalid registry digest')
     reference = spec['repository'] + '@' + digest
     local = 'localhost/kedra-verified:' + label
-    log = run('sudo', 'skopeo', '--policy', policy, 'copy', '--preserve-digests',
-              '--digestfile', work / (label + '.digest'), 'docker://' + reference, 'containers-storage:' + local)
+    log = run('sudo', 'skopeo', '--policy', host['policy'], '--registries.d', host['registries'], 'copy',
+              '--preserve-digests', '--digestfile', work / (label + '.digest'),
+              'docker://' + reference, 'containers-storage:' + local)
     (work / (label + '-pull.log')).write_bytes(log.stdout + log.stderr)
     m.require((work / (label + '.digest')).read_text().strip() == digest, 'Verified copy changed manifest identity')
     return inspect_stored(spec, local, digest, work, label)
 
 
-def inspect_stored(spec, local, digest, work, label):
+def inspect_stored(spec, local, digest, work, label, selected=None):
     config = m.document(run('sudo', 'skopeo', 'inspect', '--config', '--raw', 'containers-storage:' + local).stdout)
     m.require(config.get('os') == 'linux' and config.get('architecture') == spec['oci_architecture'],
               'Wrong signed image platform')
@@ -171,7 +190,7 @@ def inspect_stored(spec, local, digest, work, label):
         # Images built through the engine carry their target's declared steps.
         if m.declared_steps(inputs):
             native_bytes = copied_file(container, '/usr/share/sysroot/native-receipt.json', m.LIMIT)
-            native = m.verify_native(config, native_bytes, inputs, spec['id'])
+            native = m.verify_native(config, native_bytes, inputs, spec['id'], selected)
             (work / (label + '-native.json')).write_bytes(native_bytes)
             # The binary cache admits a substituted package only if it equals one of
             # these receipts of a strictly verified image (schema 2 names runtime roots).
@@ -213,53 +232,83 @@ def resolve_base(spec, work):
     return base
 
 
-def prepare(spec, args):
-    source = current_source()
-    context = ROOT / 'output' / (spec['id'] + '-context')
-    derivative = ROOT / 'output/release-context'
-    binaries = ROOT / 'output/release-binaries'
-    plan = m.document(m.read(args.work / 'source-plan.json', 1024**2))
-    m.require(plan['source_revision'] == source, 'Source plan differs from accepted main')
+def stage_inputs(spec, work):
+    """Pinned binaries, committed source plan and foundation build context.
+
+    The plan's bytes are the image's installed source manifest: `source archive`
+    writes the same serialization, and the build checks the foundation's copy.
+    """
+    for directory in (BINARIES, OUTPUT / (spec['id'] + '-context'), DERIVATIVE):
+        directory.mkdir(parents=True, exist_ok=False)
+    context = OUTPUT / (spec['id'] + '-context')
+    for name in ('sysroot', 'sysroot-helper'):
+        for destination in (BINARIES / name, context / name):
+            shutil.copyfile(ROOT / 'target/release' / name, destination)
+            destination.chmod(0o755)
+    for name, recipe in CONTEXT_FILES.items():
+        shutil.copyfile(ROOT / recipe, context / name)
+        (context / name).chmod((ROOT / recipe).stat().st_mode & 0o777)
+    printed = run(BINARIES / 'sysroot', 'source', 'plan', '--host', spec['id'], '--json', maximum=1024**2 + 1).stdout
+    m.require(printed.endswith(b'\n'), 'Unexpected source plan output')
+    source_bytes = printed[:-1]
+    (work / 'source-plan.json').write_bytes(source_bytes)
+    return context, source_bytes, m.document(source_bytes)
+
+
+def check_plan(spec, plan, source):
+    m.require(plan['source_revision'] == source and plan['input_scope'] == 'committed HEAD only',
+              'Source plan differs from accepted main')
     m.require(plan['target']['id'] == spec['id'] and plan['target']['architecture'] == spec['architecture']
               and plan['target']['image'] == spec['repository'] and plan['target']['fedora_release'] == 44
               and plan['target']['candidate_target'] is True, 'Source plan belongs to another release target')
-    with tarfile.open(context / 'payload.tar', mode='r:') as archive:
-        member = archive.getmember('usr/share/sysroot/source.json')
-        m.require(member.isfile() and member.size <= 1024**2, 'Invalid archived source manifest')
-        source_bytes = archive.extractfile(member).read()
-    m.require(m.document(source_bytes) == plan, 'Archive and plan differ')
-    policy = host_policy(spec, args.work)
-    previous_digest = manifest_digest(spec['stable'], missing=True)
-    previous = verified_image(spec, previous_digest, args.work, 'previous', policy) if previous_digest else {
-        'digest': None, 'identity': None, 'inputs': None}
+
+
+def resolve_inputs(spec, args, plan, context):
+    """The run's single package resolution and its recorded build inputs.
+
+    Every later build installs offline from this lock's fixed-output store objects,
+    so a mirror push mid-run cannot make the build differ from what was recorded.
+    """
     base = resolve_base(spec, args.work)
-    # The run's only package resolution. Every later build installs offline from
-    # this lock's fixed-output store objects, so a mirror push mid-run cannot
-    # make the build differ from what was recorded here.
     lock_path = args.work / 'rpm-lock.json'
-    run(binaries / 'sysroot', 'catalog', 'lock', 'resolve', '--input-root', ROOT / (IMAGE + 'packages'),
+    run(BINARIES / 'sysroot', 'catalog', 'lock', 'resolve', '--input-root', ROOT / (IMAGE + 'packages'),
         '--entry', 'catalog.kedra', '--lock', 'packages.lock.json', '--target', spec['id'],
         '--target-policy', ROOT / (IMAGE + 'package-policy.json'), '--base', base, '--store', args.store,
         '--log-dir', args.work / 'rpm-resolution', '--output', lock_path, timeout=3600)
-    inputs = m.resolved_inputs(ROOT, plan, base, context, binaries, m.read(lock_path, m.LOCK_LIMIT),
-                               spec['id'], catalog={'pins': binaries / 'catalog-pins.json'})
+    inputs = m.resolved_inputs(ROOT, plan, base, context, BINARIES, m.read(lock_path, m.LOCK_LIMIT),
+                               spec['id'], catalog={'pins': BINARIES / 'catalog-pins.json'})
     m.require(m.declared_steps(inputs), 'The committed target declares no image steps')
+    write(args.work / 'preflight-bootc-compatibility.json', m.bootc_compatibility(inputs['packages'], spec['architecture']))
+    return base, lock_path, inputs
+
+
+def prepare(spec, args):
+    source = accepted_source()
+    context, source_bytes, plan = stage_inputs(spec, args.work)
+    check_plan(spec, plan, source)
+    host = host_trust(spec, args.work)
+    output('fingerprint', host['fingerprint'])
+    previous_digest = manifest_digest(spec['stable'], missing=True)
+    previous = verified_image(spec, previous_digest, args.work, 'previous', host) if previous_digest else {
+        'digest': None, 'identity': None, 'inputs': None}
+    base, lock_path, inputs = resolve_inputs(spec, args, plan, context)
     material_bytes = m.canonical(inputs)
     (args.work / 'resolved-inputs.json').write_bytes(material_bytes)
-    write(args.work / 'preflight-bootc-compatibility.json', m.bootc_compatibility(inputs['packages'], spec['architecture']))
-    m.require_bootc(inputs['packages'], spec['architecture'])
     # Source and lock pins are both in the resolved inputs: equal inputs mean the
     # stable image was built from this source and these exact RPMs.
     changed = previous['inputs'] != inputs
     write(args.work / 'comparison.json', {'decision': 'changed' if changed else 'unchanged',
           'reason': 'verified stable inputs differ or are absent' if changed else 'verified stable resolved inputs match',
           'previous_digest': previous_digest})
-    unchanged(spec, previous_digest)
+    unchanged(spec, previous_digest, source)
     output('changed', str(changed).lower())
     if not changed:
         return
-    run(binaries / 'sysroot', 'catalog', 'lock', 'repo', '--store', args.store, '--lock', lock_path,
+    run(BINARIES / 'sysroot', 'catalog', 'lock', 'repo', '--store', args.store, '--lock', lock_path,
         '--foundation', '--output', context / 'rpms', timeout=1800)
+    run(sys.executable, ROOT / (IMAGE + 'release/prepare-trust.py'), '--source', args.work / 'source-plan.json',
+        '--public-key', ROOT / spec['public_key'], '--expected-fingerprint', host['fingerprint'],
+        '--sysroot', BINARIES / 'sysroot', '--output', DERIVATIVE / 'trust')
     identity = {'schema_version': 2, 'project': 'Kedra', 'target': spec['id'], 'architecture': spec['architecture'],
                 'fedora_release': 44, 'repository': spec['repository'], 'channel': 'stable', 'source_revision': source,
                 'source_manifest_sha256': m.sha(source_bytes), 'resolved_inputs_sha256': m.sha(material_bytes),
@@ -270,67 +319,66 @@ def prepare(spec, args):
         m.require(tuple(identity[k] for k in ('epoch', 'run_number', 'run_attempt')) >
                   tuple(previous['identity'][k] for k in ('epoch', 'run_number', 'run_attempt')), 'Build rank is obsolete')
         m.require(identity['resolved_at'] >= previous['identity']['resolved_at'], 'Package-resolution time moved backwards')
-    for destination in (args.work, derivative):
+    for destination in (args.work, DERIVATIVE):
         write(destination / 'image-identity.json', identity)
         (destination / 'resolved-inputs.json').write_bytes(material_bytes)
+    # The previous stable's signature-verified identity, for publication's rank check.
     write(args.work / 'build-state.json', {'schema_version': 1, 'target': spec['id'], 'source': source,
-          'run_id': int(os.environ['GITHUB_RUN_ID']),
-          'run_attempt': identity['run_attempt'], 'previous_digest': previous_digest, 'identity': identity})
+          'run_id': int(os.environ['GITHUB_RUN_ID']), 'run_attempt': identity['run_attempt'],
+          'previous_digest': previous_digest, 'previous_identity': previous['identity'], 'identity': identity})
     output('base', base)
 
 
 def inspect_candidate(spec, args):
-    source = current_source()
+    """Bind the built candidate to the preflight before it leaves the runner.
+
+    Equal identity means equal resolved inputs (whose lock already passed the bootc
+    check), and the installed RPM inventory, native receipt and source manifest
+    must equal them.
+    """
+    source = accepted_source()
     local = 'localhost/kedra-' + spec['id'] + ':release-candidate'
     digest = 'sha256:' + m.sha(run('sudo', 'skopeo', 'inspect', '--raw', 'containers-storage:' + local).stdout)
-    observed = inspect_stored(spec, local, digest, args.work, 'built')
+    selected = m.document(m.read(args.work / 'native-candidate.json', m.LIMIT))
+    observed = inspect_stored(spec, local, digest, args.work, 'built', selected)
     state = m.document(m.read(args.work / 'build-state.json', 65536))
     m.require(state['target'] == spec['id'] and observed['identity'] == state['identity']
               and observed['identity']['source_revision'] == source, 'Built image differs from prepared identity')
-    selected = m.document(m.read(args.work / 'native-candidate.json', m.LIMIT))
     m.require(selected.get('source_revision') == source
               and selected.get('source_manifest_sha256') == state['identity']['source_manifest_sha256'],
               'Native selection differs from accepted source')
-    config = m.document(m.read(args.work / 'built-config.json'))
-    m.verify_native(config, m.read(args.work / 'built-native.json'), observed['inputs'], spec['id'], selected)
-    write(args.work / 'built-bootc-compatibility.json',
-          m.bootc_compatibility(observed['inputs']['packages'], spec['architecture']))
-    m.require_bootc(observed['inputs']['packages'], spec['architecture'])
     output('identity_sha256', m.sha(m.canonical(observed['identity'])))
 
 
 def publish(spec, args):
-    source = current_source()
+    """Advance stable to the signed candidate.
+
+    The candidate's signature is verified here, once, by a strict pull. The previous
+    stable's identity is the one preflight verified; the digest guard right before
+    the write proves stable still names that image.
+    """
+    source = accepted_source()
     state = m.document(m.read(args.work / 'build-state.json', 65536))
     m.require(state['target'] == spec['id'] and state['source'] == source
               and state['run_id'] == int(os.environ['GITHUB_RUN_ID'])
               and state['run_attempt'] == int(os.environ['GITHUB_RUN_ATTEMPT']), 'Build artifact belongs to another run/target')
     digest = os.environ['KEDRA_SIGNED_DIGEST']
-    policy = host_policy(spec, args.work)
-    unchanged(spec, state['previous_digest'])
-    previous = verified_image(spec, state['previous_digest'], args.work, 'prior-final', policy) if state['previous_digest'] else {
-        'digest': None, 'identity': None, 'inputs': None}
-    candidate = verified_image(spec, digest, args.work, 'candidate-final', policy)
-    write(args.work / 'publish-bootc-compatibility.json',
-          m.bootc_compatibility(candidate['inputs']['packages'], spec['architecture']))
-    m.require_bootc(candidate['inputs']['packages'], spec['architecture'])
+    host = host_trust(spec, args.work, os.environ['APPROVED_FINGERPRINT'])
+    candidate = verified_image(spec, digest, args.work, 'candidate-final', host)
     m.require(candidate['identity'] == state['identity'], 'Signed image identity differs from reviewed build')
     m.require(candidate['identity']['source_revision'] == source
               and candidate['identity']['run_number'] == int(os.environ['GITHUB_RUN_NUMBER']), 'Signed source/run rank differs')
-    m.order(candidate['identity'], previous['identity'], digest, previous['digest'], spec['id'])
-    unchanged(spec, state['previous_digest'])
+    m.order(candidate['identity'], state['previous_identity'], digest, state['previous_digest'], spec['id'])
+    unchanged(spec, state['previous_digest'], source)
     receipt = args.work / 'stable-publication.json'
-    write(receipt, {'state': 'submitting', 'previous_digest': previous['digest'], 'digest': digest, 'source': source})
+    write(receipt, {'state': 'submitting', 'previous_digest': state['previous_digest'], 'digest': digest, 'source': source})
     # The registry manifest PUT is atomic; workflow concurrency serializes Kedra writers.
     # Pre/post checks detect changes by other writers. Never retry an uncertain PUT.
-    run('sudo', 'skopeo', '--policy', policy, 'copy', '--preserve-digests', '--authfile', os.environ['KEDRA_REGISTRY_AUTH'],
+    run('sudo', 'skopeo', '--policy', host['policy'], '--registries.d', host['registries'], 'copy', '--preserve-digests',
+        '--authfile', os.environ['KEDRA_REGISTRY_AUTH'],
         'docker://' + spec['repository'] + '@' + digest, 'docker://' + spec['stable'])
     m.require(manifest_digest(spec['stable']) == digest, 'Stable readback differs; preserve receipt for recovery')
-    final = verified_image(spec, digest, args.work, 'stable-final', policy)
-    m.require(final['identity'] == candidate['identity'], 'Stable signed identity changed')
-    m.order(final['identity'], previous['identity'], digest, previous['digest'], spec['id'])
-    m.require(manifest_digest(spec['stable']) == digest, 'Stable changed during final verification; preserve receipt')
-    write(receipt, {'state': 'verified', 'previous_digest': previous['digest'], 'digest': digest, 'source': source})
+    write(receipt, {'state': 'verified', 'previous_digest': state['previous_digest'], 'digest': digest, 'source': source})
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
         summary.write(f'Verified signed stable image: {spec["repository"]}@{digest}. No machine was staged or rebooted.\n')
 

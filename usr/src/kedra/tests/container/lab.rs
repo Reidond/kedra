@@ -2,7 +2,8 @@
 //!
 //! Development tool, not a check runner: `up` starts a retained environment,
 //! `shot` saves a screenshot, `sync` pushes working-tree account defaults into
-//! the running session, and `down`/`clean` remove only harness-owned containers.
+//! the running session, `down` removes a retained environment and `clean`
+//! removes this checkout's harness objects and large artifact trees.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -116,24 +117,25 @@ enum Command {
         #[arg(long)]
         name: Option<String>,
     },
-    /// List harness-owned containers.
+    /// List this checkout's harness containers.
     Ls,
     /// Remove a retained lab environment.
     Down {
         #[arg(long)]
         name: Option<String>,
     },
-    /// Remove harness-owned containers: one execution's, or all stopped/retained ones.
+    /// Remove everything this checkout's harness created: every container,
+    /// image and volume labeled `kedra.checkout=<id>`, its scoped image tags,
+    /// the large artifact trees (cache, derive, composition, native) under
+    /// target/, and the native VM's stopped instances, prepared disks and
+    /// runtime build tree. Run reports, screenshots and the built QEMU runtime stay.
     Clean {
-        #[arg(long)]
+        /// Only remove the containers of one execution.
+        #[arg(long, conflicts_with = "vm_runtime")]
         execution: Option<String>,
+        /// Also remove the built native QEMU runtime (rebuilding it takes long).
         #[arg(long)]
-        all: bool,
-        /// Also remove harness-built images no container uses, except those named with --keep.
-        #[arg(long)]
-        images: bool,
-        #[arg(long)]
-        keep: Vec<String>,
+        vm_runtime: bool,
     },
 }
 
@@ -360,6 +362,116 @@ fn down(docker: &Docker, selector: Option<&str>) -> Result<String> {
     }
 }
 
+/// Artifact trees `clean` removes: build caches, engine stores and contexts.
+const LARGE_ARTIFACTS: [&str; 4] = ["cache", "derive", "composition", "native"];
+
+/// Image IDs a `sysroot derive` state records in its bindings and journals.
+fn bound_images(state: &std::path::Path) -> Result<std::collections::BTreeSet<String>> {
+    let mut images = std::collections::BTreeSet::new();
+    let entries = match std::fs::read_dir(state) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(images),
+        Err(error) => return Err(error.into()),
+    };
+    for entry in entries {
+        let path = entry?.path();
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        if !(name.ends_with("-binding.json") || name.ends_with("-transaction.json")) {
+            continue;
+        }
+        let record: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)
+            .map_err(|error| Error::Invalid(format!("{}: {error}", path.display())))?;
+        if let Some(image) = record["image"].as_str().filter(|image| !image.is_empty()) {
+            images.insert(image.to_owned());
+        }
+        if let Some(tag) = record["tag"].as_str() {
+            images.insert(tag.to_owned());
+        }
+    }
+    Ok(images)
+}
+
+/// Whether `path` lies inside this checkout's `target/`; overrides may point elsewhere.
+fn inside_target(path: &std::path::Path) -> bool {
+    let target = kedra_container_tests::repository_root().join("target");
+    match (path.canonicalize(), target.canonicalize()) {
+        (Ok(path), Ok(target)) => path.starts_with(target),
+        _ => false,
+    }
+}
+
+/// The native VM home: stopped instances through `vm.py remove`, then the
+/// prepared disks and the runtime build tree, and the runtime when asked.
+fn clean_vm(vm_runtime: bool) -> Result<()> {
+    let home = kedra_container_tests::vm::qemu_home();
+    if !home.exists() {
+        return Ok(());
+    }
+    if !inside_target(&home) {
+        eprintln!(
+            "kedra-lab: {} is outside this checkout's target/; its VM state was left alone",
+            home.display()
+        );
+        return Ok(());
+    }
+    for name in kedra_container_tests::vm::remove_instances()? {
+        println!("removed native VM instance {name}");
+    }
+    let mut trees = vec!["images", "build"];
+    if vm_runtime {
+        trees.push("runtime");
+    }
+    for name in trees {
+        let path = home.join(name);
+        if path.symlink_metadata().is_ok() {
+            kedra_container_tests::remove_tree(&path)?;
+            println!("removed {}", path.display());
+        }
+    }
+    Ok(())
+}
+
+fn clean(docker: &Docker, vm_runtime: bool) -> Result<()> {
+    let checkout = kedra_container_tests::checkout_id();
+    let cleaned = docker.clean_checkout()?;
+    for (kind, names) in [
+        ("container", &cleaned.containers),
+        ("image", &cleaned.images),
+        ("volume", &cleaned.volumes),
+    ] {
+        for name in names {
+            println!("removed {kind} {name}");
+        }
+    }
+    clean_vm(vm_runtime)?;
+    // Only trees inside this checkout's target/; KEDRA_LAB_ARTIFACTS may point elsewhere.
+    let root = artifact_root();
+    if inside_target(&root) {
+        // The engine refuses a final tag whose binding is gone: remove the images
+        // the derive state binds before the state itself.
+        for tag in docker.remove_engine_images(&bound_images(&root.join("derive"))?)? {
+            println!("removed engine image name {tag}");
+        }
+        for name in LARGE_ARTIFACTS {
+            let path = root.join(name);
+            if path.symlink_metadata().is_ok() {
+                kedra_container_tests::remove_tree(&path)?;
+                println!("removed {}", path.display());
+            }
+        }
+    } else if root.exists() {
+        eprintln!(
+            "kedra-lab: {} is outside this checkout's target/; its trees were left alone",
+            root.display()
+        );
+    }
+    println!("cleaned checkout {checkout}");
+    Ok(())
+}
+
 fn main() -> ExitCode {
     if let Err(error) = kedra_container_tests::cancel::install() {
         eprintln!("kedra-lab: {error}");
@@ -469,34 +581,19 @@ fn main() -> ExitCode {
             Ok(ExitCode::SUCCESS)
         }
         Command::Clean {
-            execution,
-            all,
-            images,
-            keep,
+            execution: Some(execution),
+            ..
         } => {
-            let selected = match (&execution, all) {
-                (Some(execution), false) => {
-                    docker.owned(&[(docker::EXECUTION_LABEL, execution)])?
-                }
-                (None, true) => docker.owned(&[])?,
-                (None, false) if images => Vec::new(),
-                _ => {
-                    return Err(Error::Invalid(
-                        "pass --execution ID, --all or --images".into(),
-                    ));
-                }
-            };
-            if images {
-                for tag in docker.prune_images(&keep)? {
-                    println!("removed image {tag}");
-                }
-            }
-            for item in selected {
+            for item in docker.owned(&[(docker::EXECUTION_LABEL, &execution)])? {
                 docker.remove(&item.id)?;
                 println!("removed {}", item.name);
             }
             Ok(ExitCode::SUCCESS)
         }
+        Command::Clean {
+            execution: None,
+            vm_runtime,
+        } => clean(&docker, vm_runtime).map(|_| ExitCode::SUCCESS),
     });
     match outcome {
         Ok(code) => code,

@@ -138,11 +138,11 @@ Everything a session or check creates lives under the checkout's gitignored
 and bind mounts point only there; only Docker's image store and toolchain caches
 live elsewhere. Label containers, volumes and built images `kedra.checkout=<id>`
 (the first 12 hex digits of the SHA-256 of `git rev-parse --show-toplevel`), run
-one-shot containers with `--rm`, remove labeled objects once checks are recorded.
-Pulled images stay unlabeled; record their digests under `target/` and remove them
-once no checkout uses them. Delete large `target/` subtrees no pending check needs
-(`chmod -R u+w` sealed store objects first). Stop and report before a run would leave
-under 100 GiB free.
+one-shot containers with `--rm`, remove labeled objects once checks are recorded
+(`kedra-lab clean` does this for the harness). Pulled images stay unlabeled; record
+their digests under `target/` and remove them once no checkout uses them. Delete
+large `target/` subtrees no pending check needs (`chmod -R u+w` sealed store objects
+first). Stop and report before a run would leave under 100 GiB free.
 
 ## Checks and completion
 

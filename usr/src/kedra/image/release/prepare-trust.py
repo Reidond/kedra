@@ -11,6 +11,7 @@ import re
 import subprocess
 import tempfile
 
+import trust
 from material import TARGETS, enabled
 
 parser = argparse.ArgumentParser()
@@ -52,16 +53,13 @@ if identity['key_fingerprint_sha256'] != args.expected_fingerprint:
     raise SystemExit('Public key differs from the reviewed fingerprint')
 scope = {'target': target['id'], 'architecture': target['architecture'],
          'fedora_release': target['fedora_release'], 'repository': target['image']}
-requirement = {'type': 'sigstoreSigned', 'keyPath': '/usr/lib/sysroot/trust/release.pub',
-               'signedIdentity': {'type': 'exactRepository', 'dockerRepository': scope['repository']}}
-policy = {'default': [{'type': 'reject'}], 'transports': {
-    'docker': {scope['repository']: [requirement]}, 'containers-storage': {'': [requirement]}}}
+policy = trust.policy(scope['repository'], trust.INSTALLED_KEY)
 args.output.mkdir(parents=True, exist_ok=False)
 (args.output / 'release.pub').write_bytes(public_key)
 (args.output / 'release-policy.json').write_text(json.dumps({'schema_version': 1, 'scope': scope,
     'key_fingerprint': args.expected_fingerprint}, sort_keys=True, indent=2) + '\n')
 (args.output / 'policy.json').write_text(json.dumps(policy, sort_keys=True, indent=2) + '\n')
-(args.output / 'registries.yaml').write_text('docker:\n  ghcr.io:\n    use-sigstore-attachments: true\n')
+(args.output / 'registries.yaml').write_text(trust.REGISTRIES)
 (args.output / 'install.toml').write_text('[install]\nenforce-container-sigpolicy = true\n')
 print(json.dumps({'public_trust_prepared': True, 'scope': scope, 'key_fingerprint_sha256': args.expected_fingerprint,
                   'source_revision': source['source_revision'], 'image_signed': False, 'stable_updated': False}))

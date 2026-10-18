@@ -31,8 +31,10 @@ import material as m
 
 IMAGE = 'usr/src/kedra/image/'
 PROGRAMS = ('sysroot', 'sysroot-helper')
-CONTEXT_FILES = frozenset(('Containerfile', 'assemble.sh', 'install-rpms.sh', 'sysroot', 'sysroot-helper',
-                           'payload.tar', 'rpms'))
+CONTEXT_FILES = frozenset(('Containerfile', 'assemble.sh', 'install-rpms.sh', 'sysroot', 'sysroot-helper', 'rpms'))
+# The foundation freezes the committed payload itself; a caller may still supply
+# one, which must then equal that fresh archive byte for byte.
+OPTIONAL_PAYLOAD = 'payload.tar'
 CONTEXT_RECIPES = {'Containerfile': IMAGE + 'Containerfile', 'assemble.sh': IMAGE + 'assemble.sh',
                    'install-rpms.sh': IMAGE + 'catalog/install-rpms.sh'}
 MAX_JSON = 64 * 1024**2
@@ -323,8 +325,9 @@ def validate_inputs(value, data, architecture):
     rows = value['packages']
     m.require(isinstance(rows, list) and rows and all(isinstance(row, list) and len(row) == 7
               and all(isinstance(field, str) for field in row) for row in rows), 'Invalid RPM material')
+    # The lock's bootc compatibility was checked once, when material.resolved_inputs
+    # recorded these rows; the selected inputs hash binds them here.
     m.require(m.packages(package_bytes(rows), architecture) == rows, 'Noncanonical RPM material')
-    m.require_bootc(rows, architecture)
 
 
 class Runner:
@@ -528,17 +531,20 @@ class Runner:
 
     def foundation(self):
         context = ordinary(self.args.context, directory=True)
-        m.require({path.name for path in context.iterdir()} == CONTEXT_FILES, 'Unexpected foundation context entries')
+        entries = {path.name for path in context.iterdir()}
+        m.require(entries in (CONTEXT_FILES, CONTEXT_FILES | {OPTIONAL_PAYLOAD}), 'Unexpected foundation context entries')
         snapshot = private_directory(self.output / 'context', create=True)
-        for name in sorted(CONTEXT_FILES - {'payload.tar', 'rpms'}):
+        for name in sorted(CONTEXT_FILES - {'rpms'}):
             expected = (self.inputs['recipes'][CONTEXT_RECIPES[name]] if name in CONTEXT_RECIPES
                         else self.inputs['artifacts'].get(name))
             copy_pinned(context / name, snapshot / name, expected, 0o500 if name in PROGRAMS else 0o600)
         self.snapshot_rpms(context / 'rpms', snapshot / 'rpms')
+        # The run's only source archive, frozen from committed HEAD by the pinned sysroot.
         self.run('source-archive', [self.programs['sysroot'], 'source', 'archive', '--repo', self.repo,
             '--host', self.args.target, '--output', snapshot / 'payload.tar'], BUILD_TIMEOUT)
-        m.require(hash_file(snapshot / 'payload.tar') == hash_file(context / 'payload.tar'),
-                  'Context payload differs from freshly frozen committed source')
+        if OPTIONAL_PAYLOAD in entries:
+            m.require(hash_file(snapshot / 'payload.tar') == hash_file(context / OPTIONAL_PAYLOAD),
+                      'Context payload differs from freshly frozen committed source')
         tag = 'localhost/kedra-compose-foundation:' + self.nonce
         write_json(self.output / 'resources.json', {'schema_version': 1, 'engine': self.engine,
                    'invocation': self.nonce, 'foundation_tag': tag, 'store': str(self.store)})

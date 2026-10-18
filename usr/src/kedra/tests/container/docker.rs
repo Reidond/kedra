@@ -3,6 +3,11 @@
 //! Testcontainers creates, starts and removes containers. Operations that must
 //! also work on a retained lab container from a later process (exec, file
 //! transfer, listing by ownership label) use the Engine API it re-exports.
+//!
+//! Ownership is per checkout (AGENTS.md "Artifacts stay in the checkout"):
+//! every container, volume and image the harness builds carries
+//! `kedra.checkout=<id>`, and images it names get a tag scoped to that id, so
+//! one checkout never reuses or removes another checkout's objects.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -20,6 +25,23 @@ pub const EXECUTION_LABEL: &str = "dev.kedra.lab.execution";
 pub const KIND_LABEL: &str = "dev.kedra.lab.kind";
 pub const TARGET_LABEL: &str = "dev.kedra.lab.target";
 pub const IMAGE_LABEL: &str = "dev.kedra.lab.image";
+/// The checkout that created a container, volume or image ([`crate::checkout_id`]).
+pub const CHECKOUT_LABEL: &str = "kedra.checkout";
+
+/// An image tag scoped to this checkout: `<checkout id>-<key>`. Images the
+/// engine derives cannot carry a label without changing the image under test,
+/// so `kedra-lab clean` finds them by this tag.
+pub fn scoped_tag(key: &str) -> String {
+    format!("{}-{key}", crate::checkout_id())
+}
+
+/// What [`Docker::clean_checkout`] removed.
+#[derive(Debug, Default)]
+pub struct Cleaned {
+    pub containers: Vec<String>,
+    pub images: Vec<String>,
+    pub volumes: Vec<String>,
+}
 
 pub struct Docker {
     runtime: tokio::runtime::Runtime,
@@ -111,7 +133,8 @@ impl Docker {
             .strip_prefix("sha256:")
             .filter(|value| value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit()))
             .ok_or_else(|| invalid("container engine returned an invalid image ID"))?;
-        let reference = format!("kedra-lab-base:{digest}");
+        let tag = scoped_tag(digest);
+        let reference = format!("kedra-lab-base:{tag}");
         if let Some((found, _)) = self.image(&reference)? {
             if found != id {
                 return Err(invalid("local base cache tag points at another image"));
@@ -119,7 +142,7 @@ impl Docker {
         } else {
             let options = bollard::query_parameters::TagImageOptions {
                 repo: Some("kedra-lab-base".into()),
-                tag: Some(digest.into()),
+                tag: Some(tag),
             };
             self.runtime
                 .block_on(self.api.tag_image(id, Some(options)))?;
@@ -274,9 +297,12 @@ impl Docker {
         self.run(container, &exec).map(|_| ())
     }
 
-    /// Harness-owned containers, optionally narrowed by extra label filters.
+    /// This checkout's harness containers, optionally narrowed by extra label filters.
     pub fn owned(&self, filters: &[(&str, &str)]) -> Result<Vec<Owned>> {
-        let mut labels = vec![format!("{OWNER_LABEL}={OWNER}")];
+        let mut labels = vec![
+            format!("{OWNER_LABEL}={OWNER}"),
+            format!("{CHECKOUT_LABEL}={}", crate::checkout_id()),
+        ];
         labels.extend(filters.iter().map(|(key, value)| format!("{key}={value}")));
         let options = bollard::query_parameters::ListContainersOptions {
             all: true,
@@ -343,53 +369,184 @@ impl Docker {
         }
     }
 
-    /// Remove harness-built images (lab tools, overlays, builders, local
-    /// builds) that no container uses and that are not in `keep`. They are
-    /// caches: the harness rebuilds them on demand. Returns removed tags.
-    pub fn prune_images(&self, keep: &[String]) -> Result<Vec<String>> {
-        let listed = self.runtime.block_on(self.api.list_images(Some(
-            bollard::query_parameters::ListImagesOptions {
-                all: false,
+    /// A named volume owned by this checkout, created with its labels when
+    /// absent. A same-named volume without this checkout's label is refused.
+    pub fn volume(&self, name: &str) -> Result<String> {
+        let checkout = crate::checkout_id();
+        let request = bollard::models::VolumeCreateRequest {
+            name: Some(name.to_owned()),
+            labels: Some(HashMap::from([
+                (OWNER_LABEL.to_owned(), OWNER.to_owned()),
+                (CHECKOUT_LABEL.to_owned(), checkout.to_owned()),
+            ])),
+            ..Default::default()
+        };
+        // The Engine returns an existing volume unchanged, labels included.
+        let volume = self.runtime.block_on(self.api.create_volume(request))?;
+        if volume.labels.get(CHECKOUT_LABEL).map(String::as_str) != Some(checkout) {
+            return Err(invalid(format!(
+                "volume {name} exists without {CHECKOUT_LABEL}={checkout}; remove it with `docker volume rm {name}`"
+            )));
+        }
+        Ok(volume.name)
+    }
+
+    /// Remove every container, image and volume this checkout's label selects,
+    /// and this checkout's scoped tags of unlabeled images. Other checkouts'
+    /// objects and pulled images are never selected.
+    pub fn clean_checkout(&self) -> Result<Cleaned> {
+        let checkout = crate::checkout_id();
+        let label = HashMap::from([(
+            "label".to_owned(),
+            vec![format!("{CHECKOUT_LABEL}={checkout}")],
+        )]);
+        let mut cleaned = Cleaned::default();
+        let containers = self.runtime.block_on(self.api.list_containers(Some(
+            bollard::query_parameters::ListContainersOptions {
+                all: true,
+                filters: Some(label.clone()),
                 ..Default::default()
             },
         )))?;
-        let used: std::collections::HashSet<String> = self
-            .runtime
-            .block_on(self.api.list_containers(Some(
-                bollard::query_parameters::ListContainersOptions {
-                    all: true,
-                    ..Default::default()
-                },
-            )))?
-            .into_iter()
-            .filter_map(|container| container.image_id)
-            .collect();
+        for container in containers {
+            let id = container.id.unwrap_or_default();
+            self.remove(&id)?;
+            cleaned.containers.push(
+                container
+                    .names
+                    .and_then(|names| names.into_iter().next())
+                    .map(|name| name.trim_start_matches('/').to_owned())
+                    .unwrap_or(id),
+            );
+        }
+        cleaned.images = self.remove_checkout_images(&label, checkout)?;
+        let volumes = self.runtime.block_on(self.api.list_volumes(Some(
+            bollard::query_parameters::ListVolumesOptions {
+                filters: Some(label),
+            },
+        )))?;
+        for volume in volumes.volumes.unwrap_or_default() {
+            self.runtime.block_on(self.api.remove_volume(
+                &volume.name,
+                None::<bollard::query_parameters::RemoveVolumeOptions>,
+            ))?;
+            cleaned.volumes.push(volume.name);
+        }
+        Ok(cleaned)
+    }
+
+    /// Remove the engine-published names of images a `sysroot derive` state
+    /// binds (`kedra-<kind>:<identity>`, `kedra-<kind>-pending:<nonce>` and the
+    /// `sysroot-foundation:<id>` build name), so no final tag outlives its
+    /// binding: the engine refuses such a tag. Only images the engine labels as
+    /// its own are touched; an image whose last name goes is deleted.
+    pub fn remove_engine_images(
+        &self,
+        images: &std::collections::BTreeSet<String>,
+    ) -> Result<Vec<String>> {
+        const NAMES: [&str; 5] = [
+            "kedra-composition:",
+            "kedra-native:",
+            "kedra-composition-pending:",
+            "kedra-native-pending:",
+            "sysroot-foundation:",
+        ];
         let mut removed = Vec::new();
-        for image in listed {
-            if used.contains(&image.id) {
+        for image in images {
+            let inspected = match self.runtime.block_on(self.api.inspect_image(image)) {
+                Ok(inspected) => inspected,
+                Err(bollard::errors::Error::DockerResponseServerError {
+                    status_code: 404, ..
+                }) => continue,
+                Err(error) => return Err(error.into()),
+            };
+            let owned = inspected
+                .config
+                .and_then(|config| config.labels)
+                .and_then(|labels| labels.get("dev.kedra.sysroot.owner").cloned())
+                .is_some_and(|owner| owner == "sysroot-derive");
+            if !owned {
                 continue;
             }
-            for tag in &image.repo_tags {
-                let ours = [
-                    "kedra-lab:",
-                    "kedra-lab-tools:",
-                    "kedra-lab-builder:",
-                    "kedra-lab-inputs:",
-                    "kedra-local-",
-                ]
-                .iter()
-                .any(|prefix| tag.starts_with(prefix));
-                if ours && !keep.contains(tag) {
-                    self.runtime.block_on(self.api.remove_image(
-                        tag,
-                        None::<bollard::query_parameters::RemoveImageOptions>,
-                        None,
-                    ))?;
-                    removed.push(tag.clone());
+            for tag in inspected.repo_tags.unwrap_or_default() {
+                if !NAMES.iter().any(|name| tag.starts_with(name)) {
+                    continue;
+                }
+                match self.runtime.block_on(self.api.remove_image(
+                    &tag,
+                    None::<bollard::query_parameters::RemoveImageOptions>,
+                    None,
+                )) {
+                    Ok(_) => removed.push(tag),
+                    Err(bollard::errors::Error::DockerResponseServerError {
+                        status_code: 404,
+                        ..
+                    }) => {}
+                    Err(error) => return Err(error.into()),
                 }
             }
         }
         Ok(removed)
+    }
+
+    /// Labeled images by ID, then the scoped tags of unlabeled ones. A child
+    /// image can hold its parent, so retry until a pass removes nothing.
+    fn remove_checkout_images(
+        &self,
+        label: &HashMap<String, Vec<String>>,
+        checkout: &str,
+    ) -> Result<Vec<String>> {
+        let scope = format!(":{checkout}-");
+        let mut removed = Vec::new();
+        loop {
+            let mut selected = Vec::new();
+            for image in self.runtime.block_on(self.api.list_images(Some(
+                bollard::query_parameters::ListImagesOptions {
+                    all: true,
+                    filters: Some(label.clone()),
+                    ..Default::default()
+                },
+            )))? {
+                selected.push((image.id, true));
+            }
+            for image in self.runtime.block_on(
+                self.api
+                    .list_images(None::<bollard::query_parameters::ListImagesOptions>),
+            )? {
+                selected.extend(
+                    image
+                        .repo_tags
+                        .into_iter()
+                        .filter(|tag| tag.starts_with("kedra-") && tag.contains(&scope))
+                        .map(|tag| (tag, false)),
+                );
+            }
+            let mut last_error = None;
+            let before = removed.len();
+            for (reference, labeled) in selected {
+                // A labeled image may carry several of this checkout's tags.
+                let options = bollard::query_parameters::RemoveImageOptions {
+                    force: labeled,
+                    ..Default::default()
+                };
+                match self
+                    .runtime
+                    .block_on(self.api.remove_image(&reference, Some(options), None))
+                {
+                    Ok(_) => removed.push(reference),
+                    Err(bollard::errors::Error::DockerResponseServerError {
+                        status_code: 404,
+                        ..
+                    }) => {}
+                    Err(error) => last_error = Some(error),
+                }
+            }
+            match last_error {
+                None => return Ok(removed),
+                Some(error) if removed.len() == before => return Err(error.into()),
+                Some(_) => {}
+            }
+        }
     }
 
     /// Local image ID and repository digests, or `None` when absent.
@@ -458,6 +615,10 @@ impl Docker {
                     .collect(),
             ),
             platform: build.platform.to_owned(),
+            labels: Some(HashMap::from([
+                (OWNER_LABEL.to_owned(), OWNER.to_owned()),
+                (CHECKOUT_LABEL.to_owned(), crate::checkout_id().to_owned()),
+            ])),
             version: bollard::query_parameters::BuilderVersion::BuilderBuildKit,
             session: Some(session),
             ..Default::default()
@@ -543,6 +704,7 @@ impl Docker {
             working_dir: Some("/".into()),
             labels: Some(HashMap::from([
                 (OWNER_LABEL.into(), OWNER.into()),
+                (CHECKOUT_LABEL.into(), crate::checkout_id().into()),
                 (KIND_LABEL.into(), "composition-probe".into()),
             ])),
             host_config: Some(bollard::models::HostConfig {
@@ -652,6 +814,24 @@ impl Docker {
                 item?;
             }
             Ok::<_, Error>(())
-        }))?
+        }))??;
+        // Pulled images stay unlabeled (a label would change the image under
+        // test); record what they resolved to, so they can be removed by exact
+        // ID once no checkout uses them.
+        let (id, digests) = self
+            .image(reference)?
+            .ok_or_else(|| invalid(format!("{reference} is missing after pulling it")))?;
+        let root = crate::artifact_root();
+        std::fs::create_dir_all(&root)?;
+        use std::io::Write;
+        writeln!(
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(root.join("pulled-images.txt"))?,
+            "{reference} {platform} {id} {}",
+            digests.join(",")
+        )?;
+        Ok(())
     }
 }

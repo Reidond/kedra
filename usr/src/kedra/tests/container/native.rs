@@ -3,7 +3,7 @@
 
 use std::time::{Duration, Instant};
 
-use kedra_container_tests::docker::{Exec, Output};
+use kedra_container_tests::docker::{Docker, Exec, Output};
 use kedra_container_tests::scenario::{Context, Fixture, Profile};
 use kedra_container_tests::session::{self, Session};
 use kedra_container_tests::{Error, Result};
@@ -107,6 +107,57 @@ pub(crate) fn ensure(condition: bool, message: impl FnOnce() -> String) -> Resul
         Ok(())
     } else {
         Err(fail(message()))
+    }
+}
+
+/// This engine's own image ID for a pinned `reference`, pulled for `platform`
+/// when absent. Docker's ID for an index reference is the index digest on the
+/// containerd image store but the platform's configuration digest on the classic
+/// overlay2 store the release runners use, so no case spells an image ID.
+pub(crate) fn local_image(docker: &Docker, reference: &str, platform: &str) -> Result<String> {
+    if let Some((id, _)) = docker.image(reference)? {
+        return Ok(id);
+    }
+    docker.pull(reference, platform)?;
+    docker
+        .image(reference)?
+        .map(|(id, _)| id)
+        .ok_or_else(|| fail(format!("{reference} is missing after pulling it")))
+}
+
+/// The identity `sysroot store add-image --archive` admits for a `docker save`
+/// archive: its single root descriptor (the registry index on the containerd
+/// store, a manifest Docker generates on the classic store). The archive must
+/// hold the configuration `config`, which pins its content on both stores.
+pub(crate) fn archive_identity(archive: &[u8], config: &str) -> Result<String> {
+    let mut index = None;
+    let mut manifest = None;
+    for entry in tar::Archive::new(archive).entries()? {
+        let mut entry = entry?;
+        let slot = match entry.path()?.to_str() {
+            Some("index.json") => &mut index,
+            Some("manifest.json") => &mut manifest,
+            _ => continue,
+        };
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut entry, &mut bytes)?;
+        *slot =
+            Some(serde_json::from_slice::<Value>(&bytes).map_err(|error| fail(error.to_string()))?);
+    }
+    let (Some(index), Some(manifest)) = (index, manifest) else {
+        return Err(fail("saved image lacks index.json or manifest.json"));
+    };
+    let blob = format!("blobs/sha256/{}", config.trim_start_matches("sha256:"));
+    ensure(
+        manifest[0]["Config"].as_str() == Some(blob.as_str()),
+        || format!("saved image is not configuration {config}"),
+    )?;
+    match index["manifests"].as_array().map(Vec::as_slice) {
+        Some([root]) => root["digest"]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| fail("saved image root has no digest")),
+        _ => Err(fail("saved image must have exactly one root")),
     }
 }
 

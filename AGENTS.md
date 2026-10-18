@@ -232,6 +232,28 @@ Documentation support is not a pass. Use exact tool versions/digests and primary
 sources. Record `not-run`, `pass`, `fail`, or `blocked` per case. Redact evidence
 before publication. A successful container build is not a boot/hardware test.
 
+### Artifacts stay in the checkout — owner decision, 2026-10-18
+
+Never store work files outside the repository. Everything a session or local
+check creates lives under the checkout's (or worktree's) gitignored `target/`:
+Cargo output, engine stores, contexts, archives, registry data, VM disks, ISO and
+check output, logs and temporary files (`TMPDIR=$PWD/target/tmp`). Not `$HOME`,
+`/tmp`, an agent scratchpad or another checkout; container bind mounts point only
+under `target/`. Only Docker's own image store and the toolchain download caches
+(`~/.cargo`, the uv cache) live elsewhere.
+
+Docker ownership is keyed by checkout, not branch: a branch name can repeat
+across clones and a detached checkout has none. The checkout id is the first 12
+hex digits of the SHA-256 of the canonical checkout path (`git rev-parse
+--show-toplevel`). Label every container, volume and locally built image
+`kedra.checkout=<id>`, run one-shot containers with `--rm`, and remove the
+labeled objects once the checks are recorded. Pulled images stay unlabeled,
+because a label would change the exact image under test. Record each digest a
+checkout pulls under `target/` and remove those images when no other checkout
+still uses them. Delete large `target/` subtrees a pending re-check does not need.
+Engine store objects are sealed read-only: `chmod -R u+w` before `rm -rf`. Stop
+and report before a run would leave less than 100 GiB free on the host disk.
+
 ## Checks and completion
 
 ### Testing policy — owner decision, 2026-09-08

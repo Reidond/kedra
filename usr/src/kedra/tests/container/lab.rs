@@ -126,12 +126,16 @@ enum Command {
     },
     /// Remove everything this checkout's harness created: every container,
     /// image and volume labeled `kedra.checkout=<id>`, its scoped image tags,
-    /// and the large artifact trees (cache, derive, composition, native) under
-    /// target/. Run reports and screenshots stay.
+    /// the large artifact trees (cache, derive, composition, native) under
+    /// target/, and the native VM's stopped instances, prepared disks and
+    /// runtime build tree. Run reports, screenshots and the built QEMU runtime stay.
     Clean {
         /// Only remove the containers of one execution.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "vm_runtime")]
         execution: Option<String>,
+        /// Also remove the built native QEMU runtime (rebuilding it takes long).
+        #[arg(long)]
+        vm_runtime: bool,
     },
 }
 
@@ -390,7 +394,47 @@ fn bound_images(state: &std::path::Path) -> Result<std::collections::BTreeSet<St
     Ok(images)
 }
 
-fn clean(docker: &Docker) -> Result<()> {
+/// Whether `path` lies inside this checkout's `target/`; overrides may point elsewhere.
+fn inside_target(path: &std::path::Path) -> bool {
+    let target = kedra_container_tests::repository_root().join("target");
+    match (path.canonicalize(), target.canonicalize()) {
+        (Ok(path), Ok(target)) => path.starts_with(target),
+        _ => false,
+    }
+}
+
+/// The native VM home: stopped instances through `vm.py remove`, then the
+/// prepared disks and the runtime build tree, and the runtime when asked.
+fn clean_vm(vm_runtime: bool) -> Result<()> {
+    let home = kedra_container_tests::vm::qemu_home();
+    if !home.exists() {
+        return Ok(());
+    }
+    if !inside_target(&home) {
+        eprintln!(
+            "kedra-lab: {} is outside this checkout's target/; its VM state was left alone",
+            home.display()
+        );
+        return Ok(());
+    }
+    for name in kedra_container_tests::vm::remove_instances()? {
+        println!("removed native VM instance {name}");
+    }
+    let mut trees = vec!["images", "build"];
+    if vm_runtime {
+        trees.push("runtime");
+    }
+    for name in trees {
+        let path = home.join(name);
+        if path.symlink_metadata().is_ok() {
+            kedra_container_tests::remove_tree(&path)?;
+            println!("removed {}", path.display());
+        }
+    }
+    Ok(())
+}
+
+fn clean(docker: &Docker, vm_runtime: bool) -> Result<()> {
     let checkout = kedra_container_tests::checkout_id();
     let cleaned = docker.clean_checkout()?;
     for (kind, names) in [
@@ -402,14 +446,10 @@ fn clean(docker: &Docker) -> Result<()> {
             println!("removed {kind} {name}");
         }
     }
+    clean_vm(vm_runtime)?;
     // Only trees inside this checkout's target/; KEDRA_LAB_ARTIFACTS may point elsewhere.
-    let target = kedra_container_tests::repository_root().join("target");
     let root = artifact_root();
-    let inside = match (root.canonicalize(), target.canonicalize()) {
-        (Ok(root), Ok(target)) => root.starts_with(target),
-        _ => false,
-    };
-    if inside {
+    if inside_target(&root) {
         // The engine refuses a final tag whose binding is gone: remove the images
         // the derive state binds before the state itself.
         for tag in docker.remove_engine_images(&bound_images(&root.join("derive"))?)? {
@@ -542,6 +582,7 @@ fn main() -> ExitCode {
         }
         Command::Clean {
             execution: Some(execution),
+            ..
         } => {
             for item in docker.owned(&[(docker::EXECUTION_LABEL, &execution)])? {
                 docker.remove(&item.id)?;
@@ -549,7 +590,10 @@ fn main() -> ExitCode {
             }
             Ok(ExitCode::SUCCESS)
         }
-        Command::Clean { execution: None } => clean(&docker).map(|_| ExitCode::SUCCESS),
+        Command::Clean {
+            execution: None,
+            vm_runtime,
+        } => clean(&docker, vm_runtime).map(|_| ExitCode::SUCCESS),
     });
     match outcome {
         Ok(code) => code,

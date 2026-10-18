@@ -11,20 +11,29 @@ The runtime and first disposable disk are prepared once. A running desktop stays
 available for manual use, guest commands, screenshots and validated home sync.
 Cold builds take minutes; they are outside the edit/capture loop.
 
-Native QEMU data is deliberately outside Cargo's `target` directory, so
-`cargo clean` cannot erase the private runtime or retained VM disks. By default,
-rebuildable runtime/build/image data lives under
-`~/Library/Caches/kedra/qemu`, while retained instances, writable disks, TPM
-state, keys, logs and screenshots live under
-`~/.local/share/kedra/lab/<checkout-key>`. The eight-character stable checkout key
-keeps Unix socket paths below the macOS limit and prevents different checkouts
-from controlling the same named instance.
+Native QEMU data lives in this checkout's `target/kedra-lab/qemu/` (AGENTS.md
+"Artifacts stay in the checkout"; since 2026-10-18, before which it lived in
+`~/Library/Caches/kedra/qemu` and `~/.local/share/kedra/lab/<checkout-key>`):
+`runtime/` (the built QEMU, swtpm and firmware), `build/` (its build tree and
+the locked build tools' uv environment),
+`images/` (prepared disks), `instances/<name>/` (writable disks, firmware
+variables, TPM state, keys, sockets, serial and QEMU logs), `shots/` and `logs/`.
+Each checkout therefore prepares its own runtime, and `cargo clean` removes
+all of it. `kedra-lab clean` removes stopped instances (through `vm remove`, which
+refuses a running VM), `images/` and `build/`; it keeps `runtime/`, `shots/` and
+`logs/` unless `--vm-runtime` also removes the runtime.
+
+Instance sockets (`qmp.sock`, `tpm.sock`, `qga.sock`) are bound and reached by
+their names relative to the instance directory: `vm.py` runs QEMU and swtpm with
+that directory as their working directory and enters it itself before any QMP
+call, because the absolute path below a worktree's `target/` exceeds the 104-byte
+`AF_UNIX` limit.
 
 Set `KEDRA_QEMU_HOME` to an absolute directory to place all native runtime,
-build, image and retained-instance data below one root. Explicit `--runtime` and
-`--workdir` arguments take precedence. For compatibility, an explicitly set
-`KEDRA_LAB_ARTIFACTS` also keeps native QEMU data below its `qemu/` subdirectory;
-other container-harness artifacts retain their existing meaning.
+build, image and retained-instance data below another root; `KEDRA_LAB_ARTIFACTS`
+moves it with the other harness artifacts (`<artifacts>/qemu`). `kedra-lab clean`
+leaves a home outside this checkout's `target/` alone. Explicit `--runtime` and
+`--workdir` arguments take precedence.
 
 ```sh
 cargo build -p kedra-container-tests --bin kedra-lab --locked
@@ -140,10 +149,10 @@ the retained desktop.
 Default display is 2560×1600 at scale 2, six vCPUs and 4 GiB RAM; initial `up`
 accepts `--display`, `--cpus` and `--memory-mib`. `shot` captures through guest
 `grim`, with a PNG/source/image/runtime/display receipt under
-`~/.local/share/kedra/lab/<checkout-key>/shots`. A screenshot alone never
+`target/kedra-lab/qemu/shots`. A screenshot alone never
 asserts GPU qualification.
 Private QMP/TPM/guest-agent sockets, serial logs and state live below
-`~/.local/share/kedra/lab/<checkout-key>/instances/<name>`. The only network
+`target/kedra-lab/qemu/instances/<name>`. The only network
 listener is loopback SSH with per-instance credentials. No host disk, production
 home or existing VM is enrolled, migrated or reformatted.
 

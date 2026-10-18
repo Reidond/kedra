@@ -8,7 +8,6 @@ use std::process::{Child, Command, ExitCode, Stdio};
 use std::time::{Duration, Instant};
 
 use clap::{Args, Subcommand};
-use sha2::{Digest, Sha256};
 
 use crate::{Result, harness_dir};
 
@@ -144,60 +143,64 @@ fn script(name: &str) -> Command {
     let mut command = Command::new("uv");
     command
         .args(["run", "--script"])
-        .arg(harness_dir().join("qemu").join(name));
+        .arg(harness_dir().join("qemu").join(name))
+        // The locked build tools' environment (`uv run --project build-tools`)
+        // lives with the rest of the QEMU home, not in the source tree.
+        .env(
+            "UV_PROJECT_ENVIRONMENT",
+            qemu_home().join("build/build-tools-venv"),
+        );
     command
 }
 
-fn configured_qemu_home() -> Option<PathBuf> {
+/// The native QEMU home: the runtime (`runtime/`), its build tree (`build/`),
+/// prepared disks (`images/`), instances (`instances/`), shots and logs. It is
+/// `target/kedra-lab/qemu` of this checkout (AGENTS.md "Artifacts stay in the
+/// checkout"; `KEDRA_LAB_ARTIFACTS` moves it with the other artifacts), or
+/// `KEDRA_QEMU_HOME` when set.
+pub fn qemu_home() -> PathBuf {
     std::env::var_os("KEDRA_QEMU_HOME")
         .filter(|path| !path.is_empty())
         .map(PathBuf::from)
+        .unwrap_or_else(|| crate::artifact_root().join("qemu"))
 }
 
-fn legacy_qemu_home() -> Option<PathBuf> {
-    std::env::var_os("KEDRA_LAB_ARTIFACTS")
-        .filter(|path| !path.is_empty())
-        .map(PathBuf::from)
-        .map(|path| path.join("qemu"))
-}
-
-fn user_home() -> Result<PathBuf> {
-    std::env::var_os("HOME")
-        .filter(|path| !path.is_empty())
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .ok_or_else(|| crate::invalid("HOME must name an absolute directory for native QEMU"))
-}
-
-fn checkout_key() -> Result<String> {
-    let checkout = crate::repository_root().canonicalize()?;
-    let digest = Sha256::digest(checkout.as_os_str().as_encoded_bytes());
-    Ok(format!(
-        "{:02x}{:02x}{:02x}{:02x}",
-        digest[0], digest[1], digest[2], digest[3]
-    ))
-}
-
-fn qemu_cache_home() -> Result<PathBuf> {
-    if let Some(path) = configured_qemu_home().or_else(legacy_qemu_home) {
-        return Ok(path);
+/// Remove every stopped instance through `vm.py remove`, which refuses a
+/// running VM and a directory without its receipt. Returns the removed names.
+pub fn remove_instances() -> Result<Vec<String>> {
+    let instances = qemu_home().join("instances");
+    let entries = match std::fs::read_dir(&instances) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+    };
+    let mut names = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if entry.file_type()?.is_dir() && !name.starts_with('.') {
+            names.push(name);
+        }
     }
-    Ok(user_home()?.join("Library/Caches/kedra/qemu"))
-}
-
-fn qemu_state_home() -> Result<PathBuf> {
-    if let Some(path) = configured_qemu_home().or_else(legacy_qemu_home) {
-        return Ok(path);
+    names.sort();
+    for name in &names {
+        let instance = Instance {
+            name: name.clone(),
+            runtime: None,
+        };
+        if execute(&mut instance_script(&instance, "remove")?)? != ExitCode::SUCCESS {
+            return Err(crate::invalid(format!(
+                "native VM instance {name} was not removed; stop it with `kedra-lab vm down --name {name}`"
+            )));
+        }
     }
-    Ok(user_home()?
-        .join(".local/share/kedra/lab")
-        .join(checkout_key()?))
+    Ok(names)
 }
 
 fn runtime(value: Option<&PathBuf>) -> Result<PathBuf> {
     match value {
         Some(path) => Ok(path.clone()),
-        None => Ok(qemu_cache_home()?.join("runtime")),
+        None => Ok(qemu_home().join("runtime")),
     }
 }
 
@@ -205,7 +208,7 @@ fn instance_script(instance: &Instance, operation: &str) -> Result<Command> {
     let mut command = script("vm.py");
     command
         .arg("--root")
-        .arg(qemu_state_home()?)
+        .arg(qemu_home())
         .arg("--runtime")
         .arg(runtime(instance.runtime.as_ref())?)
         .arg("--name")
@@ -275,7 +278,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
         } => {
             let workdir = match workdir {
                 Some(path) => path,
-                None => qemu_cache_home()?.join("build"),
+                None => qemu_home().join("build"),
             };
             execute(
                 script("prepare-runtime.py")
@@ -353,7 +356,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 .arg("--engine-id")
                 .arg(docker.identity()?)
                 .arg("--cache")
-                .arg(qemu_cache_home()?);
+                .arg(qemu_home());
             if let Some((provenance, fixture_reference)) = provenance {
                 command
                     .arg("--native-provenance")

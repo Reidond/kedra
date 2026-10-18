@@ -60,11 +60,11 @@ each of which records its exact-head local checks. Per-change detail is in the
 
 ## Not working or not-run
 
-- **Release blocked:** since `969f72e` the harness case `native::catalog_shadowing`
-  fails on the hosted runners: it looks up an image by a registry index digest that
-  Docker's classic image store does not hold. Nothing after `9871976` is
-  published, so Codex/Bitwarden packages and the binary cache are not in a
-  published image yet.
+- **Release blocked:** on `969f72e` and again on `ec16a65` the harness case
+  `native::catalog_shadowing` fails on the hosted runners: it looks up an image by
+  a registry index digest that Docker's classic image store does not hold. Nothing
+  after `9871976` is published, so Codex/Bitwarden packages and the binary cache
+  are not in a published image yet.
 - **Installer media:** the only ISO release (desktop, 2026-10-14) was made before
   PRs #46–#60. Its helper writes deployment state (an enrollment journal) that
   the current helper refuses, so a system installed from it cannot keep updating;

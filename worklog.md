@@ -31,8 +31,9 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
 - **Failing:** the release on `969f72e` (#57) built both targets but failed
   `validate-candidate` at the new harness case `native::catalog_shadowing` on both:
   it looks up an image by a registry index digest that the runner's classic Docker
-  image store does not hold (404). Nothing was published. Until the case is fixed,
-  #57 and #59 do not reach a published image.
+  image store does not hold (404). Nothing was published. The release on `ec16a65`
+  (#59) failed the same case on qemu-arm64. Until the case is fixed, #57 and #59 do
+  not reach a published image.
 - **Installer media:** one ISO release exists (desktop, 2026-10-14, image from
   `c36c10c`), made before #46–#60. Its helper writes deployment state the current
   helper refuses, so systems installed from it cannot keep updating; use local

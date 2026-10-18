@@ -12,8 +12,9 @@ use std::process::{Command, Stdio};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-/// Bundled runtimes live at BUNDLED/NAME/bin/NAME, outside ordinary PATH.
-const BUNDLED: &str = "/usr/libexec/sysroot/agents";
+/// Bundled runtimes are catalog packages' private `libexec` exports, launched
+/// through BUNDLED/NAME and never placed on PATH (docs/AGENT-LAUNCHERS.md).
+const BUNDLED: &str = "/usr/share/kedra/catalog-libexec";
 
 #[derive(Serialize)]
 struct Selection {
@@ -57,8 +58,7 @@ fn runtime(name: &str, options: &Options) -> Result<PathBuf> {
     match (options.runtime, &options.executable) {
         (Runtime::Bundled, Some(_)) => Err("--executable requires --runtime user".into()),
         (Runtime::Bundled, None) => {
-            executable(&Path::new(BUNDLED).join(name).join("bin").join(name))
-                .map_err(|_| missing.into())
+            executable(&Path::new(BUNDLED).join(name)).map_err(|_| missing.into())
         }
         (Runtime::User, Some(path)) if !path.is_absolute() => {
             Err("--executable must be an absolute path".into())

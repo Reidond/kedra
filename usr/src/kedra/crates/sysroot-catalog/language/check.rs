@@ -38,6 +38,8 @@ pub struct Intent {
     pub schema_version: u32,
     pub namespace: String,
     pub target: String,
+    /// The target's declared RPM architecture; it selects `by_architecture` sources.
+    pub architecture: Option<String>,
     pub foundation: String,
     pub packages: BTreeSet<String>,
     pub remove: BTreeSet<String>,
@@ -67,6 +69,8 @@ pub struct RecipeIntent {
     pub replace_files: BTreeMap<String, Content>,
     pub patches: Vec<PatchIntent>,
     pub exports: BTreeMap<String, ExportIntent>,
+    /// Exported commands that deliberately take precedence over the foundation's.
+    pub replaces: BTreeSet<String>,
     pub configs: BTreeMap<String, TemplateIntent>,
     pub timeout: u64,
 }
@@ -152,6 +156,9 @@ struct Request {
 fn root_span() -> Span {
     Span { line: 1, column: 1 }
 }
+/// RPM architectures a target may declare and a `by_architecture` source may name.
+const ARCHITECTURES: [&str; 2] = ["aarch64", "x86_64"];
+
 fn hex(value: &str) -> bool {
     value.len() == 64
         && value
@@ -349,6 +356,13 @@ impl Checker {
             ));
         }
         self.intent.foundation = foundation.clone();
+        self.intent.architecture = definition
+            .declaration
+            .block
+            .fields
+            .get("architecture")
+            .map(|value| self.string(&definition.module, value))
+            .transpose()?;
         for name in self.strings(&base, "packages")? {
             self.request(&foundation, name, true)?;
         }
@@ -870,6 +884,7 @@ impl Checker {
                     )
                 })
                 .collect(),
+            replaces: self.strings(&definition, "replaces")?.into_iter().collect(),
             configs,
             timeout,
         };
@@ -964,9 +979,29 @@ impl Checker {
         Ok(output)
     }
     fn source(&self, definition: &Definition) -> Result<SourceIntent> {
-        let source = self.field(definition, "source")?;
+        let mut source = self.field(definition, "source")?;
         if matches!(&source.kind, Kind::Construct(k, _) if k == "files") {
             return Ok(SourceIntent::Files(self.files(definition, source)?));
+        }
+        if let Kind::Construct(kind, variants) = &source.kind
+            && kind == "by_architecture"
+        {
+            let architecture = self.intent.architecture.as_deref().ok_or_else(|| {
+                self.error(
+                    &definition.module,
+                    source,
+                    "architecture",
+                    "per-architecture source requires the target to declare its architecture",
+                )
+            })?;
+            source = variants.fields.get(architecture).ok_or_else(|| {
+                self.error(
+                    &definition.module,
+                    source,
+                    "architecture",
+                    "no source for the target architecture",
+                )
+            })?;
         }
         let block = self.construct(&definition.module, source, "archive", &["url", "pin"])?;
         let pin = self.reviewed_pin(&definition.module, source, block)?;
@@ -1441,6 +1476,7 @@ impl Checker {
         match name {
             "files" => self.typed_files(definition, value, block),
             "archive" => self.typed_archive(definition, value, block),
+            "by_architecture" => self.typed_by_architecture(definition, value, block),
             "patch" => self.typed_patch(definition, value, block),
             "replacement" => self.typed_replacement(definition, value, block),
             "template" => self.typed_template(definition, value, block),
@@ -1500,6 +1536,32 @@ impl Checker {
             self.string(module, v)?;
         }
         self.reviewed_pin(module, value, block)?;
+        Ok(Type::Source)
+    }
+    /// One reviewed archive per RPM architecture; the target's architecture selects one.
+    fn typed_by_architecture(
+        &self,
+        definition: &Definition,
+        value: &Value,
+        block: &Block,
+    ) -> Result<Type> {
+        let module = &definition.module;
+        self.construct(module, value, "by_architecture", &ARCHITECTURES)?;
+        if block.fields.is_empty() {
+            return Err(self.error(module, value, "field", "missing architecture source"));
+        }
+        for archive in block.fields.values() {
+            if !matches!(&archive.kind, Kind::Construct(kind, _) if kind == "archive")
+                || self.typed(definition, archive)? != Type::Source
+            {
+                return Err(self.error(
+                    module,
+                    archive,
+                    "type",
+                    "architecture source requires an archive",
+                ));
+            }
+        }
         Ok(Type::Source)
     }
     fn typed_patch(&self, definition: &Definition, value: &Value, block: &Block) -> Result<Type> {
@@ -1621,6 +1683,7 @@ impl Checker {
                     "systemd",
                     "skel",
                     "initramfs",
+                    "architecture",
                 ],
             ),
             _ => (
@@ -1637,6 +1700,7 @@ impl Checker {
                     "replace_files",
                     "patches",
                     "timeout",
+                    "replaces",
                 ],
             ),
         };
@@ -1669,7 +1733,7 @@ impl Checker {
         let expected = match name {
             "fedora" if d.kind == "foundation" => Type::Integer,
             "fedora" | "packages" | "remove" | "use" | "replace" | "build_requires"
-            | "runtime_requires" | "patches" => Type::List,
+            | "runtime_requires" | "patches" | "replaces" => Type::List,
             "foundation" | "base" | "runtime" => Type::Foundation,
             "builder" => Type::Builder,
             "source" if ty == Type::Files => Type::Files,
@@ -1696,12 +1760,21 @@ impl Checker {
         if name == "fedora" && d.kind == "foundation" && self.integer(module, value)? != 44 {
             return Err(self.error(module, value, "foundation", "only Fedora44 is supported"));
         }
+        if name == "architecture" && !ARCHITECTURES.contains(&self.string(module, value)?.as_str())
+        {
+            return Err(self.error(
+                module,
+                value,
+                "architecture",
+                "target architecture must be aarch64 or x86_64",
+            ));
+        }
         if matches!(name, "build_deps" | "runtime_deps" | "env") {
             for (alias, item) in self.map(module, value)? {
                 self.validate_input(definition, name, alias, item)?;
             }
         }
-        if ty == Type::List {
+        if ty == Type::List && name != "replaces" {
             self.validate_items(definition, name, value)?;
         }
         Ok(())
@@ -1840,18 +1913,24 @@ impl Checker {
             }
         }
         if d.block.exports.is_empty()
-            || (d.kind == "package" && !d.block.exports.iter().any(|e| e.kind == "command"))
+            || (d.kind == "package"
+                && !d
+                    .block
+                    .exports
+                    .iter()
+                    .any(|e| matches!(e.kind.as_str(), "command" | "libexec")))
         {
             return Err(fail(
                 module,
                 d.span,
                 "export",
-                "package command or library output export required",
+                "package command/libexec or library output export required",
             ));
         }
         for export in &d.block.exports {
             self.export(module, export, d.kind == "library")?;
         }
+        self.validate_replaces(definition)?;
         for value in d.block.configs.values() {
             if self.typed(definition, value)? != Type::Template {
                 return Err(self.error(module, value, "type", "config requires template"));
@@ -1859,9 +1938,44 @@ impl Checker {
         }
         Ok(())
     }
+    /// `replaces` names only this package's own command exports, once each.
+    fn validate_replaces(&self, definition: &Definition) -> Result<()> {
+        let module = &definition.module;
+        let Some(value) = definition.declaration.block.fields.get("replaces") else {
+            return Ok(());
+        };
+        let mut names = BTreeSet::new();
+        for item in self.list(module, value)? {
+            let name = self.string(module, item)?;
+            let exported = definition
+                .declaration
+                .block
+                .exports
+                .iter()
+                .any(|e| e.kind == "command" && e.name == name);
+            if !exported || !names.insert(name) {
+                return Err(self.error(
+                    module,
+                    item,
+                    "replaces",
+                    "replaces must name this package's command exports once each",
+                ));
+            }
+        }
+        Ok(())
+    }
     fn export(&self, module: &str, export: &Export, library: bool) -> Result<()> {
-        if !matches!(export.kind.as_str(), "command" | "library" | "files")
-            || (library && export.kind == "command")
+        let program = matches!(export.kind.as_str(), "command" | "libexec");
+        // A launcher `exec`s a program path verbatim inside double quotes.
+        let shell_safe = export
+            .path
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"+._-/".contains(&b));
+        if !matches!(
+            export.kind.as_str(),
+            "command" | "libexec" | "library" | "files"
+        ) || (library && program)
+            || (program && !shell_safe)
             || !relative(&export.path)
             || !rpm(&export.name)
         {
@@ -1905,6 +2019,7 @@ pub fn compile(
             schema_version: 1,
             namespace: policy.namespace.clone(),
             target: target.into(),
+            architecture: None,
             foundation: String::new(),
             packages: BTreeSet::new(),
             remove: BTreeSet::new(),

@@ -7,17 +7,22 @@
 import argparse
 import gzip
 import hashlib
+import http.client
 import io
 import json
 import re
 import tarfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-MAX_ARCHIVE = 32 * 1024**2
-MAX_TREE = 128 * 1024**2
+# Prebuilt upstream packages (Codex, Bitwarden) are the largest pins; the
+# engine's own source tree bound is 1 GiB with 256 MiB per file.
+MAX_ARCHIVE = 256 * 1024**2
+MAX_TREE = 1024**3
+DEADLINE = 600
 
 
 def require(condition, message):
@@ -56,7 +61,7 @@ def acquire(pin, destination, local=None):
             'Invalid source pin')
     digest = hashlib.sha256()
     total = 0
-    deadline = time.monotonic() + 120
+    deadline = time.monotonic() + DEADLINE
     opener = urllib.request.build_opener(HTTPSRedirect())
     source = local.open('rb') if local is not None else opener.open(pin['url'], timeout=120)
     with source, destination.open('xb') as output:
@@ -66,6 +71,27 @@ def acquire(pin, destination, local=None):
             digest.update(chunk)
             output.write(chunk)
     require(total and digest.hexdigest() == pin['sha256'], 'Archive checksum differs from reviewed pin')
+
+
+def transient(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException))
+
+
+def fetch(pin, destination, local=None):
+    # Retry only transport failures. The size, deadline and checksum checks stay
+    # final, and a failed attempt's partial file is removed before the next one.
+    for attempt in range(1, 5):
+        try:
+            acquire(pin, destination, local)
+            return
+        except (OSError, http.client.HTTPException) as error:
+            if local is not None or isinstance(error, FileExistsError) or not transient(error) or attempt == 4:
+                raise
+            destination.unlink(missing_ok=True)
+            print(f'Transient download failure for {pin["url"]}: {error}; retrying', flush=True)
+            time.sleep(15 * attempt)
 
 
 def extract(archive, destination):
@@ -83,9 +109,13 @@ def extract(archive, destination):
             names.add(name)
             members.append(member)
         source.extractall(destination, members=members, filter='data')
-    roots = list(destination.iterdir())
-    require(len(roots) == 1 and roots[0].is_dir() and not roots[0].is_symlink(), 'Expected single ordinary archive root')
-    for path in roots[0].rglob('*'):
+    # A single top-level directory (a source release) is the tree's root; a flat
+    # archive (a prebuilt package with several top-level entries) is the tree.
+    entries = list(destination.iterdir())
+    require(entries, 'Empty archive')
+    single = len(entries) == 1 and entries[0].is_dir() and not entries[0].is_symlink()
+    root = entries[0] if single else destination
+    for path in root.rglob('*'):
         if path.is_symlink():
             continue
         info = path.stat()
@@ -95,8 +125,8 @@ def extract(archive, destination):
             path.unlink()
             path.write_bytes(data)
         path.chmod(mode)
-    roots[0].chmod(0o755)
-    return roots[0]
+    root.chmod(0o755)
+    return root
 
 
 def main():
@@ -114,7 +144,7 @@ def main():
         require(identity == pin['object'] and len(identity) == 68 and identity.startswith('src-'), 'Source object differs')
         archive = args.output / (str(index) + '.tar.gz')
         local = args.archives / (pin['sha256'] + '.tar.gz') if args.archives is not None else None
-        acquire(pin, archive, local)
+        fetch(pin, archive, local)
         paths[identity] = str(extract(archive, args.output / str(index)))
     (args.output / 'sources.json').write_text(json.dumps(paths, sort_keys=True, separators=(',', ':')) + '\n')
 

@@ -1,15 +1,35 @@
 {
   "schema_version": 1,
   "sources": {
-    "jq-source": {
-      "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-1.8.2.tar.gz",
-      "sha256": "71b8d6e8f5fe81f6c6d0d110e3892251f6ce76ed095abd315e26e6e1193af3af",
-      "object": "src-5d3f1f89c8b6b206fc3c133f24d90d6225d73cd4c6274ec610c4cacf9f44e2d2"
+    "bitwarden-aarch64": {
+      "url": "https://github.com/bitwarden/clients/releases/download/desktop-v2026.8.0/bitwarden_2026.8.0_arm64.tar.gz",
+      "sha256": "5962b5dd1bfe19b3c198a6b4157c4431efe078e573217bffcaafa71147476ebe",
+      "object": "src-0ccc6d0313d14f62e8767f98be4d56a9529615a7571b879b27ad7e1cf1ad55fd"
     },
-    "sqlite-source": {
-      "url": "https://www.sqlite.org/2026/sqlite-autoconf-3530400.tar.gz",
-      "sha256": "0e9483900e92cd5de8fd48d16bf9200145a61f7fd5be542a5ac81d8a9516eb9c",
-      "object": "src-f4837e042b248ee63fd02e3f51fd6c9b9e2ffdf34bfb57450dd22a10c67f4d65"
+    "bitwarden-source": {
+      "url": "https://codeload.github.com/bitwarden/clients/tar.gz/f60a4606b7581c338d18091a98640ee71392f015",
+      "sha256": "77dbd88a1a78dbc7c23cc0e54d85cb6446f76387a67a68beb8e2d2361c0d7edb",
+      "object": "src-31adf90cfcc61b5bae916e00b20ff3a3ddc627fd8ebec3283fca633ef499744c"
+    },
+    "bitwarden-x86_64": {
+      "url": "https://github.com/bitwarden/clients/releases/download/desktop-v2026.8.0/bitwarden_2026.8.0_x64.tar.gz",
+      "sha256": "d88fd894e4b1c58bde3efb51b7b1bd8fab6c6a46be632b0b9cdadcc00147790e",
+      "object": "src-521886727632293c44b6b78f580c47af4108985158774c6f7500b715fb7ed896"
+    },
+    "codex-aarch64": {
+      "url": "https://github.com/openai/codex/releases/download/rust-v0.153.4/codex-package-aarch64-unknown-linux-musl.tar.gz",
+      "sha256": "fc395cb043a1093ab0db34f44aba3199bfaa9ce640cd9be7fd588f44b0da64a4",
+      "object": "src-612c000df1c2f3f042c19a17fe2509b8ca697d3756a7ea3e3f5817f405240ecb"
+    },
+    "codex-source": {
+      "url": "https://codeload.github.com/openai/codex/tar.gz/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a",
+      "sha256": "bbbf66ffa30846f1e9bc3ae8a87a5aa0bb768efee8dbb94759dc9eb64bb4aa3a",
+      "object": "src-1f843609e2704a6e57352061f509ad16044a1c19f329e8ddcda96a074061b22d"
+    },
+    "codex-x86_64": {
+      "url": "https://github.com/openai/codex/releases/download/rust-v0.153.4/codex-package-x86_64-unknown-linux-musl.tar.gz",
+      "sha256": "a822187e1a2420c61c5926721bfbd878701ed95547c9bb0d4de4498a16ba1821",
+      "object": "src-832d651cce38604e527ace4bbc60d0de6fead6e9cb40f0013bcb6027986c7f55"
     }
   }
 }

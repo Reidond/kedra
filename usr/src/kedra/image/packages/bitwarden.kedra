@@ -1,0 +1,87 @@
+language 1;
+// The official Bitwarden Desktop Linux tarball, unchanged. Package scripts do not
+// exist in the tarball and nothing gains special permission bits: chrome-sandbox
+// stays an ordinary file and Chromium uses its namespace sandbox.
+library bitwarden_licenses(builder: Builder, runtime: Foundation) {
+    version = "2026.8.0";
+    summary = "Bitwarden clients license terms and corresponding source";
+    license = "GPL-3.0-only and the Bitwarden License";
+    source = archive {
+        url = "https://codeload.github.com/bitwarden/clients/tar.gz/f60a4606b7581c338d18091a98640ee71392f015";
+        pin = "bitwarden-source";
+    };
+    build = shell """
+        set -eu
+        licenses="$out/share/licenses/bitwarden"
+        mkdir -p "$licenses"
+        for name in LICENSE.txt LICENSE_GPL.txt LICENSE_BITWARDEN.txt; do
+            cp "$src/$name" "$licenses/$name"
+        done
+        tar --sort=name --format=gnu --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            --transform 's,^\.,clients-f60a4606b7581c338d18091a98640ee71392f015,' \
+            -C "$src" -cf - . | gzip -9n > "$licenses/clients-source.tar.gz"
+        cat > "$licenses/README.txt" <<'NOTICE'
+        Unmodified Bitwarden Desktop runtime from the pinned official Linux tarball,
+        built into the Kedra image by its package catalog. Electron/Chromium notices
+        remain beside the runtime. Corresponding client source, license terms, build
+        scripts and dependency locks are included here. Kedra is independent of
+        Bitwarden Inc. Updates arrive through OS images.
+        NOTICE
+        """;
+    export files "licenses" = "share/licenses/bitwarden";
+}
+package bitwarden(builder: Builder, runtime: Foundation) {
+    version = "2026.8.0";
+    summary = "Official Bitwarden Desktop with its SSH agent";
+    license = "GPL-3.0-only; Electron and Chromium notices beside the runtime";
+    source = by_architecture {
+        aarch64 = archive {
+            url = "https://github.com/bitwarden/clients/releases/download/desktop-v2026.8.0/bitwarden_2026.8.0_arm64.tar.gz";
+            pin = "bitwarden-aarch64";
+        };
+        x86_64 = archive {
+            url = "https://github.com/bitwarden/clients/releases/download/desktop-v2026.8.0/bitwarden_2026.8.0_x64.tar.gz";
+            pin = "bitwarden-x86_64";
+        };
+    };
+    // The Electron runtime's shared libraries, from the foundation.
+    runtime_requires = [fedora("alsa-lib"), fedora("at-spi2-atk"), fedora("atk"), fedora("cups-libs"), fedora("gtk3"), fedora("libdrm"), fedora("libnotify"), fedora("libXScrnSaver"), fedora("libXtst"), fedora("mesa-libgbm"), fedora("nss")];
+    runtime_deps = {
+        licenses = bitwarden_licenses(builder: builder, runtime: runtime);
+    };
+    build = shell """
+        set -eu
+        cp -R "$src"/. "$out"/
+        chmod -R u+w "$out"
+        # Every shared library of the runtime and its native module resolves in
+        # the builder root, which is the foundation plus build tools.
+        missing=$(ldd "$out/bitwarden-app" "$out/desktop_proxy" \
+            "$out"/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi/desktop_napi.linux-*.node \
+            | grep 'not found' || true)
+        if [ -n "$missing" ]; then
+            echo "Bitwarden runtime library missing: $missing" >&2
+            exit 1
+        fi
+        """;
+    // The upstream launcher resolves its own directory through readlink -f.
+    export command "bitwarden" = "bitwarden";
+    config "/usr/share/applications/com.bitwarden.desktop.desktop" = template {
+        body = text """
+            [Desktop Entry]
+            Name=Bitwarden
+            Exec={{bitwarden}} %u
+            Terminal=false
+            Type=Application
+            Icon={{icon}}
+            StartupWMClass=com.bitwarden.desktop
+            GenericName=Password Manager
+            Comment=A secure and free password manager for all of your devices.
+            MimeType=x-scheme-handler/bitwarden;
+            Categories=System;Security;
+            """;
+        bindings = {
+            bitwarden = path(self, "bitwarden");
+            icon = path(self, "resources/icons/256x256.png");
+        };
+    };
+}

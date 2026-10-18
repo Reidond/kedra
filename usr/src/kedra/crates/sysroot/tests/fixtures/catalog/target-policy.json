@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "namespace": "fixture",
+  "targets": ["desktop", "qemu-arm64"],
+  "repositories": ["fedora", "updates"],
+  "required_packages": ["jq"]
+}

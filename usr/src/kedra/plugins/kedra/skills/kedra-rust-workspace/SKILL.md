@@ -189,8 +189,10 @@ Cargo. Inline scripts are ordinary resource file inputs to /bin/sh -eu; patches
 and overlays create separate owned preparation outputs and never mutate admitted
 source. Pure resource identity uses the engine's existing canonical tree records.
 Actual build checks observed Fedora44 RPM requests on retained exact images.
-Command aliases differing from output filenames get typed launchers under
-/usr/share/kedra/catalog-bin, preserving global RPM paths. Atomic plan packets
+Every command export gets a typed launcher under /usr/share/kedra/catalog-bin
+(libexec exports under catalog-libexec, off PATH; output directories never go on
+PATH), preserving global RPM paths; an export the foundation already provides
+needs `replaces` (2026-10-16, docs/PACKAGES.md#exports-and-path). Atomic plan packets
 use the closed Catalog managed-snapshot purpose and system recover. Local actual
 C/API/rebuild/transfer/preparation and installed catalog workflows pass their
 recorded scopes; production/migration release gates remain separate. Evidence:

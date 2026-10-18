@@ -3,7 +3,7 @@ name: image_contents
 description: >
   Installed-image checks that need no session: packaged desktop programs,
   validated account defaults, enabled/masked units, toolkit integration
-  packages, the private Bitwarden and Codex runtimes. Formerly the host-side
+  packages, the Bitwarden and private Codex catalog packages. Formerly the host-side
   podman checks of test-desktop.yml and part of qemu-arm64-image/image-check.sh.
 profile: system
 steps:
@@ -56,49 +56,67 @@ steps:
       name: xwaylandvideobridge does not autostart under niri
       argv: [grep, -Fx, "NotShowIn=niri;", /etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop]
   - exec:
-      name: Bitwarden is the relocated official tree without special bits
-      argv: [jq, -e, '.runtime_root == "/usr/lib/bitwarden" and .package_scripts_executed == false', /usr/share/sysroot/bitwarden.json]
-  - exec:
-      argv: [test, -x, /usr/lib/bitwarden/bitwarden-app]
-  - exec:
-      argv: [stat, -c, "%a %U:%G", /usr/lib/bitwarden/chrome-sandbox]
-      expect: {stdout: "755 root:root"}
-  - exec:
-      argv: [find, /usr/lib/bitwarden, -perm, /7000, -print, -quit]
-      expect: {stdout: ""}
-  - exec:
-      argv: [find, /usr/lib/bitwarden, "!", -type, f, "!", -type, d, -print, -quit]
-      expect: {stdout: ""}
-  - exec:
-      name: one Bitwarden desktop entry (the x86_64 RPM and arm64 tarball name it differently)
-      argv: [find, /usr/share/applications, -name, "*bitwarden*.desktop"]
-      expect: {stdout_nonempty: true}
+      name: Bitwarden is the unchanged official tree, a catalog package output
+      argv: [jq, -er, .outputs.bitwarden, /usr/share/kedra/catalog.json]
       capture:
-        bitwarden_entry: {stdout: trim}
+        bitwarden: {stdout: trim}
   - exec:
-      argv: [grep, -E, "^Exec=/usr/bin/bitwarden( |$)", "${bitwarden_entry}"]
+      argv: [test, -x, "/usr/lib/sysroot/store/${bitwarden}/bitwarden-app"]
   - exec:
-      argv: [find, /usr/share/icons/hicolor, -path, "*/apps/*bitwarden*.png"]
-      expect: {stdout_nonempty: true}
+      name: nothing in the Bitwarden tree has special permission bits or is a special file
+      argv: [find, "/usr/lib/sysroot/store/${bitwarden}", -perm, /7000, -print, -quit]
+      expect: {stdout: ""}
+  - exec:
+      argv: [find, "/usr/lib/sysroot/store/${bitwarden}", "!", -type, f, "!", -type, d, -print, -quit]
+      expect: {stdout: ""}
+  - exec:
+      name: the desktop entry starts the exact package output and names its icon
+      argv: [grep, -Fx, "Exec=/usr/lib/sysroot/store/${bitwarden}/bitwarden %u", /usr/share/applications/com.bitwarden.desktop.desktop]
+  - exec:
+      argv: [grep, -Fx, "Icon=/usr/lib/sysroot/store/${bitwarden}/resources/icons/256x256.png", /usr/share/applications/com.bitwarden.desktop.desktop]
+  - exec:
+      argv: [test, -f, "/usr/lib/sysroot/store/${bitwarden}/resources/icons/256x256.png"]
   - exec:
       name: locate the architecture's Bitwarden native module
-      argv: [find, /usr/lib/bitwarden/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi, -name, "desktop_napi.linux-*.node"]
+      argv: [find, "/usr/lib/sysroot/store/${bitwarden}/resources/app.asar.unpacked/node_modules/@bitwarden/desktop-napi", -name, "desktop_napi.linux-*.node"]
       expect: {stdout_nonempty: true}
       capture:
         napi: {stdout: trim}
   - exec:
       name: Bitwarden has every shared library
-      argv: [ldd, /usr/lib/bitwarden/bitwarden-app, /usr/lib/bitwarden/desktop_proxy, "${napi}"]
+      argv: [ldd, "/usr/lib/sysroot/store/${bitwarden}/bitwarden-app", "/usr/lib/sysroot/store/${bitwarden}/desktop_proxy", "${napi}"]
       expect: {stdout_lacks: [not found]}
   - exec:
-      name: the bundled Codex runs and reports its pinned version
-      argv: [jq, -r, .version, /usr/share/sysroot/agents/codex.json]
+      name: the corresponding Bitwarden client source and license terms ship with the image
+      argv: [jq, -er, .outputs.bitwarden_licenses, /usr/share/kedra/catalog.json]
+      capture:
+        bitwarden_licenses: {stdout: trim}
+  - exec:
+      argv: [test, -s, "/usr/lib/sysroot/store/${bitwarden_licenses}/share/licenses/bitwarden/clients-source.tar.gz"]
+  - exec:
+      argv: [test, -s, "/usr/lib/sysroot/store/${bitwarden_licenses}/share/licenses/bitwarden/LICENSE_GPL.txt"]
+  - exec:
+      name: the bundled Codex runs through its private launcher and reports its pinned version
+      argv: [jq, -er, .versions.codex, /usr/share/kedra/catalog.json]
       capture:
         codex_version: {stdout: trim}
   - exec:
-      argv: [/usr/libexec/sysroot/agents/codex/bin/codex, --version]
+      argv: [/usr/share/kedra/catalog-libexec/codex, --version]
       env: {HOME: /tmp}
       expect: {stdout: "codex-cli ${codex_version}"}
+  - exec:
+      name: Codex notices and corresponding source ship with the image
+      argv: [jq, -er, .outputs.codex_licenses, /usr/share/kedra/catalog.json]
+      capture:
+        codex_licenses: {stdout: trim}
+  - exec:
+      argv: [test, -s, "/usr/lib/sysroot/store/${codex_licenses}/share/licenses/codex/corresponding-source.tar.gz"]
+  - exec:
+      argv: [jq, -er, .outputs.codex_components, /usr/share/kedra/catalog.json]
+      capture:
+        codex_components: {stdout: trim}
+  - exec:
+      argv: [test, -s, "/usr/lib/sysroot/store/${codex_components}/share/licenses/codex-components/zsh-LICENCE"]
   - exec:
       name: the installed sysroot runs and reports its version
       argv: [sysroot, --version]

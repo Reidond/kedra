@@ -1,5 +1,31 @@
 # Verified status
 
+## Engine-built Codex and Bitwarden packages (2026-10-16)
+
+Branch claude/engine-packages-9638b9 turns the hand-packed Codex and Bitwarden
+image inputs (`image/agents/*`, `image/bitwarden/*`, `agents.tar`, `bitwarden.tar`)
+into `.kedra` packages the engine builds on both targets
+([shipped packages](PACKAGES.md#shipped-packages)): SHA-256-pinned official
+archives per architecture (`by_architecture`), unchanged trees in the store,
+license and corresponding-source libraries, `codex --version` and Bitwarden `ldd`
+in the package builds. Codex is a private `libexec` export that `sysroot codex`
+launches from `/usr/share/kedra/catalog-libexec/codex`; Bitwarden's `bitwarden`
+command and desktop entry name its exact output, and desktop now uses the official
+x64 tarball instead of the RPM. Sigstore verification of a Codex pin moved to the
+pin-update step (`image/packages/verify-codex.py`, then `pin.py`). Every command
+export is a launcher in `/usr/share/kedra/catalog-bin`, the only catalog PATH
+entry, and `catalog build`/`contribute` refuse an export that shadows a foundation
+command unless its package declares `replaces`
+([exports and PATH](PACKAGES.md#exports-and-path)). jq, SQLite and hello left the
+shipped targets and remain E2E fixtures. Local results (worklog WL-20261017-ENGINE-PACKAGES-01 and the PR): Codex pins
+re-verified with Sigstore for both architectures; the exact head's local checks
+and a qemu-arm64 full local build through the pipeline with the container
+harness are recorded in the PR. Desktop x86_64 engine builds are `not-run`: the
+engine sandbox needs user namespaces, which OrbStack's amd64 emulation does not
+provide; outside the sandbox the x86_64 Codex runs and Bitwarden x64 resolves
+every library. No release run, boot,
+installation or publication follows from these results.
+
 ## Engine binary cache (2026-10-18)
 
 Branch claude/engine-cache-ghcr adds the [binary cache](ENGINE.md#binary-cache):

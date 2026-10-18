@@ -21,11 +21,26 @@ the packaged integration; actual logged-out startup passed the desktop VM. Owner
 
 Desktop 2026.8.0 inspection (2026-09-08, R06): the official native RPM puts
 regular application files in /opt/Bitwarden and its launcher resolves its own
-path. Build preparation relocates unchanged runtime files to /usr/lib/bitwarden
-for bootc, retaining notices/source. Never run its conditional setuid/AppArmor
-RPM scripts on the workstation. Native sandbox startup and socket propagation
-have desktop VM coverage; syntax/layout checks alone do not pass authentication.
-See usr/src/kedra/image/bitwarden/README.md and usr/src/kedra/docs/STATUS.md for scope and pinned inputs.
+path. Never run its conditional setuid/AppArmor RPM scripts on the workstation.
+Native sandbox startup and socket propagation have desktop VM coverage (RPM
+layout); syntax/layout checks alone do not pass authentication.
+
+Since 2026-10-16 Bitwarden is the `bitwarden` catalog package
+(usr/src/kedra/image/packages/bitwarden.kedra): the unchanged official Linux
+tarball per architecture (`bitwarden_2026.8.0_x64.tar.gz`, `_arm64.tar.gz`; the
+two differ only in the desktop-napi module name), SHA-256-pinned, in the engine
+store. The `bitwarden` command is the catalog launcher
+/usr/share/kedra/catalog-bin/bitwarden; the desktop entry
+/usr/share/applications/com.bitwarden.desktop.desktop names the exact output for
+Exec= and Icon=. The package build runs `ldd` over bitwarden-app, desktop_proxy
+and the native module in the builder root and declares the Electron libraries as
+runtime_requires; the harness repeats `ldd` on the installed image. Store files
+are 0555/0444 root-owned, so chrome-sandbox is never setuid and Chromium uses its
+namespace sandbox. The x86_64 tarball replaces the RPM, so desktop now has the
+tarball's entry (StartupWMClass com.bitwarden.desktop); logged-out start on
+x86_64 with this layout needs a new desktop run. SSH agent integration
+(etc/profile.d/kedra-bitwarden.sh, usr/libexec/kedra-session) is unchanged.
+See usr/src/kedra/docs/PACKAGES.md#shipped-packages and usr/src/kedra/docs/STATUS.md for scope and pins.
 
 Select the intended GitHub identity with a public-key file and SSH IdentityAgent,
 IdentityFile and IdentitiesOnly. The private half stays with Bitwarden. This

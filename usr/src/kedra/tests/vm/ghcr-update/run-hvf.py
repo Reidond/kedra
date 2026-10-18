@@ -212,7 +212,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--binaries', type=Path, required=True, help='Directory with Linux aarch64 sysroot and sysroot-helper')
     parser.add_argument('--work', type=Path, required=True, help='New directory for fixture, disk and evidence')
-    parser.add_argument('--runtime', type=Path, default=Path.home() / 'Library/Caches/kedra/qemu/runtime')
+    parser.add_argument('--runtime', type=Path, default=ROOT / 'target/kedra-lab/qemu/runtime',
+                        help='kedra-lab vm tools prepare runtime (default: this checkout\'s)')
     parser.add_argument('--keep-on-failure', action='store_true',
                         help='After a failure keep the Docker resources and generated keys for inspection')
     args = parser.parse_args()

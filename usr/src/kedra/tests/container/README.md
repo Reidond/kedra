@@ -44,7 +44,7 @@ Settings are environment variables for `cargo test`, or flags for `kedra-lab`:
 | `KEDRA_LAB_OVERLAY` / `--overlay` | `worktree` (layer the working tree), `none` | `worktree`; `none` for `build` |
 | `KEDRA_LAB_BINARIES` / `--binaries` | directory with Linux `sysroot` and `sysroot-helper` (overlays and full local builds; they must be the stage's own) | built in this checkout's Cargo volume |
 | `KEDRA_LAB_ARTIFACTS` | output directory | `target/kedra-lab` |
-| `KEDRA_QEMU_HOME` | native QEMU runtime and retained VM root | durable per-user paths (see `qemu/README.md`) |
+| `KEDRA_QEMU_HOME` | native QEMU runtime and retained VM root | `target/kedra-lab/qemu` (see `qemu/README.md`) |
 | `KEDRA_LAB_KEEP` | `never`, `failed`, `always` | `never` |
 
 One worker remains the default; one or two workers are supported. Every case still
@@ -158,7 +158,7 @@ cargo run -p kedra-container-tests --bin kedra-lab -- up
 | `exec [--root] -- CMD…` | Runs a command in the session, as the test account unless `--root`. |
 | `logs` | Saves the journal, unit, session and process state. |
 | `ls`, `down` | List this checkout's harness containers, and remove a retained environment. |
-| `clean` | Removes everything this checkout's harness created: every container, image and volume labeled `kedra.checkout=<id>`, its scoped image tags, the engine images its `sysroot derive` state binds (the engine refuses a `kedra-<kind>:<identity>` tag whose binding is gone, so they go together), and the large trees under `target/kedra-lab/` (`cache`, `derive`, `composition`, `native`; sealed store objects are made writable first). Run reports and screenshots stay. Pulled images stay unlabeled, because a label would change the image under test; each pull the harness makes is appended to `target/kedra-lab/pulled-images.txt` with the image ID and repository digests it resolved to, to remove by exact ID once no other checkout uses it. `clean` does not remove them: other checkouts and tools share pulled images by content and record their use nowhere this checkout can read, so deleting one could pull it from under a concurrent run. `clean --execution <id>` removes only one execution's containers. |
+| `clean` | Removes everything this checkout's harness created: every container, image and volume labeled `kedra.checkout=<id>`, its scoped image tags, the engine images its `sysroot derive` state binds (the engine refuses a `kedra-<kind>:<identity>` tag whose binding is gone, so they go together), and the large trees under `target/kedra-lab/` (`cache`, `derive`, `composition`, `native`; sealed store objects are made writable first). Run reports and screenshots stay. Pulled images stay unlabeled, because a label would change the image under test; each pull the harness makes is appended to `target/kedra-lab/pulled-images.txt` with the image ID and repository digests it resolved to, to remove by exact ID once no other checkout uses it. `clean` does not remove them: other checkouts and tools share pulled images by content and record their use nowhere this checkout can read, so deleting one could pull it from under a concurrent run. It also removes the native VM's stopped instances, prepared disks and runtime build tree (`target/kedra-lab/qemu`; `--vm-runtime` also removes the built QEMU runtime). `clean --execution <id>` removes only one execution's containers. |
 | `image` | Resolves and builds the lab image, and prints its provenance. |
 
 A typical desktop change:

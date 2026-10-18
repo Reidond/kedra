@@ -204,13 +204,11 @@ def resolved_inputs(root, source, base, context, binaries, rpm_lock_data, target
         'Containerfile', 'assemble.sh', 'catalog/install-rpms.sh', 'release/Containerfile',
         'release/compose.py', 'release/prepare-trust.py', 'release/refresh.py', 'release/material.py',
         'release/targets.json',
-        'release/compatibility.json', 'agents/prepare.sh', 'agents/package.py',
-        'agents/fetch.py', 'agents/pins.py', 'agents/inputs.json', 'bitwarden/prepare.py',
-        'bitwarden/inputs.json')]
+        'release/compatibility.json')]
     recipes.extend(('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml',
                     '.github/workflows/release.yml', '.github/workflows/release-target.yml',
                     spec['public_key'], spec['key_sha256']))
-    artifacts = {name: context / name for name in ('sysroot', 'sysroot-helper', 'agents.tar', 'bitwarden.tar')}
+    artifacts = {name: context / name for name in ('sysroot', 'sysroot-helper')}
     if catalog is not None:
         require(isinstance(catalog, dict) and set(catalog) == {'pins'}, 'Unsupported catalog material inputs')
         pins_data = read(catalog['pins'])

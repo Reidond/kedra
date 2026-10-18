@@ -2,16 +2,16 @@
 //!
 //! Replays the Actions candidate build (release-target.yml) in disposable
 //! containers: Linux `sysroot` binaries and `sysroot source archive` in the Rust
-//! builder, the pinned Codex and Bitwarden inputs through the same preparation
-//! scripts in a Fedora builder, then the stage's own foundation
-//! (usr/src/kedra/image/Containerfile and assemble.sh) on the resolved Fedora
-//! bootc base, installed offline from an RPM lock the host `sysroot catalog lock`
-//! resolves. The stage's own `sysroot` then composes that foundation with the
-//! committed payload and derives the image steps of the target's `.kedra` block,
-//! as the release does; catalog source packages are not built locally. Stages
-//! from before the engine pipeline build their complete image in the
-//! Containerfile instead. The result is a local, unsigned candidate: never
-//! pushed, signed or installed; release identity layers are not added.
+//! builder, then the stage's own foundation (usr/src/kedra/image/Containerfile
+//! and assemble.sh) on the resolved Fedora bootc base, installed offline from an
+//! RPM lock the host `sysroot catalog lock` resolves. The stage's own `sysroot`
+//! then builds the target's catalog packages (Codex, Bitwarden) and contributes
+//! them with the release's public preflight material, composes that foundation
+//! with the committed payload and the contribution, and derives the image steps
+//! of the target's `.kedra` block, as the release does. Stages from before the
+//! engine pipeline build their complete image in the Containerfile instead. The
+//! result is a local, unsigned candidate: never pushed, signed or installed;
+//! release identity layers are not added.
 
 use std::fs;
 use std::io::Read;
@@ -19,9 +19,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
+use testcontainers::ImageExt;
 use testcontainers::core::{AccessMode, Mount};
 use testcontainers::runners::SyncRunner;
-use testcontainers::{GenericImage, ImageExt};
 
 use crate::builder::{self, Stage, content_key};
 use crate::docker::{self, Build, Docker, Exec};
@@ -29,20 +29,6 @@ use crate::image::Target;
 use crate::{Result, artifact_root, invalid};
 
 const BASE_TAG: &str = "quay.io/fedora/fedora-bootc:44";
-
-fn inputs_image(docker: &Docker, platform: &str) -> Result<GenericImage> {
-    let containerfile = crate::harness_dir().join("lab/inputs.Containerfile");
-    let key = content_key(&[&fs::read(&containerfile)?, platform.as_bytes()]);
-    docker.build(&Build {
-        tag: &format!("kedra-lab-inputs:{key}"),
-        what: "local-build input preparation",
-        containerfile: &containerfile,
-        files: &[],
-        args: &[],
-        platform,
-    })?;
-    Ok(GenericImage::new("kedra-lab-inputs", &key))
-}
 
 /// Run the host `sysroot` with explicit arguments.
 fn host_sysroot(sysroot: &Path, args: &[&std::ffi::OsStr]) -> Result<()> {
@@ -66,7 +52,7 @@ fn locked_rpms(
     target: &Target,
     base: &str,
     context: &Path,
-) -> Result<Vec<(String, PathBuf)>> {
+) -> Result<(Vec<(String, PathBuf)>, PathBuf)> {
     let sysroot = builder::prepare_archiver(cache)?;
     let store = cache.join("rpm-store");
     let digest = base.rsplit(':').next().unwrap_or_default();
@@ -132,7 +118,7 @@ fn locked_rpms(
             repository.join("packages").join(&name),
         ));
     }
-    Ok(files)
+    Ok((files, lock))
 }
 
 /// Whether the stage's committed source declares image steps for `sysroot
@@ -183,6 +169,156 @@ fn engine_string(value: &serde_json::Value, pointer: &str) -> Result<String> {
         .ok_or_else(|| invalid(format!("engine result lacks {pointer}")))
 }
 
+/// The release's catalog steps (release-target.yml, "Build changed image"), as
+/// the ordinary user in the engine container: the runtime and builder roots from
+/// the run's RPM lock over its Fedora base (all locked RPMs fetched into the
+/// container's store), the reviewed archives through image/catalog/prepare-sources.py, every
+/// selected package build, then the contribution with the public preflight
+/// material image/release/material.py records for the release. Prints
+/// `{"definition": path}`, or `{}` when the target selects no package.
+const CATALOG: &str = r#"set -euo pipefail
+target=$1 foundation=$2 base=$3 revision=$4
+store=$HOME/store
+image=/snapshot/usr/src/kedra/image
+work=$HOME/catalog
+lock=$HOME/rpm-lock.json
+context=$HOME/context
+mkdir -m 700 "$work"
+language=(--input-root "$image/packages" --entry catalog.kedra --target "$target"
+    --lock packages.lock.json --target-policy "$image/package-policy.json")
+pins=$work/catalog-pins.json
+sysroot catalog pins "${language[@]}" > "$pins"
+if test "$(jq '.packages | length' "$pins")" = 0; then
+    echo '{}'
+    exit 0
+fi
+sysroot source plan --repo /snapshot --host "$target" --json > "$work/source-plan.json"
+uv run --quiet --no-project python - "$work/source-plan.json" "$base" "$context" "$lock" "$target" "$pins" \
+    > "$work/resolved-inputs.json" <<'PY'
+import pathlib, sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, '/snapshot/usr/src/kedra/image/release')
+import material as m
+plan, base, context, lock, target, pins = sys.argv[1:]
+context = pathlib.Path(context)
+inputs = m.resolved_inputs(pathlib.Path('/snapshot'), m.document(m.read(pathlib.Path(plan))), base, context,
+                           context, m.read(pathlib.Path(lock), m.LOCK_LIMIT), target, catalog={'pins': pathlib.Path(pins)})
+sys.stdout.buffer.write(m.canonical(inputs))
+PY
+# Package identities follow the Fedora material, as in the release: the runtime
+# root is the lock's base plus its foundation role, each builder root the base
+# plus one builder role, installed offline from the lock's RPMs.
+sysroot catalog lock fetch --store "$store" --lock "$lock" > /dev/null
+base_id=$(docker image inspect --format '{{.Id}}' "$base")
+sysroot store add-image --store "$store" --image "$base_id" > /dev/null
+runtime=$(sysroot store add-root --store "$store" --image "$base_id" --lock "$lock" | jq -er .root)
+jq -n --arg runtime "$runtime" '{runtime:$runtime,builders:{}}' > "$work/resolution.json"
+for role in $(jq -r '.builders | keys[]' "$pins"); do
+    root=$(sysroot store add-root --store "$store" --image "$base_id" --lock "$lock" --builder "$role" | jq -er .root)
+    jq --arg role "$role" --arg root "$root" '.builders[$role]=$root' "$work/resolution.json" > "$work/resolution.next.json"
+    mv "$work/resolution.next.json" "$work/resolution.json"
+done
+jq --slurpfile resolution "$work/resolution.json" \
+    '{namespace:.namespace,packages:(.packages|keys),builder_roots:($resolution[0].builders|[.[]]|unique),runtime_roots:[$resolution[0].runtime],source_objects:(.archives|keys)}' \
+    "$pins" > "$work/policy.json"
+uv run --quiet "$image/catalog/prepare-sources.py" --pins "$pins" --output "$work/sources" >&2
+for expected in $(jq -r 'keys[]' "$work/sources/sources.json"); do
+    source=$(jq -er --arg object "$expected" '.[$object]' "$work/sources/sources.json")
+    test "$(sysroot store add-source --store "$store" --source "$source" | jq -er .object)" = "$expected"
+done
+for package in $(jq -r '.packages | keys[]' "$pins"); do
+    sysroot catalog build --store "$store" --package "$package" "${language[@]}" \
+        --policy "$work/policy.json" --resolution "$work/resolution.json" > "$work/$package-build.json"
+done
+material=$(sha256sum "$work/resolved-inputs.json" | cut -d ' ' -f 1)
+sysroot catalog contribute --store "$store" "${language[@]}" --resolution "$work/resolution.json" \
+    --foundation "$foundation" --policy "$work/policy.json" --source-revision "$revision" \
+    --input-material "$work/resolved-inputs.json" --expected-input-material-sha256 "$material" \
+    --output-dir "$work/contribution" > /dev/null
+jq -n --arg definition "$work/contribution/system.json" '{definition:$definition}'
+"#;
+
+/// Build and contribute the stage's catalog packages in the engine container;
+/// the definition path in the container, or none when nothing is selected.
+fn catalog_definition(
+    docker: &Docker,
+    container: &str,
+    target: &Target,
+    build: &EngineBuild<'_>,
+) -> Result<Option<String>> {
+    // The release material names the run's binaries and RPM lock; the catalog
+    // author must be the binary that contributes.
+    for (path, file, mode) in [
+        ("/home/kedra/rpm-lock.json", build.lock, "0644"),
+        ("/home/kedra/context/sysroot", build.sysroot, "0755"),
+        ("/home/kedra/context/sysroot-helper", build.helper, "0755"),
+    ] {
+        docker.write_file(container, path, &fs::read(file)?, "kedra", mode)?;
+    }
+    let result = engine_json(
+        docker,
+        container,
+        &[
+            "bash",
+            "-c",
+            CATALOG,
+            "catalog",
+            &target.id,
+            build.foundation,
+            build.base,
+            build.revision,
+        ],
+        120,
+    )?;
+    Ok(result["definition"].as_str().map(str::to_owned))
+}
+
+/// Key of a derived image: its foundation's key, plus what the engine steps read
+/// that neither the payload nor the foundation context carries (the catalog
+/// tooling, release material code and this file's catalog steps).
+fn engine_key(foundation: &str, snapshot: &Path) -> Result<String> {
+    let mut files = Vec::new();
+    for directory in ["usr/src/kedra/image/catalog", "usr/src/kedra/image/release"] {
+        collect_files(&snapshot.join(directory), &mut files)?;
+    }
+    files.sort();
+    let mut parts = vec![foundation.as_bytes().to_vec(), CATALOG.as_bytes().to_vec()];
+    for path in files {
+        let relative = path.strip_prefix(snapshot).unwrap_or(&path);
+        parts.push(relative.to_string_lossy().into_owned().into_bytes());
+        parts.push(builder::file_sha256(&path)?.into_bytes());
+    }
+    let parts: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
+    Ok(content_key(&parts))
+}
+
+fn collect_files(directory: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    if !directory.is_dir() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(directory)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_files(&path, files)?;
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
+/// The stage's inputs to its engine steps.
+struct EngineBuild<'a> {
+    sysroot: &'a Path,
+    helper: &'a Path,
+    snapshot: &'a Path,
+    lock: &'a Path,
+    foundation: &'a str,
+    base: &'a str,
+    revision: &'a str,
+    reference: &'a str,
+}
+
 /// Compose the foundation with the snapshot's committed payload and derive the
 /// target's declared image steps with the stage's own Linux `sysroot`, in a
 /// disposable builder container that reaches this lab's Docker engine. The
@@ -191,14 +327,14 @@ fn engine_string(value: &serde_json::Value, pointer: &str) -> Result<String> {
 /// a user in the socket's group. Composition observes the foundation in the
 /// engine's bubblewrap sandbox, which needs unprivileged user namespaces, a
 /// fresh `/proc` and `/dev` inside this container.
-fn engine_image(
-    docker: &Docker,
-    target: &Target,
-    sysroot: &Path,
-    snapshot: &Path,
-    foundation: &str,
-    reference: &str,
-) -> Result<()> {
+fn engine_image(docker: &Docker, target: &Target, build: &EngineBuild<'_>) -> Result<()> {
+    let EngineBuild {
+        sysroot,
+        snapshot,
+        foundation,
+        reference,
+        ..
+    } = *build;
     eprintln!(
         "kedra-lab: composing and deriving {} through the engine",
         target.id
@@ -264,27 +400,27 @@ fn engine_image(
         ],
         60,
     )?;
+    let definition = catalog_definition(docker, &id, target, build)?;
     let context = "/home/kedra/composition";
-    let composed = engine_json(
-        docker,
-        &id,
-        &[
-            "sysroot",
-            "system",
-            "compose",
-            "--repo",
-            "/snapshot",
-            "--target",
-            &target.id,
-            "--store",
-            store,
-            "--foundation",
-            foundation,
-            "--output-dir",
-            context,
-        ],
-        60,
-    )?;
+    let mut compose = vec![
+        "sysroot",
+        "system",
+        "compose",
+        "--repo",
+        "/snapshot",
+        "--target",
+        &target.id,
+        "--store",
+        store,
+        "--foundation",
+        foundation,
+        "--output-dir",
+        context,
+    ];
+    if let Some(definition) = &definition {
+        compose.extend(["--definition", definition.as_str()]);
+    }
+    let composed = engine_json(docker, &id, &compose, 60)?;
     let identity = engine_string(&composed, "/identity")?;
     let state = "/home/kedra/derive";
     let common = [
@@ -311,8 +447,15 @@ fn engine_image(
     Ok(())
 }
 
-/// Build the stage's OS image and return its local reference.
-pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result<String> {
+/// Build the stage's OS image and return its local reference. `binaries`
+/// (`KEDRA_LAB_BINARIES`) are the stage's own Linux `sysroot` and helper, built
+/// elsewhere; without them the lab builder compiles them in its shared Cargo volume.
+pub fn local(
+    docker: &Docker,
+    target: &Target,
+    revision: Option<&str>,
+    binaries: Option<&Path>,
+) -> Result<String> {
     let stage = match revision {
         Some(revision) => Stage::Revision(revision.to_owned()),
         None => Stage::Worktree,
@@ -325,7 +468,7 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
         &target.id,
         &target.architecture,
         &stage,
-        None,
+        binaries,
         &cache,
     )?;
 
@@ -358,67 +501,7 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
     fs::copy(&outputs.helper, context.join("sysroot-helper"))?;
     fs::copy(&outputs.payload, context.join("payload.tar"))?;
 
-    // 3. Pinned Codex and Bitwarden inputs through the Actions scripts.
-    let agents = context.join("agents.tar");
-    let bitwarden = context.join("bitwarden.tar");
-    if !agents.is_file() || !bitwarden.is_file() {
-        eprintln!(
-            "kedra-lab: preparing pinned Codex and Bitwarden inputs for {}",
-            target.id
-        );
-        let container = inputs_image(docker, &platform)?
-            .with_cmd(["sleep", "infinity"])
-            .with_label(docker::OWNER_LABEL, docker::OWNER)
-            .with_label(docker::KIND_LABEL, "builder")
-            .with_env_var("KEDRA_LOCAL_BUILDER", "1")
-            .with_env_var("RUNNER_TEMP", "/tmp")
-            .with_mount(
-                Mount::bind_mount(snapshot.to_string_lossy(), "/src")
-                    .with_access_mode(AccessMode::ReadOnly),
-            )
-            .with_startup_timeout(Duration::from_secs(120))
-            .start()?;
-        let id = container.id().to_owned();
-        let steps: [&[&str]; 3] = [
-            &["mkdir", "-p", "/context", "/evidence"],
-            &[
-                "bash",
-                "usr/src/kedra/image/agents/prepare.sh",
-                &target.id,
-                "/context",
-                "/tmp/kedra-agent-inputs",
-                "/evidence/agent-inputs.json",
-            ],
-            &[
-                "uv",
-                "run",
-                "usr/src/kedra/image/bitwarden/prepare.py",
-                "--target",
-                &target.id,
-                "--context",
-                "/context",
-                "--evidence",
-                "/evidence/bitwarden-inputs.json",
-            ],
-        ];
-        for argv in steps {
-            let mut exec = Exec::new(argv.iter().copied()).timeout(Duration::from_secs(20 * 60));
-            exec.workdir = Some("/src".into());
-            exec.env = vec![("UV_CACHE_DIR".into(), "/tmp/uv-cache".into())];
-            docker.run(&id, &exec)?;
-        }
-        fs::write(&agents, docker.read_file(&id, "/context/agents.tar")?)?;
-        fs::write(&bitwarden, docker.read_file(&id, "/context/bitwarden.tar")?)?;
-        for evidence in ["agent-inputs.json", "bitwarden-inputs.json"] {
-            fs::write(
-                context.join(evidence),
-                docker.read_file(&id, &format!("/evidence/{evidence}"))?,
-            )?;
-        }
-        container.rm()?;
-    }
-
-    // 4. Resolve the Fedora bootc base to one platform digest, then build.
+    // 3. Resolve the Fedora bootc base to one platform digest, then build.
     docker.pull(BASE_TAG, &platform)?;
     let (image_id, digests) = docker
         .image(BASE_TAG)?
@@ -427,14 +510,7 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
         .into_iter()
         .find(|digest| digest.starts_with("quay.io/fedora/fedora-bootc@"))
         .unwrap_or(image_id);
-    let mut names = vec![
-        "sysroot",
-        "sysroot-helper",
-        "payload.tar",
-        "agents.tar",
-        "bitwarden.tar",
-        "assemble.sh",
-    ];
+    let mut names = vec!["sysroot", "sysroot-helper", "payload.tar", "assemble.sh"];
     if locked {
         names.push("install-rpms.sh");
     }
@@ -442,9 +518,12 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
         .iter()
         .map(|name| ((*name).to_owned(), context.join(name)))
         .collect();
-    // 5. Stages that install offline get the run's RPM lock and foundation repository.
+    // 4. Stages that install offline get the run's RPM lock and foundation repository.
+    let mut lock = None;
     if locked {
-        files.extend(locked_rpms(&cache, &snapshot, target, &base, &context)?);
+        let (repository, path) = locked_rpms(&cache, &snapshot, target, &base, &context)?;
+        files.extend(repository);
+        lock = Some(path);
     }
     let mut key_parts: Vec<Vec<u8>> = vec![
         base.as_bytes().to_vec(),
@@ -455,7 +534,11 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
     }
     let parts: Vec<&[u8]> = key_parts.iter().map(Vec::as_slice).collect();
     let key = content_key(&parts);
-    let reference = format!("kedra-local-{}:{key}", target.id);
+    let reference = if engine {
+        format!("kedra-local-{}:{}", target.id, engine_key(&key, &snapshot)?)
+    } else {
+        format!("kedra-local-{}:{key}", target.id)
+    };
     if engine && docker.image(&reference)?.is_some() {
         eprintln!("kedra-lab: {reference} is cached");
         fs::remove_dir_all(&snapshot)?;
@@ -478,13 +561,21 @@ pub fn local(docker: &Docker, target: &Target, revision: Option<&str>) -> Result
         let (foundation, _) = docker
             .image(&built)?
             .ok_or_else(|| invalid(format!("{built} is missing after its build")))?;
+        let lock =
+            lock.ok_or_else(|| invalid("engine-pipeline stages install from an RPM lock"))?;
         engine_image(
             docker,
             target,
-            &outputs.sysroot,
-            &snapshot,
-            &foundation,
-            &reference,
+            &EngineBuild {
+                sysroot: &outputs.sysroot,
+                helper: &outputs.helper,
+                snapshot: &snapshot,
+                lock: &lock,
+                foundation: &foundation,
+                base: &base,
+                revision: &outputs.snapshot_commit,
+                reference: &reference,
+            },
         )?;
     }
     fs::remove_dir_all(&snapshot)?;

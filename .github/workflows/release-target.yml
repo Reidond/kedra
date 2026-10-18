@@ -72,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends podman skopeo rpm cpio openssl
+          sudo apt-get install -y --no-install-recommends podman skopeo openssl
           authority="usr/src/kedra/image/release/authority/$KEDRA_TARGET"
           if ! test -f "$authority.pub" || ! test -f "$authority.sha256"; then
             echo "The $KEDRA_TARGET public signing authority is not provisioned"; exit 1
@@ -95,8 +95,6 @@ jobs:
           printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
           sudo mkdir -p /etc/containers/registries.d
           sudo cp output/release-context/trust/registries.yaml /etc/containers/registries.d/kedra.yaml
-          bash usr/src/kedra/image/agents/prepare.sh "$KEDRA_TARGET" "$context" "$RUNNER_TEMP/kedra-agent-inputs" output/image-evidence/agent-inputs.json
-          uv run usr/src/kedra/image/bitwarden/prepare.py --target "$KEDRA_TARGET" --context "$context" --evidence output/image-evidence/bitwarden-inputs.json
       # The run's only Fedora package resolution: every later build installs
       # offline from this RPM lock's fixed-output store objects.
       - name: Resolve the RPM lock and compare strictly verified stable image

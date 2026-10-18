@@ -136,20 +136,20 @@ Both release targets build the same way, natively on their own runner
 1. Lock: `sysroot catalog lock resolve` resolves every Fedora RPM once
    ([package delivery](PACKAGES.md#fedora-rpm-lock)).
 2. Foundation: `image/Containerfile` and `assemble.sh` install the locked RPMs
-   offline over the Fedora bootc base and add the binaries, the committed payload,
-   the private agents and Bitwarden. `assemble.sh` checks the Bitwarden runtime
-   libraries, validates the niri and Noctalia baselines, names the OS Kedra in
+   offline over the Fedora bootc base and add the binaries and the committed
+   payload. `assemble.sh` validates the niri and Noctalia baselines, names the OS Kedra in
    `os-release`, records the RPM material and runs `sysroot --version`. It applies
    no image step.
 3. Packages: the catalog builders and `sysroot catalog build|contribute` realize
-   the target's `.kedra` source packages.
+   the target's `.kedra` packages (Codex and Bitwarden Desktop, from pinned
+   official archives) and refuse an export that would shadow a foundation command.
 4. Compose: `sysroot system compose` with that contribution.
 5. Derive: `sysroot derive build` applies the target's declared steps.
 6. Trust layer: `image/release/Containerfile` adds the signed-update identity and
    public trust, and runs `bootc container lint`.
 
-The lab's full local build (`KEDRA_LAB_IMAGE=build`) replays steps 1, 2, 4 and 5
-without catalog packages or the trust layer.
+The lab's full local build (`KEDRA_LAB_IMAGE=build`) replays steps 1 to 5,
+without the trust layer.
 
 See [package declarations](PACKAGES.md), [engine operations](ENGINE.md),
 [architecture](ARCHITECTURE.md), [actual status](STATUS.md), and the

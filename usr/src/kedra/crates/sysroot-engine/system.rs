@@ -230,6 +230,66 @@ impl Store {
         })
     }
 
+    /// The subset of `names` the retained foundation image provides as commands
+    /// in its default PATH directories (any entry, including alternatives symlinks).
+    pub fn foundation_commands(
+        &self,
+        foundation: &str,
+        names: &BTreeSet<String>,
+    ) -> Result<BTreeSet<String>> {
+        self.verify_image(foundation)?;
+        let root = self.image_root(foundation)?;
+        self.root_commands(&root, names)
+    }
+
+    /// The same probe in an existing store root, such as a package runtime root.
+    pub fn root_commands(&self, root: &str, names: &BTreeSet<String>) -> Result<BTreeSet<String>> {
+        if names.is_empty() {
+            return Ok(BTreeSet::new());
+        }
+        if names.iter().any(|name| {
+            name.is_empty()
+                || name.len() > 128
+                || name.starts_with(['-', '.'])
+                || !name
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"+._-".contains(&b))
+        }) {
+            return Err(Error::Invalid("invalid command name".into()));
+        }
+        // Names are positional arguments, never shell source.
+        let script = "for name do for dir in /usr/local/bin /usr/local/sbin /usr/bin /usr/sbin /bin /sbin; do if [ -e \"$dir/$name\" ] || [ -L \"$dir/$name\" ]; then printf '%s\\n' \"$name\"; break; fi; done; done";
+        let mut argv = vec![
+            "/usr/bin/sh".into(),
+            "-c".into(),
+            script.into(),
+            "foundation-commands".into(),
+        ];
+        argv.extend(names.iter().cloned());
+        let result = executor::checked(executor::execute(
+            self,
+            executor::Execution {
+                root,
+                mounts: &[],
+                output: None,
+                argv: &argv,
+                env: &BTreeMap::new(),
+                seconds: 120,
+            },
+        )?)?;
+        let found: BTreeSet<String> = String::from_utf8(result.stdout)
+            .map_err(|_| Error::Invalid("command probe output is not UTF-8".into()))?
+            .lines()
+            .map(str::to_owned)
+            .collect();
+        if !found.is_subset(names) {
+            return Err(Error::Invalid(
+                "command probe returned unrequested names".into(),
+            ));
+        }
+        Ok(found)
+    }
+
     pub fn plan_system(&self, definition: &SystemDefinition) -> Result<SystemPlan> {
         validate_definition(definition)?;
         let mut definition = definition.clone();

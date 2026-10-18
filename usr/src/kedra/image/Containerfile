@@ -7,8 +7,6 @@ FROM ${BASE_IMAGE}
 COPY sysroot /usr/bin/sysroot
 COPY sysroot-helper /usr/libexec/sysroot/helper
 ADD payload.tar /
-ADD agents.tar /
-ADD bitwarden.tar /
 COPY assemble.sh /tmp/kedra-assemble.sh
 COPY install-rpms.sh /tmp/kedra-install-rpms.sh
 # rpms/ is the offline repository of this run's RPM lock: bound for this step

@@ -327,6 +327,10 @@ fn main() -> ExitCode {
         .is_ok_and(|value| value.trim().starts_with("composition:"));
     let derivation_identity = std::env::var("KEDRA_LAB_DERIVATION_IDENTITY").ok();
     let derivation_source = derivation_identity.is_some();
+    let local_build = std::env::var("KEDRA_LAB_IMAGE").is_ok_and(|value| {
+        let value = value.trim();
+        value == "build" || value.starts_with("build:")
+    });
     if derivation_source && !composition_source {
         eprintln!(
             "container tests: KEDRA_LAB_DERIVATION_IDENTITY requires composition source; nothing was provisioned"
@@ -336,11 +340,14 @@ fn main() -> ExitCode {
     bodies.extend(
         native::TESTS
             .iter()
-            .filter(|test| test.source.applies(composition_source, derivation_source))
+            .filter(|test| {
+                test.source
+                    .applies(composition_source, derivation_source, local_build)
+            })
             .map(|test| (format!("native::{}", test.name), Body::Native(test))),
     );
     if composition_source {
-        bodies.retain(|(_, body)| matches!(body, Body::Native(test) if test.source.applies(true, derivation_source)));
+        bodies.retain(|(_, body)| matches!(body, Body::Native(test) if test.source.applies(true, derivation_source, false)));
     }
     if args.list {
         let trials = bodies

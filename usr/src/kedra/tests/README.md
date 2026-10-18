@@ -46,7 +46,7 @@ A candidate is `docker:REF` (for example the full local build `kedra-lab image -
 
 | Driver | Coverage | Host |
 |---|---|---|
-| `usr/src/kedra/tests/agents/run.py` | Real agent launcher/runtime/profile behavior with generated profiles | Native x86_64 or aarch64, offline, after `image/agents/fetch.py` and `package.py` |
+| `usr/src/kedra/tests/agents/run.py` | Real agent launcher/runtime/profile behavior with generated profiles | An installed Kedra or lab image (bundled Codex catalog package) and a separately obtained official Codex as `--personal` |
 | `vm/ghcr-update/run.sh --disposable-host --work DIR` | Direct signed registry check/stage through bootc's signature policy, A/B/rollback with hold, identity recovery and signature, scope and downgrade refusals, under UEFI Secure Boot; firmware refusal of the same disk without Microsoft keys | x86_64 with KVM, after `cargo build --workspace --release --locked` |
 | `vm/ghcr-update/run-hvf.py --binaries DIR --work NEW_DIR` | The same guest cases for the qemu-arm64 target | Apple Silicon Mac: local Docker engine and the `kedra-lab vm tools prepare` runtime (HVF); DIR holds Linux aarch64 `sysroot` and `sysroot-helper` |
 | `vm/ghcr-update/run-arm64.sh --disposable-host --work DIR` | The composed qemu-arm64 image: public installer refusals, encrypted Anaconda installation and signed A/B/A with persistent home and data | aarch64, KVM or TCG; `--local-fixture` mode runs in the controller container ([RELEASES](../docs/RELEASES.md)) |

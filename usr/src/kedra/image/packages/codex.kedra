@@ -1,0 +1,77 @@
+language 1;
+// The official Codex package, unchanged, as the private runtime of `sysroot codex`.
+// Each archive pin is checked against the release workflow's Sigstore signatures
+// when it is added or bumped (verify-codex.py, docs/PACKAGES.md); builds then
+// trust the SHA-256 pin alone.
+library codex_licenses(builder: Builder, runtime: Foundation) {
+    version = "0.153.4";
+    summary = "Codex license, notices and corresponding source";
+    license = "Apache-2.0";
+    source = archive {
+        url = "https://codeload.github.com/openai/codex/tar.gz/3d2ee51ca2d5db578f328aa75e20aa22c0197c9a";
+        pin = "codex-source";
+    };
+    build = shell """
+        set -eu
+        licenses="$out/share/licenses/codex"
+        mkdir -p "$licenses"
+        cp "$src/LICENSE" "$licenses/LICENSE"
+        cp "$src/NOTICE" "$licenses/NOTICE"
+        cp "$src/codex-rs/vendor/bubblewrap/COPYING" "$licenses/bubblewrap-COPYING"
+        cp "$src/codex-rs/shell-escalation/patches/zsh-exec-wrapper.patch" "$licenses/zsh-exec-wrapper.patch"
+        tar --sort=name --format=gnu --mtime=@0 --owner=0 --group=0 --numeric-owner \
+            --transform 's,^\.,codex-3d2ee51ca2d5db578f328aa75e20aa22c0197c9a,' \
+            -C "$src" -cf - . | gzip -9n > "$licenses/corresponding-source.tar.gz"
+        """;
+    export files "licenses" = "share/licenses/codex";
+}
+library codex_components(builder: Builder, runtime: Foundation) {
+    version = "0.153.4";
+    summary = "Licenses of the components in the official Codex package";
+    license = "zsh, MIT, Unlicense and BSD-3-Clause";
+    // ripgrep 15.2.0, PCRE2 10.45, zsh and ratatui 0.30.2, from their pinned
+    // upstream commits (notices/codex).
+    source = files {
+        "zsh-LICENCE" = file("./notices/codex/zsh-LICENCE");
+        "ripgrep-LICENSE-MIT" = file("./notices/codex/ripgrep-LICENSE-MIT");
+        "ripgrep-UNLICENSE" = file("./notices/codex/ripgrep-UNLICENSE");
+        "ripgrep-COPYING" = file("./notices/codex/ripgrep-COPYING");
+        "pcre2-LICENCE.md" = file("./notices/codex/pcre2-LICENCE.md");
+        "ratatui-LICENSE" = file("./notices/codex/ratatui-LICENSE");
+    };
+    build = shell """
+        set -eu
+        mkdir -p "$out/share/licenses/codex-components"
+        cp "$src"/* "$out/share/licenses/codex-components/"
+        """;
+    export files "licenses" = "share/licenses/codex-components";
+}
+package codex(builder: Builder, runtime: Foundation) {
+    version = "0.153.4";
+    summary = "Official OpenAI Codex CLI, the private runtime of sysroot codex";
+    license = "Apache-2.0 with bundled bubblewrap (LGPL-2.0-or-later), ripgrep, PCRE2 and zsh";
+    source = by_architecture {
+        aarch64 = archive {
+            url = "https://github.com/openai/codex/releases/download/rust-v0.153.4/codex-package-aarch64-unknown-linux-musl.tar.gz";
+            pin = "codex-aarch64";
+        };
+        x86_64 = archive {
+            url = "https://github.com/openai/codex/releases/download/rust-v0.153.4/codex-package-x86_64-unknown-linux-musl.tar.gz";
+            pin = "codex-x86_64";
+        };
+    };
+    runtime_deps = {
+        licenses = codex_licenses(builder: builder, runtime: runtime);
+        components = codex_components(builder: builder, runtime: runtime);
+    };
+    build = shell """
+        set -eu
+        cp -R "$src"/. "$out"/
+        chmod -R u+w "$out"
+        # Codex writes helper files to its home before it parses --version.
+        mkdir "$TMPDIR/codex-home"
+        test "$(CODEX_HOME="$TMPDIR/codex-home" "$out/bin/codex" --version)" = "codex-cli 0.153.4"
+        """;
+    // Private: `sysroot codex` launches it; it is never a command on PATH.
+    export libexec "codex" = "bin/codex";
+}

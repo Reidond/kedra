@@ -3,18 +3,15 @@
 //! the ordinary user, in the bubblewrap sandbox, with no Docker in the image,
 //! plus recovery after the controller of a running build is killed.
 use kedra_container_tests::Result;
-use kedra_container_tests::docker::Docker;
 use kedra_container_tests::scenario::Context;
-use serde_json::Value;
 
-use crate::native::{ensure, fail};
+use crate::native::{archive_identity, ensure, fail, local_image};
 
 /// A small exact runtime image (Ubuntu 24.04), saved on the harness engine
 /// because the image under test has no container daemon.
 const REFERENCE: &str = "docker.io/library/ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3";
-/// Its arm64 configuration digest. Docker's image ID is this digest on the classic
-/// overlay2 store but the registry index digest on the containerd store, so the
-/// case pins the content by the configuration instead of by an image ID.
+/// Its arm64 configuration digest, which pins the saved content on both Docker
+/// image stores ([`archive_identity`]).
 const CONFIG: &str = "sha256:8494c74ca40fca88c433937d0d3a9cfd3ffee8e57d0a517ce68788d85c6b4b48";
 
 const NO_DAEMON: &str = r#"set -eu
@@ -113,8 +110,8 @@ pub fn engine_sandbox(context: &Context<'_>) -> Result<()> {
         docker,
         &kedra_container_tests::docker::Exec::new(["/bin/sh", "-c", NO_DAEMON]),
     )?;
-    let archive = docker.save(&local_image(docker)?)?;
-    let image = archive_identity(&archive)?;
+    let archive = docker.save(&local_image(docker, REFERENCE, "linux/arm64")?)?;
+    let image = archive_identity(&archive, CONFIG)?;
     docker.write_file(
         container,
         &format!("{}/runtime.tar", user.home),
@@ -161,54 +158,4 @@ pub fn engine_sandbox(context: &Context<'_>) -> Result<()> {
         })?;
     }
     Ok(())
-}
-
-/// This engine's own image ID for `REFERENCE`, pulling it when absent.
-fn local_image(docker: &Docker) -> Result<String> {
-    if let Some((id, _)) = docker.image(REFERENCE)? {
-        return Ok(id);
-    }
-    docker.pull(REFERENCE, "linux/arm64")?;
-    docker
-        .image(REFERENCE)?
-        .map(|(id, _)| id)
-        .ok_or_else(|| fail("the runtime image is missing after pulling it"))
-}
-
-/// The identity `sysroot store add-image --archive` admits: the saved archive's
-/// single root descriptor (the registry index on the containerd store, a
-/// manifest Docker generates on the classic store). The archive must hold the
-/// pinned configuration.
-fn archive_identity(archive: &[u8]) -> Result<String> {
-    let mut index = None;
-    let mut manifest = None;
-    for entry in tar::Archive::new(archive).entries()? {
-        let mut entry = entry?;
-        let slot = match entry.path()?.to_str() {
-            Some("index.json") => &mut index,
-            Some("manifest.json") => &mut manifest,
-            _ => continue,
-        };
-        let mut bytes = Vec::new();
-        std::io::Read::read_to_end(&mut entry, &mut bytes)?;
-        *slot =
-            Some(serde_json::from_slice::<Value>(&bytes).map_err(|error| fail(error.to_string()))?);
-    }
-    let (Some(index), Some(manifest)) = (index, manifest) else {
-        return Err(fail(
-            "saved runtime image lacks index.json or manifest.json",
-        ));
-    };
-    let config = format!("blobs/sha256/{}", CONFIG.trim_start_matches("sha256:"));
-    ensure(
-        manifest[0]["Config"].as_str() == Some(config.as_str()),
-        || format!("saved runtime image is not configuration {CONFIG}"),
-    )?;
-    match index["manifests"].as_array().map(Vec::as_slice) {
-        Some([root]) => root["digest"]
-            .as_str()
-            .map(str::to_owned)
-            .ok_or_else(|| fail("saved runtime image root has no digest")),
-        _ => Err(fail("saved runtime image must have exactly one root")),
-    }
 }

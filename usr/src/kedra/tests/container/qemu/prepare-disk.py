@@ -21,6 +21,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[5]
 OWNER = 'dev.kedra.lab.owner=kedra-container-tests'
+# Per-checkout Docker ownership (AGENTS.md "Artifacts stay in the checkout"),
+# the same id as the harness's `kedra.checkout` label; `kedra-lab clean` removes it.
+CHECKOUT = hashlib.sha256(os.fsencode(ROOT.resolve())).hexdigest()[:12]
+CHECKOUT_LABEL = 'kedra.checkout=' + CHECKOUT
 
 
 def run(argv, **kwargs):
@@ -203,10 +207,10 @@ def cached_disk_matches(output, disk, receipt, inputs, fixture_reference, native
 
 
 def build_builder_image(inputs):
-    tag = 'kedra-qemu-builder:' + hashlib.sha256(''.join(
+    tag = f'kedra-qemu-builder:{CHECKOUT}-' + hashlib.sha256(''.join(
         inputs[name] for name in ('containerfile', 'script', 'signing_script', 'build_ignore')).encode()).hexdigest()[:32]
     run(['docker', 'build', '--platform', 'linux/arm64', '-f', str(HERE / 'disk-builder.Containerfile'),
-         '-t', tag, str(HERE)], timeout=1800)
+         '--label', OWNER, '--label', CHECKOUT_LABEL, '-t', tag, str(HERE)], timeout=1800)
     return tag
 
 
@@ -251,13 +255,19 @@ def build_disk(output, disk, receipt, inputs, observer_sha, fixture_reference, n
     token = secrets.token_hex(8)
     container = 'kedra-qemu-builder-' + token
     volume = 'kedra-qemu-output-' + token
-    run(['docker', 'volume', 'create', '--label', OWNER, volume], stdout=subprocess.DEVNULL)
+    cache = f'kedra-qemu-{CHECKOUT}-podman-cache'
+    for name in (volume, cache):
+        run(['docker', 'volume', 'create', '--label', OWNER, '--label', CHECKOUT_LABEL, name], stdout=subprocess.DEVNULL)
+    labels = json.loads(run(['docker', 'volume', 'inspect', '--format', '{{json .Labels}}', cache],
+                            capture_output=True).stdout)
+    if (labels or {}).get('kedra.checkout') != CHECKOUT:
+        raise ValueError(f'volume {cache} exists without {CHECKOUT_LABEL}; remove it')
     started = time.monotonic()
     try:
-        run(['docker', 'run', '-d', '--name', container, '--label', OWNER, '--privileged',
+        run(['docker', 'run', '-d', '--name', container, '--label', OWNER, '--label', CHECKOUT_LABEL, '--privileged',
              '--cgroupns', 'private', '--platform', 'linux/arm64',
              '--tmpfs', '/run/kedra-signing:rw,nosuid,nodev,noexec,size=16m,mode=0700',
-             '--mount', 'type=volume,source=kedra-qemu-podman-cache,target=/var/lib/containers',
+             '--mount', f'type=volume,source={cache},target=/var/lib/containers',
              '--mount', f'type=volume,source={volume},target=/output', tag], stdout=subprocess.DEVNULL)
         if native is not None:
             run(['docker', 'cp', str(HERE / 'boot-check.py'), container + ':/tmp/kedra-native-boot-check.py'])

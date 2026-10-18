@@ -320,6 +320,7 @@ fn base_source_revision(docker: &Docker, image: &str) -> Option<String> {
     let container = testcontainers::GenericImage::new(name, tag)
         .with_cmd(["sleep", "300"])
         .with_label(crate::docker::OWNER_LABEL, crate::docker::OWNER)
+        .with_label(crate::docker::CHECKOUT_LABEL, crate::checkout_id())
         .with_label(crate::docker::KIND_LABEL, "inspect")
         .start()
         .ok()?;
@@ -595,7 +596,7 @@ fn prepare_fixture(
         key_parts.push(fs::read(probe)?);
     }
     let parts: Vec<&[u8]> = key_parts.iter().map(Vec::as_slice).collect();
-    let tools_tag = content_key(&parts);
+    let tools_tag = crate::docker::scoped_tag(&content_key(&parts));
     let mut files: Vec<(String, PathBuf)> = lab_inputs[1..]
         .iter()
         .map(|name| ((*name).to_owned(), lab_file(name)))
@@ -655,14 +656,14 @@ fn prepare_fixture(
         &cache,
     )?;
     let payload_sha256 = builder::file_sha256(&outputs.payload)?;
-    let overlay_key = content_key(&[
+    let overlay_key = crate::docker::scoped_tag(&content_key(&[
         tools_reference.as_bytes(),
         payload_sha256.as_bytes(),
         builder::file_sha256(&outputs.sysroot)?.as_bytes(),
         builder::file_sha256(&outputs.helper)?.as_bytes(),
         &fs::read(crate::harness_dir().join("lab/overlay.Containerfile"))?,
         &fs::read(crate::harness_dir().join("lab/overlay-apply.sh"))?,
-    ]);
+    ]));
     docker.build(&Build {
         tag: &format!("kedra-lab:{overlay_key}"),
         what: "working-tree overlay",

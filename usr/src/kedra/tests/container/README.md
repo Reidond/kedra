@@ -31,7 +31,8 @@ The engine's architecture selects the default target: `qemu-arm64` (aarch64) on 
 | Run all with two isolated workers | `cargo test -p kedra-container-tests --test container -- --test-threads 2` |
 | Run one or a group; filtered before provisioning | `cargo test -p kedra-container-tests --test container -- desktop_session` |
 | Retain failed containers (local only; refused when `CI` is set) | `KEDRA_LAB_KEEP=failed cargo test …` |
-| Remove one execution's resources | `kedra-lab clean --execution <id>` |
+| Remove one execution's containers | `kedra-lab clean --execution <id>` |
+| Remove everything this checkout's harness created | `kedra-lab clean` |
 | Run the desktop and keep it | `cargo run -p kedra-container-tests --bin kedra-lab -- up` |
 
 Settings are environment variables for `cargo test`, or flags for `kedra-lab`:
@@ -41,7 +42,7 @@ Settings are environment variables for `cargo test`, or flags for `kedra-lab`:
 | `KEDRA_LAB_TARGET` / `--target` | `desktop`, `qemu-arm64` | engine architecture |
 | `KEDRA_LAB_IMAGE` / `--image` | see the table below | `stable` |
 | `KEDRA_LAB_OVERLAY` / `--overlay` | `worktree` (layer the working tree), `none` | `worktree`; `none` for `build` |
-| `KEDRA_LAB_BINARIES` / `--binaries` | directory with Linux `sysroot` and `sysroot-helper` (overlays and full local builds; they must be the stage's own) | built in the lab builder's shared Cargo volume |
+| `KEDRA_LAB_BINARIES` / `--binaries` | directory with Linux `sysroot` and `sysroot-helper` (overlays and full local builds; they must be the stage's own) | built in this checkout's Cargo volume |
 | `KEDRA_LAB_ARTIFACTS` | output directory | `target/kedra-lab` |
 | `KEDRA_QEMU_HOME` | native QEMU runtime and retained VM root | durable per-user paths (see `qemu/README.md`) |
 | `KEDRA_LAB_KEEP` | `never`, `failed`, `always` | `never` |
@@ -135,9 +136,9 @@ The overlay refuses package-list changes and changes to the target's declared sy
 
 1. Linux binaries and `sysroot source archive` in the Rust builder.
 2. The stage's own foundation (`Containerfile` and `assemble.sh`) on `quay.io/fedora/fedora-bootc:44`, pinned to its platform digest. A stage with `image/catalog/install-rpms.sh` installs offline from an RPM lock: the host `sysroot catalog lock resolve` (the prepared host archiver, store `cache/rpm-store`) resolves it once per stage and base digest, and `lock repo` adds the foundation repository as `rpms/` ([package delivery](../../docs/PACKAGES.md#fedora-rpm-lock)). An interrupted resolution leaves staging that `sysroot store recover --store <artifacts>/cache/rpm-store` removes.
-3. For a stage whose source declares image steps, the stage's own Linux `sysroot` first runs the release's catalog steps: a builder root per role from the RPM lock, the reviewed archives through `image/catalog/prepare-sources.py`, `sysroot catalog build` of every selected package (Codex and Bitwarden) and `sysroot catalog contribute` with the public preflight material `image/release/material.py` computes. It then composes that foundation with the snapshot's committed payload and the contribution (`sysroot system compose --definition`) and derives the declared steps (`sysroot derive build`), as the release does ([one image pipeline](../../docs/SYSTEM.md#one-image-pipeline)). It runs in a disposable builder container (the Rust builder also carries bubblewrap, jq, the pinned uv and the pinned Docker CLI with buildx) that reaches the lab's Docker socket at `/var/run/docker.sock` as an ordinary user in the socket's group, with seccomp, AppArmor and system paths unconfined so the engine's bubblewrap sandbox can observe the foundation; the engine store and contexts die with the container. The release trust layer is not built locally. An older stage builds its complete image in step 2.
+3. For a stage whose source declares image steps, the stage's own Linux `sysroot` first runs the release's catalog steps: the public preflight material `image/release/material.py` computes (with the run's single pin envelope), then the stage's `image/catalog/build-packages.sh`, the script the release build runs: a runtime root and a builder root per role from the RPM lock, the reviewed archives through `image/catalog/prepare-sources.py`, `sysroot catalog build` of every selected package (Codex and Bitwarden) and `sysroot catalog contribute`. It then composes that foundation with the snapshot's committed payload and the contribution (`sysroot system compose --definition`) and derives the declared steps (`sysroot derive build`), as the release does ([one image pipeline](../../docs/SYSTEM.md#one-image-pipeline)). It runs in a disposable builder container (the Rust builder also carries bubblewrap, jq, the pinned uv and the pinned Docker CLI with buildx) that reaches the lab's Docker socket at `/var/run/docker.sock` as an ordinary user in the socket's group, with seccomp, AppArmor and system paths unconfined so the engine's bubblewrap sandbox can observe the foundation; the engine store and contexts die with the container. The release trust layer is not built locally. An older stage builds its complete image in step 2.
 
-The result is an unsigned `kedra-local-<target>:<key>`. It is never pushed, signed or installed, and it has no release identity layers. `build:<revision>` needs the root-filesystem layout (PR #20 or later).
+The result is an unsigned `kedra-local-<target>:<checkout>-<key>`. It is never pushed, signed or installed, and it has no release identity layers. `build:<revision>` needs the root-filesystem layout (PR #20 or later).
 
 ## The lab: `kedra-lab`
 
@@ -156,8 +157,8 @@ cargo run -p kedra-container-tests --bin kedra-lab -- up
 | `sync [--shot LABEL]` | Merges the working tree's managed home files into the running account with `sysroot home update`, then optionally captures the result. No Rust build, image pull or reboot in the hot path. |
 | `exec [--root] -- CMD…` | Runs a command in the session, as the test account unless `--root`. |
 | `logs` | Saves the journal, unit, session and process state. |
-| `ls`, `down`, `clean --all` | List and remove harness-owned containers only. Selection is by the `dev.kedra.lab.owner` label. |
-| `clean --images [--keep TAG]…` | Removes harness-built images (lab tools, overlays, builders, local builds) that no container uses. They are caches and are rebuilt on demand. |
+| `ls`, `down` | List this checkout's harness containers, and remove a retained environment. |
+| `clean` | Removes everything this checkout's harness created: every container, image and volume labeled `kedra.checkout=<id>`, its scoped image tags, the engine images its `sysroot derive` state binds (the engine refuses a `kedra-<kind>:<identity>` tag whose binding is gone, so they go together), and the large trees under `target/kedra-lab/` (`cache`, `derive`, `composition`, `native`; sealed store objects are made writable first). Run reports and screenshots stay. Pulled images stay unlabeled, because a label would change the image under test; each pull the harness makes is appended to `target/kedra-lab/pulled-images.txt` with the image ID and repository digests it resolved to, to remove by exact ID once no other checkout uses it. `clean` does not remove them: other checkouts and tools share pulled images by content and record their use nowhere this checkout can read, so deleting one could pull it from under a concurrent run. `clean --execution <id>` removes only one execution's containers. |
 | `image` | Resolves and builds the lab image, and prints its provenance. |
 
 A typical desktop change:
@@ -322,8 +323,9 @@ Control flow belongs in native tests or probes.
 
 ## Isolation, cleanup and reports
 
-- **Isolation.** Every test gets its own container, so every mutable service starts fresh. An execution shares only read-only images and the Cargo caches (named volumes; Cargo's fingerprints decide freshness). Container names and labels carry the execution ID, `<unix seconds>-<pid>`. Tests run one at a time.
-- **Cleanup.** Explicit termination comes first; Testcontainers' drop and `watchdog` (SIGINT/SIGTERM) are fallbacks. testcontainers-rs has no Ryuk reaper, so after a hard kill run `kedra-lab clean --execution <id>` or `--all`. A cleanup failure fails an otherwise passing test, and it never replaces a test failure.
+- **Isolation.** Every test gets its own container, so every mutable service starts fresh. An execution shares only read-only images and its checkout's Cargo volumes (`kedra-lab-<checkout>-cargo-registry`, `kedra-lab-<checkout>-target-<arch>`; Cargo's fingerprints decide freshness within one checkout). Container names and labels carry the execution ID, `<unix seconds>-<pid>`. Tests run one at a time.
+- **Ownership.** Every container, volume and image the harness creates carries `kedra.checkout=<id>`, the first 12 hex digits of the SHA-256 of the canonical checkout path (AGENTS.md "Artifacts stay in the checkout"), and the images it names are tagged `<checkout>-<key>`, so one checkout never reuses, lists or removes another's objects. Images the engine derives (full local builds) cannot carry a label without changing the image under test; `kedra-lab clean` removes them by their scoped tag. Volumes from before this scheme (`kedra-lab-target-aarch64`, `kedra-lab-cargo-registry`, `kedra-qemu-podman-cache`) are unowned; remove them by hand once no checkout still builds in them.
+- **Cleanup.** Explicit termination comes first; Testcontainers' drop and `watchdog` (SIGINT/SIGTERM) are fallbacks. testcontainers-rs has no Ryuk reaper, so after a hard kill run `kedra-lab clean --execution <id>`, or `kedra-lab clean` once this checkout's checks are recorded. A cleanup failure fails an otherwise passing test, and it never replaces a test failure.
 - **Reports.** They go to `target/kedra-lab/runs/<execution>/`:
   - `report.json`, including the image provenance.
   - Per test: `steps.json` with durations and expected/actual values, and screenshots.

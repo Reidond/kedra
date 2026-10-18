@@ -41,10 +41,11 @@ Known gap (observed 2026-10-14): an ordinary fixture of a signed image such as
 signature exists`, because the image's inherited `enforce-container-sigpolicy`
 refuses the unsigned fixture and only the native path signs its fixture. Use the
 unsigned full local build, `vm image --image build --overlay none`, until the
-ordinary path signs too. That build compiles in the engine-wide
-`kedra-lab-target-aarch64` Cargo volume at the fixed `/snapshot` path, so a
-newer build from another checkout can be reused for older sources (observed as
-a `sysroot` compile error); an isolated engine avoids it.
+ordinary path signs too. That build compiles in this checkout's own
+`kedra-lab-<checkout>-target-aarch64` Cargo volume; before 2026-10-18 the volume
+was shared by every checkout, and a newer build from another checkout was reused
+for older sources (observed as a `sysroot` compile error). The disk builder's
+Podman cache is likewise the per-checkout `kedra-qemu-<checkout>-podman-cache`.
 
 A prepared runtime is reused after its receipts/hashes pass. Preparation installs
 no Homebrew tools: Xcode (including its Metal component), Ninja, pkg-config,

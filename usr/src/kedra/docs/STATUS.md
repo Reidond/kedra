@@ -40,6 +40,23 @@ substitution into a fresh store, a hostile-registry content mismatch refused, a
 missing record refused, an unreachable cache falling back to building. The release
 run, GHCR package creation and the first hit are `not-run`.
 
+## Release workflow simplification (2026-10-18)
+
+Branch claude/release-simplify keeps every release check but runs each once where
+it is needed: exact main at the end of preflight, in the signer before key use and
+before `stable` advances; bootc compatibility on the RPM lock; the candidate's
+signature in publication. The target table is read from `targets.json` in every
+workflow, `policy.json` and `registries.d` come from `image/release/trust.py`,
+content-affecting steps live in recipe scripts (`refresh.py prepare`,
+`image/release/build.sh`, `image/catalog/build-packages.sh`), so workflow edits no
+longer rebuild and re-sign, and build and validate-candidate both use Docker's
+containerd store, as local OrbStack does. The installer builds its ISO once
+(`image-builder manifest`, then osbuild). The container harness labels every
+Docker object `kedra.checkout`, keeps per-checkout Cargo volumes and image tags,
+and `kedra-lab clean` removes exactly that checkout's objects. Local results
+(worklog WL-20261018-RELEASE-SIMPLIFY-01 and the PR): the full check list, a local replay of the qemu-arm64 build job (preflight, `build.sh`, the installed catalog case, candidate inspection) and a qemu-arm64 ISO built once from the signed stable image pass. No release
+or `iso.yml` run, signing, publication, boot or installation follows from them.
+
 ## Package identity from Fedora material (2026-10-16)
 
 Branch claude/engine-cache-725395 makes package identities independent of the

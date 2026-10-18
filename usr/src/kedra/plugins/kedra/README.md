@@ -1,6 +1,7 @@
 # Kedra plugin for Codex and Claude Code
 
-The `skills/` directory contains the twelve Kedra skills with supporting files.
+The `skills/` directory contains the twelve Kedra skills with supporting files;
+[skills/README.md](skills/README.md) is the index of which skill a task needs.
 The eighteen selected upstream Rust skills are the separate repository-local
 `rust-skills` plugin in `usr/src/kedra/plugins/rust-skills/`. Codex reads
 `.codex-plugin/plugin.json`; Claude reads `.claude-plugin/plugin.json`.
@@ -29,8 +30,8 @@ codex plugin add rust-skills@kedra-local
 The first command records this checkout's absolute path in the user's Codex
 configuration; the others copy the plugins into the cache. Codex refreshes the
 cache only when a plugin's `version` changes, or when `codex plugin add` runs
-again. Earlier discovery evidence (Codex CLI 0.153.4, 2026-09-07) is in
-[STATUS](https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/STATUS.md).
+again. The source review and experiments behind this (Codex 0.153.4 and 0.156.1,
+September 2026) are in the `kedra-agents` skill.
 
 ## Claude Code
 

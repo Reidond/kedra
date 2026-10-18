@@ -1,52 +1,241 @@
 # Package declarations and delivery
 
-Kedra has two kinds of package input. Fedora RPM requests define the bootc
-foundation. Source packages build into immutable engine objects and contribute
-selected commands, libraries and configuration to the composed image.
+Kedra declares all of its packages in `.kedra` files under
+`usr/src/kedra/image/packages/`. There are two kinds. Fedora RPM requests define
+the bootc foundation. Source packages build into immutable engine objects and
+contribute selected commands, libraries and configuration to the composed image.
 
-| Kind | Authored form | Materialization | Delivery |
+| Kind | Declared with | Materialized | Delivered |
 |---|---|---|---|
-| Fedora foundation packages | Current `.kedra` inputs: `foundation`, `set` and `target` declarations in `.kedra` | Resolved once per release run into an RPM lock of fixed-output store objects; the image build and builder roots install offline from it | Complete signed Kedra image through bootc |
-| Source packages | Versioned `.kedra` `package`/`library` declarations, or the retained typed Rust/JSON `Catalog` API | Exact builder roots produce immutable objects below `/usr/lib/sysroot/store` in the engine's bubblewrap sandbox | Selected runtime closure and typed configuration enter composition |
+| Fedora foundation packages | `foundation`, `builder`, `set` and `target` declarations | Resolved once per release run into an [RPM lock](#fedora-rpm-lock) of fixed-output store objects; the foundation image and the engine's roots install offline from it | Inside the signed Kedra image, through bootc |
+| Source packages | `package` and `library` declarations | Built from exact builder roots into immutable objects below `/usr/lib/sysroot/store`, in the engine's bubblewrap sandbox ([ENGINE](ENGINE.md)) | The selected runtime closures and typed configuration enter composition ([SYSTEM](SYSTEM.md)) |
 
-The `.kedra` frontend is an owner-approved, narrow language exception. Rust parses,
-checks and lowers data into the existing `sysroot-catalog` and `sysroot-engine`
-types. Parsing performs no network access, filesystem mutation, package build or
-shell execution. Inline author shell runs only later as `build.sh` in an admitted,
-isolated engine builder. Installed helpers and signers do not parse `.kedra` or
-execute author recipes. This does not establish a general Kedra configuration
-language or grant deployment authority.
+A machine receives a complete signed OCI image: nothing runs `dnf install` or
+builds a package on a deployed system. Engine profiles and package rollback do not
+roll back bootc deployments, home, databases or credentials.
 
-## Current migration state
+## Language v1
 
-The frontend, resource lowering, typed APIs and release adapters are implemented.
-`package-inputs.json` now selects the authored package catalog, replacing shared
-and target list authority. The old schema-1 JSON catalog was removed on
-2026-10-14. Fedora C/API/build/rebuild,
-resource preparation, migrated jq/SQLite/library builds and the installed
-catalog/alias/PATH/service workflow pass their recorded local scopes. Final
-both-target native request/full-RPM parity and source CI pass at2d44c7e; protected
-main-only release is not run; existing
-Noctalia/installer/native failures are separate. See [status](STATUS.md) and the
-[language verification plan](../../../../.specs/nix-package-dsl/test-plan.md).
+This section is the normative contract of the `.kedra` language, the one narrow
+language exception the owner approved on 2026-10-06.
 
-The retained compiled jq/SQLite catalog has earlier real build, rebuild, transfer,
-service and PATH passes in the
-[catalog evidence](../../../../.specs/nix-package-catalog/verification.md), and its
-genuine contribution passed the composer/exact-image checks recorded in
-[D2 qualification](../../../../.specs/nix-release-composition/verification.md).
-Those results remain valid for their exact sources and scope; they do not qualify
-the new frontend, its migration, protected signing or a current production image.
+### Scope and authority
 
-Since 2026-10-16 the shipped targets select the official Codex and Bitwarden
-Desktop packages ([shipped packages](#shipped-packages)) instead of jq, SQLite and
-hello. Those three remain the language's source-build fixtures in
-`crates/sysroot/tests/fixtures/catalog` (E2E `fixture_catalog_keeps_the_former_demo_packages`):
-Fedora's foundation already ships jq, so a second jq ahead of it on PATH had no
-product purpose, and shipping it would need `replaces`, which the fixture jq
-declares instead.
+- Rust (`sysroot-catalog::language`) parses, checks and lowers `.kedra` files as
+  data into the existing `sysroot-catalog` and `sysroot-engine` types. Parsing,
+  checking, formatting and planning make no network access, compile no Rust, run
+  no author code, shell or package build, and write only what a command names
+  (the files given to `fmt`, a new `plan --output` archive).
+- Inline author shell is opaque bytes until it runs as `build.sh` inside an
+  admitted, isolated engine builder ([execution
+  boundary](#resource-and-execution-boundary)). The language never evaluates it.
+- The language declares packages, package sets, Fedora requests and each target's
+  image steps, and nothing else. It is not a general Kedra configuration language,
+  does not replace typed system composition, and grants no deployment,
+  installation or signing authority. Installed helpers and production signers
+  never parse `.kedra` or run recipes.
+- It is not Nix: no Nix syntax or nixpkgs compatibility, no Fedora source
+  rebuilds, no third-party repositories, no cross-compilation.
 
-The versioned source discriminator is deliberately explicit:
+### Versions
+
+Every module begins with `language 1;`. The parser accepts only major version 1 and
+refuses any other with an upgrade diagnostic, so every imported module has the
+entry's version. Nothing falls back from `.kedra` to Rust, shell, JSON or package
+lists. An incompatible change needs a new major version and an explicitly selected
+reader. The [source descriptor](#source-selection), the lockfile and the target
+policy each carry `schema_version: 1`.
+
+### What the language can express
+
+Six declaration kinds, each a block of `field = value;` assignments:
+
+| Declaration | Required fields | Optional fields |
+|---|---|---|
+| `foundation NAME` | `fedora` (must be `44`), `packages` (RPM names) | `remove` (RPM names) |
+| `builder NAME` | `base` (a foundation), `packages` (compiler-only RPM names) | none |
+| `set NAME` | none | `packages` (package invocations), `fedora` and `remove` (RPM names), `use` (sets), `replace` (replacements) |
+| `target "NAME"` | `foundation` | everything a set takes, `architecture` (`"aarch64"` or `"x86_64"`) and the [image steps](#image-steps) `glib_schemas`, `systemd`, `skel`, `initramfs` |
+| `package NAME(b: Builder, f: Foundation)` | `version`, `summary`, `license`, `source`, `build` | `builder`, `runtime`, `build_requires`, `runtime_requires`, `build_deps`, `runtime_deps`, `env`, `files`, `replace_files`, `patches`, `timeout`, `replaces`; `export` and `config` statements |
+| `library NAME(b: Builder, f: Foundation)` | as `package` | as `package` |
+
+Values are JSON-escaped strings, unsigned integers (at most `u64`), `true` and
+`false`, lists, `{ name = value; }` maps, references to declarations or
+parameters, package invocations such as `hello(builder: c_tools, runtime: system)`,
+and these closed constructors and built-ins:
+
+| Form | Meaning |
+|---|---|
+| `archive { url = "https://…"; pin = "NAME"; }` | A pinned archive; `url` must equal that pin's URL in the lockfile. Nothing is fetched while parsing. |
+| `by_architecture { aarch64 = archive {…}; x86_64 = archive {…}; }` | One reviewed archive per RPM architecture. The target's `architecture` selects one; every archive named must still be pinned. |
+| `files { "relative/path" = CONTENT; }` | A declared source tree. |
+| `text LITERAL`, `file("./path")`, `executable(CONTENT)` | File content: an inline literal, an admitted file inside the catalog root, or either with mode 0755 instead of 0644. |
+| `shell LITERAL`, `script(CONTENT)` | A build script, inline or from content. |
+| `patch { strip = N; contents = CONTENT; }` | One unified-diff patch, applied in list order. |
+| `replacement { origin = "…"; name = "…"; action = "include" \| "remove"; }` | Changes an existing Fedora request ([selection](#selection)). |
+| `template { body = text …; bindings = { … }; }` | A configuration file with named `{{binding}}` placeholders. |
+| `fedora("name")` | A Fedora requirement in `build_requires` or `runtime_requires`. |
+| `path(REFERENCE, "relative")` | A typed path into `self` (configuration only) or a declared dependency `deps.NAME`. |
+| `source_revision` | The independently verified source commit; configuration templates only. |
+| `systemd { … }`, `initramfs { … }` | Target image steps. |
+
+Packages publish outputs with `export command "NAME" = "relative/path";`,
+`export libexec`, `export library` and `export files`, and configuration with
+`config "/absolute/path" = template { … };`.
+
+### What the language cannot express
+
+No functions, closures, loops, recursion, arithmetic, conditionals, `eval`, string
+concatenation or interpolation, environment or host lookup, IO built-ins, macros,
+plugins or FFI. No directory discovery, remote imports or search paths. No
+arbitrary DNF arguments, package groups, version ranges, COPR or other
+repositories (the target policy admits exactly `fedora` and `updates`), no Fedora
+release other than 44, no Git sources. Unknown declarations, fields, constructors
+and types are refused with a diagnostic, never interpreted. Shell text such as
+`$src`, `$out` or `$(command)` stays literal bytes.
+
+### Modules, imports and namespace
+
+The entry module (`catalog.kedra`) contains exactly one `namespace "NAME";`
+directive, which must equal the target policy's namespace; imported modules have
+none and inherit it. A namespace selects names, not permission: the independent
+policies still decide what is allowed. `import { a, b } from "./other.kedra";`
+names explicit declarations from a path relative to the importing module, inside
+the admitted catalog root. Imports are not re-exported, an imported name cannot
+shadow a local declaration, and import cycles are refused.
+
+Identifiers are ASCII letters, digits and `_` (not starting with a digit), at most
+128 bytes; targets and other hyphenated names are quoted strings. `//` starts a
+comment. Every assignment ends with `;`. Duplicate fields, declarations, imports,
+exports and configuration paths are refused. Every declaration is checked, also
+unselected ones; only those reachable from the selected target contribute.
+
+### Packages and libraries
+
+- A package or library has exactly one `Builder` and one `Foundation` parameter.
+  Invocations pass both by name; positional or mixed arguments are refused. The
+  optional `builder =` and `runtime =` fields pick the role parameters when they
+  are named differently. Parameters cannot shadow a declaration or a reserved name
+  (`self`, `deps`, `src`, `out`, `source_revision` and the built-ins).
+- The runtime role must be the target's foundation, and the builder's `base` must be
+  that same foundation: a target has one runtime foundation.
+- `build_requires` add to the builder role only; `runtime_requires` add to the
+  target's foundation requests. When a package uses `files`, `replace_files` or
+  `patches`, the checker adds `coreutils`, `findutils` and `python3` (and `patch`
+  for patches) to its builder role.
+- `build_deps` and `runtime_deps` map aliases to package invocations. Both are
+  build inputs; runtime dependencies also stay in the runtime closure. An alias
+  appears once across both maps. Recursive packages and dependency cycles are
+  refused. A package invoked again with the same roles is the same instance; other
+  roles are refused.
+- `env` values are literals (at most 4,096 bytes) or `path(deps.NAME, "…")`. `src`,
+  `out`, `HOME`, `PATH`, `TMPDIR`, `source` and `resources` are reserved. `self` and
+  `source_revision` are not available while building, since they would form a
+  cycle.
+- `timeout` is 1 to 3,600 seconds, default 600.
+- Export names are RPM-style names and paths are safe output-relative paths;
+  `command` and `libexec` paths use only `A-Za-z0-9+._-/` because a launcher runs
+  them verbatim. A package needs a `command` or `libexec` export. A library has
+  neither, exports a `library` or `files` path, and cannot be selected as a target
+  package. `replaces` names only the package's own command exports, once each
+  ([exports and PATH](#exports-and-path)).
+- A `config` path is absolute and must be an allowed system configuration path. Its
+  body is `text`; every `{{name}}` must have a binding and every binding must be
+  used. A binding is a literal, `path(self, "…")`, `path(deps.NAME, "…")`, a path
+  into another declaration the contribution includes, or `source_revision`. There
+  is no escaping and no expression syntax: authors quote for the destination
+  format. After the build, the template becomes typed `SystemFile` content (mode
+  0644) with its paths as typed store references.
+
+### Selection
+
+Selecting a target collects its foundation's `packages` and `remove`, then each
+`use`d set once (depth first), then the target's own `fedora`, `remove` and
+`packages`. Every request remembers its origin, `<module>#<declaration>`.
+Replacements apply together, each to an existing request with that exact origin
+and name; a missing request, a chained or a duplicate replacement is refused. A
+name both included and removed is refused with both origins. The final requests
+must contain every `required_packages` name of the target policy, and two
+selected packages exporting the same name are refused. Kedra's source plan also
+refuses removing the foundation's own boot packages (`bootc`, `glibc`, `rpm`,
+`dnf5`, `kernel`, `kernel-core*`, `kernel-modules*`, `shim`, `shim-*`, `grub2`,
+`grub2-*`).
+
+### Image steps
+
+A target declares the image steps that `sysroot derive` applies after composition
+([NATIVE](NATIVE.md)): `glib_schemas` and `skel` are booleans; `systemd { enable;
+disable; mask; default_target; }` takes lists of concrete unit names and an
+optional default target; `initramfs { modules; drivers; }` takes the dracut
+modules to add and require (mandatory) and optional kernel drivers. The checker
+applies the engine's step rules (one operation per unit, concrete unit names,
+valid module and driver names). The language allows a target without steps;
+Kedra's source plan requires all four for each of its targets, an initramfs with
+at least `bootc`, `ostree`, `crypt`, `dm` and `rootfs-block`, and for `qemu-arm64`
+also the `qemu` module and the `virtio_dma_buf`, `virtio_gpu` and `virtio_input`
+drivers. `sysroot source plan` records the checked steps as `native_steps` in the
+source manifest; they are part of the target's package intent and its hash.
+
+### Literals, resources and identity
+
+Modules are UTF-8 with LF line ends; CRLF or NUL is refused with a conversion
+hint, never silently rewritten. A triple-quoted literal starts with `"""` and a
+line feed and ends with a line holding only spaces and `"""`; those spaces are the
+indentation prefix, removed from every non-empty line (a line lacking it is
+refused), and every line keeps its LF. A payload containing `"""` must use an
+ordinary escaped string. Literals have no interpolation or escape processing.
+
+Declared resource paths are unique relative ASCII POSIX paths without empty, `.`,
+`..` or `.git` components, backslashes, `:` or control characters, and without
+case-insensitive collisions. Paths through `.ssh`, `.codex`, `.claude` or `.cache`,
+files named `auth.json`, `credentials.json` or `.credentials.json`, and content
+containing a private-key marker are refused. Modes are 0644 or 0755 only; no
+symlinks, devices or ownership. `file("./path")` resolves relative to its module
+and must stay inside the catalog root.
+
+The decoded path, mode and bytes of each resource determine its identity. A
+formatting-only edit keeps every recipe identity (it still changes the source
+commit and its recorded input hashes); changing a script, patch, file or mode
+changes the recipe. File timestamps never count. `sysroot catalog fmt` sets a
+canonical layout, keeps comments and every decoded literal byte, and refuses a
+result whose tokens differ from the input.
+
+### Limits
+
+At most 128 modules, 8 MiB per module, 32 MiB in total, 4,096 declared resources,
+nesting depth 64, 262,144 tokens or values, 256 package instances and an 8 MiB
+intent; the lowered graph must fit the engine's 256-node, 8 MiB limits. Diagnostics
+give a reason code, the catalog-relative file, line, column and related locations,
+and never echo literal contents.
+
+The CLI runs parsing and planning in an owned data-only child process with a
+60-second deadline, a 512 MiB address-space limit on Linux (macOS: resident memory
+sampled every 100 ms) and a 1 MiB diagnostic cap; on timeout or excess it kills
+and reaps the child, and the child exits when its owner dies. It opens modules,
+locks and resource files without following symlinks, as single-link ordinary
+files, and checks that they did not change during admission. Direct Rust
+consumers of the library supply their own input admission and process limits.
+
+### Lock and target policy
+
+`packages.lock.json` is strict JSON: `schema_version: 1` and `sources`, a map from
+pin name to `{url, sha256, object}`. `url` is HTTPS and must equal the
+declaration's; `sha256` is the archive digest; `object` is the reviewed `src-`
+identity of the normalized tree. At most 256 pins; two pins with one object must
+agree on URL and digest. Inline and file resources need no pins: their identities
+are computed from the admitted bytes. Nothing updates the lockfile during
+planning or building ([updating a pin](#updating-a-pin)).
+
+The target policy (`image/package-policy.json`) is separate strict JSON:
+`schema_version: 1`, `namespace`, `targets`, `repositories` (exactly `fedora` and
+`updates`) and `required_packages`. Input data cannot grant itself a policy. Exact
+builder roots, runtime roots, packages and source objects are allowed by a second,
+independently selected catalog policy (`--policy`).
+
+## Source selection
+
+The committed `image/package-inputs.json` selects the language for a source
+commit:
 
 ```json
 {
@@ -57,11 +246,18 @@ The versioned source discriminator is deliberately explicit:
 }
 ```
 
-When a retained commit lacks that descriptor, the source resolver uses the legacy
-package-list reader. A commit containing `.kedra` package inputs without the
-descriptor is refused. A descriptor cannot coexist with authoritative shared,
-target or removal lists, and an invalid new-format source never falls back to the
-legacy reader. Retained legacy commits stay readable.
+The source plan reads the descriptor, the target policy, the lock and every
+imported module and resource as raw committed blobs, with no checkout, Git filter,
+recipe or network access. The descriptor cannot coexist with `image/packages.list`,
+`image/remove.list` or a `targets/<target>/packages.list`; `.kedra` files without
+the descriptor are refused; an invalid new-format source never falls back to the
+lists. A commit with neither is read by the package-list reader. Kedra's source
+plan also requires the policy's namespace `kedra`, exactly the targets `desktop`
+and `qemu-arm64`, and the required base packages (`niri`, `noctalia`, `greetd`,
+`tuigreet`, `NetworkManager`, `pipewire`, `wireplumber`, `polkit`, `gnome-keyring`,
+`gnome-keyring-pam`). It records the frontend inputs, their hashes, the builder
+requests, the selected packages and the intent hash (`package_frontend`) with
+`native_steps` in the source manifest, `/usr/share/sysroot/source.json`.
 
 ## Fedora RPM lock
 
@@ -98,6 +294,13 @@ its signed resolved inputs record `artifacts["rpm-lock"]`, the SHA-256 of the lo
 pins (the lock without mirror URLs). A run is a no-change when the source, the base
 and these pins equal the signed stable image's.
 
+Each engine root records its actual seven-column RPM inventory, observed in the
+sandbox when it was made. `sysroot catalog build` and `contribute` refuse a
+runtime root that lacks a requested
+Fedora package or holds a requested removal, and a builder root that lacks its
+compiler requests or the foundation's requests. Package names and pins do not
+prove installed bytes; the observed inventory does.
+
 To rebuild locally from an image's lock:
 
 ```sh
@@ -117,140 +320,11 @@ root in the engine sandbox (the runtime root a graph's `runtime_root` names), an
 locked bytes. `kedra-lab build` resolves a lock with the host `sysroot` and
 installs from it in the same way.
 
-## Language v1
-
-Every module begins with `language 1;`. The entry module alone declares the
-policy-selected namespace; imports are explicit relative paths inside the admitted
-catalog root. There is no directory discovery, remote import, macro, loop,
-conditional, environment lookup, plugin or FFI escape hatch.
-
-```text
-language 1;
-namespace "kedra";
-
-import { hello } from "./hello.kedra";
-
-foundation system {
-    fedora = 44;
-    packages = ["niri", "greetd", "NetworkManager", "pipewire"];
-}
-
-builder c_tools {
-    base = system;
-    packages = ["gcc", "binutils"];
-}
-
-target "desktop" {
-    architecture = "x86_64";
-    foundation = system;
-    packages = [hello(builder: c_tools, runtime: system)];
-    glib_schemas = true;
-    systemd = systemd {
-        enable = ["greetd.service", "NetworkManager.service"];
-        default_target = "graphical.target";
-    };
-    skel = true;
-    initramfs = initramfs {
-        modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block"];
-    };
-}
-
-target "qemu-arm64" {
-    architecture = "aarch64";
-    foundation = system;
-    fedora = ["qemu-guest-agent", "egl-utils"];
-    packages = [hello(builder: c_tools, runtime: system)];
-    initramfs = initramfs {
-        modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block", "qemu"];
-        drivers = ["virtio_gpu", "virtio_input"];
-    };
-}
-```
-
-A target also declares its image steps, which `sysroot derive` applies after
-composition ([native artifacts](NATIVE.md)): `glib_schemas` and `skel` are
-booleans; `systemd` takes `enable`, `disable` and `mask` lists of concrete units
-and an optional `default_target`; `initramfs` takes the dracut `modules` to add
-and require and optional kernel `drivers`. The checker applies the engine's step
-rules (one operation per unit, concrete unit names, module and driver names).
-`sysroot source plan` records the checked steps as `native_steps` in the source
-manifest; they are part of the target's package intent and its hash. Both targets
-may select source packages; each builds natively on its own architecture.
-`architecture` (`aarch64` or `x86_64`) is the target's RPM architecture: it selects
-`by_architecture` sources, `sysroot catalog build` and `contribute` refuse it on an
-engine of another architecture, and for a target in `image/release/targets.json`
-it must be the table's.
-
-Packages and libraries take exactly one `Builder` and one `Foundation` role.
-Builders derive from the selected foundation and add compiler-only RPM requests.
-`build_requires` augments the builder; `runtime_requires` augments the runtime
-foundation. Sets may group source packages and Fedora requests. An explicit
-`replacement` may change an existing include/remove request by exact origin and
-name, but it cannot remove independently required base packages. The first-party
-target policy independently restricts the namespace, targets, Fedora repositories
-and required packages.
-
-An inline source package keeps ordinary build logic next to its metadata:
-
-```text
-language 1;
-
-package hello(builder: Builder, runtime: Foundation) {
-    version = "1.0";
-    summary = "Inline-source package workflow";
-    license = "MIT";
-    source = files {
-        "hello.c" = text "#include <stdio.h>\nint main(void) { puts(\"Hello from Kedra!\"); return 0; }\n";
-    };
-    build = shell """
-        mkdir -p "$out/bin"
-        /usr/bin/gcc -O2 -ffile-prefix-map="$src"=. "$src/hello.c" -o "$out/bin/hello"
-        """;
-    export command "kedra-hello" = "bin/hello";
-}
-```
-
-Archive sources refer to an exact URL, SHA-256 and normalized `src-...` object in
-the strict `packages.lock.json`. A prebuilt upstream package that differs per
-architecture names one reviewed archive per architecture; the target's
-`architecture` selects one, the others still need their pins:
-
-```text
-source = by_architecture {
-    aarch64 = archive { url = "https://…/codex-package-aarch64-unknown-linux-musl.tar.gz"; pin = "codex-aarch64"; };
-    x86_64 = archive { url = "https://…/codex-package-x86_64-unknown-linux-musl.tar.gz"; pin = "codex-x86_64"; };
-};
-```
- `files` creates a source tree; optional `files`,
-`replace_files` and ordered `patches` prepare a copy before the real build. A
-source path cannot be both added and replaced. `build_deps` are build inputs;
-`runtime_deps` are build inputs retained in the runtime closure. `env` values are
-literals or typed dependency paths. `src`, `out`, `HOME`, `PATH` and `TMPDIR` are
-reserved.
-
-`export command`, `export libexec`, `export library` and `export files` name safe
-output-relative paths. A package needs a command or libexec export; a library can
-export neither. A `config` template becomes typed `SystemFile` content after the build.
-Bindings may be literal, a typed package path or the independently verified
-`source_revision`; missing, unused or phase-invalid bindings refuse.
-
-Inline `text` and `shell` preserve decoded bytes. Triple-quoted literals require
-LF input and a standalone closing delimiter; CRLF is refused. Larger reviewed
-assets can use `file("./relative/path")`, and a file-backed build script can use
-`script(file("./build.sh"))`. Public CLI planning runs in an owned data-only child with a 60-second deadline,
-512 MiB Linux address-space ceiling, macOS resident-memory observation every
-100 ms, and a 1 MiB diagnostic cap. Timeout/excess kills and reaps the child;
-owner death terminates it. Direct Rust consumers provide their own process
-supervision. The CLI opens modules, locks and resource files as
-bounded, single-link ordinary files without following symlinks, checks that they
-did not change during admission, and rejects known credential paths and private
-key markers.
-
 ## Public tooling
 
-Commands that select the language reader require explicit roots and policies.
-The formatter accepts only its explicitly named files. Data-producing commands
-emit JSON on stdout and failures on stderr.
+Commands that read the language require an explicit input root, entry, target,
+lock and target policy. The formatter accepts only the files it is given.
+Data-producing commands print JSON on stdout and failures on stderr.
 
 ```sh
 sysroot catalog check \
@@ -268,25 +342,27 @@ sysroot catalog pins \
   --lock packages.lock.json \
   --target-policy usr/src/kedra/image/package-policy.json
 
-sysroot catalog plan --package hello --policy /private/catalog-policy.json \
+sysroot catalog plan --package codex --policy /private/catalog-policy.json \
   --input-root usr/src/kedra/image/packages \
   --entry catalog.kedra --target qemu-arm64 \
   --lock packages.lock.json \
   --target-policy usr/src/kedra/image/package-policy.json \
-  --resolution /private/exact-images.json --output /private/hello-plan.tar
+  --resolution /private/exact-roots.json --output /private/codex-plan.tar
 ```
 
-`check`, `pins` and graph planning are pure with respect to stores and builders.
-`fmt` writes only the named files; `--check` writes nothing. `plan --output`
-publishes a new tar packet atomically and refuses an existing destination. The
-packet includes `graph.json`, admitted resource objects and `frontend.json`.
-`resolve` emits selected metadata and identities. `build` adds `--store` and
-executes the resolved graph after checking the RPM material the runtime and
-compiler-role roots recorded at admission. `contribute` requires already realized outputs,
-canonical independently hashed release input material, an exact lowercase source
-commit and a new private output directory.
+`check`, `pins` and graph planning touch no store or builder. `fmt` writes only
+the named files; `--check` writes nothing. `plan --output` publishes a new tar
+archive atomically and refuses an existing destination; the archive holds
+`graph.json`, the admitted resource objects and `frontend.json`. `resolve` prints
+the selected metadata and identities. `build` adds `--store` and executes the
+resolved graph after checking the RPM inventories the roots recorded
+([RPM lock](#fedora-rpm-lock)); with `--cache`/`--trusted` it substitutes recorded
+closures first ([binary cache](ENGINE.md#binary-cache)). `contribute` requires
+already realized outputs, canonical independently hashed release input material,
+an exact lowercase source commit and a new private output directory
+([SYSTEM](SYSTEM.md#plan-and-compose)).
 
-Exact root resolution is separate from authored requests:
+Exact roots are resolved separately from the authored requests:
 
 ```json
 {
@@ -348,9 +424,13 @@ Bitwarden build checks with `ldd` that the runtime, `desktop_proxy` and the nati
 module resolve every library in the builder root (the locked foundation RPMs
 plus build tools), and declares the Electron libraries it needs as `runtime_requires`. The
 desktop entry's `Exec=` and `Icon=` are typed paths of the exact output. Its
-upstream launcher resolves its own directory through `readlink -f`. The x86_64
-image now uses the official x64 tarball like arm64, not the RPM; package scripts
-and setuid bits never existed in the tarball and cannot enter the store.
+upstream launcher resolves its own directory through `readlink -f`. Both
+architectures use the official tarball, not an RPM; package scripts and setuid bits
+do not exist in a tarball and cannot enter the store.
+
+jq, SQLite and hello are not shipped. They remain the language's source-build
+fixtures in `crates/sysroot/tests/fixtures/catalog`, which also shows a deliberate
+`replaces` of Fedora's jq.
 
 ## Updating a pin
 
@@ -377,40 +457,38 @@ Verifying at build time instead would put Cosign, its Sigstore trust root and
 network access into every release build for no added protection: the pin already
 binds the build to the verified bytes, and a mismatch fails the download.
 
-Each root records its actual seven-column RPM inventory, observed in the sandbox
-when it was made. The adapter refuses a runtime missing a requested Fedora package,
-containing a requested removal, or a builder missing either its compiler requests
-or the selected foundation requests. Package names and pins do not prove installed bytes.
-
 ## Resource and execution boundary
 
-Every inline or external build resource lowers to `SourceFile { bytes,
-executable }`; `source_identity` computes its canonical `src-...` identity from
-safe relative paths, modes and bytes. Build scripts are resources named
-`build.sh`, invoked as `/bin/sh -eu <typed-resource-path>`, rather than inserted
-into a command argument. Inline source files become another admitted source
-object.
+Every inline or file resource lowers to `SourceFile { bytes, executable }`, and
+`source_identity` computes the canonical `src-...` identity of each resource tree
+from its relative paths, modes and bytes. The resolver computes these identities
+itself and allows them only for that invocation; a producer cannot add claimed
+identities to a standing policy. The build script becomes the resource `build.sh`,
+run as `/bin/sh -eu <typed path>` with `src` and `out` bound as typed store paths,
+rather than as a command-line argument (the engine bounds arguments at 32 KiB).
+An inline source tree becomes its own admitted source object.
 
-When patches or overlays are present, lowering adds a separate preparation node.
-That node receives the original source and recipe resources read-only, runs the
-fixed `prepare.py` from the selected exact builder, and emits a new prepared tree.
-The package build consumes that tree. It does not mutate the admitted original or
-fall back to host tools.
+Patches and overlays add a separate preparation node in the same builder. It
+receives the original source and the recipe resources read-only, runs the fixed
+`prepare.py` that ships inside `sysroot-catalog` with the builder's own
+`/usr/bin/python3`, and emits a new prepared tree that the package build consumes.
+It applies patches in order with `patch --batch --forward --fuzz=0` (any offset or
+fuzz fails), then `files` additions and `replace_files` replacements in path order.
+A patch must name one existing ordinary file per header pair, and its `strip`
+must leave a valid path. An addition must not exist yet; a replacement must
+already be an ordinary single-link file; a path cannot be in both maps. The
+admitted original is never changed, nothing falls back to host tools, and a failed
+preparation publishes nothing.
 
 Release source acquisition is likewise separate from author shell. The reviewed
-archive helper downloads only HTTPS pins, verifies size (256 MiB), deadline (600 s)
-and SHA-256, extracts a bounded (1 GiB) gzip/tar tree with restricted member types,
-and then admits the resulting tree through the ordinary store workflow. An archive
-with a single top-level directory (a source release) contributes that directory;
-a flat archive (a prebuilt package with several top-level entries) contributes
-the extraction itself. This code is
-public pre-signing work; production signers receive authenticated candidate
-material and never fetch sources or run recipes.
+archive helper (`image/catalog/prepare-sources.py`) downloads only HTTPS pins,
+bounds size (256 MiB) and time (600 s), verifies the SHA-256, extracts a bounded
+(1 GiB) gzip/tar tree with restricted member types, and admits it through the
+ordinary store workflow. An archive with a single top-level directory (a source
+release) contributes that directory; a flat archive (a prebuilt package with
+several top-level entries) contributes the extraction itself. This is public
+pre-signing work; production signers receive authenticated candidate material and
+never fetch sources or run recipes.
 
-At deployment time the machine receives a complete signed OCI image, not live
-`dnf install` or package builds. Engine profiles and package rollback do not roll
-back bootc deployments, home, databases or credentials.
-
-See the [language contract](../../../../.specs/nix-package-dsl/language.md),
-[engine API](../crates/sysroot-engine/README.md), [composition](SYSTEM.md),
-[architecture](ARCHITECTURE.md) and [actual status](STATUS.md).
+See the [engine API](../crates/sysroot-engine/README.md), [composition](SYSTEM.md),
+[architecture](ARCHITECTURE.md) and [current status](STATUS.md).

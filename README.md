@@ -8,9 +8,9 @@ When the owner wants a full new installer release, the manually dispatched `iso.
 
 ## Change the system
 
-The repository root is the image's Linux filesystem. Edit root `etc/` and `usr/` (`etc/skel/` is the home baseline), and package definitions under `usr/src/kedra/image/packages/`. `package-inputs.json` selects the versioned `.kedra` reader; retained commits keep their explicit package-list reader. Explicit target files under `usr/src/kedra/image/targets/<target>/` override shared files. `usr/src/kedra/` is the development tree and never enters the image. Unknown XPS hardware remains disabled. See [package authoring](usr/src/kedra/docs/PACKAGES.md) for the current language and qualification.
+The repository root is the image's Linux filesystem. Edit root `etc/` and `usr/` (`etc/skel/` is the home baseline), and package definitions under `usr/src/kedra/image/packages/`. `package-inputs.json` selects the versioned `.kedra` package language; older commits without it are read through their package lists. Explicit target files under `usr/src/kedra/image/targets/<target>/` override shared files. `usr/src/kedra/` is the development tree and never enters the image. Unknown XPS hardware remains disabled. See [package authoring](usr/src/kedra/docs/PACKAGES.md) for the current language and qualification.
 
-Actions checks packages at **00:00 UTC**, with optional on-demand runs. A changed image passes build and exact-candidate validation, isolated automatic OCI signing and strict verification before `stable` advances. No approval or manual signing step is required. No-change does nothing: it creates no image, metadata release or renewal. Runner queues affect delivery time; installed machines never reboot automatically.
+Actions checks packages at **00:00 UTC**, on pushes to `main` that change image inputs, and on demand. A changed image passes build and exact-candidate validation, isolated automatic OCI signing and strict verification before `stable` advances. No approval or manual signing step is required. No-change does nothing: it creates no image, metadata release or renewal. Runner queues affect delivery time; installed machines never reboot automatically.
 
 Home files stay writable. [Managed home files](usr/src/kedra/docs/HOME.md) follow image baseline changes through a three-way merge that keeps local edits; capture a live file into the checkout and stage it by line. [Private agent launchers](usr/src/kedra/docs/AGENT-LAUNCHERS.md) preserve personal runtimes, profiles, MCP, skills and credentials.
 
@@ -19,13 +19,15 @@ Home files stay writable. [Managed home files](usr/src/kedra/docs/HOME.md) follo
 Read [AGENTS.md](AGENTS.md), [architecture](usr/src/kedra/docs/ARCHITECTURE.md) and [worklog](worklog.md). Rust uses a pinned workspace, one lockfile and explicit flat entry paths.
 
 The [independent Rust engine](usr/src/kedra/docs/ENGINE.md) supplies ordinary-user
-build/store/runtime/profile workflows. Its first Docker backend targets native
-aarch64 Linux. [Typed system composition](usr/src/kedra/docs/SYSTEM.md) exports
-config and runtime closures over an exact retained Fedora foundation; installed
-release trust remains separate. [Native derivations](usr/src/kedra/docs/NATIVE.md)
-generate settings caches, service links, account defaults and initramfs contents.
-[Package declarations and delivery](usr/src/kedra/docs/PACKAGES.md) explains the
-Fedora RPM lists and engine-built packages.
+build/store/runtime/profile workflows in an unprivileged bubblewrap sandbox, with
+no daemon. Both targets build through one engine pipeline:
+[typed system composition](usr/src/kedra/docs/SYSTEM.md) combines the catalog
+packages and committed configuration over the target's Fedora foundation, and
+[native derivations](usr/src/kedra/docs/NATIVE.md) generate settings caches,
+service links, account defaults and initramfs contents; installed release trust
+remains separate. [Package declarations and delivery](usr/src/kedra/docs/PACKAGES.md)
+explains the Fedora RPM lock and the engine-built packages, such as Codex and
+Bitwarden.
 
 Actions runs no tests for changes. Push the commit, run the [local checks](AGENTS.md#local-testing-and-sign-off--owner-decision-2026-10-08) on it with a clean tree, then sign it off; `main` requires the `signoff` status:
 
@@ -46,6 +48,5 @@ or Noctalia defaults. Sync validates first, preserves guest edits and avoids Rus
 rebuilds. `shot` writes a PNG and source/display receipt. The optional
 `--test-threads 2` Cargo test setting runs two isolated scenarios at once.
 For manual GPU testing, use the [native QEMU lab](usr/src/kedra/tests/container/qemu/README.md):
-`kedra-lab vm up`, `vm sync --shot changed` and `vm shot`. The old UTM frontend
-and cocoa-way live-view tooling have been removed; existing VM data is untouched.
-Current verification and timing limits are recorded in STATUS.
+`kedra-lab vm up`, `vm sync --shot changed` and `vm shot`. Current verification
+and timing limits are recorded in [STATUS](usr/src/kedra/docs/STATUS.md).

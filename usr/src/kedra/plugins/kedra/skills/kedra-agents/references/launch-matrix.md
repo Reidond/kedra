@@ -1,4 +1,4 @@
-# R05 launch and coexistence matrix
+# Launch and coexistence matrix
 
 | Runtime | Profile | Checkout | Update owner |
 |---|---|---|---|
@@ -12,6 +12,8 @@ identity, MCP/hooks invoked, files written and inherited environment. Do not put
 credential values or full transcripts in reports. Repeat with empty profiles,
 synthetic conflicting personal skills, moved/dirty/offline checkout, nested crate
 working directory, concurrent sessions in separate worktrees and missing executable.
+tests/agents/run.py and the container scenario `agents.yaml` cover generated
+profiles and the bundled package; the full matrix is not-run.
 
 Test a newer personal runtime while the bundled runtime stays old, then upgrade
 and roll back the image. Personal installation remains unchanged. Management

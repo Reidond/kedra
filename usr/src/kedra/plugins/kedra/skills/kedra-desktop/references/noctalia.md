@@ -1,24 +1,30 @@
-# Noctalia configuration projection (R03/R07 research)
+# Noctalia configuration and managed files
 
-The v5 documentation consulted in the session places curated configuration under
-~/.config/noctalia/ and GUI override state at
-~/.local/state/noctalia/settings.toml. Overrides take precedence. Verify this
-against the exact packaged version; do not mix v4 noctalia-shell/Quickshell JSON
-examples into a v5 setup. Current docs describe `noctalia config export` and
-`noctalia config validate`; confirm actual CLI flags before automation.
+Noctalia v5 places curated configuration under `~/.config/noctalia/` and GUI
+override state at `~/.local/state/noctalia/settings.toml`; overrides take
+precedence. Do not mix v4 noctalia-shell/Quickshell JSON examples into a v5 setup.
+Confirm CLI flags against the packaged version before automation.
 
-The desired manager view is selected effective settings from curated baseline
-plus GUI overrides. It is not arbitrary runtime state capture. A user may stage
-appearance, leave a layout edit uncommitted, and keep volume application-local.
-The exported patch changes only the chosen source settings. A GUI override
-becomes redundant only once the new baseline is active; remove it only if its
-live value still matches the reviewed value. Never clear all overrides to force
-Git authority or erase a newer GUI change after preflight.
+Facts (2026-10-14, Fedora 44 noctalia-5.2.1-1; source: `noctalia config validate
+--help` in the image, usr/share/kedra/home-files.toml, tests/container/home_files_tests.rs):
 
-Required fixtures: conflicting curated/GUI values; publishing one of several GUI
-changes; a second GUI write during review/after staging; baseline updated while
-override remains; rollback with newer GUI changes; unknown/secret-like fields
-excluded; configuration schema/version changes. R03 owns projection semantics,
-R04 safe activation, R07 actual shell behavior. Documentation is not a test pass.
+- `noctalia config validate <file>` validates one file; with no path it merges
+  every `*.toml` in the config directory plus the state overrides.
+- The running shell loads every `*.toml` in its directory, so update candidates
+  and `<file>.kedra-new` conflict files must not end in `.toml`.
+- Unknown enum values are warnings (exit 0), not failures; malformed TOML fails.
+- After an update `kedra-noctalia.service` is restarted (`systemctl --user
+  try-restart`, the declared reload).
+
+The image manages only `config.toml` and `palettes/Adwaita.json`. The GUI
+override file is never managed, captured or cleared: a user may keep a GUI change
+local while the source baseline changes. A merged baseline value can be hidden by
+an override; check the effective result in the running shell before claiming a
+source change took effect. Never erase a newer GUI change to force Git authority.
+
+Behavior worth covering with real sessions: conflicting curated/GUI values, a
+baseline updated while an override remains, rollback with newer GUI changes, and a
+Noctalia version change. The container case `native::home_files_update` covers
+merge, check refusal, restart, conflict and resolution; the rest is not-run.
 
 Source: https://docs.noctalia.dev/noctalia/configuration/

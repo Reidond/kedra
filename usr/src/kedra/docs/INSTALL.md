@@ -2,6 +2,8 @@
 
 Kedra publishes signed container images per target: `ghcr.io/reidond/kedra-desktop` (x86_64) and `ghcr.io/reidond/kedra-qemu-arm64` (aarch64, a native QEMU VM on Apple Silicon). Installation media installs one exact signed digest. Download a published installer release, or build the ISO locally from a digest you reviewed.
 
+Installation of an image built by the current release pipeline has not been tested yet, in a VM or on hardware; [STATUS](STATUS.md) records what has run.
+
 ## Secure Boot prerequisites
 
 UEFI Secure Boot is required. The installer refuses to start Anaconda unless the media booted through UEFI with Secure Boot enabled and a platform key enrolled (not setup mode). The helper's embedded-payload verification checks the SecureBoot and SetupMode variables and prints the reason for a refusal on the installer console. Both Anaconda entry points (`anaconda.service` and the `inst.notmux` `anaconda-direct.service`) require that verification and independently assert `AssertSecurity=uefi-secureboot`. Legacy BIOS boot of the hybrid ISO is refused as well. If Anaconda does not start, read the console message, or switch to the tty2 shell and run `journalctl -b -u kedra-installer-verify`. On an installed system, `sysroot doctor` fails its required `secure_boot` check without Secure Boot. The system still boots, so local recovery remains available, and `sysroot update` does not refuse.
@@ -18,7 +20,7 @@ Secure Boot here covers firmware, shim, GRUB and the kernel, plus kernel lockdow
 
 ## Download a published installer
 
-When the owner wants a full new release, they dispatch the `iso.yml` workflow for one target. It builds the ISO from that target's current signed `stable` image, which already contains every published update, with the same `build-local.py` checks described below, and attaches it to a new [GitHub Release](https://github.com/Reidond/kedra/releases) tagged `<target>-<first 16 digest hex>`. Release assets must be smaller than 2 GiB, so the ISO is split into numbered parts. Download every file of the release into one directory, then:
+When the owner wants a full new installer release, they dispatch the `iso.yml` workflow for one target. It builds the ISO from that target's current signed `stable` image, which already contains every published update, with the same `build-local.py` checks described below, and attaches it to a new [GitHub Release](https://github.com/Reidond/kedra/releases) tagged `<target>-<first 16 digest hex>`. Release assets must be smaller than 2 GiB, so the ISO is split into numbered parts. Download every file of the release into one directory, then:
 
 ```sh
 sha256sum --check PARTS.SHA256SUMS
@@ -26,7 +28,9 @@ cat kedra-desktop-44-DIGEST16.iso.part-* > kedra-desktop-44-DIGEST16.iso
 sha256sum --check SHA256SUMS
 ```
 
-`SHA256SUMS` and `installer.json` keep the format `build-local.py` writes, except that the published `installer.json` records `"uploaded": true`, so a rejoined `qemu-arm64` ISO works with `kedra-lab vm installer --iso` like a local build. `installer.json` names the image digest, its source revision and the public-key fingerprint. Confirm that fingerprint against the values below. The checksums only detect damaged downloads; they are not signatures. The ISO verifies its embedded signed image offline before installing. The release workflow builds the media but does not boot it or install from it.
+`SHA256SUMS` and `installer.json` keep the format `build-local.py` writes, except that the published `installer.json` records `"uploaded": true`, so a rejoined `qemu-arm64` ISO works with `kedra-lab vm installer --iso` like a local build. `installer.json` names the image digest, its source revision and the public-key fingerprint; confirm that fingerprint against the values below. The checksums only detect damaged downloads; they are not signatures. The ISO verifies its embedded signed image offline before installing. The workflow builds the media but does not boot it or install from it.
+
+The one release published so far, `desktop-2e4781ee46070725` (2026-10-14), installs an image from before the current update helper. A system installed from it needs `sysroot update enroll` before its first update, and the current helper refuses the update state that the earlier one writes. Until the owner publishes a newer installer release, build media locally from the current signed `stable` digest.
 
 ## Build hosts
 
@@ -37,7 +41,7 @@ The pinned image-builder only builds media for its own architecture. Use a build
 | desktop | `ghcr.io/reidond/kedra-desktop` | x86_64 Linux |
 | qemu-arm64 | `ghcr.io/reidond/kedra-qemu-arm64` | aarch64 Linux, or an Apple Silicon Mac through [macOS media tooling](../installer/macos/README.md) |
 
-A Linux build host needs uv (it runs the script with the Python 3.12 pinned by the checkout's `.python-version`), sudo, rootful Podman using its default `/var/lib/containers/storage`, Podman's Netavark network helper, Skopeo and OpenSSL already installed. On Ubuntu, include the `netavark` package explicitly when installing Podman with `--no-install-recommends`; omitting it can prevent cleanup of inspection containers. Allow sufficient temporary disk space for the payload, Anaconda image and ISO. The script does not install prerequisites or change host trust policy.
+A Linux build host needs uv (it runs the script with the Python pinned by the checkout's `.python-version`), sudo, rootful Podman using its default `/var/lib/containers/storage`, Podman's Netavark network helper, Skopeo and OpenSSL already installed. On Ubuntu, include the `netavark` package explicitly when installing Podman with `--no-install-recommends`; omitting it can prevent cleanup of inspection containers. Allow enough disk space for the payload, the Anaconda image and the ISO. Run the script as your ordinary user; it asks for sudo for the container tools. It does not install prerequisites or change host trust policy.
 
 ## Build one ISO
 
@@ -48,20 +52,20 @@ desktop  a175f7086eebc2d7835e941b51b49a0e47bbc7c01ad4e090952e8ac74fe8c02e
 qemu-arm64  80551368732ccb49be7916db9ccfd1e3caa11a767e86749378565ec0b8a1a515
 ```
 
-Review the signed image's exact digest through the completed Actions signing result or [image verification](RELEASES.md). Substitute that full digest:
+Review the signed image's exact digest through the completed release run or [image verification](RELEASES.md). Substitute that full digest, and name an output directory that does not exist yet:
 
 ```sh
-uv run usr/src/kedra/installer/build-local.py --image ghcr.io/reidond/kedra-desktop@sha256:REVIEWED_DIGEST --output-dir /absolute/path/to/new-installer
-uv run usr/src/kedra/installer/build-local.py --image ghcr.io/reidond/kedra-qemu-arm64@sha256:REVIEWED_DIGEST --output-dir /absolute/path/to/new-installer
+uv run usr/src/kedra/installer/build-local.py --image ghcr.io/reidond/kedra-desktop@sha256:REVIEWED_DIGEST --output-dir target/installer-REVIEWED
+uv run usr/src/kedra/installer/build-local.py --image ghcr.io/reidond/kedra-qemu-arm64@sha256:REVIEWED_DIGEST --output-dir target/installer-REVIEWED
 ```
 
-The repository selects the target. Other repositories, tags and cross-architecture builds are refused. The output directory must not already exist.
+The repository selects the target. Other repositories, tags and cross-architecture builds are refused.
 
-The script checks the fixed public fingerprint and strict native container signature policy before extracting the image's helper, source and trust. It then requires the payload, builder and Anaconda environment to have the target's OCI architecture and the signed scope to name that target. It uses the image's recorded Fedora base and the per-architecture digest-pinned builder in usr/src/kedra/installer/inputs.json; an image without recorded resolved inputs is refused.
+The script checks the fixed public fingerprint and the strict native container signature policy before extracting the image's helper, source and trust. It then requires the payload, builder and Anaconda environment to have the target's OCI architecture and the signed scope to name that target. It uses the image's recorded Fedora base and the per-architecture digest-pinned builder in `usr/src/kedra/installer/inputs.json`; an image without recorded resolved inputs is refused.
 
-The result is one complete `kedra-<target>-44-<first 16 digest hex>.iso`, `installer.json` and `SHA256SUMS` in the selected directory. No existing output is overwritten and the script uploads nothing; only the owner-dispatched `iso.yml` publishes its output. Local checksum files describe the built ISO; they are not release signatures. The embedded signed OS payload is independently verified offline before installation.
+The result is one complete `kedra-<target>-44-<first 16 digest hex>.iso`, `installer.json` and `SHA256SUMS` in the selected directory. No existing output is overwritten and the script uploads nothing; only the owner-dispatched `iso.yml` publishes media. The checksum files describe the built ISO; they are not release signatures. The embedded signed OS payload is verified offline again before installation.
 
-Rootful Podman retains its normal image/build cache. Temporary build data is removed after success and retained with its reported location after failure. Do not share the container store with another image-build operation while creating media.
+Rootful Podman keeps its normal image and build cache. Temporary build data is removed after success and kept, at the reported location, after a failure. Do not share the container store with another image build while creating media.
 
 For an additional diskless startup check on a host with usable KVM, add `--smoke`:
 
@@ -72,45 +76,32 @@ The ISO boots as a CD through UEFI Secure Boot without disks. The check passes o
 
 ## Native QEMU on an Apple Silicon Mac
 
-The legacy signed target ID is `qemu-arm64`; the local frontend is now `kedra-lab vm`.
-It uses standalone QEMU/HVF, Cocoa with VirGL/ANGLE Metal, a private Microsoft-
-enrolled Secure Boot variable store and swtpm. Prepare the runtime once, then:
+The `qemu-arm64` target runs in `kedra-lab vm`: standalone QEMU with HVF, Cocoa with VirGL/ANGLE Metal, a private Microsoft-enrolled Secure Boot variable store and swtpm. Prepare the runtime once, then:
 
 ```sh
 target/debug/kedra-lab vm tools prepare
-mkdir -p ~/Kedra
-target/debug/kedra-lab vm iso --image ghcr.io/reidond/kedra-qemu-arm64@sha256:REVIEWED_DIGEST --output ~/Kedra/iso-REVIEWED
-target/debug/kedra-lab vm installer --name install --iso ~/Kedra/iso-REVIEWED/kedra-qemu-arm64-44-DIGEST16.iso
+target/debug/kedra-lab vm iso --image ghcr.io/reidond/kedra-qemu-arm64@sha256:REVIEWED_DIGEST --output target/iso-REVIEWED
+target/debug/kedra-lab vm installer --name install --iso target/iso-REVIEWED/kedra-qemu-arm64-44-DIGEST16.iso
 # Install in the native window as below, then shut it down:
 target/debug/kedra-lab vm detach-installer --name install
 target/debug/kedra-lab vm up --name install
 ```
 
-The media builder preserves `build-local.py`'s fixed-key verification. The new
-instance gets a private ISO clone, empty VirtIO disk and firmware/TPM state;
-the former UTM target is retired. Installer VMs receive no lab account or SSH seed.
-QMP, guest-agent and TPM sockets are private Unix sockets; serial output is a
-private file. The host still has physical-console authority over its VM.
-
-See the [native QEMU lab](../tests/container/qemu/README.md) and
-[macOS media builder](../installer/macos/README.md) for commands and current
-qualification limits. The earlier UTM launcher and Apple Events flow were removed.
+The media builder keeps `build-local.py`'s fixed-key verification. The new instance gets a private copy of the ISO, an empty VirtIO disk and its own firmware and TPM state. Installer VMs receive no lab account or SSH seed. QMP, guest-agent and TPM sockets are private Unix sockets, and serial output is a private file. The host still has physical-console authority over its VM. See the [native QEMU lab](../tests/container/qemu/README.md) and the [macOS media builder](../installer/macos/README.md) for details.
 
 Fedora 44's shim-aa64 16.1-5 ships test-signed fallback and MokManager binaries. The installer ISO does not include the fallback binary, so it boots normally. The installed disk does include it, so it boots only through the NVRAM entry the installer creates for `\EFI\fedora\shimaa64.efi`; the removable-media fallback path fails with a Security Violation. Do not reset the VM's UEFI variables or queue MOK requests. To recover, add a boot option for `\EFI\fedora\shimaa64.efi` in the firmware's Boot Maintenance Manager.
 
 ## Install deliberately
 
-1. Confirm the firmware settings above. Attach the local ISO to a disposable UEFI Secure Boot VM, or write it to a deliberately selected USB using a trusted image-writing tool.
+1. Confirm the firmware settings above. Attach the ISO to a disposable UEFI Secure Boot VM, or write it to a deliberately selected USB drive with a trusted image-writing tool.
 2. Select only the intended system disk in Anaconda. Verify its identity and capacity; leave data disks unselected.
-3. Enable encryption, retain its recovery passphrase and create an administrative owner account. No disk or password is preset.
+3. Enable encryption, keep its recovery passphrase and create an administrative owner account. No disk or password is preset.
 4. Review pending changes, then install the offline-verified payload.
-5. Shut down, remove the ISO/USB, boot the installed disk and sign in.
+5. Shut down, remove the ISO or USB drive, boot the installed disk and sign in.
 
-The installed system uses enforcing SELinux; installer-media policy is separate. Check `sysroot doctor` (including `secure_boot`) and `sysroot update status` after login. Home remains writable and system root read-only.
+The installed system uses enforcing SELinux; the installer media's policy is separate. Check `sysroot doctor` (including `secure_boot`) and `sysroot update status` after login. Home remains writable and the system root read-only.
 
-After a fresh installation, follow the [update workflow](UPDATES.md); no enrollment is needed.
-
-Physical hardware and each target's Secure Boot installation require separate qualification. See [status](STATUS.md) for actual tested media and remaining limits.
+After a fresh installation from current media, follow the [update workflow](UPDATES.md); no enrollment is needed.
 
 ## Optional: unlock the disk with the TPM
 
@@ -137,7 +128,7 @@ No `/etc/crypttab` or kernel-argument change is needed. When no key file is conf
 
 Options:
 
-- `--with-pin` also requires a PIN at every boot, at the "LUKS2 token PIN" prompt. A wrong PIN asks again and counts toward the TPM's dictionary-attack lockout. How to leave that prompt for the passphrase prompt has not been qualified; if the PIN is lost, installation media opens the volume with the passphrase.
+- `--with-pin` also requires a PIN at every boot, at the "LUKS2 token PIN" prompt. A wrong PIN asks again and counts toward the TPM's dictionary-attack lockout. How to leave that prompt for the passphrase prompt has not been tested; if the PIN is lost, installation media opens the volume with the passphrase.
 - `--replace` enrolls again and adds `--wipe-slot=tpm2`: systemd-cryptenroll wipes the old TPM slots only after the new enrollment succeeds. This re-seals after PCR 7 changed, or when adding, changing or dropping the PIN. If an existing TPM slot already matches the current PCR 7 value without a PIN, systemd-cryptenroll 259 keeps it and seals nothing; it says "This PCR set is already enrolled, executing no operation".
 - `--remove` runs `--wipe-slot=tpm2` only, after the listing confirms a passphrase slot. It needs administrator access but not Secure Boot, the TPM or the passphrase, so it also works after the TPM or Secure Boot was turned off. If the kernel command line does not identify the volume, the refusal prints the manual `systemd-cryptenroll` commands.
 
@@ -145,7 +136,7 @@ Neither command can remove a passphrase slot: `--wipe-slot=tpm2` selects TPM slo
 
 Why PCR 7 alone:
 
-- PCR 7 records the Secure Boot state, the firmware key databases (PK, KEK, db, dbx) and the certificates that approved shim, GRUB and the kernel, as reported by the firmware and shim. Image updates replace the kernel and initramfs, which the same Fedora key signs and PCR 7 does not cover, so updates are not expected to require enrolling again (not yet qualified).
+- PCR 7 records the Secure Boot state, the firmware key databases (PK, KEK, db, dbx) and the certificates that approved shim, GRUB and the kernel, as reported by the firmware and shim. Image updates replace the kernel and initramfs, which the same Fedora key signs and PCR 7 does not cover, so updates are not expected to require enrolling again (not yet tested).
 - PCRs 4, 8 and 9 (boot loader, GRUB commands and kernel command line, kernel and initramfs) change with every image update and would bring back the passphrase prompt after each one. PCRs 0 and 2 change with firmware updates. Signed PCR 11 policies need a unified kernel image, which Kedra does not boot.
 
 Recovery: the passphrase stays enrolled. When the TPM refuses, boot asks for the passphrase. After logging in:
@@ -161,4 +152,4 @@ Security scope:
 - In a virtual machine the host keeps the TPM state. Anyone who can read the VM's `tpm/` state can recover the key without the passphrase, the PCR 7 state or a PIN.
 - `sysroot doctor` does not report the enrollment: reading LUKS2 token metadata means opening the block device, which only root can do.
 
-The enrollment, replace and remove arguments were exercised with systemd 259.9 against a software TPM and a generated LUKS2 file, with an explicit `/dev/tpmrm` device rather than `auto`. The current listing, refusal and removal flow was exercised against stand-in `sudo` and `systemd-cryptenroll`, and the PCR 7 refusals against a stand-in `/sys/class/tpm`, in disposable containers. Enrollment through `auto` and boot unlock on native QEMU and on hardware are not yet qualified; see [status](STATUS.md).
+The command's checks, refusals and removal were tested in disposable containers with stand-in `sudo`, `systemd-cryptenroll` and `/sys/class/tpm`, and the enrollment arguments against a software TPM and a generated LUKS2 file. Enrollment through `--tpm2-device=auto` and unlocking at boot, in a VM or on hardware, are not-run; see [STATUS](STATUS.md).

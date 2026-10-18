@@ -3,24 +3,18 @@
 `sysroot-engine` supplies typed Rust `SystemDefinition`, `SystemFile` and
 `SystemContent` contributions. Files have explicit provenance, priority and
 replacement; templates use typed `Argument` segments to refer to verified package
-outputs. Serialized JSON transports the same types. Native configuration remains
-ordinary systemd, niri and bootc files.
+outputs. Serialized JSON transports the same types and is not an expression
+language. Native configuration remains ordinary systemd, niri and bootc files.
 
-The `.kedra` package frontend is the narrow language exception. It does not replace
-the system composition model. A checked package `config` template lowers after
-build into `SystemFile` values, with named literal, package-path and frozen-source
-bindings. The contribution adapter also generates the selected command PATH and
-`/usr/share/kedra/catalog.json`. It refuses duplicate configuration paths,
-references to unselected outputs, incompatible foundations, unrealized graph
-objects and input material that differs from independently hashed release
-preflight.
-
-Legacy Rust/JSON catalog contributions retain an explicit reader.
-`package-inputs.json` now selects language definitions for current source/release
-preflight, with no fallback to retired lists. Contribution compares actual full
-foundation/compiler RPM material with preflight before accepting realized outputs.
-Local installed catalog checks pass; hosted release qualification and production
-publication are separate gates.
+The `.kedra` package language ([PACKAGES](PACKAGES.md#language-v1)) does not
+replace this model. A checked package `config` template lowers after the build
+into `SystemFile` values, with named literal, package-path and source-revision
+bindings. The contribution adapter also generates the command launchers, the
+PATH configuration and `/usr/share/kedra/catalog.json`. It refuses duplicate
+configuration paths, references to unselected outputs, incompatible foundations,
+unrealized graph objects and input material that differs from the independently
+hashed release preflight, and compares the actual foundation and compiler RPM
+material with that preflight before it accepts realized outputs.
 
 ## Plan and compose
 
@@ -36,7 +30,9 @@ records the root's recipe and inventory hash in the plan and in the installed
 `/usr/share/sysroot/composition.json`. The runtime root never has to be the
 foundation image itself: a release builds it from the RPM lock over the Fedora
 base, so package identities do not change with each commit's foundation image.
-Composition itself performs no DNF transaction.
+Composition itself performs no DNF transaction and activates nothing: starting
+services, creating accounts, migrating data and other effectful steps are not part
+of it.
 
 ```sh
 sysroot system plan --repo . --target qemu-arm64 --store /private/engine-store \
@@ -50,7 +46,33 @@ sysroot system compose --repo . --target qemu-arm64 --store /private/engine-stor
 image with `sysroot store init` and `store add-image` first. Commands emit JSON;
 failures go to stderr. A new output directory is required. Planning verifies
 image/object bytes and runs read-only foundation observations in the journaled
-bubblewrap sandbox, inside the foundation image's unpacked root. It does not activate configuration.
+bubblewrap sandbox, inside the foundation image's unpacked root.
+
+File rules, checked before anything is written:
+
+- Paths are absolute and lie under `/etc/` or `/usr/`. `/usr/lib/sysroot` (the
+  store), `/usr/share/sysroot/composition.json`, `/etc/ld.so.preload`,
+  `/etc/ld.so.conf` and `/etc/ld.so.conf.d` are reserved. An authored definition
+  cannot write `/usr/share/sysroot` (source manifests and home baselines) or use
+  the committed source's `kedra-source:` provenance or `kedra.*` provenance keys.
+- Two files on one path need an explicit replacement: the one with the higher
+  priority names the other's provenance in `replaces`. Any other
+  duplicate, a `replaces` with nothing to replace, and a file below another file's
+  path are refused.
+- Configuration overlay paths (`/etc/`, `/usr/share/`, `/usr/lib/systemd/`,
+  `/usr/lib/environment.d/`, `/usr/lib/tmpfiles.d/`, `/usr/lib/sysusers.d/`,
+  `/usr/lib/udev/rules.d/`, `/usr/lib/sysctl.d/`, `/usr/lib/bootc/kargs.d/`) enter
+  the payload, but only where the foundation has no symlinked ancestor and no
+  executable, hardlinked or non-regular file at that path. A file elsewhere, such
+  as an executable or a library, only asserts the foundation's existing bytes and
+  mode and never replaces them.
+- A store path in any file must belong to a declared output, and a typed template
+  path must exist in that output.
+
+The plan and composition identity is input-addressed over the canonical resolved
+plan: actual file bytes and modes, verified object receipts and the observed
+foundation material. Artifact hashes are recorded separately in the exported
+manifest, so the identity has no self-reference.
 
 Language contributions add another independently bound layer before these calls.
 `sysroot catalog contribute` requires an explicit language root/entry/target/lock,
@@ -108,25 +130,25 @@ lab-tools adaptation is separate and networked; the system-profile composition
 case uses the static image directly. None of these consumers gains installed or
 signing authority.
 
-The context contains deterministic `payload.tar`, verified `foundation.tar`, a
-static `Containerfile` and `composition.json`. The manifest binds source/target,
-exact foundation/archive, observed seven-column RPM content, typed file provenance,
-runtime object receipts and artifact hashes. Export checks foundation symlink
-ancestors. Engine paths and generated provenance are reserved. An executable or
-library file outside configuration overlays can only assert independently verified
-existing foundation bytes and mode; passthrough does not replace it.
+The context contains deterministic `payload.tar` (root-owned entries, canonical
+modes, zero timestamps), verified `foundation.tar`, a static `Containerfile` and
+`composition.json`. The manifest binds source/target, exact foundation/archive,
+observed seven-column RPM content, typed file provenance, runtime object receipts
+and artifact hashes.
 
-The Containerfile uses a digest-derived local foundation tag. A consumer verifies
-artifact hashes, loads the retained archive, verifies its exact image ID and
-assigns that tag before building with pulls/network disabled. Exported files carry
-no signing or installed-system authority.
+The Containerfile is exactly `FROM <tag>` plus `ADD payload.tar /`, with a
+digest-derived local foundation tag, because BuildKit would read a bare
+`sha256:` image ID in `FROM` as a registry name. A consumer refuses any other
+Containerfile bytes, verifies artifact hashes, loads the retained archive,
+verifies its exact image ID and assigns that tag before building with
+pulls/network disabled. Exported files carry no signing or installed-system
+authority.
 
 The separate [native stage](NATIVE.md) (`sysroot derive`) applies the steps the
 target's `.kedra` block declares and the composition's source manifest carries:
 it compiles GLib schemas, changes declared service links, seeds initial account
-defaults and regenerates the target's generic initramfs. Final installed
-behavior, boot/update/install/SELinux and protected signing remain independent
-gates.
+defaults and regenerates the target's generic initramfs. Boot, update,
+installation, SELinux and signing are tested separately ([STATUS](STATUS.md)).
 
 ## One image pipeline
 
@@ -152,5 +174,4 @@ The lab's full local build (`KEDRA_LAB_IMAGE=build`) replays steps 1 to 5,
 without the trust layer.
 
 See [package declarations](PACKAGES.md), [engine operations](ENGINE.md),
-[architecture](ARCHITECTURE.md), [actual status](STATUS.md), and the
-[composition evidence](../../../../.specs/nix-system-composition/verification.md).
+[architecture](ARCHITECTURE.md) and [current status](STATUS.md).

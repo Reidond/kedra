@@ -20,7 +20,7 @@ The Rust `NativeStep` API supports:
   of them.
 
 Each target declares its steps once, in its block of
-`image/packages/catalog.kedra`:
+`image/packages/catalog.kedra` ([image steps](PACKAGES.md#image-steps)):
 
 ```kedra
 target "desktop" {
@@ -79,10 +79,12 @@ in an image whose `composition.json` names the plan's parent. Never run it on a
 machine.
 
 The native identity hashes the normalized steps, the parent composition identity,
-the implementation version, the fixed recipe and `driver_sha256`, which is now the
-SHA-256 of the executor binary (formerly the embedded Python driver). A different
-`sysroot` build therefore gives a different identity. The release composer
-requires `driver_sha256` to equal the pinned preflight `sysroot` artifact.
+the implementation version, the fixed recipe and `driver_sha256`, the SHA-256 of
+the executor binary, so a different `sysroot` build gives a different identity.
+The release composer requires `driver_sha256` to equal the pinned preflight
+`sysroot` artifact. The identity covers inputs only: generated files such as an
+initramfs need not be byte-reproducible, and the receipt records their actual
+hashes separately.
 
 The build runs with networking disabled (`--network none` and `RUN
 --network=none`), no pulls, no host paths, sockets or devices and no privileged
@@ -95,15 +97,13 @@ input bytes.
 
 Inside the build, `apply` checks the parent RPM rows and every planned input,
 refuses inherited managed baseline files that the committed source no longer
-declares (formerly a separate probe of the foundation; the composition image is
-the foundation plus the payload, so the result is the same), hashes the whole
-root filesystem before and after the steps and refuses any change other than the
-declared outputs and selected unit links. It then re-checks the RPM rows and
-writes `/usr/share/sysroot/native-receipt.json` with output bytes/hash/mode,
-approved unit links, skeleton paths, kernel/driver/listing evidence and the
-hashes of the image tools it ran (`rpm`, `glib-compile-schemas`, `systemctl`,
-`dracut`, `lsinitrd`, `modinfo`). The executor runs on the image's own C library,
-which the RPM material binds.
+declares, hashes the whole root filesystem before and after the steps and refuses
+any change other than the declared outputs and selected unit links. It then
+re-checks the RPM rows and writes `/usr/share/sysroot/native-receipt.json` with
+output bytes/hash/mode, approved unit links, skeleton paths, kernel/driver/listing
+evidence and the hashes of the image tools it ran (`rpm`, `glib-compile-schemas`,
+`systemctl`, `dracut`, `lsinitrd`, `modinfo`). The executor runs on the image's own
+C library, which the RPM material binds.
 
 `build` then independently checks the result: owner/identity/parent labels, that
 the image's filesystem layers strictly extend the exact parent's, and a readback.
@@ -133,12 +133,11 @@ destructor cleanup cannot run. Managed snapshots carry durable locked leases;
 explicit `sysroot system recover --workdir <state>` validates and collects
 recognized abandoned copies while preserving active, stopped or unsafe entries.
 This snapshot cleanup does not retire native image journals/tags: those remain for
-the public native retry. The four native publication-window retry cases remain
-unqualified; see [D5 evidence](../../../../.specs/nix-cache-recovery/verification.md).
+the public native retry. Killing `derive build` during image publication and then
+retrying it has not been tested.
 
 Container generation/content and systemd/default/user workflow checks are separate
 from kernel boot, Secure Boot/SELinux, installer/update and production signing.
 The container harness obtains derived images through `sysroot derive build`
-(`KEDRA_LAB_SYSROOT`). Actual coverage and failures are in
-[native qualification](../../../../.specs/nix-native-artifacts/verification.md).
-Package sources and delivery are explained in [PACKAGES](PACKAGES.md).
+(`KEDRA_LAB_SYSROOT`); [STATUS](STATUS.md) records what has run. Package sources and
+delivery are explained in [PACKAGES](PACKAGES.md).

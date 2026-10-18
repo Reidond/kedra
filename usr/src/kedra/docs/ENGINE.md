@@ -8,35 +8,62 @@ and recovery. The CLI exposes `sysroot build`, `store`, `run`, `profile`,
 
 The engine has no package language parser and no Kedra target table. It accepts
 typed `BuildGraph`, `BuildNode`, `Input`, `Argument` and `SourceFile` values. The
-separate `sysroot-catalog::language` frontend parses and checks `.kedra`, then
-lowers accepted intent and exact foundation/builder-root resolution to those types. This is the
-narrow owner-approved package language exception: author shell becomes an
-admitted `build.sh` resource and runs only inside the existing isolated builder.
+separate `sysroot-catalog::language` frontend parses and checks `.kedra` files,
+then lowers the accepted intent and the exact builder and runtime roots to those
+types; `Catalog` is only that lowered form, and `Catalog::resolve` applies the
+caller's exact policy to it. Author shell becomes an admitted `build.sh` resource
+and runs only inside the isolated builder ([language contract](PACKAGES.md#language-v1)).
 There is no resident daemon, Nix executable, host shell fallback or general
 configuration interpreter.
 
-`Catalog` is only the lowered form of `.kedra` definitions; `Catalog::resolve`
-applies the caller's exact policy to it. The schema-1 JSON catalog, its
-`--catalog` reader and the built-in jq/SQLite collection were removed on
-2026-10-14, so every `sysroot catalog` selection names `.kedra` inputs. At the
-committed-source boundary, a revision without `package-inputs.json` uses the
-package-list reader while a valid descriptor selects the `.kedra` reader.
-Selection is versioned and exclusive; a failed new reader never falls back to the
-package lists.
+## Objects and identity
 
-The committed source discriminator now selects `.kedra` definitions; the old lists
-are removed.
-Local Fedora builds/rebuilds, independent API consumption, preparation and the
-installed catalog workflow pass. Fresh both-target release qualification remains
-separate from these passes; no production image is published by this PR. See [package authoring](PACKAGES.md) and
-[current status](STATUS.md).
+A store is a private directory chosen with `--store`, owned by one Unix user. Its
+marker binds the store schema, the logical prefix `/usr/lib/sysroot/store` and the
+owner; another owner, another schema or an unknown layout is refused. Every
+command holds the store's exclusive lock for its whole run, including builds,
+runs, transfer and collection, so a store can move but cannot be shared
+concurrently. An unfinished transaction blocks every command except `store
+recover`. Objects appear at the logical prefix only inside the sandbox; on an
+installed system `/usr` is read-only, so store objects reach
+`/usr/lib/sysroot/store` there only through a composed image.
+
+- Source objects (`src-<sha256>`) are the canonical hash of an admitted tree:
+  sorted relative names, entry type, executable bit, bytes and symlink targets.
+  Owners, timestamps, xattrs, SELinux labels and file capabilities are not part of
+  it. Hardlinks, special files and symlinks that leave the tree are refused; one
+  file may hold at most 256 MiB and a tree 1 GiB.
+- Outputs (`out-<sha256>`) are input-addressed: the hash of the resolved build
+  spec, which binds the platform, the logical prefix, the sandbox policy, the
+  builder and runtime roots, the exact input objects, typed argv and environment,
+  the runtime inputs and the timeout. Each node has one output. The realized
+  content hash is recorded separately.
+- Roots (`root-<sha256>`) are named by their recipe: an image, optionally plus
+  locked RPM roles ([execution](#execution-and-integrity)).
+
+A graph has 1 to 256 nodes and at most 8 MiB of JSON; a node has at most 256
+inputs, argv entries, environment entries and runtime inputs, arguments of at most
+32 KiB and a timeout of 1 to 3,600 seconds. Store paths enter commands only as
+typed input or output segments: a literal containing the store prefix is refused,
+as are `HOME`, `PATH` and `TMPDIR` as node environment names. Unknown fields,
+duplicate names, missing inputs and cycles are refused before anything runs, and
+planning opens no store.
+
+An output's runtime references are the store paths found in its bytes plus its
+declared runtime inputs. Every reference must be an input of the node or part of
+an input's closure, and a whole runtime closure must share one runtime root;
+anything else is refused. A
+repeated build reuses a valid output; `--rebuild` builds every needed node again
+and compares content and references with the existing winner. A divergent result
+keeps the winner, moves the alternate to `quarantine/` and fails (exit 78).
 
 ## Execution and integrity
 
 Package builds, `run`, `profile run` and `develop` execute without a daemon in an
 unprivileged bubblewrap (`bwrap`) sandbox on native Linux, so they work on
 an installed Kedra (the foundation carries `bubblewrap`) and need no Docker socket,
-which is effectively root. Each process gets new user, PID, network, IPC, UTS and
+which is effectively root. The engine refuses to start a sandbox as root. Each
+process gets new user, PID, network, IPC, UTS and
 cgroup namespaces (`--unshare-all --unshare-user --disable-userns`), runs as the
 store owner with no capabilities and `no_new_privs`, `--die-with-parent`,
 `--new-session`, a cleared environment (`HOME=/build`, `TMPDIR=/tmp`,
@@ -46,8 +73,8 @@ private tmpfs `/tmp` and `/build`, its `/dev` and `/proc`, the read-only store
 inputs at `/usr/lib/sysroot/store/<id>` and, for a build, the one writable output
 directory there. No host home, credentials, sockets or other host paths are
 mounted. The sandbox cannot bound memory or process count (bubblewrap has no
-cgroup control); the earlier Docker limits are not reproduced. The derivation
-policy string `v2:bwrap:...` is part of every output identity.
+cgroup control). The derivation policy string `v2:bwrap:...` is part of every
+output identity.
 
 Roots are store root filesystems (`rootfs/root-<sha256>`), input-addressed by a
 recipe and reused by identity:
@@ -82,12 +109,9 @@ these.
 
 The engine is native: `PLATFORM` (`aarch64-linux` or `x86_64-linux`) is the
 architecture `sysroot` was compiled for, and it refuses images, daemons, roots and
-objects of any other. Source, image and root admission are explicit. Derived output paths are
-input-addressed and independently realized content is hashed separately. A
-rebuild compares the prior winner and preserves divergent evidence instead of
-replacing it. The exact builder root is the coarse build userspace. This does not
-promise mathematical reproducibility across host kernels, CPUs or all ambient
-details.
+objects of any other. Source, image and root admission are explicit. The exact
+builder root is the coarse build userspace. This does not promise bit-for-bit
+reproducibility across host kernels, CPUs or all ambient details.
 
 Every sandbox is journaled in `transactions/execution.json` with the kernel boot
 and PID-namespace identity and, once started, the bubblewrap PID and start time.
@@ -115,13 +139,17 @@ Bundle import requires an independently expected whole-bundle hash, validates
 allowlisted members and complete references, refuses unless the receiver already
 holds every runtime root, then registers dependencies first. Bundles carry no
 image archives. Profiles publish complete
-staged generations and use atomic index replacement. One store lock spans
-management and execution; unknown/corrupt state and uncertain cleanup refuse and
-preserve recovery evidence.
+staged generations and use atomic index replacement. GC retires unreferenced
+objects through journaled tombstones before removing bytes, and never touches
+Docker images, registries or bootc deployments. Unknown or corrupt state and
+uncertain cleanup refuse and preserve recovery evidence.
 
-`ManagedSnapshot` leases protect composition, native and catalog packet temporary
-state; `sysroot system recover` collects only recognized abandoned snapshots.
-These mechanisms grant neither OS signing nor installed helper authority.
+`ManagedSnapshot` leases protect composition, native, catalog plan and formatter
+temporary state in an owner-private registry (`.sysroot-snapshots-v1`). A held file
+lock is the liveness signal, so a stopped reader keeps its snapshot; `sysroot
+system recover --workdir <dir>` collects only recognized abandoned snapshots and
+reports active and refused ones, never judging by age or PID. These mechanisms
+grant neither OS signing nor installed helper authority.
 
 ## Binary cache
 
@@ -163,7 +191,9 @@ base, lock roles and inputs the previous stable image already realized.
 Admission does not depend on what else the registry holds, so a cache can be
 pruned freely: Kedra releases keep one cache package per target and delete every
 closure the newly published stable image does not record
-([RELEASES](RELEASES.md)).
+([RELEASES](RELEASES.md#binary-cache)). A cache never bypasses the release checks:
+an image is still built, tested and signed as a whole, and cache access grants no
+signing authority.
 
 ## Fedora RPM lock
 
@@ -173,12 +203,12 @@ base image on a native local Docker engine, never on the host. The foundation
 transaction (upgrade, install, remove) runs first. The last builder role installs
 in that container itself and any earlier role in a container from one commit of
 it, so every role sees the same repository metadata and an untouched foundation.
-Every
-RPM the transactions downloaded becomes a fixed-output single-file `src-` object:
-its identity is predicted from file name, size and SHA-256 before any byte is read
-(`rpm_object`), and admission (`import_rpm`, `fetch_rpm`) refuses any other bytes.
-A resolution of the same store removes containers an interrupted predecessor left,
-which the store lock makes safe; leftover staging is ordinary `store recover` work.
+Every RPM the transactions downloaded becomes a fixed-output single-file `src-`
+object: its identity is predicted from file name, size and SHA-256 before any byte
+is read (`rpm_object`), and admission (`import_rpm`, `fetch_rpm`) refuses any other
+bytes. A resolution of the same store removes containers an interrupted
+predecessor left, which the store lock makes safe; leftover staging is ordinary
+`store recover` work.
 
 `materialize_rpms` copies exactly one role's verified objects into a new offline
 repository. Images then install from it with all repositories disabled and Fedora
@@ -193,28 +223,27 @@ them. The lock document itself is `sysroot-catalog::rpm_lock`; see
 
 The engine supports one native architecture per machine (aarch64 or x86_64;
 cross-architecture builds are refused), one runtime root per closure, bubblewrap
-with unprivileged user namespaces (0.8 or later) and Docker 29 OCI save archives;
-image import from a daemon (`store add-image --image`), RPM resolution and native
-derivation still use the local Docker engine, while `store add-image --archive`
-imports a saved archive without one. Both release targets build through it
-([one image pipeline](SYSTEM.md#one-image-pipeline)) and both may select `.kedra`
-source packages. Native x86_64 builds run on the desktop release runner; their
-local qualification is recorded in [STATUS](STATUS.md). The [binary
-cache](#binary-cache) is qualified against a local registry only; nixpkgs or
-`.nix` compatibility and an alternate OS backend remain unqualified.
-Complete kernel, boot, SELinux, installation and release signing use separate
-workflows.
+with unprivileged user namespaces (0.8 or later) and Docker 29 OCI save archives.
+Image import from a daemon (`store add-image --image`), RPM resolution and native
+derivation use the local Unix-socket Docker engine (no TLS or remote endpoint);
+`store add-image --archive` imports a saved archive without one. Both release
+targets build through the engine ([one image pipeline](SYSTEM.md#one-image-pipeline)),
+each natively on its own runner. The [binary cache](#binary-cache) has been
+exercised only against a local registry; [STATUS](STATUS.md) records what has run
+where.
+
+The engine does not replace bootc. Kernel, boot loader, initramfs installation,
+SELinux, encrypted installation, signed updates and rollback stay with the signed
+bootc image workflow; a store-composed OS backend would need its own authority for
+each of those and is not part of Kedra. There is no Nix language or nixpkgs
+compatibility. Package execution stays ordinary-user and nonroot, home stays
+writable, and the installed helper and the production signer keep their narrow
+roles.
 
 Engine/package rollback does not roll back systemd service state, databases,
 writable home, credentials, bootc deployments or registry tags. A bundle hash is
-content integrity, not publisher identity. Store tree hashing does not attest
-arbitrary ownership, SELinux labels or file capabilities.
+content integrity, not publisher identity.
 
 Use the [library guide](../crates/sysroot-engine/README.md) for concrete APIs and
 CLI examples, [SYSTEM](SYSTEM.md) for composition, [PACKAGES](PACKAGES.md) for
-authoring and cutover, and [STATUS](STATUS.md) for checks actually run. The
-[engine specification](../../../../.specs/nix-engine/requirements.md) and
-[package-language specification](../../../../.specs/nix-package-dsl/README.md)
-define intended acceptance; they are not execution evidence. The preserved
-[recreation research](../../../../.specs/nix-recreation/README.md) remains design
-reference rather than a substitute for current runtime results.
+authoring, and [STATUS](STATUS.md) for checks actually run.

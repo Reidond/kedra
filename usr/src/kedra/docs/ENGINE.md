@@ -174,7 +174,9 @@ is the booted image, which bootc verified when it was staged.
 - `sysroot build` and `sysroot catalog build` take the same `--cache`/`--trusted`:
   before building a missing node that has a record, the closure is substituted;
   a refusal or unavailable cache is recorded in `cache_misses` and the node is
-  built. `--rebuild` never substitutes. A node without a record (a build-only
+  built. A substitution that leaves the store needing recovery (an import journal
+  remains, or the store reports recovery required) stops the build instead; run
+  `sysroot store recover` first. `--rebuild` never substitutes. A node without a record (a build-only
   intermediate the image does not carry) is built.
 
 Transport is `skopeo`, run with a cleared environment, a private home and a

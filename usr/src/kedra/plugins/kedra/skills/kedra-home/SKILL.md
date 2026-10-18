@@ -23,19 +23,19 @@ the candidate beside the live file (`replace_file::Directory::validate_bytes`),
 replace atomically (`prepare`/`publish`/`finish`, keeps mode/group/label, refuses
 links), run each distinct reload once, then record N. While the record is
 missing or outdated, an L that already equals the result is still checked and
-reloaded before recording, so a failed reload is retried (PR48 review). A conflict writes
+reloaded before recording, so a failed reload is retried. A conflict writes
 `<file>.kedra-new` and `pending/<path>`; deleting the conflict file resolves it.
 Never write conflict markers into a live file, never overwrite a `.kedra-new` an
 update did not write, never record N before check and reload succeed. New
 accounts get B from `/etc/skel/.local/state/kedra/home/applied/` (the `skel`
-derive step, lab overlay-apply.sh); without B a differing file becomes a conflict, not an
-adoption.
+derive step; the lab overlay repeats it in tests/container/lab/overlay-apply.sh);
+without B a differing file becomes a conflict, not an adoption.
 
 `capture` writes one live file to the checkout's source path (target overlay copy
 if the checkout has one, else `etc/skel/`) and never stages or commits; the owner
 picks lines with `git add -p`. Only declared files are read. Diffs show the
 owner's live content: review before staging, since staged text can become a
-public Git object. No symlinked or whole-home capture, no SQLite review store.
+public Git object. No symlinked or whole-home capture.
 
 Facts behind the shipped entries (2026-10-14, Fedora44 qemu-arm64 stable
 c36c10c: niri-26.04-1, noctalia-5.2.1-1, git-2.56.0):
@@ -57,9 +57,3 @@ restarts, check refusal, conflict and resolution). `kedra-lab sync` stages the
 working tree as a `--root` image and runs the same update. Kill-at-publication
 recovery is not qualified: an interrupted update can leave a private
 `.sysroot-activation-<token>` directory holding the previous content.
-
-History: until 2026-10-14 home management was a Noctalia three-field projection
-with a version allow-list, a niri line-review store with IPC reload proof and a
-qemu-arm64 niri artifact record (`home-artifacts.json`). The owner replaced it
-with this data-driven model; no installed review state needed migration. See
-worklog WL-20261014-HOME-FILES-01.

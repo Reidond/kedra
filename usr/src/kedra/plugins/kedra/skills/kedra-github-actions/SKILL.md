@@ -1,178 +1,54 @@
 ---
 name: kedra-github-actions
-description: Maintain Kedra's release workflows (signed OS updates, owner-dispatched installer ISO releases), local testing with sign-off, and the boot-level VM drivers.
+description: Maintain Kedra's release workflows (signed OS updates, binary cache, owner-dispatched installer ISO releases), local testing with sign-off, and the boot-level VM drivers.
 ---
 
 # Actions
 
-Read usr/src/kedra/docs/UPDATES.md, usr/src/kedra/docs/RELEASES.md and usr/src/kedra/docs/ARCHITECTURE.md.
+Read usr/src/kedra/docs/RELEASES.md, usr/src/kedra/docs/UPDATES.md, usr/src/kedra/docs/SYSTEM.md ("One image pipeline") and usr/src/kedra/docs/ARCHITECTURE.md.
 
 Owner decision (2026-10-08): Actions produces releases; testing of changes is local.
-- `release.yml` + reusable `release-target.yml` build, validate, sign and publish OS updates for installed systems (00:00 UTC schedule, image-affecting pushes to main, manual dispatch).
-- `iso.yml` is a full new installer release that the owner dispatches for one target. It builds an ISO from the target's current signed `stable` digest with usr/src/kedra/installer/build-local.py, splits it into parts below 2 GiB and attaches them with PARTS.SHA256SUMS, the builder's unchanged single-line SHA256SUMS (installer/macos/media.py verify requires that format) and installer.json marked `"uploaded": true` to a new GitHub Release tagged `<target>-<digest16>`. It never replaces a release, holds no signing secret and never builds, signs or moves an image. Only the owner dispatches it.
-- `check.yml` and the eight `test-*.yml` workflows were removed (last present at `3e33867`). Changes are tested locally and merge on the `signoff` commit status (AGENTS.md "Local testing and sign-off"; usr/src/kedra/tests/signoff.py). Main's branch protection needs `signoff` as its required status in place of `rust`; that setting is the owner's. The boot-level drivers under usr/src/kedra/tests/vm no longer depend on Actions variables: they run on a disposable Linux host behind `--disposable-host`, through the shared launcher usr/src/kedra/tests/common/qemu.py and guest check common/secure_boot_check.py (tests/README.md). Never re-add a check that a driver runs only in Actions.
-- The release build job builds the binaries without repeating the source checks the sign-off covers. `validate-candidate` and the qemu-arm64 installed catalog case still test each exact candidate before signing, because nightly refreshes produce images no sign-off saw.
-- Since 2026-10-18 the workflow files are not resolved-input recipes: every content-affecting step lives in a recipe script (`refresh.py prepare`, `build.sh`, `compose.py`, `catalog/build-packages.sh`, `prepare-trust.py`, `trust.py`; usr/src/kedra/image/release/material.py lists them) and the workflows only call those with the target, commit and scratch paths, so a workflow-only edit rebuilds and re-signs nothing. Never inline a step that changes image inputs or the build in a workflow; put it in a recipe script.
-- Each property is checked once where it is needed: exact main at the end of preflight, in the signer before key use and right before `stable` advances; bootc compatibility on the RPM lock in preflight; the candidate's signature by publication's strict pull (preflight verifies the previous stable). Pins and the source archive are produced once per run (material.catalog_pins, compose.py foundation).
+- `release.yml` + reusable `release-target.yml` build, validate, sign and publish OS updates for installed systems (00:00 UTC schedule, image-affecting pushes to main, manual dispatch). One non-cancelling `release-44` group; `release.yml` calls `release-target.yml` as a fail-fast-off matrix read from usr/src/kedra/image/release/targets.json at the exact commit (desktop on `ubuntu-24.04`, qemu-arm64 on `ubuntu-24.04-arm`), so one target failing does not stop the other. Jobs without a checkout (the signer, `iso.yml`'s target job) read targets.json as data through the contents API.
+- `iso.yml` is a full new installer release that the owner dispatches for one target. It builds an ISO from the target's current signed `stable` digest with usr/src/kedra/installer/build-local.py, splits it into parts below 2 GiB and attaches them with PARTS.SHA256SUMS, the builder's unchanged single-line SHA256SUMS (installer/macos/media.py verify requires that format) and installer.json marked `"uploaded": true` to a new GitHub Release tagged `<target>-<digest16>`. It never replaces a release, holds no signing secret and never builds, signs or moves an image. Agents never dispatch it or a release run.
+- There is no check or test workflow. Changes are tested locally and merge on the `signoff` commit status that usr/src/kedra/tests/signoff.py sets (AGENTS.md "Local testing and sign-off"); main's branch protection requires it. Never re-add a check that only runs in Actions. The boot-level drivers under usr/src/kedra/tests/vm run locally (kedra-research).
+- The workflow files are not resolved-input recipes (since 2026-10-18): every content-affecting step lives in a recipe script (`refresh.py prepare`, `release/build.sh`, `compose.py`, `catalog/build-packages.sh`, `prepare-trust.py`, `trust.py`; usr/src/kedra/image/release/material.py lists them), so a workflow-only edit rebuilds and re-signs nothing. Never inline a step that changes image inputs or the build in a workflow. Never rename release.yml: it is bound into the signed image identity.
+- Each guard runs once where it is needed: exact main at the end of preflight, in the signer before key use and right before `stable` advances; bootc compatibility on the RPM lock in preflight; the candidate's signature by publication's strict pull.
 
-Machine bundles and release metadata signatures are not published.
+## Release jobs per target
 
-The 00:00 UTC trigger reconciles the reviewed official Fedora 44 base and complete installed RPM closure, resolved once per run into an RPM lock that every build installs offline from (references/fedora-refresh.md). Do not let cached DNF layers claim freshness. Required repository, signature or solver failure is an error. Changed inputs produce a candidate; identical inputs do nothing, with no checkpoint renewal.
+`build` (public trust, no signing secret):
+- Builds the binaries without repeating the source checks the sign-off covers.
+- Preflight (`image/release/refresh.py prepare`) resolves the run's only Fedora package set into an RPM lock and compares source, base, recipes and the lock's pins hash against the strictly verified stable image; identical inputs stop the run with nothing published and no checkpoint renewal (references/fedora-refresh.md).
+- On change, `image/release/build.sh`: foundation (`compose.py foundation`, offline from the lock), then `image/catalog/build-packages.sh` (which `kedra-lab`'s full local build also runs): runtime and builder roots (`sysroot store add-root` from the lock's Fedora base, in the bubblewrap sandbox after `image/release/runner-apparmor.sh` lifts Ubuntu's `kernel.apparmor_restrict_unprivileged_userns`), `sysroot catalog build` of each `.kedra` package with `--cache ghcr.io/reidond/kedra-cache-<target> --trusted <previous stable composition.json>`, `catalog contribute`, then `compose.py compose` (compose, derive, trust layer).
+- The installed catalog case `native::catalog` runs on the exact composed native image; `refresh.py inspect-candidate` validates identity and material without executing it; realized closures are pushed to the binary cache (`continue-on-error`: a failed push costs a later rebuild, never the release); the unsigned build goes to the target's builds repository by digest.
+`validate-candidate`: the complete container harness against the immutable public builds-repository digest with `KEDRA_LAB_OVERLAY=none`, on the native runner, without a signing environment or private keys. Its complete, non-interrupted report must match target/digest with passed results and no cleanup failures; only then is that digest passed on. It exists because nightly Fedora refreshes produce images no sign-off saw; rebuilding the same source against refreshed repositories can test a different RPM snapshot. Keep test execution out of the signer and never send test executables or raw reports to it.
+`sign-image` (the target's `kedra-<target>-signing` environment) → `publish-stable` → `prune-cache`, which deletes cache closures the new stable image does not record, only when every contributed output has a pushed tag. The owner makes each cache package public after its first push (docs/RELEASES.md).
 
-Build jobs have public trust. Automatic isolated signing executes no checkout/candidate/repository code while production keys exist. The main-only environment has no human approval gate. Sign and verify exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials.
+Signing: automatic isolated signing executes no checkout, candidate or repository code while production keys exist. The main-only environment has no human approval gate. Sign and verify the exact OCI digest/repository, then advance GHCR stable only after current-source and ordering checks. Pin Actions/tools and minimize credentials. The callers use `secrets: inherit` and only the signer job declares the environment: a called job that declares `environment:` sees that environment's secrets as empty unless the caller inherits secrets, despite the reusable-workflow docs (observed 2026-09-25: a release failed closed with empty signing secrets, a probe confirmed; comment in release.yml). The repository has no repository-level secrets, so inheriting exposes nothing else.
 
-Per-target releases (implemented 2026-09-25; release 36617035503 passes both targets on 2026-09-29):
-- release.yml keeps one non-cancelling `release-44` group. It calls reusable `release-target.yml` as a fail-fast-off matrix read from usr/src/kedra/image/release/targets.json at the exact commit (desktop on `ubuntu-24.04`, qemu-arm64 on `ubuntu-24.04-arm`); jobs without a checkout (signer, `iso.yml`'s target job) read that file as data through the contents API.
-- Each target uses its own `kedra-<target>-signing` environment, secrets, builds repository and artifacts.
-- The callers use `secrets: inherit`, and only the signer job declares the environment. Observed 2026-09-25 (release run 36190624411 failed closed with empty signing secrets; probe run 36191986665): a called job that declares `environment:` sees that environment's secrets as empty unless the caller inherits secrets, despite the reusable-workflow docs. The repository has no repository-level secrets, so inheriting exposes nothing else.
+## Hosted runner facts
 
-Historical, from the test workflows removed on 2026-10-08 (their drivers remain):
-- Hosted arm64 runners expose no `/dev/kvm`, so test-qemu-arm64.yml booted its disposable disk under TCG with AAVMF Secure Boot firmware and Microsoft-enrolled vars. Main run 36617035132 attempt 2 at `bafd1884` powered off with every security/bootc marker in 300 s.
-- The x86 VM drivers boot `OVMF_CODE_4M.secboot.fd` with a copied `OVMF_VARS_4M.ms.fd` and require the guest's `KEDRA_SECUREBOOT_PASS`. The protocol-1 signed-update driver, removed on 2026-10-14, added a snakeoil-keys refusal case; that case now runs as `qemu.py refuse` in ghcr-update's run.sh. Since 2026-10-14 the machine comes from the shared launcher and the marker from the shared guest check.
-- test-container.yml (main run 36617035048 passes both architectures on 2026-09-29) built each target's candidate natively with the harness's full local build (`KEDRA_LAB_IMAGE=build`) and ran every container scenario. The same harness now runs locally and in the release's `validate-candidate` job.
-Image-content and session checks live in container scenarios. No unit/model/mock/doctests or repository scanners.
+- Docker image store: every Docker-using job (build and validate-candidate) first switches the runner's Docker to the containerd snapshotter with `image/release/runner-containerd.sh`, preserving other daemon settings and refusing existing containers; local OrbStack uses the containerd store too, so a local harness pass is the CI-equivalent result. On the classic overlay2 store an image ID is the configuration digest and `docker save` emits a manifest Docker generates, so the engine's daemon import (`sysroot store add-image --image`, which binds the ID to the saved archive's root) refuses it (hosted Docker 28.0.4, 2026-10-04). Harness cases still read image IDs from the daemon and never use a registry index digest as an image ID, so they stay correct on both stores (Docker 29.9.1 classic and OrbStack 29.4.0 containerd, 2026-10-18; `local_image`/`archive_identity` in tests/container/native.rs).
+- Docker 28 inspect `Config` injects twelve defaults absent from the exported config (three empty strings, six false booleans, three nulls). The producer ignores only those (`INSPECT_ONLY_DEFAULTS` in image/release/compose.py) and refuses any other mismatch; do not widen normalization from assumptions. Source: https://docs.docker.com/engine/deprecated/#non-standard-fields-in-image-inspect .
+- Preserve OCI manifest bytes with Skopeo `--preserve-digests`; a Podman push may change layer representation even when config/RootFS match (2026-10-02).
+- Public fixture metadata copied into a root image needs explicit 0644 under a private 077 producer umask; scope any 022 umask to the public producer/installer subprocess.
+- Candidate failure diagnostics (`compose.py --diagnostic-output`) keep only bounded structured step/tool/exit, exception source basename/line, log hashes/sizes and fixed markers; never upload raw private logs or arbitrary exception messages. Preserve the first failed command across cleanup and never mask the original exit if diagnostic writing fails.
+- GitHub-hosted arm64 runners exposed no `/dev/kvm` (2026-09), so aarch64 VM boots there ran under TCG.
 
-Observed 2026-09-29, QEMU 8.2.2 / Fedora systemd 259.9 / kernel 7.2.7:
-run 36617035132 attempt 1 froze PID 1 at guest 113.669 s, before the observer
-started, then consumed the full 90-minute bound. The serial line
-`systemd[1]: Freezing execution.` is a fatal boot outcome, not readiness.
-The same SHA, firmware and package closure pass in attempt 2; retain both
-artifacts rather than rewriting the first failure. The shared launcher's
-`qemu.watch` (used by tests/vm/qemu-arm64/run.py and `qemu.py boot`, formerly
-`boot.sh`) detects that exact fatal line every 2 s and stops the owned QEMU
-process group before failing. There is no automatic retry and all
-Secure Boot, SELinux, bootc, unit and digest assertions remain required.
+PID 1 freeze (QEMU 8.2.2 / Fedora systemd 259.9 / kernel 7.2.7, 2026-09-29): a TCG boot froze PID 1 at guest 113.669 s and consumed its full 90-minute bound; the same source, firmware and packages passed on retry. The serial line `systemd[1]: Freezing execution.` is a fatal boot outcome, not readiness. The shared launcher's `watch` (usr/src/kedra/tests/common/qemu.py) detects that line every 2 s and stops the owned QEMU process group before failing. There is no automatic retry; all Secure Boot, SELinux, bootc, unit and digest assertions remain required. Retain a failed attempt's evidence rather than rewriting it.
 
-Local installer changes retain pinned image-builder, labeling, offline payload verification and deliberate disk choice. Media permissive SELinux never weakens installed enforcing SELinux/signature policy. Record actual local smoke/fresh-install results separately from image builds.
+## Installer and ARM release fixture facts
 
-Update STATUS/worklog with exact observed outcomes. Never call staged booted, signed installed or syntax qualified.
+Local installer changes retain pinned image-builder, labeling, offline payload verification and deliberate disk choice. Media permissive SELinux never weakens installed enforcing SELinux/signature policy. Record local smoke/fresh-install results separately from image builds.
 
-Exact-candidate validation (qualified 2026-09-30, release 36702944904):
-`release-target.yml` requires build → validate-candidate → isolated sign → stable
-publication. Validation runs the complete sanctioned Testcontainers harness against
-the immutable public builds-repository digest with KEDRA_LAB_OVERLAY=none, on the
-native runner, without a signing environment or private keys. Its complete,
-non-interrupted report must match target/digest, contain passed results and no
-cleanup failures; only then is that digest passed to the signer. The signer
-independently requires equality with build.digest and retains its current-source,
-identity, ranking and namespace checks. No-change skips validation/sign/publication.
-Do not substitute the independent container workflow: rebuilding the same source
-SHA against refreshed Fedora repositories can test a different RPM snapshot.
-A fresh Noctalia 5.2.0 candidate exposed exactly that compatibility gap. Keep test
-execution out of the signer and never send test executables or raw reports to it.
-The first gate run 36692694223 failed closed because Git cannot bundle a raw
-commit ID without a named ref. The corrected private 0700 named-ref bundle preserves
-exact image provenance and checkout state under hostile Git settings. Release
-36702944904 passes both full exact-candidate suites, signing and strict publication
-(all eight jobs); validation is observed, not inferred from workflow text.
+Anaconda 44.30 (2026-10-05):
+- `xconfig --startxonboot` maps to the graphical default target; a cold install changed only default.target although greetd provides graphical login, so do not infer a missing provider. Explicit graphical selection preserves the native artifacts.
+- The normal `anaconda.service` starts detached tmux; a live wrapper is not the foreground installer's health, and ExecMainStatus=0/Result=success before process exit is not completion. Observe actual exit timestamps.
+- The [installation queue logger](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/boss/installation.py) prints the future task list before execution; match actual task start/completion records. D-Bus modules use default Python logging (`INFO:anaconda.modules...`, [module initializer](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/common/__init__.py)); the [launcher](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/core/startup/dbus_launcher.py) routes Boss stderr to private `/tmp/dbus.log`, and payload/storage modules write `/tmp/packaging.log` and `/tmp/storage.log`. tests/vm/ghcr-update/installer_stages.py matches these with fixed bounded patterns; its stage tokens are diagnostics, never installer success criteria.
+- Installer completion must be signalled outside the target chroot through a verified character device without create/truncate: a chrooted `Path.write_text` created a regular target serial file.
+- Keep private Kickstart/guest logs private; use fixed bounded stage tokens and unchanged acceptance/deadline checks. Guest heartbeats prove observer liveness, not installer progress.
+- Unresolved: the ARM fixture's encrypted installation exceeded its deadline on a hosted TCG runner after Anaconda logged the bootc deployment command and before storage argument collection; whether bootc started, and why it stalled, is unproven. Do not infer a cause.
 
-ARM release-fixture findings (2026-10-02; see
-`.specs/nix-release-composition/verification.md`): preserve OCI manifest bytes with
-Skopeo `--preserve-digests`; a Podman push may change layer representation even
-when config/RootFS match. Public fixture metadata copied into a root image needs
-explicit 0644 under a private 077 producer umask. Scope any 022 umask to the
-public producer/installer subprocess; private keys and parent logs remain private.
-Store archives and transfer exports each have their own receipt/hash, while
-config/RootFS/native/source bindings establish continuity between representations.
+Retained local registry replay (Podman 5.4.2, 2026-10-03; tests/vm/ghcr-update/fixture.py): select the full existing volume name and independently observed CreatedAt; bind backing device/inode and no consumers before create, then exact stopped container/mount identity before start. Use `:nocopy`; retained NeedsCopyUp metadata must not permit payload copy-up. Installer-base overrides do not replace signed payload identity or waive TLS, deadline or capacity gates.
 
-Anaconda 44.30 maps `xconfig --startxonboot` to the graphical default target.
-Observed cold install changed only default.target despite greetd providing the
-graphical-login capability; do not infer a missing provider. Explicit graphical
-selection preserves all twelve native artifacts in the external-Kickstart proof.
-Installer completion must run outside target chroot through a verified character
-device without create/truncate: an ordinary chrooted Path.write_text created a
-regular target serial file. The public defaults/embedded-marker source is fixed;
-its newly rebuilt owning-source media remains unqualified until the recorded
-fresh-install gate passes. External-input recovery does not qualify that route.
-
-Candidate failure evidence (2026-10-03, PR34 run37107489350): ARM foundation
-failure logs beneath private candidate work were absent from uploaded evidence,
-so its cause could not be established. Candidate foundation/compose now select
-`compose.py --diagnostic-output` in public evidence. Retain only bounded structured
-step/tool/exit, exception source basename/line, log hashes/sizes and fixed observed
-markers; never upload raw private logs or arbitrary exception messages. Preserve
-the first failed command across finally cleanup, and never mask the original
-exit if diagnostic writing fails. See release-composition verification.md.
-
-
-Retained local registry replay (2026-10-03, Podman5.4.2): select the full existing
-volume name and independently observed CreatedAt; public fixture inspection binds
-local backing device/inode and no consumers before create, then exact stopped
-container/mount identity before start. Use `:nocopy`; even retained NeedsCopyUp
-metadata must not permit payload copy-up. The actual tiny stopped-create proof
-preserves sentinel bytes/modes/inode and refuses wrong creation time/consumers
-(see release-composition verification.md). Dedicated serialized controller
-ownership remains required. Never select backup custody for replay; metadata
-creation is expected, so describe payload preservation precisely. Fixture-only
-compatible descendants still satisfy original recipe/binary admission; newer
-production recipe changes require fresh material. Installer-base overrides do
-not replace signed payload identity or waive TLS, deadline or capacity gates.
-
-Hosted Docker28.0.4/overlay2 image retention (2026-10-04): the real public tiny
-preflight selected a config digest while Docker save emitted a different single
-OCI root manifest. Strict store add-image correctly refused78; this is not a
-multiple-root or CDN failure. Keep the engine's root/graph binding. Every
-Docker-using release job (build and validate-candidate) selects
-containerd-snapshotter first through `image/release/runner-containerd.sh`
-(since 2026-10-18; before, only the build job did, and validate-candidate's
-classic store broke `native::engine_sandbox`, runs 39027034006 and later).
-Local OrbStack uses the containerd store too, so a local harness pass is the
-CI-equivalent result; no separate classic-store re-test is required. Harness
-cases still read image IDs from the daemon and stay correct on both stores.
-Preserve other daemon settings, refuse existing containers before switching,
-and retain bounded backend/root/config metadata plus actual cleanup exits.
-Sources: `.specs/nix-release-composition/verification.md`, runs37199831847 and
-37199833274, https://docs.docker.com/engine/storage/containerd/ .
-
-Docker28.0.4 inspect Config also injects three empty strings, six false booleans
-and three null fields absent from the actual exported config (2026-10-04,
-QEMU runs37215763783/37215764140). The producer adjusts only those twelve typed
-inspect-only defaults, refusing nondefault/other mismatches; platform, all diff
-IDs and full transferred config-byte identity remain required. Do not expand
-normalization from assumptions. Source/evidence: release-composition verification
-and https://docs.docker.com/engine/deprecated/#non-standard-fields-in-image-inspect .
-
-Installer-stage evidence (2026-10-05, Anaconda 44.30): the normal
-`anaconda.service` starts detached tmux; a live wrapper is not the foreground
-installer's health. Default ExecMainStatus=0/Result=success before process exit is
-not completion. Observe actual exit timestamps before recording exit-qualified
-results. The successful local HVF serial also lacks several broad progress
-phrases, so absent prose cannot locate the hosted installation stall. Sources:
-[normal service](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda.service),
-[pre service](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/data/systemd/anaconda-pre.service)
-and D2 verification, hosted runs37234495769/37234495358/37234495136/37234496224.
-Keep private Kickstart/guest logs private: the research boot-probe's raw journal
-trap is unsuitable for credential-bearing installer fixtures. Use fixed bounded
-stage/state tokens and unchanged acceptance/deadline checks. Owning source
-deb442c adds that diagnostic path. Run37283817872 observes successful verifier
-exit and Kickstart storage-include emission before another installation timeout.
-Writing that include does not prove Anaconda applied it. Unavailable metadata
-commands and deduplicated stage tokens do not establish ongoing guest health.
-
-Anaconda44.30's [installation queue logger](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/boss/installation.py)
-prints the future task list before execution. Match actual task-start/completion
-records with the verified formatter/module prefix; a bare task name is not
-progress. Source7c59fd8 adds those fixed observations and bounded numeric health
-summaries. Only new increasing guest sequences refresh liveness, and host
-samples refer to the live owned QEMU process before cleanup. Drop malformed data;
-stop further metadata subprocesses if child cleanup cannot be established.
-Keep health sampling independent of token saturation. Dropped frames, sampled
-extrema and missing bounded-log messages cannot prove a specific stall cause.
-Run37305788202 verifies157 increasing guest heartbeats near the deadline with
-no sampled OOM, but installation still fails. The previous task-log assumption
-was incomplete: the main UI formatter does not govern D-Bus module processes.
-The [module initializer](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/modules/common/__init__.py)
-uses default Python logging (`INFO:anaconda.modules...`); the
-[launcher](https://raw.githubusercontent.com/rhinstaller/anaconda/anaconda-44.30/pyanaconda/core/startup/dbus_launcher.py)
-routes Boss stderr to private `/tmp/dbus.log`. Payload/storage modules also
-write `/tmp/packaging.log` and `/tmp/storage.log` using that module format.
-Sourcec01ee2f corrects fixed per-file matching under the same64KiB bounds.
-Do not infer task non-execution from the old classifier's absent markers.
-Existing UI initialization/task-start observations do not establish physical
-formatting or completion. Corrected sourcec01ee2f/run37330502213 attempt2
-still fails installation at7201.573s. Its bootc EXEC log follows
-`_clean_physroot()` returning but precedes storage `GetArguments()`, adapter
-mounts and child creation (Anaconda44.30 deployment source614ac3f3).
-It cannot prove bootc child launch; a command log before Popen cannot either.
-Preserve that narrower boundary without inventing a cause. Guest heartbeats
-prove observer liveness, not the installer process family or useful progress.
+Update STATUS and the worklog with exact observed outcomes. Never call staged booted, signed installed or syntax qualified.

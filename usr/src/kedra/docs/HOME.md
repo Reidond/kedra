@@ -4,7 +4,8 @@ Live home files are ordinary writable files. The image names the few it manages
 in one data file, [`usr/share/kedra/home-files.toml`](../../../share/kedra/home-files.toml),
 and `sysroot home` keeps them in step with the image's baseline without losing
 your edits. `sysroot` itself knows no application: each entry carries its own
-check and reload commands.
+check and reload commands. The image currently manages niri's `config.kdl`,
+Noctalia's `config.toml` and the Noctalia Adwaita palette; an excerpt:
 
 ```toml
 schema_version = 1
@@ -43,9 +44,10 @@ sysroot home update                 # merge baseline changes, check, reload
 sysroot home capture .config/niri/config.kdl --repo ~/src/kedra
 ```
 
-Each accepts `--json`. `--state DIR` selects another state directory and
-`--root DIR` reads the data file and baselines from an unpacked image root
-instead of `/` (tests and the lab use it).
+Each accepts `--json`. Before the subcommand, `sysroot home --state DIR`
+selects another state directory and `sysroot home --root DIR` reads the data
+file and baselines from an unpacked image root instead of `/` (tests and the lab
+use it).
 
 ### status
 
@@ -91,9 +93,9 @@ conflict file exists, `update` reports `unresolved` for that file. An existing
 
 New accounts record their baseline at creation: the image copies the baseline
 into `/etc/skel/.local/state/kedra/home/applied/`. Without a record (another
-`XDG_STATE_HOME`, or an account from before this change) B is unknown: a live
-file equal to N is checked, reloaded and recorded, a missing one is created, and a different one gets
-N beside it as `<file>.kedra-new` to merge by hand.
+`XDG_STATE_HOME`, or an account created without it) B is unknown: a live file
+equal to N is checked, reloaded and recorded, a missing one is created, and a
+different one gets N beside it as `<file>.kedra-new` to merge by hand.
 
 ### capture
 
@@ -117,8 +119,7 @@ checkout must declare the installed target
 - State lives in `$XDG_STATE_HOME/kedra/home` (default
   `~/.local/state/kedra/home`), mode 0700: `applied/` and `pending/` hold image
   baselines, which are public; `lock` serializes updates. It holds no live
-  content, review database or journal. The previous `~/.local/state/sysroot/home`
-  review store is ignored and can be deleted.
+  content.
 - An update interrupted between preparation and cleanup can leave a private
   `.sysroot-activation-<token>` directory beside a file; it holds the previous
   content. Inspect and delete it.
@@ -135,19 +136,17 @@ After an OS update and reboot, run `sysroot home update`; staging an image
 never changes a home file.
 
 In the container lab, `kedra-lab sync` stages the working tree's home baselines
-as a private image root and runs `sysroot home update --root` in the test
+as a private image root and runs `sysroot home --root DIR update` in the test
 account, so the lab exercises the same merge, check and reload.
 
 ## Verification
 
-- `cargo test -p sysroot --test e2e_home`: the public CLI over a generated image
-  root, home and Kedra checkout, with real Git: record, fast-forward, merge,
-  failing check, shared reload, a failed reload retried by the next update,
-  conflict, resolution, the no-record conflict,
-  link refusal and capture into the shared and overlay paths without staging.
-- `native::home_files_update` in the container harness: in the real nested
-  session, the account starts recorded, niri loads a merged file by itself,
-  Noctalia restarts with its merged file, niri's own validator refuses an invalid
-  baseline and a conflict leaves the live file and niri untouched until resolved.
-
-Recorded results are in [STATUS](STATUS.md).
+`cargo test -p sysroot --test e2e_home` runs the public CLI over a generated
+image root, home and checkout with real Git (record, fast-forward, merge, failing
+check, shared and retried reloads, conflict and resolution, link refusal, capture
+without staging). The container harness case `native::home_files_update` runs
+the real nested session: niri loads a merged file by itself, Noctalia restarts
+with its merged file, niri's validator refuses an invalid baseline and a conflict
+leaves the live file untouched. Both pass locally, and the harness also runs on
+every release candidate. Recovery after an update is killed midway is not
+tested; see [STATUS](STATUS.md).

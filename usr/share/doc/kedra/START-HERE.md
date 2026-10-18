@@ -1,79 +1,98 @@
 # Welcome to Kedra
 
-Kedra uses Fedora 44, the niri window manager and Noctalia desktop controls.
-At the login screen, enter the account and password you created during installation.
-The Super key is usually the Windows key.
+Kedra is Fedora 44 with the niri window manager and Noctalia desktop controls,
+updated as a whole signed image. At the login screen, enter the account and
+password you created during installation. The Super key is usually the Windows key.
 
 | Shortcut | Action |
 |---|---|
 | Super+Return | Open the Foot terminal |
 | Super+Shift+/ | Show the shortcut overlay |
-| Super+D | Open the application launcher |
-| Super+Shift+D | Open the independent Fuzzel launcher |
+| Super+D or Super+A | Open the application launcher |
+| Super+Shift+D | Open the Fuzzel launcher |
 | Super+Comma | Open Noctalia settings |
 | Super+S | Open desktop controls |
-| Super+Q | Close the focused window |
+| Super+Q or Alt+F4 | Close the focused window |
 | Super+arrows | Move focus |
-| Super+Ctrl+arrows | Move the window/column |
+| Super+Ctrl+arrows | Move the window or column |
 | Super+PageUp/PageDown | Change workspace |
 | Super+F / Super+Shift+F | Maximize column / fullscreen |
 | Super+V | Toggle floating window |
-| Super+O | Overview |
+| Super+O or Super+Tab | Overview; type to search applications |
+| Super+L | Lock the screen |
+| Print | Screenshot a selection |
 | Super+Shift+E | Log out, with confirmation |
 
-Your configuration files are normal writable files under `~/.config/`. Noctalia
-stores GUI overrides in `~/.local/state/noctalia/settings.toml`; these override
-the source defaults. Do not delete that file to force an update over local edits.
+## First steps
 
-The source checkout is separate from the installed OS. In a Kedra checkout:
+Run management commands as your ordinary account, never with sudo; the installed
+helper asks for administrator authentication when it needs it.
 
-    sysroot source plan --host desktop
-    sysroot source plan --host desktop --json
-
-Those commands inspect committed build inputs and do not modify your machine.
-`sysroot doctor` checks the installed desktop session without changing it or
-requesting administrator access. Use `sysroot doctor --json` for structured output.
-Managed updates require configured release trust and enrollment.
-
-The niri and Noctalia configuration files are managed home files, listed in
-/usr/share/kedra/home-files.toml. After an OS update, `sysroot home update`
-merges the new defaults into your edits, validates them and restarts Noctalia.
-If both changed the same lines it leaves your file alone and writes
-`<file>.kedra-new`: merge it into your file, delete it, and run the command
-again. `sysroot home status` shows each file's difference from the defaults.
-Do not run image-building scripts as a workstation package installer.
-
-Signed OS images are published per target: ghcr.io/reidond/kedra-desktop
-(x86_64) and ghcr.io/reidond/kedra-qemu-arm64 (aarch64 QEMU virtual machine). Each
-system follows only its own target. Installation media is built locally on
-demand; no GitHub Release download is required. UEFI Secure Boot is required.
-Follow https://github.com/Reidond/kedra/blob/main/usr/src/kedra/docs/INSTALL.md.
-On an installed system, use `sysroot update status` to inspect the update hold
-and the running/staged image. Run management commands as your ordinary owner account;
-the installed helper requests administrator authentication when needed.
-
-Use `sysroot update check` to inspect the stable image and `sysroot update
-stage` after review. bootc verifies the exact GHCR digest's signature while
-staging; the installed helper refuses an image older than the running one.
-Keep known-good signed images and local recovery media. Staging does not reboot,
-and a reboot does not automatically accept a changed home baseline.
-`sysroot update status --home` also reports whether your managed home files
-need `sysroot home update`, without changing them.
+    sysroot doctor          # checks the desktop session; changes nothing
+    sysroot update status   # running, staged and rollback images
 
 To stop typing the disk passphrase at every boot, run
-`sysroot setup tpm-unlock --dry-run` to check this system and print the exact
+`sysroot setup tpm-unlock --dry-run` to check this machine and print the exact
 commands, then `sysroot setup tpm-unlock` in a terminal. It asks for the current
-disk passphrase and seals a new disk key in the TPM, bound to the Secure Boot
-state (PCR 7). Your passphrase stays enrolled: boot asks for it whenever the TPM
-refuses, for example after a firmware or Secure Boot change; then run the command
+disk passphrase and seals a new disk key in the TPM, bound to the Secure Boot state
+(PCR 7). The passphrase stays enrolled, and boot asks for it whenever the TPM
+refuses, for example after a firmware or Secure Boot change: then run the command
 again with `--replace`. After a TPM reset, `--replace` keeps the old slot: run
-`--remove`, then the plain command. Undo with `sysroot setup tpm-unlock --remove`,
-which works even when the TPM or Secure Boot is off.
-Without `--with-pin`, anyone at this machine's console can reach the unlocked
-disk, because the boot menu and kernel command line are not protected. In a
-virtual machine, whoever can read the VM's TPM state can recover the key.
+`--remove`, then the plain command. `sysroot setup tpm-unlock --remove` undoes it,
+even with the TPM or Secure Boot off. Without `--with-pin`, anyone at this
+machine's console can reach the unlocked disk, because the boot menu and kernel
+command line are not protected; in a virtual machine, whoever can read the VM's TPM
+state can recover the key.
 
-For recovery without a graphical session, use Ctrl+Alt+F2 and log in on the text
-console. `bootc status` distinguishes the current image from a staged one.
-Keep installation/recovery media available. Rolling back the OS does not restore
-all personal data; files under /var, including home directories, persist.
+## Updates
+
+    sysroot update check    # is a newer signed image available?
+    sysroot update stage    # stage it for the next boot; does not reboot
+
+This system follows only its own target's signed image (ghcr.io/reidond/kedra-desktop
+for x86_64, ghcr.io/reidond/kedra-qemu-arm64 for the aarch64 virtual machine).
+bootc verifies the image signature while staging, and the helper refuses an image
+older than the running one. Nothing updates or reboots automatically. Reboot when
+you choose, then run `sysroot update status --home` and `sysroot doctor`.
+`sysroot update rollback` selects the previous image for the next boot and holds
+further updates until a later `sysroot update stage --resume`.
+
+## Your configuration files
+
+Files under `~/.config/` are normal writable files. The niri and Noctalia
+configuration files are managed home files, listed in
+/usr/share/kedra/home-files.toml. An OS update never changes them by itself: run
+`sysroot home update` after rebooting into a new image. It merges the new defaults
+into your edits, validates the result and restarts Noctalia. If both changed the
+same lines it leaves your file alone and writes `<file>.kedra-new`: merge it into
+your file, delete it, and run the command again. `sysroot home status` shows each
+file's difference from the defaults. Noctalia stores GUI overrides in
+`~/.local/state/noctalia/settings.toml`; they win over `config.toml`. Do not delete
+that file to force new defaults.
+
+## Agents and keys
+
+`sysroot codex` runs the Codex CLI bundled with the image in your Kedra checkout
+(`~/src/kedra` by default), with its own private profile; `sysroot claude --runtime
+user` runs a Claude Code you installed yourself. `sysroot codex --print-plan` shows
+what would run. Bitwarden Desktop (`bitwarden`) holds SSH keys: enable its SSH agent,
+and SSH uses `~/.bitwarden-ssh-agent.sock` unless you set your own `SSH_AUTH_SOCK`.
+Agent sessions never receive a `BW_SESSION`.
+
+In a Kedra checkout, `sysroot source plan --host desktop` shows the committed build
+inputs without changing anything. Do not run image-building scripts on this system
+as a package installer.
+
+## Recovery
+
+Without a graphical session, press Ctrl+Alt+F2 and log in on the text console.
+`bootc status` shows the running and staged images. Keep installation media and the
+disk passphrase. Rolling back the OS does not restore personal data: home
+directories and everything else under /var persist.
+
+## Documentation
+
+This file is /usr/share/doc/kedra/START-HERE.md. The full documentation lives in the
+source repository: https://github.com/Reidond/kedra/tree/main/usr/src/kedra/docs
+(installation: INSTALL.md, updates: UPDATES.md, home files: HOME.md, agents:
+AGENT-LAUNCHERS.md).

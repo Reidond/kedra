@@ -7,11 +7,11 @@ contains no Kedra target table, production key, repository address or package
 language parser.
 
 Builds and runtime commands execute in an unprivileged bubblewrap sandbox on native
-aarch64 Linux, inside store root filesystems; no container daemon is involved.
-Planning/data types remain separate from Unix filesystem/execution code. Native
-Darwin builds, Windows execution, x86_64 source-build qualification, remote
-endpoints/caches, `.nix`/nixpkgs compatibility and whole-OS construction remain
-separate work.
+aarch64 or x86_64 Linux, inside store root filesystems; no container daemon is
+involved. Planning/data types remain separate from Unix filesystem/execution code.
+Darwin and Windows execution, cross-architecture builds, `.nix`/nixpkgs
+compatibility and whole-OS construction are not supported. The [engine
+contract](../../docs/ENGINE.md) describes identities, roots and limits.
 
 ## Direct typed API
 
@@ -64,10 +64,11 @@ let source_object = source_identity(&files)?;
 # Ok::<_, sysroot_engine::Error>(source_object)
 ```
 
-## Package frontend and retained catalog API
+## Package frontend
 
 The owner-approved `.kedra` frontend lives in `sysroot-catalog::language`, outside
-this engine. Its public Rust path is explicit and typed:
+this engine ([language contract](../../docs/PACKAGES.md#language-v1)). Its public
+Rust path is explicit and typed:
 
 ```rust,ignore
 use std::collections::BTreeMap;
@@ -92,26 +93,19 @@ bounded, stable, non-private input admission. The CLI adapter supplies the
 repository's no-symlink/single-link/recheck rules. Neither path executes author
 code during parsing/checking/lowering.
 
-`lower` requires exact builder roots and a runtime root already allowed by
-the independent `sysroot_catalog::Policy`. It emits a strict legacy-compatible
-`Catalog`, canonical resource trees and symbolic-to-graph node names. Build scripts
-become `build.sh` resources invoked through typed arguments. Inline source files
-become source objects. Patches and overlays add a separate preparation node with
-the fixed admitted `prepare.py`; the original source remains read-only.
+`lower` requires exact builder roots and a runtime root already allowed by the
+independent `sysroot_catalog::Policy`. It emits a `Catalog`, canonical resource
+trees and symbolic-to-graph node names. Build scripts become `build.sh` resources
+invoked through typed arguments. Inline source files become source objects.
+Patches and overlays add a separate preparation node with the fixed admitted
+`prepare.py`; the original source remains read-only.
 
-The pre-existing catalog API remains supported independently:
-`sysroot_catalog::{Catalog, Package, Recipe, Source, Policy}` is strict serde data,
-and `Catalog::resolve` checks namespace, package, builder root, runtime root and
-source allowlists before
-returning a `ResolvedPackage`. CLI `--catalog FILE` selects this reader. The built-in
-jq/SQLite Rust recipes also remain during migration. There is no implicit
-new-language-to-legacy fallback.
-
-PR38 now selects `.kedra` through the explicit source discriminator and removes
-list authority. Local Fedora build/rebuild, independent API and installed catalog
-checks pass. Both-target fresh release qualification is recorded separately; no
-production publication is implied. See [package declarations](../../docs/PACKAGES.md) and
-[status](../../docs/STATUS.md).
+`sysroot_catalog::{Catalog, Package, Recipe, Source, Policy}` are the lowered
+data. `Catalog` is built only by `lower` (there is no JSON reader for it);
+`Catalog::resolve` checks namespace, package, builder root, runtime root and
+source allowlists, and that the declared sources equal the graph's object
+inputs, before returning a `ResolvedPackage`. The namespace scopes names; it never
+changes the store prefix or output identities.
 
 ## CLI workflow
 
@@ -154,9 +148,9 @@ already be in the store, see `sysroot catalog lock fetch`). Image admission neve
 pulls or installs tools. Roots are not exported: a receiver creates the same
 runtime root before `import`. Builder roots and build-only sources need not enter a
 runtime export. Every output in one runtime closure must use the same runtime
-root. `develop` runs a command with private scratch and the declared closure in
-the runtime root; it does not mount the host working directory or offer an
-interactive host shell.
+root. `build --dry-run` only plans. `gc` without `--delete` only reports. `develop`
+runs a command with private scratch and the declared closure in the runtime root;
+it does not mount the host working directory or offer an interactive host shell.
 
 The language-aware CLI adds pure `sysroot catalog check`, `fmt`, `pins`, `plan`
 and `resolve` operations plus store-backed `build` and post-build `contribute`.
@@ -168,7 +162,7 @@ guide](../../docs/PACKAGES.md) for complete commands and schemas.
 
 ## Verification
 
-The established public engine E2E target uses generated Rust authoring and real C
+The public engine E2E target uses generated Rust authoring and real C
 executable/shared-library builds, fresh receiver stores, profiles, tampered
 artifacts, sandbox isolation observed through `/proc`, killed-controller and
 surviving-sandbox recovery and independent sentinels. Its sandbox cases are ignored
@@ -182,11 +176,8 @@ namespaces and a mountable `/proc`) and an init process that reaps orphans.
 cargo test -p sysroot --test e2e_engine --locked -- --include-ignored --test-threads 1 --nocapture
 ```
 
-The retained builder/runtime images are specified in the
-[engine design](../../../../../.specs/nix-engine/design.md). Exact results and
-remaining fault variants belong in the implementation verification records and
-[project status](../../docs/STATUS.md). The package-language suite remains partial,
-so the command above and historical engine evidence do not qualify its cutover.
+Results of these and the other checks are recorded in [project
+status](../../docs/STATUS.md).
 
 ## Integrity and recovery
 
@@ -232,9 +223,9 @@ source capture.
 `SystemDefinition`, `SystemFile` and `SystemContent` export static native config
 and verified runtime closures over a retained Fedora foundation. `NativeDefinition`
 and `NativeStep` add closed declarations for GLib compilation, systemd links,
-initial account skeletons and QEMU initramfs generation. The model binds inputs and
-implementation; the Kedra harness owns isolated native execution and receipt
-validation. See [typed composition](../../docs/SYSTEM.md) and
+initial account skeletons and generic initramfs regeneration. The model binds
+inputs and implementation; `sysroot derive` realizes them offline in BuildKit and
+validates the receipt. See [typed composition](../../docs/SYSTEM.md) and
 [native artifacts](../../docs/NATIVE.md).
 
 ## Binary cache and temporary snapshots
@@ -257,15 +248,14 @@ sysroot build --store RECEIVER --plan GRAPH.json --root application \
   --cache ghcr.io/OWNER/CACHE --trusted /usr/share/sysroot/composition.json
 ```
 
-Composition, native and catalog packet contexts use `ManagedSnapshot` leases in a
-versioned owner-private registry. Readers retain a file lock, including while
-stopped; callers explicitly finish after consumers exit. `sysroot system recover
---workdir PATH` collects only recognized abandoned snapshots and reports active or
-refused entries. It does not delete unknown paths by age or PID.
+Composition, native, catalog plan and formatter contexts use `ManagedSnapshot`
+leases in a versioned owner-private registry. Readers retain a file lock, including
+while stopped; callers explicitly finish after consumers exit. `sysroot system
+recover --workdir PATH` collects only recognized abandoned snapshots and reports
+active or refused entries. It does not delete unknown paths by age or PID.
 
-Recorded D5 passes cover signed transfer, producer-independent execution/rebuild,
-stopped-reader snapshot recovery and several bounded Linux ENOSPC cases. Native
-publication-window retries and native transaction/binding ENOSPC remain
-unqualified. See [D5 evidence](../../../../../.specs/nix-cache-recovery/verification.md)
-and [actual status](../../docs/STATUS.md). No OS boot, installer or production
-publication claim follows from an engine workflow.
+`crates/sysroot/tests/cache_recovery.rs` exercises a real import that runs out of
+space on a dedicated bounded tmpfs, then its recovery and retry (ignored by
+default; it needs that mount). Interrupting native image publication and running
+out of space during native transactions are not tested. No OS boot, installer or
+production publication claim follows from an engine workflow.

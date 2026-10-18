@@ -118,8 +118,7 @@ refused.
 The composition-only `native::composition_unit` System-profile case consumes the
 static image and validates/starts a generated unit. Ordinary scenario discovery
 omits it. Lab desktop adaptation still runs its normal networked tools layer, and
-is separate from the offline static replay. See [system composition](../../docs/SYSTEM.md)
-and [actual replay evidence](../../../../../.specs/nix-context-replay/verification.md).
+is separate from the offline static replay. See [system composition](../../docs/SYSTEM.md#verify-and-consume).
 
 For an already cached `ref:` image, BuildKit receives a harness-owned
 `kedra-lab-base:<image-id>` tag because a bare local `sha256:...` in FROM is parsed

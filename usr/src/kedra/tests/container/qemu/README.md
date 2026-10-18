@@ -91,8 +91,7 @@ observer alone cannot bind the circular final fixture digest.
 Use current committed graphical declarations for actual desktop qualification;
 the synthetic multi-user native E2E is a different test. Unsigned fixture boot
 does not establish production signature admission, install/update or encrypted
-login. Retain expected trust failures and actual outcome boundaries in
-[derived boot evidence](../../../../../../.specs/nix-derived-boot/verification.md).
+login.
 
 ## Retained iteration
 
@@ -219,8 +218,7 @@ installed doctor/security/Metal/TPM dry-run and exact signed bootc status pass.
 Final graceful stop required explicit force; ISO/sentinel hashes still match. Readiness JSON
 keeps `gpu_qualified: false`: process startup or a PNG does not establish every
 manual qualification case.
-See [STATUS](../../../docs/STATUS.md) and the
-[verification packet](../../../../../../.specs/qemu-desktop-iteration/test-plan.md).
+See [STATUS](../../../docs/STATUS.md).
 
 The pinned QEMU revision also needs the reviewed stable-11.0
 [HVF WFI correction](https://github.com/qemu/qemu/commit/3b98370b55de7fff540092c1a6760726a6816625).

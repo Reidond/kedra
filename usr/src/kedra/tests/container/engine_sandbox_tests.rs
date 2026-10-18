@@ -77,11 +77,16 @@ sysroot develop --store "$store" --name sandbox --program /bin/sh -- -c '
 graph slow.sh > slow.json
 sysroot build --store "$store" --plan slow.json --root app > slow.out 2>&1 &
 controller=$!
-for _ in $(seq 300); do
+# A loaded runner can take a while to reach the sandbox; wait up to two minutes.
+for _ in $(seq 1200); do
     if grep -qs '"pid"' "$store/transactions/execution.json"; then break; fi
     sleep 0.1
 done
-grep -q '"pid"' "$store/transactions/execution.json"
+if ! grep -qs '"pid"' "$store/transactions/execution.json"; then
+    echo 'the interrupted build never journaled its sandbox process' >&2
+    cat slow.out >&2
+    exit 1
+fi
 kill -9 "$controller"
 wait "$controller" || true
 if sysroot store gc --store "$store" > gc.out 2>&1; then

@@ -26,6 +26,8 @@ import material as m
 ROOT = Path(__file__).resolve().parents[5]
 IMAGE = 'usr/src/kedra/image/'
 WORKFLOW = '.github/workflows/release.yml'
+# The engine's bound for an installed composition receipt.
+COMPOSITION_LIMIT = 64 * 1024**2
 
 
 def run(*arguments, timeout=900, maximum=8 * 1024**2, allow_failure=False):
@@ -171,6 +173,11 @@ def inspect_stored(spec, local, digest, work, label):
             native_bytes = copied_file(container, '/usr/share/sysroot/native-receipt.json', m.LIMIT)
             native = m.verify_native(config, native_bytes, inputs, spec['id'])
             (work / (label + '-native.json')).write_bytes(native_bytes)
+            # The binary cache admits a substituted package only if it equals one of
+            # these receipts of a strictly verified image (schema 2 names runtime roots).
+            composition_bytes = copied_file(container, '/usr/share/sysroot/composition.json', COMPOSITION_LIMIT)
+            if m.document(composition_bytes).get('schema') == 2:
+                (work / (label + '-composition.json')).write_bytes(composition_bytes)
         (work / (label + '-identity.json')).write_bytes(identity_bytes)
         (work / (label + '-inputs.json')).write_bytes(inputs_bytes)
         (work / (label + '-source.json')).write_bytes(source_bytes)

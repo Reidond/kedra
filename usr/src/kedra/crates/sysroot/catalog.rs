@@ -62,6 +62,8 @@ enum Command {
         store: PathBuf,
         #[arg(long)]
         rebuild: bool,
+        #[command(flatten)]
+        cache: crate::engine::SubstituteArgs,
     },
     /// Author installed configuration and receipts from already verified packages.
     Contribute(Contribution),
@@ -240,6 +242,7 @@ pub fn run(options: Options) -> Result<ExitCode> {
             selection,
             store,
             rebuild,
+            cache,
         } => {
             let authorized = resolve(selection)?;
             let resolved = authorized.package;
@@ -261,7 +264,13 @@ pub fn run(options: Options) -> Result<ExitCode> {
                     return Err(Error::Invalid("admitted resource identity differs".into()));
                 }
             }
-            let result = store.build(&resolved.recipe.graph, &resolved.recipe.root, rebuild)?;
+            let result = crate::engine::build_graph(
+                &store,
+                &resolved.recipe.graph,
+                &resolved.recipe.root,
+                rebuild,
+                &cache,
+            )?;
             emit(&serde_json::json!({
                 "namespace": resolved.namespace, "package": resolved.package,
                 "version": resolved.version, "root": resolved.recipe.root,

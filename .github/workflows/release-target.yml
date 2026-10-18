@@ -196,12 +196,21 @@ jobs:
             output/release-binaries/sysroot store add-source --store "$RUNNER_TEMP/kedra-release-store" --source "$source" > "$catalog_root/$expected-source.json"
             test "$(jq -er .object "$catalog_root/$expected-source.json")" = "$expected"
           done
+          # Binary cache: a package closure the previous signature-verified stable image
+          # records (its composition.json, copied by preflight) is pulled anonymously
+          # from the cache and admitted only if every object equals its record;
+          # anything else, and any cache failure, builds. The registry is never trusted.
+          cache_args=()
+          if test -s output/image-evidence/previous-composition.json; then
+            cache_args=(--cache "ghcr.io/reidond/kedra-cache-$KEDRA_TARGET" --trusted output/image-evidence/previous-composition.json)
+          fi
           mapfile -t packages < <(jq -r '.packages | keys[]' output/release-binaries/catalog-pins.json)
           for package in "${packages[@]}"; do
             output/release-binaries/sysroot catalog build --store "$RUNNER_TEMP/kedra-release-store" --package "$package" \
               --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
               --lock packages.lock.json --target-policy usr/src/kedra/image/package-policy.json \
-              --policy "$catalog_root/policy.json" --resolution "$catalog_root/resolution.json" > "$catalog_root/$package-build.json"
+              --policy "$catalog_root/policy.json" --resolution "$catalog_root/resolution.json" "${cache_args[@]}" \
+              > "$catalog_root/$package-build.json"
           done
           output/release-binaries/sysroot catalog contribute --store "$RUNNER_TEMP/kedra-release-store" \
             --input-root usr/src/kedra/image/packages --entry catalog.kedra --target "$KEDRA_TARGET" \
@@ -312,6 +321,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: uv run usr/src/kedra/image/release/refresh.py inspect-candidate --target "$KEDRA_TARGET" --work output/image-evidence
+      # After a successful build, offer every realized package closure to the cache.
+      # Consumers admit one only against a signed image's records, so a failed push
+      # costs a later rebuild and never fails the release.
+      - name: Push realized package closures to the binary cache
+        if: steps.preflight.outputs.changed == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          auth="$RUNNER_TEMP/kedra-cache-auth.json"
+          umask 077
+          trap 'rm -f -- "$auth"' EXIT
+          printf '%s' "$GH_TOKEN" | skopeo login --authfile "$auth" --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          mapfile -t objects < <(jq -r '[.outputs[]] | unique[]' "$RUNNER_TEMP/kedra-catalog/contribution-result.json")
+          for object in "${objects[@]}"; do
+            output/release-binaries/sysroot store push --store "$RUNNER_TEMP/kedra-release-store" --object "$object" \
+              --cache "ghcr.io/reidond/kedra-cache-$KEDRA_TARGET" --cache-authfile "$auth" --source "https://github.com/$GITHUB_REPOSITORY" \
+              | tee -a output/image-evidence/catalog/cache-push.jsonl
+          done
       - name: Publish immutable unsigned build for isolated signing
         id: publish
         if: steps.preflight.outputs.changed == 'true'
@@ -596,3 +625,47 @@ jobs:
           path: output/image-evidence/
           if-no-files-found: error
           retention-days: 90
+
+  # The target's binary cache keeps only the package closures the stable image just
+  # published records: consumers admit nothing else, so older closures can never be
+  # used again. Signed images are untouched (no image garbage collection). A
+  # failure here leaves extra closures behind and never fails the release.
+  prune-cache:
+    needs: [build, publish-stable]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      packages: write
+    env:
+      KEDRA_TARGET: ${{ inputs.target }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: image-build-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/image-evidence
+      - name: Delete cache closures the new stable image does not record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          catalog=output/image-evidence/catalog
+          # Keep exactly the tags this run pushed or found; prune only when every
+          # contributed output has one, so a failed push never empties the cache.
+          expected=$(jq -er '[.outputs[]] | unique | length' "$catalog/contribution-result.json")
+          jq -es --argjson expected "$expected" \
+            'length == $expected and all(.[]; .tag | test("^closure-[0-9a-f]{64}$"))' "$catalog/cache-push.jsonl" >/dev/null
+          jq -r '.tag' "$catalog/cache-push.jsonl" | sort -u > "$RUNNER_TEMP/kedra-cache-keep"
+          package="kedra-cache-$KEDRA_TARGET"
+          gh api --paginate "/users/Reidond/packages/container/$package/versions" \
+            --jq '.[] | [(.id | tostring), ((.metadata.container.tags // []) | join(" "))] | @tsv' > "$RUNNER_TEMP/kedra-cache-versions"
+          while IFS=$'\t' read -r id tags; do
+            keep=false
+            for tag in $tags; do
+              if grep -qxF "$tag" "$RUNNER_TEMP/kedra-cache-keep"; then keep=true; fi
+            done
+            if test "$keep" = false; then
+              gh api --method DELETE "/users/Reidond/packages/container/$package/versions/$id"
+              printf 'deleted %s %s\n' "$id" "${tags:-untagged}"
+            fi
+          done < "$RUNNER_TEMP/kedra-cache-versions"

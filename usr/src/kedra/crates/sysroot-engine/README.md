@@ -237,19 +237,25 @@ implementation; the Kedra harness owns isolated native execution and receipt
 validation. See [typed composition](../../docs/SYSTEM.md) and
 [native artifacts](../../docs/NATIVE.md).
 
-## Authenticated cache and temporary snapshots
+## Binary cache and temporary snapshots
 
-`verify_cache_receipt` returns `VerifiedCacheReceipt` only after exact P-256
-signature, independently selected key/scope/policy revision, validity and resolved
-recipe checks. `Store::substitute` copies and validates the complete bundle,
-rechecks authority/expiry, then publishes an import journal or admits objects and
-images. The expected recipe and policy come from the consumer, never the cache.
-Transport is an explicitly selected local bundle; there is no network cache daemon.
+`TrustedRecords::read` takes object receipts from an installed composition receipt
+(`/usr/share/sysroot/composition.json`, schema 2) of an image the caller verified.
+`Store::push(&BinaryCache, id)` publishes a verified closure under
+`closure_tag` (the hash of its receipts); `Store::substitute(&BinaryCache,
+&TrustedRecords, id)` pulls the tag the records imply and admits the closure only if
+every staged object equals its record. `Store::build_with(.., Some(Substitution))`
+substitutes recorded nodes before building them and records cache misses. The
+registry is untrusted transport (`skopeo` with a private policy and home); see
+[the binary cache](../../docs/ENGINE.md#binary-cache).
 
-`sysroot store substitute` exposes the same boundary with explicit `--plan`,
-`--root`, `--scope`, `--cache-policy`, `--receipt`, `--signature`, `--public-key`
-and `--bundle` inputs. Independently compiled consumers use their own resolved
-catalog recipe rather than trusting recipe metadata from the cache.
+```sh
+sysroot store push --store STORE --object OUTPUT_ID --cache ghcr.io/OWNER/CACHE
+sysroot store substitute --store RECEIVER --object OUTPUT_ID --cache ghcr.io/OWNER/CACHE \
+  --trusted /usr/share/sysroot/composition.json
+sysroot build --store RECEIVER --plan GRAPH.json --root application \
+  --cache ghcr.io/OWNER/CACHE --trusted /usr/share/sysroot/composition.json
+```
 
 Composition, native and catalog packet contexts use `ManagedSnapshot` leases in a
 versioned owner-private registry. Readers retain a file lock, including while

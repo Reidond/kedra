@@ -691,12 +691,25 @@ impl Store {
         self.save_roots(&roots)
     }
     pub fn build(&self, graph: &BuildGraph, root: &str, rebuild: bool) -> Result<BuildResult> {
+        self.build_with(graph, root, rebuild, None)
+    }
+    /// Build, first substituting each missing output the trusted records hold
+    /// from the binary cache; whatever the cache cannot supply is built.
+    pub fn build_with(
+        &self,
+        graph: &BuildGraph,
+        root: &str,
+        rebuild: bool,
+        cache: Option<crate::Substitution<'_>>,
+    ) -> Result<BuildResult> {
         let plan = plan(graph, root)?;
         let mut result = BuildResult {
             outputs: plan.outputs.clone(),
             built: vec![],
             reused: vec![],
             reproduced: vec![],
+            substituted: vec![],
+            cache_misses: BTreeMap::new(),
         };
         for name in &plan.order {
             let id = &plan.outputs[name];
@@ -709,6 +722,12 @@ impl Store {
             if existing.is_some() && !rebuild {
                 self.pin(id)?;
                 result.reused.push(name.clone());
+                continue;
+            }
+            if !rebuild
+                && let Some(cache) = &cache
+                && self.substitute_node(cache, name, id, &mut result)?
+            {
                 continue;
             }
             self.root(&spec.runtime_root)?;
@@ -822,6 +841,37 @@ impl Store {
             operation?;
         }
         Ok(result)
+    }
+    /// Whether `id` came from the cache. Any failure to substitute, including an
+    /// artifact that does not even parse, is recorded and the node is built; only
+    /// a store left needing recovery (an import journal remains) propagates.
+    fn substitute_node(
+        &self,
+        cache: &crate::Substitution<'_>,
+        name: &str,
+        id: &str,
+        result: &mut BuildResult,
+    ) -> Result<bool> {
+        if !cache.records.contains(id) {
+            return Ok(false);
+        }
+        match self.substitute(cache.cache, cache.records, id) {
+            Ok(_) => {
+                self.pin(id)?;
+                result.substituted.push(name.into());
+                Ok(true)
+            }
+            Err(error)
+                if matches!(error, Error::RecoveryRequired(_))
+                    || self.path.join("transactions/import.json").exists() =>
+            {
+                Err(error)
+            }
+            Err(error) => {
+                result.cache_misses.insert(name.into(), error.to_string());
+                Ok(false)
+            }
+        }
     }
     pub fn run_output(
         &self,

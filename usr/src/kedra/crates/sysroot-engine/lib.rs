@@ -41,7 +41,8 @@ mod system;
 mod tree;
 #[cfg(unix)]
 pub use cache::{
-    CACHE_RECEIPT_PURPOSE, CachePolicy, CacheReceipt, VerifiedCacheReceipt, verify_cache_receipt,
+    BinaryCache, CACHE_TAG_PREFIX, PushResult, SubstituteResult, Substitution, TrustedRecords,
+    closure_tag,
 };
 #[cfg(unix)]
 pub use context::VerifiedComposition;
@@ -71,9 +72,14 @@ pub enum Error {
     Json(serde_json::Error),
     Invalid(String),
     Corrupt(String),
-    Process { code: i32, message: String },
+    Process {
+        code: i32,
+        message: String,
+    },
     RecoveryRequired(String),
     Divergent(String),
+    /// A binary cache could not supply an object: unreachable, or without it.
+    Unavailable(String),
 }
 pub type Result<T> = std::result::Result<T, Error>;
 impl std::fmt::Display for Error {
@@ -86,6 +92,7 @@ impl std::fmt::Display for Error {
             Self::Process { code, message } => write!(f, "process exited {code}: {message}"),
             Self::RecoveryRequired(s) => write!(f, "recovery required: {s}"),
             Self::Divergent(s) => write!(f, "independent rebuild diverged: {s}"),
+            Self::Unavailable(s) => write!(f, "unavailable: {s}"),
         }
     }
 }

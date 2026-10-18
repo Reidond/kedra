@@ -1,5 +1,18 @@
 # Verified status
 
+## Engine binary cache (2026-10-18)
+
+Branch claude/engine-cache-ghcr adds the [binary cache](ENGINE.md#binary-cache):
+`sysroot store push|substitute` and `--cache`/`--trusted` on `build` and `catalog
+build` share realized closures through an OCI registry, admitting one only if every
+object equals a receipt of a signature-verified image's installed
+`composition.json`. The release pulls before the catalog build and pushes after the
+candidate inspection ([RELEASES](RELEASES.md)). Locally (worklog
+WL-20261018-ENGINE-CACHE-01) an E2E against a disposable `registry:2` passes:
+substitution into a fresh store, a hostile-registry content mismatch refused, a
+missing record refused, an unreachable cache falling back to building. The release
+run, GHCR package creation and the first hit are `not-run`.
+
 ## Package identity from Fedora material (2026-10-16)
 
 Branch claude/engine-cache-725395 makes package identities independent of the

@@ -185,6 +185,11 @@ pub struct BuildResult {
     pub built: Vec<String>,
     pub reused: Vec<String>,
     pub reproduced: Vec<String>,
+    /// Nodes admitted from a binary cache against trusted records.
+    pub substituted: Vec<String>,
+    /// Nodes with a trusted record that the cache could not supply, and why;
+    /// each was built instead.
+    pub cache_misses: BTreeMap<String, String>,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct Closure {

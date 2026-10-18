@@ -119,11 +119,46 @@ staged generations and use atomic index replacement. One store lock spans
 management and execution; unknown/corrupt state and uncertain cleanup refuse and
 preserve recovery evidence.
 
-Authenticated local-bundle substitution uses consumer-selected cache keys,
-scope, policy revision and recipe. `ManagedSnapshot` leases protect composition,
-native and catalog packet temporary state; `sysroot system recover` collects only
-recognized abandoned snapshots. These mechanisms grant neither OS signing nor
-installed helper authority.
+`ManagedSnapshot` leases protect composition, native and catalog packet temporary
+state; `sysroot system recover` collects only recognized abandoned snapshots.
+These mechanisms grant neither OS signing nor installed helper authority.
+
+## Binary cache
+
+Realized closures can be shared through an OCI registry. The registry is never
+trusted: what a consumer admits is decided by records it already trusts, the
+object receipts in the installed `/usr/share/sysroot/composition.json` of a
+signature-verified image. In a release that is the previous stable image (preflight
+pulls it under the strict signature policy and copies the file out); on a machine it
+is the booted image, which bootc verified when it was staged.
+
+- `sysroot store push --store S --object ID --cache REPO` exports `ID`'s verified
+  closure as one OCI artifact (one uncompressed tar layer holding the bundle) tagged
+  `closure-<sha256>`, the hash of the closure's canonical receipts. Different
+  realizations of one derivation therefore never share a tag; a tag already
+  present is left as it is.
+- `sysroot store substitute --store S --object ID --cache REPO --trusted FILE`
+  refuses unless `FILE` holds a record for `ID` and its whole closure, derives the
+  tag from those records, pulls the artifact and imports it only if every staged
+  object (its tree hash recomputed from the staged bytes) equals its record and
+  nothing else is present. A closure the store already holds needs no transfer.
+  A refusal exits 78; a cache that is unreachable or lacks the tag exits 69.
+- `sysroot build` and `sysroot catalog build` take the same `--cache`/`--trusted`:
+  before building a missing node that has a record, the closure is substituted;
+  a refusal or unavailable cache is recorded in `cache_misses` and the node is
+  built. `--rebuild` never substitutes. A node without a record (a build-only
+  intermediate the image does not carry) is built.
+
+Transport is `skopeo`, run with a cleared environment, a private home and a
+policy that accepts only the cache repository and local layouts, so neither the
+user's nor the system's container signature policy applies (signatures carry no
+trust here). `--cache-authfile` supplies registry credentials;
+`--cache-plain-http` serves local test registries and refuses credentials. Runtime
+roots are not part of an artifact: the consumer makes the same roots from the
+Fedora base and RPM lock first, as for `store import`. Hits need equal identities,
+so they follow the base digest and the locked RPMs ([runtime
+roots](#execution-and-integrity)): a release hits when it rebuilds packages whose
+base, lock roles and inputs the previous stable image already realized.
 
 ## Fedora RPM lock
 
@@ -159,8 +194,9 @@ derivation still use the local Docker engine, while `store add-image --archive`
 imports a saved archive without one. Both release targets build through it
 ([one image pipeline](SYSTEM.md#one-image-pipeline)) and both may select `.kedra`
 source packages. Native x86_64 builds run on the desktop release runner; their
-local qualification is recorded in [STATUS](STATUS.md). Remote endpoints/caches,
-nixpkgs or `.nix` compatibility and an alternate OS backend remain unqualified.
+local qualification is recorded in [STATUS](STATUS.md). The [binary
+cache](#binary-cache) is qualified against a local registry only; nixpkgs or
+`.nix` compatibility and an alternate OS backend remain unqualified.
 Complete kernel, boot, SELinux, installation and release signing use separate
 workflows.
 

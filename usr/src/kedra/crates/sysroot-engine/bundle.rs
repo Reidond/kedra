@@ -1,4 +1,5 @@
 use crate::{
+    cache::TrustedClosure,
     plan::{hex, object_id, relative, root_id},
     store::{hash_file, private, read_json, write_json_new},
     tree::{self, Entry, Kind},
@@ -11,7 +12,6 @@ use std::{
     io::{Read, Write},
     os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     path::Path,
-    time::{SystemTime, UNIX_EPOCH},
 };
 const MAX_BUNDLE: u64 = 16 * 1024 * 1024 * 1024;
 /// A closure's objects. Runtime roots are not transferred: the receiver creates
@@ -90,23 +90,21 @@ impl Store {
     pub fn import(&self, bundle: &Path, expected_sha256: &str) -> Result<ImportResult> {
         self.import_checked(bundle, expected_sha256, None)
     }
-    /// Admit an authorized binary closure after independently resolving its recipe.
-    pub fn substitute(
+    /// Admit a closure pulled from a binary cache only if it holds exactly the
+    /// trusted receipts. The bundle hash itself carries no trust.
+    pub(crate) fn import_trusted(
         &self,
         bundle: &Path,
-        authorization: &VerifiedCacheReceipt,
+        trusted: &TrustedClosure,
     ) -> Result<ImportResult> {
-        self.import_checked(
-            bundle,
-            &authorization.receipt().bundle_sha256,
-            Some(authorization),
-        )
+        let (sha256, _) = hash_file(bundle, MAX_BUNDLE)?;
+        self.import_checked(bundle, &sha256, Some(trusted))
     }
     fn import_checked(
         &self,
         bundle: &Path,
         expected_sha256: &str,
-        authorization: Option<&VerifiedCacheReceipt>,
+        trusted: Option<&TrustedClosure>,
     ) -> Result<ImportResult> {
         if !hex(expected_sha256) {
             return Err(Error::Invalid(
@@ -139,11 +137,11 @@ impl Store {
                 return Err(Error::Invalid("bundle exceeds 16 GiB".into()));
             }
             output.sync_all()?;
-            let (actual, bytes) = hash_file(&archive, MAX_BUNDLE)?;
+            let (actual, _) = hash_file(&archive, MAX_BUNDLE)?;
             if actual != expected_sha256 {
                 return Err(Error::Corrupt("bundle SHA256 differs from expected".into()));
             }
-            self.import_staged(&archive, &stage, &actual, bytes, authorization)
+            self.import_staged(&archive, &stage, trusted)
         })();
         if stage.exists() && !self.path().join("transactions/import.json").exists() {
             tree::remove(&stage)?;
@@ -154,9 +152,7 @@ impl Store {
         &self,
         bundle: &Path,
         stage: &Path,
-        sha256: &str,
-        bundle_bytes: u64,
-        authorization: Option<&VerifiedCacheReceipt>,
+        trusted: Option<&TrustedClosure>,
     ) -> Result<ImportResult> {
         let mut archive = tar::Archive::new(File::open(bundle)?);
         let mut members = archive.entries()?;
@@ -168,11 +164,16 @@ impl Store {
             self.verify_staged_object(stage, id, object)?;
         }
         let order = dependency_order(&manifest)?;
+        if let Some(trusted) = trusted {
+            let staged = manifest
+                .objects
+                .iter()
+                .map(|(id, object)| (id.clone(), &object.receipt))
+                .collect();
+            trusted.admit(&manifest.roots, &staged)?;
+        }
         for runtime in runtime_roots(&manifest) {
             self.root(runtime)?;
-        }
-        if let Some(authorization) = authorization {
-            authorize_bundle(authorization, &manifest, sha256, bundle_bytes)?;
         }
         let journal = ImportJournal {
             schema: 2,
@@ -429,22 +430,6 @@ fn restore_modes_and_links(data: &Path, entries: &[Entry]) -> Result<()> {
         }
     }
     Ok(())
-}
-fn authorize_bundle(
-    authorization: &VerifiedCacheReceipt,
-    manifest: &Bundle,
-    sha256: &str,
-    bundle_bytes: u64,
-) -> Result<()> {
-    let root = manifest
-        .objects
-        .get(&authorization.receipt().root.object)
-        .ok_or_else(|| Error::Invalid("authorized bundle root is absent".into()))?;
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| Error::Invalid("system clock precedes Unix epoch".into()))?
-        .as_secs();
-    authorization.validate_bundle(&manifest.roots, &root.receipt, sha256, bundle_bytes, now)
 }
 fn validate_manifest(manifest: &Bundle) -> Result<BTreeMap<String, (String, u64)>> {
     if manifest.schema != 2

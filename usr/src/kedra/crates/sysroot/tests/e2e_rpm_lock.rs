@@ -986,7 +986,11 @@ fn fixture_repository_lock_installs_offline_and_refuses_changed_rpms() {
     assert!(!refused_store.join("objects").join(object).exists());
 }
 
-/// A catalog with one built command over the `tools` builder role.
+/// Docker Official Images' registry 2 index, for a disposable binary cache.
+const REGISTRY: &str = "docker.io/library/registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373";
+
+/// A catalog with two built commands over the `tools` builder role: `probe` is
+/// deterministic, `noise` differs on every build.
 fn identity_catalog(fixture: &Fixture, name: &str, target: &str, foundation: &str) -> Vec<String> {
     let root = fixture.path(name);
     fs::create_dir(&root).unwrap();
@@ -1007,7 +1011,18 @@ package probe(builder: Builder, runtime: Foundation) {{
         """;
     export command "probe" = "bin/probe";
 }}
-target "{target}" {{ foundation = system; packages = [probe(builder: tools, runtime: system)]; }}
+package noise(builder: Builder, runtime: Foundation) {{
+    version = "1"; summary = "A different realization on every build"; license = "MIT";
+    source = files {{ "noise.txt" = text "noise\n"; }};
+    build = shell """
+        mkdir -p "$out/bin" "$out/share"
+        od -An -N16 -tx1 /dev/urandom | tr -d ' \n' > "$out/share/realization"
+        printf '#!/bin/sh\ncat %s/share/realization\n' "$out" > "$out/bin/noise"
+        chmod 755 "$out/bin/noise"
+        """;
+    export command "noise" = "bin/noise";
+}}
+target "{target}" {{ foundation = system; packages = [probe(builder: tools, runtime: system), noise(builder: tools, runtime: system)]; }}
 "##
         ),
     )
@@ -1039,31 +1054,27 @@ target "{target}" {{ foundation = system; packages = [probe(builder: tools, runt
     .to_vec()
 }
 
-/// The ids one release run realizes: runtime root, builder root and package output.
-#[derive(Debug, PartialEq, Eq)]
-struct Realized {
-    runtime: String,
-    builder: String,
-    output: String,
+/// A successful `sysroot` invocation's JSON.
+fn engine(fixture: &Fixture, arguments: &[&str]) -> Value {
+    let output = Command::new(&fixture.binary)
+        .args(arguments)
+        .output()
+        .unwrap();
+    serde_json::from_slice(&success(output).stdout).unwrap()
 }
 
-/// One release run's package step in its own store: fetch the lock's objects,
-/// make the runtime and builder roots over the Fedora base, build the package.
-fn realize(
-    fixture: &Fixture,
-    store: &Path,
-    inputs: &[String],
-    lock: &Path,
-    base: &str,
-) -> Realized {
+/// One release run's roots in its own store: the lock's objects fetched, the
+/// runtime root and the `tools` builder root made over the Fedora base, and the
+/// resolution and catalog policy naming them.
+struct Roots {
+    runtime: String,
+    builder: String,
+    resolution: PathBuf,
+    policy: PathBuf,
+}
+
+fn roots(fixture: &Fixture, store: &Path, lock: &Path, base: &str) -> Roots {
     fixture.json(&["fetch", "--store", text(store), "--lock", text(lock)]);
-    let engine = |arguments: &[&str]| -> Value {
-        let output = Command::new(&fixture.binary)
-            .args(arguments)
-            .output()
-            .unwrap();
-        serde_json::from_slice(&success(output).stdout).unwrap()
-    };
     let root = |builder: Option<&str>| -> String {
         let mut arguments = vec![
             "store",
@@ -1081,16 +1092,22 @@ fn realize(
                 .into_iter()
                 .flatten(),
         );
-        engine(&arguments)["root"].as_str().unwrap().to_owned()
+        engine(fixture, &arguments)["root"]
+            .as_str()
+            .unwrap()
+            .to_owned()
     };
-    engine(&[
-        "store",
-        "add-image",
-        "--store",
-        text(store),
-        "--image",
-        base,
-    ]);
+    engine(
+        fixture,
+        &[
+            "store",
+            "add-image",
+            "--store",
+            text(store),
+            "--image",
+            base,
+        ],
+    );
     let runtime = root(None);
     let builder = root(Some("catalog.kedra#tools"));
     let resolution = store.with_extension("resolution.json");
@@ -1103,39 +1120,137 @@ fn realize(
     let policy = store.with_extension("policy.json");
     fs::write(
         &policy,
-        serde_json::to_vec(&json!({"namespace":"kedra","packages":["probe"],"builder_roots":[builder],"runtime_roots":[runtime],"source_objects":[]})).unwrap(),
+        serde_json::to_vec(&json!({"namespace":"kedra","packages":["noise","probe"],"builder_roots":[builder],"runtime_roots":[runtime],"source_objects":[]})).unwrap(),
     )
     .unwrap();
+    Roots {
+        runtime,
+        builder,
+        resolution,
+        policy,
+    }
+}
+
+/// `sysroot catalog build` of one package with the run's roots.
+fn catalog_build(
+    fixture: &Fixture,
+    store: &Path,
+    inputs: &[String],
+    roots: &Roots,
+    package: &str,
+    extra: &[&str],
+) -> Output {
     let mut arguments = vec!["catalog", "build"];
     arguments.extend(inputs.iter().map(String::as_str));
     arguments.extend([
         "--package",
-        "probe",
+        package,
         "--policy",
-        text(&policy),
+        text(&roots.policy),
         "--resolution",
-        text(&resolution),
+        text(&roots.resolution),
         "--store",
         text(store),
     ]);
-    let built = engine(&arguments);
-    let output = built["result"]["outputs"][built["root"].as_str().unwrap()]
+    arguments.extend(extra);
+    Command::new(&fixture.binary)
+        .args(arguments)
+        .output()
+        .unwrap()
+}
+
+/// The output object of a `catalog build` result.
+fn root_output(built: &Value) -> String {
+    built["result"]["outputs"][built["root"].as_str().unwrap()]
         .as_str()
         .unwrap()
-        .to_owned();
-    let ran = success(
+        .to_owned()
+}
+
+fn program(fixture: &Fixture, store: &Path, object: &str, program: &str) -> Vec<u8> {
+    success(
         Command::new(&fixture.binary)
-            .args(["run", "--store", text(store), "--object", &output])
-            .args(["--program", "bin/probe"])
+            .args(["run", "--store", text(store), "--object", object])
+            .args(["--program", program])
             .output()
             .unwrap(),
-    );
-    assert_eq!(ran.stdout, b"probe\n");
+    )
+    .stdout
+}
+
+/// The ids one release run realizes: runtime root, builder root and package output.
+#[derive(Debug, PartialEq, Eq)]
+struct Realized {
+    runtime: String,
+    builder: String,
+    output: String,
+}
+
+/// One release run's package step: roots, then the `probe` package built and run.
+fn realize(
+    fixture: &Fixture,
+    store: &Path,
+    inputs: &[String],
+    lock: &Path,
+    base: &str,
+) -> Realized {
+    let roots = roots(fixture, store, lock, base);
+    let built: Value = serde_json::from_slice(
+        &success(catalog_build(fixture, store, inputs, &roots, "probe", &[])).stdout,
+    )
+    .unwrap();
+    let output = root_output(&built);
+    assert_eq!(program(fixture, store, &output, "bin/probe"), b"probe\n");
     Realized {
-        runtime,
-        builder,
+        runtime: roots.runtime,
+        builder: roots.builder,
         output,
     }
+}
+
+/// A Kedra-like foundation image of the lock: the base plus its foundation role,
+/// installed offline as the release foundation build does.
+fn fixture_foundation(
+    fixture: &Fixture,
+    resources: &mut Resources,
+    resolver_store: &Path,
+    lock: (&Value, &Path),
+    base_tag: &str,
+) -> String {
+    let (lock, lock_path) = lock;
+    let repository = fixture.path("foundation-repository");
+    fixture.json(&[
+        "repo",
+        "--store",
+        text(resolver_store),
+        "--lock",
+        text(lock_path),
+        "--foundation",
+        "--output",
+        text(&repository),
+    ]);
+    success(offline_build(
+        fixture,
+        "foundation-build",
+        base_tag,
+        &["foundation"],
+        &repository,
+    ));
+    let image = fs::read_to_string(fixture.path("foundation-build/image.iid"))
+        .unwrap()
+        .trim()
+        .to_owned();
+    resources.0.push(vec![
+        "image".into(),
+        "rm".into(),
+        "--force".into(),
+        image.clone(),
+    ]);
+    assert_eq!(
+        installed_rows(&image),
+        rows(&lock["foundation"]["packages"])
+    );
+    image
 }
 
 /// A committed source tree `sysroot system plan` composes from.
@@ -1176,25 +1291,41 @@ fn committed_repository(fixture: &Fixture) -> PathBuf {
     repository
 }
 
-/// `sysroot system plan` of one output over a retained foundation image.
-fn plan_over(
+/// `sysroot system plan`, or `compose` into `output_dir`, of outputs over a
+/// retained foundation image.
+fn system(
     fixture: &Fixture,
     store: &Path,
     target: &str,
     foundation: &str,
-    output: &str,
+    outputs: &[(&str, &str)],
+    output_dir: Option<&Path>,
 ) -> Output {
-    let definition = store.with_extension(format!("{}.json", &foundation[7..19]));
+    let name = output_dir.map_or_else(
+        || format!("{}.json", &foundation[7..19]),
+        |directory| format!("{}.json", directory.file_name().unwrap().to_str().unwrap()),
+    );
+    let definition = store.with_extension(name);
+    let outputs: BTreeMap<&str, &str> = outputs.iter().copied().collect();
     fs::write(
         &definition,
         serde_json::to_vec(&json!({"schema":1,"platform":sysroot_engine::PLATFORM,
-            "foundation":foundation,"provenance":{},"outputs":{"probe":output},
+            "foundation":foundation,"provenance":{},"outputs":outputs,
             "required_packages":[],"removed_packages":[],"files":[]}))
         .unwrap(),
     )
     .unwrap();
-    Command::new(&fixture.binary)
-        .args(["system", "plan", "--repo"])
+    let mut command = Command::new(&fixture.binary);
+    command
+        .args([
+            "system",
+            if output_dir.is_some() {
+                "compose"
+            } else {
+                "plan"
+            },
+            "--repo",
+        ])
         .arg(fixture.path("repo"))
         .args([
             "--target",
@@ -1205,9 +1336,93 @@ fn plan_over(
             foundation,
         ])
         .arg("--definition")
-        .arg(&definition)
-        .output()
-        .unwrap()
+        .arg(&definition);
+    if let Some(directory) = output_dir {
+        command.arg("--output-dir").arg(directory);
+    }
+    command.output().unwrap()
+}
+
+fn plan_over(
+    fixture: &Fixture,
+    store: &Path,
+    target: &str,
+    foundation: &str,
+    output: &str,
+) -> Output {
+    system(
+        fixture,
+        store,
+        target,
+        foundation,
+        &[("probe", output)],
+        None,
+    )
+}
+
+/// The installed `/usr/share/sysroot/composition.json` an image composed from
+/// these outputs carries: the records a consumer trusts.
+fn trusted_records(
+    fixture: &Fixture,
+    store: &Path,
+    target: &str,
+    foundation: &str,
+    outputs: &[(&str, &str)],
+    name: &str,
+) -> PathBuf {
+    let context = fixture.path(name);
+    success(system(
+        fixture,
+        store,
+        target,
+        foundation,
+        outputs,
+        Some(&context),
+    ));
+    let mut archive = tar::Archive::new(fs::File::open(context.join("payload.tar")).unwrap());
+    for entry in archive.entries().unwrap() {
+        let mut entry = entry.unwrap();
+        if entry.path().unwrap().as_ref() == Path::new("usr/share/sysroot/composition.json") {
+            let records = fixture.path(&format!("{name}.json"));
+            std::io::copy(&mut entry, &mut fs::File::create(&records).unwrap()).unwrap();
+            return records;
+        }
+    }
+    panic!("composed payload lacks its composition receipt");
+}
+
+/// A disposable registry on the bridge network; the returned cache repository
+/// is reached over plain HTTP.
+fn start_registry(fixture: &Fixture, resources: &mut Resources) -> String {
+    let name = format!(
+        "kedra-cache-registry-{}",
+        fixture.root.file_name().unwrap().to_str().unwrap()
+    );
+    docker(&["run", "--detach", "--name", &name, REGISTRY]);
+    resources.0.push(vec![
+        "container".into(),
+        "rm".into(),
+        "--force".into(),
+        name.clone(),
+    ]);
+    let address = docker(&[
+        "inspect",
+        "--format",
+        "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+        &name,
+    ]);
+    for _ in 0..60 {
+        let probe = Command::new("curl")
+            .args(["--fail", "--silent", "--output", "/dev/null"])
+            .arg(format!("http://{address}:5000/v2/"))
+            .status()
+            .unwrap();
+        if probe.success() {
+            return format!("{address}:5000/kedra-cache");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    panic!("registry did not start");
 }
 
 #[test]
@@ -1221,41 +1436,17 @@ fn package_identity_follows_fedora_material_not_the_foundation() {
     committed_repository(&fixture);
     let foundation_one = r#"packages = ["kedra-fixture-app"]; remove = ["kedra-fixture-old"];"#;
     let inputs = identity_catalog(&fixture, "catalog-one", target, foundation_one);
-    let (lock, lock_path) = resolve(&fixture, &inputs, &base, &fixture.path("resolve-one"));
+    let resolver = fixture.path("resolve-one");
+    let (lock, lock_path) = resolve(&fixture, &inputs, &base, &resolver);
 
     // Two release runs of different commits: the same lock, two foundation
     // images whose Kedra content (here one file) differs.
-    let repository = fixture.path("foundation-repository");
-    fixture.json(&[
-        "repo",
-        "--store",
-        text(&fixture.path("resolve-one")),
-        "--lock",
-        text(&lock_path),
-        "--foundation",
-        "--output",
-        text(&repository),
-    ]);
-    success(offline_build(
+    let fedora = fixture_foundation(
         &fixture,
-        "foundation-build",
+        &mut resources,
+        &resolver,
+        (&lock, &lock_path),
         &base_tag,
-        &["foundation"],
-        &repository,
-    ));
-    let fedora = fs::read_to_string(fixture.path("foundation-build/image.iid"))
-        .unwrap()
-        .trim()
-        .to_owned();
-    resources.0.push(vec![
-        "image".into(),
-        "rm".into(),
-        "--force".into(),
-        fedora.clone(),
-    ]);
-    assert_eq!(
-        installed_rows(&fedora),
-        rows(&lock["foundation"]["packages"])
     );
     // BuildKit resolves FROM by reference, never by a bare image ID.
     let fedora_tag = format!(
@@ -1290,18 +1481,17 @@ fn package_identity_follows_fedora_material_not_the_foundation() {
     for (index, foundation) in foundations.iter().enumerate() {
         let store = fixture.path(&format!("run-{index}"));
         let realized = realize(&fixture, &store, &inputs, &lock_path, &base);
-        Command::new(&fixture.binary)
-            .args([
+        engine(
+            &fixture,
+            &[
                 "store",
                 "add-image",
                 "--store",
                 text(&store),
                 "--image",
                 foundation,
-            ])
-            .output()
-            .map(success)
-            .unwrap();
+            ],
+        );
         let planned: Value = serde_json::from_slice(
             &success(plan_over(
                 &fixture,
@@ -1347,6 +1537,286 @@ fn package_identity_follows_fedora_material_not_the_foundation() {
         plan_over(&fixture, store, target, &foundations[0], &changed.output),
         "RPM material differs from the foundation",
     );
+}
+
+#[test]
+#[ignore = "requires a native Linux Docker engine, bubblewrap, skopeo and network for the Fedora 44 fixture and registry images"]
+fn binary_cache_admits_only_closures_the_trusted_records_hold() {
+    let fixture = Fixture::new();
+    let (target, _) = native_target();
+    assert_eq!(target, "qemu-arm64", "system plan fixture is aarch64 only");
+    let mut resources = Resources(Vec::new());
+    let FixtureMirror { base, base_tag, .. } = fixture_mirror(&fixture, &mut resources);
+    committed_repository(&fixture);
+    let foundation_one = r#"packages = ["kedra-fixture-app"]; remove = ["kedra-fixture-old"];"#;
+    let inputs = identity_catalog(&fixture, "catalog", target, foundation_one);
+    let resolver = fixture.path("resolve");
+    let (lock, lock_path) = resolve(&fixture, &inputs, &base, &resolver);
+    let foundation = fixture_foundation(
+        &fixture,
+        &mut resources,
+        &resolver,
+        (&lock, &lock_path),
+        &base_tag,
+    );
+    let cache = start_registry(&fixture, &mut resources);
+    let build_json = |store: &Path, roots: &Roots, package: &str, extra: &[&str]| -> Value {
+        serde_json::from_slice(
+            &success(catalog_build(
+                &fixture, store, &inputs, roots, package, extra,
+            ))
+            .stdout,
+        )
+        .unwrap()
+    };
+    let push = |store: &Path, object: &str| -> Value {
+        engine(
+            &fixture,
+            &[
+                "store",
+                "push",
+                "--store",
+                text(store),
+                "--object",
+                object,
+                "--cache",
+                &cache,
+                "--cache-plain-http",
+            ],
+        )
+    };
+
+    // The producer builds, composes the image records and pushes both closures.
+    let producer = fixture.path("producer");
+    let producer_roots = roots(&fixture, &producer, &lock_path, &base);
+    let probe = root_output(&build_json(&producer, &producer_roots, "probe", &[]));
+    let noise = root_output(&build_json(&producer, &producer_roots, "noise", &[]));
+    engine(
+        &fixture,
+        &[
+            "store",
+            "add-image",
+            "--store",
+            text(&producer),
+            "--image",
+            &foundation,
+        ],
+    );
+    let records = trusted_records(
+        &fixture,
+        &producer,
+        target,
+        &foundation,
+        &[("noise", &noise), ("probe", &probe)],
+        "records",
+    );
+    let probe_records = trusted_records(
+        &fixture,
+        &producer,
+        target,
+        &foundation,
+        &[("probe", &probe)],
+        "probe-records",
+    );
+    let pushed_probe = push(&producer, &probe);
+    assert_eq!(pushed_probe["pushed"], true);
+    assert!(
+        pushed_probe["tag"]
+            .as_str()
+            .unwrap()
+            .starts_with("closure-")
+    );
+    assert_eq!(
+        push(&producer, &probe)["pushed"],
+        false,
+        "an existing tag was pushed again"
+    );
+    let pushed_noise = push(&producer, &noise);
+    assert_eq!(pushed_noise["pushed"], true);
+    let trust = [
+        "--cache",
+        cache.as_str(),
+        "--cache-plain-http",
+        "--trusted",
+        text(&records),
+    ];
+
+    // A fresh store substitutes the closure instead of building it.
+    let consumer = fixture.path("consumer");
+    let consumer_roots = roots(&fixture, &consumer, &lock_path, &base);
+    assert_eq!(consumer_roots.runtime, producer_roots.runtime);
+    let substituted = build_json(&consumer, &consumer_roots, "probe", &trust);
+    assert_eq!(root_output(&substituted), probe);
+    assert_eq!(
+        substituted["result"]["substituted"],
+        json!([substituted["root"]])
+    );
+    assert_eq!(substituted["result"]["built"], json!([]));
+    assert_eq!(
+        program(&fixture, &consumer, &probe, "bin/probe"),
+        b"probe\n"
+    );
+    let verify = |store: &Path, object: &str| {
+        engine(
+            &fixture,
+            &[
+                "store",
+                "verify",
+                "--store",
+                text(store),
+                "--object",
+                object,
+            ],
+        )
+    };
+    assert_eq!(verify(&consumer, &probe), verify(&producer, &probe));
+
+    // A hostile registry serves another realization of the same derivation
+    // under the trusted tag: the content hash differs from the record.
+    let other = fixture.path("other");
+    let other_roots = roots(&fixture, &other, &lock_path, &base);
+    assert_eq!(
+        root_output(&build_json(&other, &other_roots, "noise", &[])),
+        noise
+    );
+    assert_ne!(
+        verify(&other, &noise)["tree_sha256"],
+        verify(&producer, &noise)["tree_sha256"],
+        "the noise package did not realize differently"
+    );
+    let pushed_other = push(&other, &noise);
+    assert_ne!(pushed_other["tag"], pushed_noise["tag"]);
+    let policy = fixture.path("accept-anything.json");
+    fs::write(
+        &policy,
+        br#"{"default":[{"type":"insecureAcceptAnything"}]}"#,
+    )
+    .unwrap();
+    success(
+        Command::new("skopeo")
+            .arg("--policy")
+            .arg(&policy)
+            .args([
+                "copy",
+                "--quiet",
+                "--src-tls-verify=false",
+                "--dest-tls-verify=false",
+            ])
+            .arg(format!(
+                "docker://{cache}:{}",
+                pushed_other["tag"].as_str().unwrap()
+            ))
+            .arg(format!(
+                "docker://{cache}:{}",
+                pushed_noise["tag"].as_str().unwrap()
+            ))
+            .output()
+            .unwrap(),
+    );
+    let victim = fixture.path("victim");
+    let victim_roots = roots(&fixture, &victim, &lock_path, &base);
+    let mut substitute = vec![
+        "store",
+        "substitute",
+        "--store",
+        text(&victim),
+        "--object",
+        &noise,
+    ];
+    substitute.extend(trust);
+    denied(
+        Command::new(&fixture.binary)
+            .args(&substitute)
+            .output()
+            .unwrap(),
+        "differs from its trusted record",
+    );
+    assert!(!victim.join("objects").join(&noise).exists());
+    let rebuilt = build_json(&victim, &victim_roots, "noise", &trust);
+    let node = rebuilt["root"].as_str().unwrap();
+    assert_eq!(rebuilt["result"]["built"], json!([node]));
+    assert!(
+        rebuilt["result"]["cache_misses"][node]
+            .as_str()
+            .unwrap()
+            .contains("differs from its trusted record")
+    );
+
+    // No trusted record: refused before any registry is contacted, and built.
+    let unreachable = "127.0.0.1:9/kedra-cache";
+    denied(
+        Command::new(&fixture.binary)
+            .args([
+                "store",
+                "substitute",
+                "--store",
+                text(&victim),
+                "--object",
+                &noise,
+            ])
+            .args(["--cache", unreachable, "--cache-plain-http", "--trusted"])
+            .arg(&probe_records)
+            .output()
+            .unwrap(),
+        "no trusted record",
+    );
+    let unrecorded = fixture.path("unrecorded");
+    let unrecorded_roots = roots(&fixture, &unrecorded, &lock_path, &base);
+    let built = build_json(
+        &unrecorded,
+        &unrecorded_roots,
+        "noise",
+        &[
+            "--cache",
+            &cache,
+            "--cache-plain-http",
+            "--trusted",
+            text(&probe_records),
+        ],
+    );
+    assert_eq!(built["result"]["built"], json!([built["root"]]));
+    assert_eq!(built["result"]["cache_misses"], json!({}));
+
+    // An unreachable cache: the build falls back to building.
+    let offline = fixture.path("offline");
+    let offline_roots = roots(&fixture, &offline, &lock_path, &base);
+    let fallback = build_json(
+        &offline,
+        &offline_roots,
+        "probe",
+        &[
+            "--cache",
+            unreachable,
+            "--cache-plain-http",
+            "--trusted",
+            text(&records),
+        ],
+    );
+    let node = fallback["root"].as_str().unwrap();
+    assert_eq!(fallback["result"]["built"], json!([node]));
+    assert!(
+        fallback["result"]["cache_misses"][node]
+            .as_str()
+            .unwrap()
+            .contains("unavailable")
+    );
+    assert_eq!(program(&fixture, &offline, &probe, "bin/probe"), b"probe\n");
+    let fresh = fixture.path("fresh");
+    roots(&fixture, &fresh, &lock_path, &base);
+    let unavailable = Command::new(&fixture.binary)
+        .args([
+            "store",
+            "substitute",
+            "--store",
+            text(&fresh),
+            "--object",
+            &probe,
+        ])
+        .args(["--cache", unreachable, "--cache-plain-http", "--trusted"])
+        .arg(&records)
+        .output()
+        .unwrap();
+    assert_eq!(unavailable.status.code(), Some(69));
 }
 
 #[test]

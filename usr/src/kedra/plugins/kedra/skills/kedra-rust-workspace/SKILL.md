@@ -150,10 +150,13 @@ Keep canonical ordinary skill files and Codex/Claude manifests in usr/src/kedra/
 
 Windows Git 2.55 rejected canonical verbatim paths in GIT_CONFIG_GLOBAL; use appropriate ordinary subprocess paths for generated fixtures, separately from filesystem path validation. Native CLI/VM E2E remains the acceptance boundary.
 
-D5 source contract (2026-10-03): cache receipt authorization lives entirely in
-`sysroot-engine/cache.rs`; callers independently select recipe, scope and key
-policy, and bundle admission rechecks expiry before journal publication. Do not
-source those expectations from a producer receipt. Composition/native temporary
+Binary cache (2026-10-18; replaces the 2026-10-03 consumer-key receipts):
+`sysroot-engine/cache.rs` admits a registry closure only if every staged object
+equals a receipt of a signature-verified image's installed composition.json; the
+registry, its tags and manifests are never trusted, and every failure falls back to
+building. Tags are `closure-` plus the hash of the closure's receipts. Transport is
+skopeo with a cleared environment, private home and its own policy (a Kedra
+machine's strict policy would otherwise reject the cache). Composition/native temporary
 inputs now use lock-backed `ManagedSnapshot` leases and explicit `finish`; keep
 the guard alive through every child reader, and recover only recognized abandoned
 entries. Source: engine cache/snapshot/bundle/context modules and

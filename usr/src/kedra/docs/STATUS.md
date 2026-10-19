@@ -88,9 +88,9 @@ each of which records its exact-head local checks. Per-change detail is in the
   fixture) still calls the removed agent and Bitwarden packing scripts, so it
   cannot run on main.
 - **Known limits:** the x86_64 Codex binary (258.7 MB) is close to the engine's
-  256 MiB per-file limit. Full local images and their VM disks are still built
-  per checkout: the foundation carries the checkout's label, so even two checkouts
-  of one commit derive different images. The old
+  256 MiB per-file limit. Full local images are still built per checkout (each
+  foundation carries its checkout's label), so a VM disk is shared only between
+  checkouts whose fixture layers are identical. The old
   shared Docker volumes `kedra-lab-target-aarch64`, `kedra-lab-cargo-registry` and
   `kedra-qemu-podman-cache` belong to no checkout any more; the owner removes them.
 

@@ -429,7 +429,7 @@ impl Docker {
     pub fn volume_usage(&self, name: &str) -> Result<Option<u64>> {
         let report = self.runtime.block_on(self.api.df(Some(
             bollard::query_parameters::DataUsageOptions {
-                _type: Some(vec!["volume".to_owned()]),
+                _type: None,
                 verbose: true,
             },
         )))?;

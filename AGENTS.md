@@ -144,8 +144,9 @@ the gitignored shared cache `<primary checkout>/.cache/kedra/` (`KEDRA_SHARED_CA
 overrides it; tests/container/README.md "Shared cache"): content-addressed
 artifacts every checkout reuses, each checkout's roots on them, and the shared
 engine store's volume labeled `kedra.cache=<cache id>`. `kedra-lab clean` drops
-this checkout's roots; `kedra-lab gc` deletes what no checkout roots. Pulled images stay unlabeled; record
-their digests under `target/` and remove them once no checkout uses them. Delete
+this checkout's roots; `kedra-lab gc` deletes what no checkout roots. Pulled
+images stay unlabeled; record their digests under `target/` and remove them once
+no checkout uses them. Delete
 large `target/` subtrees no pending check needs (`chmod -R u+w` sealed store objects
 first). Stop and report before a run would leave under 100 GiB free.
 

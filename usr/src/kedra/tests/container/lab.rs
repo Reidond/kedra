@@ -546,7 +546,8 @@ fn gc(dry_run: bool, remove: Option<&str>) -> Result<()> {
         return Ok(());
     }
     let mut report = cache.gc(dry_run)?;
-    gc_engine_volume(&cache, dry_run, &mut report)?;
+    // What the cache GC already deleted is reported even if the volume step fails.
+    let volume = gc_engine_volume(&cache, dry_run, &mut report);
     for line in &report.lines {
         println!("{line}");
     }
@@ -556,7 +557,12 @@ fn gc(dry_run: bool, remove: Option<&str>) -> Result<()> {
         shared_cache::size(report.freed),
         cache.root().display()
     );
-    Ok(())
+    volume.map_err(|error| {
+        Error::Invalid(format!(
+            "the engine store volume {} was not checked: {error}",
+            shared_store::engine_volume(&cache)
+        ))
+    })
 }
 
 fn clean(docker: &Docker, vm_runtime: bool) -> Result<()> {

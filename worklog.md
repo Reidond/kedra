@@ -8,7 +8,7 @@ of entries; older ones are pruned and stay in Git. The complete worklog up to
 
 ## Current project status
 
-Last updated: 2026-10-19 (Europe/Kyiv), main `5f8bf4e`. One-page detail and
+Last updated: 2026-10-19 (Europe/Kyiv), main `a178be2`. One-page detail and
 evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
 
 - **Phase:** development before the first real installation. No non-disposable
@@ -16,7 +16,7 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
   `qemu-arm64` aarch64) build through one engine pipeline (RPM lock → foundation →
   packages → compose → derive → trust layer) and publish signed `stable` images to
   GHCR from the release workflow.
-- **Merged since 2026-10-14 (PRs #45–#64):** local testing with a required `signoff`
+- **Merged since 2026-10-14 (PRs #45–#65):** local testing with a required `signoff`
   status; compatibility reset; smaller `setup tpm-unlock` and agent launchers;
   data-driven managed home files; `sysroot derive`; Fedora RPM lock; local VM
   drivers on one launcher; bootc-enforced update signatures with a reduced helper;
@@ -27,7 +27,7 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
   workflow with every Docker job on the containerd store, content steps in recipe
   scripts and per-checkout harness objects with `kedra-lab clean` (#63); kedra-lab
   VM state under `target/kedra-lab/qemu` (#64); agent documentation cut to current
-  facts (#61).
+  facts (#61); one shared build cache for every checkout (#65).
 - **Published:** the release on `e9bb7a1` (2026-10-18, after #62 and #63) signed and
   published both targets (container harness on the exact candidates: qemu-arm64
   15/15, desktop 13/13). It is the first published image with the Codex and

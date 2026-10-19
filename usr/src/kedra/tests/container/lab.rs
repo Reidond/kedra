@@ -15,6 +15,7 @@ use kedra_container_tests::environment::{Environment, Kind};
 use kedra_container_tests::image::{self, Overlay, Request, Source};
 use kedra_container_tests::session::{self, Display};
 use kedra_container_tests::shared_cache::{self, Cache, Kind as CacheKind};
+use kedra_container_tests::shared_store;
 use kedra_container_tests::{Error, Result, artifact_root, builder};
 
 #[derive(Parser)]
@@ -449,8 +450,9 @@ fn clean_vm(vm_runtime: bool) -> Result<()> {
     Ok(())
 }
 
-/// Drop this checkout's roots in the shared cache: VM disks always, the QEMU
-/// runtime only when asked. Entries stay for other checkouts until `kedra-lab gc`.
+/// Drop this checkout's roots in the shared cache: VM disks and engine stores
+/// always, the QEMU runtime only when asked. Entries and stores stay for other
+/// checkouts until `kedra-lab gc`.
 fn unroot_shared(vm_runtime: bool) -> Result<()> {
     let cache = Cache::locate()?;
     let mut kinds = vec![CacheKind::VmDisk];
@@ -460,6 +462,70 @@ fn unroot_shared(vm_runtime: bool) -> Result<()> {
     for name in cache.unroot(&kinds)? {
         println!("dropped shared cache root {name}");
     }
+    for store in [shared_store::RPM, shared_store::ENGINE] {
+        if cache.unroot_store(store)? {
+            println!("dropped shared engine store root {store}");
+        }
+    }
+    Ok(())
+}
+
+/// The shared engine store's Docker volume: deleted when no checkout roots it
+/// and no build holds it.
+fn gc_engine_volume(
+    cache: &Cache,
+    dry_run: bool,
+    report: &mut shared_cache::GcReport,
+) -> Result<()> {
+    let name = shared_store::engine_volume(cache);
+    let docker = match Docker::connect() {
+        Ok(docker) => docker,
+        Err(error) => {
+            report
+                .lines
+                .push(format!("engine store volume {name} not checked: {error}"));
+            return Ok(());
+        }
+    };
+    let Some(labels) = docker.volume_labels(&name)? else {
+        return Ok(());
+    };
+    let bytes = docker.volume_usage(&name)?;
+    let shown = bytes.map_or_else(|| "size unknown".to_owned(), shared_cache::size);
+    if labels.get(docker::CACHE_LABEL) != Some(&cache.id()) {
+        report.lines.push(format!(
+            "volume {name} lacks {}={}; left in place",
+            docker::CACHE_LABEL,
+            cache.id()
+        ));
+        return Ok(());
+    }
+    if cache.store_rooted(shared_store::ENGINE)? {
+        report
+            .lines
+            .push(format!("keep engine store volume {name} ({shown}; rooted)"));
+        return Ok(());
+    }
+    let Some(_lock) = cache.try_store_lock(shared_store::ENGINE)? else {
+        report
+            .lines
+            .push(format!("keep engine store volume {name} (in use)"));
+        return Ok(());
+    };
+    if cache.store_rooted(shared_store::ENGINE)? {
+        report.lines.push(format!(
+            "keep engine store volume {name} (rooted meanwhile)"
+        ));
+        return Ok(());
+    }
+    if !dry_run {
+        docker.remove_volume(&name)?;
+    }
+    report.freed += bytes.unwrap_or_default();
+    report.lines.push(format!(
+        "{} engine store volume {name} ({shown})",
+        if dry_run { "would delete" } else { "deleted" }
+    ));
     Ok(())
 }
 
@@ -479,7 +545,8 @@ fn gc(dry_run: bool, remove: Option<&str>) -> Result<()> {
         println!("removed {name} ({})", shared_cache::size(freed));
         return Ok(());
     }
-    let report = cache.gc(dry_run)?;
+    let mut report = cache.gc(dry_run)?;
+    gc_engine_volume(&cache, dry_run, &mut report)?;
     for line in &report.lines {
         println!("{line}");
     }

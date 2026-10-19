@@ -27,6 +27,8 @@ pub const TARGET_LABEL: &str = "dev.kedra.lab.target";
 pub const IMAGE_LABEL: &str = "dev.kedra.lab.image";
 /// The checkout that created a container, volume or image ([`crate::checkout_id`]).
 pub const CHECKOUT_LABEL: &str = "kedra.checkout";
+/// The shared cache a volume belongs to (`kedra-lab gc` removes it unrooted).
+pub const CACHE_LABEL: &str = "kedra.cache";
 
 /// An image tag scoped to this checkout: `<checkout id>-<key>`. Images the
 /// engine derives cannot carry a label without changing the image under test,
@@ -389,6 +391,65 @@ impl Docker {
             )));
         }
         Ok(volume.name)
+    }
+
+    /// A named volume of the shared cache `cache` ([`crate::shared_cache::Cache::id`]),
+    /// created with `kedra.cache=<cache>` when absent; a same-named volume
+    /// without that label is refused. `kedra-lab clean` never selects it.
+    pub fn shared_volume(&self, name: &str, cache: &str) -> Result<String> {
+        let request = bollard::models::VolumeCreateRequest {
+            name: Some(name.to_owned()),
+            labels: Some(HashMap::from([
+                (OWNER_LABEL.to_owned(), OWNER.to_owned()),
+                (CACHE_LABEL.to_owned(), cache.to_owned()),
+            ])),
+            ..Default::default()
+        };
+        let volume = self.runtime.block_on(self.api.create_volume(request))?;
+        if volume.labels.get(CACHE_LABEL).map(String::as_str) != Some(cache) {
+            return Err(invalid(format!(
+                "volume {name} exists without {CACHE_LABEL}={cache}; remove it with `docker volume rm {name}`"
+            )));
+        }
+        Ok(volume.name)
+    }
+
+    /// Whether a volume exists, and with which labels.
+    pub fn volume_labels(&self, name: &str) -> Result<Option<HashMap<String, String>>> {
+        match self.runtime.block_on(self.api.inspect_volume(name)) {
+            Ok(volume) => Ok(Some(volume.labels)),
+            Err(bollard::errors::Error::DockerResponseServerError {
+                status_code: 404, ..
+            }) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// Bytes a volume uses, from the Engine's disk usage report.
+    pub fn volume_usage(&self, name: &str) -> Result<Option<u64>> {
+        let report = self.runtime.block_on(self.api.df(Some(
+            bollard::query_parameters::DataUsageOptions {
+                _type: Some(vec!["volume".to_owned()]),
+                verbose: true,
+            },
+        )))?;
+        let items = report
+            .volume_usage
+            .and_then(|usage| usage.items)
+            .unwrap_or_default();
+        Ok(items
+            .iter()
+            .find(|item| item["Name"] == name)
+            .and_then(|item| item["UsageData"]["Size"].as_i64())
+            .and_then(|size| u64::try_from(size).ok()))
+    }
+
+    pub fn remove_volume(&self, name: &str) -> Result<()> {
+        self.runtime.block_on(
+            self.api
+                .remove_volume(name, None::<bollard::query_parameters::RemoveVolumeOptions>),
+        )?;
+        Ok(())
     }
 
     /// Remove every container, image and volume this checkout's label selects,

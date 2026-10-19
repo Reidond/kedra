@@ -245,6 +245,12 @@ impl Cache {
         self.root.join("locks").join(format!("{name}.lock"))
     }
 
+    /// A lock file other tools take to serialize work across checkouts
+    /// (prepare-disk.py's nested Podman builds).
+    pub fn lock_file(&self, name: &str) -> PathBuf {
+        self.lock_path(name)
+    }
+
     /// The entry for `inputs`, built by `build` unless another checkout already
     /// published it; verified and rooted by this checkout either way.
     pub fn ensure(
@@ -431,6 +437,20 @@ impl Cache {
             &directory.join(format!("store-{store}.json")),
             &serde_json::to_vec_pretty(record).map_err(|e| invalid(e.to_string()))?,
         )
+    }
+
+    /// This checkout's record on a shared store, if it roots it.
+    pub fn store_record(&self, store: &str) -> Result<Option<Value>> {
+        let path = self.checkout_roots().join(format!("store-{store}.json"));
+        match read_limited(&path) {
+            Ok(data) => {
+                Ok(Some(serde_json::from_slice(&data).map_err(|e| {
+                    invalid(format!("{}: {e}", path.display()))
+                })?))
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.into()),
+        }
     }
 
     /// Drop this checkout's root on a shared store; true if it had one.
@@ -925,7 +945,7 @@ fn seal(path: &Path) -> Result<()> {
 }
 
 /// Bytes on disk under `path` (allocated blocks, links not followed).
-fn usage(path: &Path) -> Result<u64> {
+pub fn usage(path: &Path) -> Result<u64> {
     let metadata = match path.symlink_metadata() {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),

@@ -21,6 +21,7 @@ pub mod report;
 pub mod scenario;
 pub mod session;
 pub mod shared_cache;
+pub mod shared_store;
 pub mod vm;
 
 use std::fmt;

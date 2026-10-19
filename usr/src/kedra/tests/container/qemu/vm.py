@@ -223,7 +223,8 @@ def create(directory, args):
     if args.image is None:
         raise ValueError('new instance needs --image pointing to a prepared image.json')
     image = json.loads(args.image.read_text())
-    disk = Path(image['disk'])
+    # Shared cache receipts name the disk relative to themselves.
+    disk = args.image.resolve().parent / image['disk']
     if image.get('schema_version') != 1 or image.get('target') != 'qemu-arm64' or sha256(disk) != image.get('disk_sha256'):
         raise ValueError('prepared disk receipt/checksum mismatch')
     display = re.fullmatch(r'(\d+)x(\d+)@([\d.]+)', args.display)

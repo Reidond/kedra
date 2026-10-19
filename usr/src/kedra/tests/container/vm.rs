@@ -323,6 +323,96 @@ fn prepare_shared_runtime(jobs: u32) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// The fixture image a VM disk is prepared from, with its native provenance
+/// (JSON for prepare-disk.py's standard input) and signing reference.
+struct DiskFixture {
+    reference: String,
+    image_id: String,
+    engine: String,
+    native: Option<(Vec<u8>, String)>,
+}
+
+impl DiskFixture {
+    fn command(&self) -> Command {
+        let mut command = script("prepare-disk.py");
+        command
+            .arg("--image")
+            .arg(&self.reference)
+            .arg("--image-id")
+            .arg(&self.image_id)
+            .arg("--engine-id")
+            .arg(&self.engine);
+        if let Some((_, fixture_reference)) = &self.native {
+            command
+                .arg("--native-provenance")
+                .arg("--fixture-reference")
+                .arg(fixture_reference);
+        }
+        command
+    }
+
+    /// Run prepare-disk.py, with the native provenance on standard input.
+    fn run(&self, command: &mut Command) -> Result<()> {
+        let status = match &self.native {
+            None => execute(command)?,
+            Some((provenance, _)) => {
+                command.stdin(Stdio::piped());
+                #[cfg(unix)]
+                command.process_group(0);
+                let mut child = command.spawn()?;
+                let result = child
+                    .stdin
+                    .take()
+                    .ok_or_else(|| crate::invalid("disk builder stdin is unavailable"))?
+                    .write_all(provenance);
+                if let Err(error) = result {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(error.into());
+                }
+                wait_child(&mut child)?
+            }
+        };
+        if status == ExitCode::SUCCESS {
+            Ok(())
+        } else {
+            Err(crate::invalid("prepare-disk.py failed"))
+        }
+    }
+}
+
+/// The VM base disk of a fixture from the shared cache: keyed by the fixture's
+/// content without its per-checkout label, so checkouts with the same image
+/// share one disk; built (serialized across checkouts) when absent.
+fn prepare_disk(fixture: &DiskFixture) -> Result<crate::shared_cache::Entry> {
+    let cache = Cache::locate()?;
+    let home = qemu_home();
+    std::fs::create_dir_all(&home)?;
+    let keyed = home.join(format!("disk-inputs-{}.json", crate::execution_id()));
+    let outcome = fixture.run(fixture.command().arg("--inputs-output").arg(&keyed));
+    let inputs = outcome.and_then(|()| {
+        serde_json::from_slice::<serde_json::Value>(&std::fs::read(&keyed)?)
+            .map_err(|error| crate::invalid(format!("disk inputs: {error}")))
+    });
+    let _ = std::fs::remove_file(&keyed);
+    let inputs = inputs?;
+    cache.ensure(Kind::VmDisk, &inputs, |build| {
+        std::fs::create_dir_all(&build.work)?;
+        let file = build.work.join("inputs.json");
+        std::fs::write(&file, inputs.to_string())?;
+        fixture.run(
+            fixture
+                .command()
+                .arg("--output")
+                .arg(&build.content)
+                .arg("--inputs")
+                .arg(&file)
+                .arg("--build-lock")
+                .arg(cache.lock_file("vm-disk-build")),
+        )
+    })
+}
+
 fn instance_script(instance: &Instance, operation: &str) -> Result<Command> {
     // Only a new instance uses the given runtime; existing ones read theirs from state.
     let verify = matches!(operation, "up" | "installer");
@@ -485,41 +575,23 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 .image(&reference)?
                 .ok_or_else(|| crate::invalid("native fixture disappeared"))?
                 .0;
-            let mut command = script("prepare-disk.py");
-            command
-                .arg("--image")
-                .arg(reference)
-                .arg("--image-id")
-                .arg(image_id)
-                .arg("--engine-id")
-                .arg(docker.identity()?)
-                .arg("--cache")
-                .arg(qemu_home());
-            if let Some((provenance, fixture_reference)) = provenance {
-                command
-                    .arg("--native-provenance")
-                    .arg("--fixture-reference")
-                    .arg(fixture_reference)
-                    .stdin(Stdio::piped());
-                #[cfg(unix)]
-                command.process_group(0);
-                let mut child = command.spawn()?;
-                let data = serde_json::to_vec(&provenance)
-                    .map_err(|error| crate::invalid(error.to_string()))?;
-                let result = child
-                    .stdin
-                    .take()
-                    .ok_or_else(|| crate::invalid("disk builder stdin is unavailable"))?
-                    .write_all(&data);
-                if let Err(error) = result {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Err(error.into());
-                }
-                wait_child(&mut child)
-            } else {
-                execute(&mut command)
-            }
+            let native = match provenance {
+                Some((provenance, fixture_reference)) => Some((
+                    serde_json::to_vec(&provenance)
+                        .map_err(|error| crate::invalid(error.to_string()))?,
+                    fixture_reference,
+                )),
+                None => None,
+            };
+            let fixture = DiskFixture {
+                reference,
+                image_id,
+                engine: docker.identity()?,
+                native,
+            };
+            let entry = prepare_disk(&fixture)?;
+            println!("{}", entry.content().join("image.json").display());
+            Ok(ExitCode::SUCCESS)
         }
         VmCommand::Iso { image, output } => {
             let mut command = Command::new("uv");

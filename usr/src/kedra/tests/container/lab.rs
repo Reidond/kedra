@@ -130,7 +130,7 @@ enum Command {
     /// image and volume labeled `kedra.checkout=<id>`, its scoped image tags,
     /// the large artifact trees (cache, derive, composition, native) under
     /// target/ and the native VM's stopped instances, and drop this checkout's
-    /// roots on shared VM disks and engine stores. Run reports, screenshots and
+    /// roots on shared VM disks, RPM locks and engine stores. Run reports, screenshots and
     /// the root on the shared QEMU runtime stay. `kedra-lab gc` then deletes
     /// what no checkout roots.
     Clean {

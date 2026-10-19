@@ -173,6 +173,9 @@ impl GcReport {
 struct Rooted {
     entries: BTreeMap<(String, String), BTreeSet<String>>,
     stores: BTreeMap<String, BTreeSet<String>>,
+    /// Checkouts that no longer exist; their roots are dropped (or, in a dry
+    /// run, would be) and never count.
+    gone: BTreeSet<String>,
 }
 
 impl Cache {
@@ -286,13 +289,16 @@ impl Cache {
             work: work.clone(),
         })?;
         self.publish(&entry, inputs, &stage)?;
-        crate::remove_tree(&work)?;
         self.add_root(&entry)?;
         eprintln!(
             "kedra-lab: published {what} after {:.0}s: {}",
             started.elapsed().as_secs_f64(),
             entry.path.display()
         );
+        // Only the entry stays; `kedra-lab gc` collects a build area left behind.
+        if let Err(error) = crate::remove_tree(&work) {
+            eprintln!("kedra-lab: could not delete {}: {error}", work.display());
+        }
         Ok(entry)
     }
 
@@ -557,6 +563,7 @@ impl Cache {
                     if !dry_run {
                         crate::remove_tree(&directory)?;
                     }
+                    rooted.gone.insert(checkout);
                     continue;
                 }
                 CheckoutState::Unknown(reason) => report.note(format!(
@@ -594,7 +601,7 @@ impl Cache {
             };
             for key in list(&entries.join(&kind_name))? {
                 let roots = rooted.entries.get(&(kind_name.clone(), key.clone()));
-                self.collect_entry(kind, &key, roots, dry_run, report)?;
+                self.collect_entry(kind, &key, roots, &rooted.gone, dry_run, report)?;
             }
         }
         Ok(())
@@ -605,6 +612,7 @@ impl Cache {
         kind: Kind,
         key: &str,
         roots: Option<&BTreeSet<String>>,
+        gone: &BTreeSet<String>,
         dry_run: bool,
         report: &mut GcReport,
     ) -> Result<()> {
@@ -628,7 +636,7 @@ impl Cache {
             return Ok(());
         };
         // A checkout may have rooted it before this lock was taken.
-        if self.rooted_now(kind, key)? {
+        if self.rooted_now(&format!("{}.json", slot(kind, key)), gone)? {
             report.note(format!("keep {label} (rooted meanwhile)"));
             return Ok(());
         }
@@ -651,16 +659,17 @@ impl Cache {
         Ok(())
     }
 
-    fn rooted_now(&self, kind: Kind, key: &str) -> Result<bool> {
-        let name = format!("{}.json", slot(kind, key));
+    /// Whether a live checkout has the root file `name` now.
+    fn rooted_now(&self, name: &str, gone: &BTreeSet<String>) -> Result<bool> {
         for directory in list(&self.root.join("roots"))? {
-            if self
-                .root
-                .join("roots")
-                .join(directory)
-                .join(&name)
-                .symlink_metadata()
-                .is_ok()
+            if !gone.contains(&directory)
+                && self
+                    .root
+                    .join("roots")
+                    .join(&directory)
+                    .join(name)
+                    .symlink_metadata()
+                    .is_ok()
             {
                 return Ok(true);
             }
@@ -718,7 +727,7 @@ impl Cache {
                 report.note(format!("keep store {store} (in use)"));
                 continue;
             };
-            if self.store_rooted_now(&store)? {
+            if self.rooted_now(&format!("store-{store}.json"), &rooted.gone)? {
                 report.note(format!("keep store {store} (rooted meanwhile)"));
                 continue;
             }
@@ -734,23 +743,6 @@ impl Cache {
             }
         }
         Ok(())
-    }
-
-    fn store_rooted_now(&self, store: &str) -> Result<bool> {
-        let name = format!("store-{store}.json");
-        for directory in list(&self.root.join("roots"))? {
-            if self
-                .root
-                .join("roots")
-                .join(directory)
-                .join(&name)
-                .symlink_metadata()
-                .is_ok()
-            {
-                return Ok(true);
-            }
-        }
-        Ok(false)
     }
 }
 

@@ -14,6 +14,7 @@ use kedra_container_tests::docker::{self, Docker, Exec};
 use kedra_container_tests::environment::{Environment, Kind};
 use kedra_container_tests::image::{self, Overlay, Request, Source};
 use kedra_container_tests::session::{self, Display};
+use kedra_container_tests::shared_cache::{self, Cache, Kind as CacheKind};
 use kedra_container_tests::{Error, Result, artifact_root, builder};
 
 #[derive(Parser)]
@@ -127,15 +128,28 @@ enum Command {
     /// Remove everything this checkout's harness created: every container,
     /// image and volume labeled `kedra.checkout=<id>`, its scoped image tags,
     /// the large artifact trees (cache, derive, composition, native) under
-    /// target/, and the native VM's stopped instances, prepared disks and
-    /// runtime build tree. Run reports, screenshots and the built QEMU runtime stay.
+    /// target/ and the native VM's stopped instances, and drop this checkout's
+    /// roots on shared VM disks and engine stores. Run reports, screenshots and
+    /// the root on the shared QEMU runtime stay. `kedra-lab gc` then deletes
+    /// what no checkout roots.
     Clean {
         /// Only remove the containers of one execution.
         #[arg(long, conflicts_with = "vm_runtime")]
         execution: Option<String>,
-        /// Also remove the built native QEMU runtime (rebuilding it takes long).
+        /// Also drop the root on the shared QEMU runtime (rebuilding it takes long).
         #[arg(long)]
         vm_runtime: bool,
+    },
+    /// Delete shared cache entries and shared engine stores that no checkout
+    /// roots, after dropping the roots of checkouts that no longer exist, and
+    /// report the space freed. Corrupt or unknown entries are reported, not deleted.
+    Gc {
+        /// Report what would be deleted without deleting it.
+        #[arg(long)]
+        dry_run: bool,
+        /// Delete one entry, KIND/KEY, even a corrupt one, and every root on it.
+        #[arg(long, conflicts_with = "dry_run")]
+        remove: Option<String>,
     },
 }
 
@@ -403,8 +417,9 @@ fn inside_target(path: &std::path::Path) -> bool {
     }
 }
 
-/// The native VM home: stopped instances through `vm.py remove`, then the
-/// prepared disks and the runtime build tree, and the runtime when asked.
+/// The native VM home: stopped instances through `vm.py remove`, then trees an
+/// earlier per-checkout layout kept there (prepared disks, runtime build tree
+/// and, when asked, the runtime).
 fn clean_vm(vm_runtime: bool) -> Result<()> {
     let home = kedra_container_tests::vm::qemu_home();
     if !home.exists() {
@@ -434,6 +449,49 @@ fn clean_vm(vm_runtime: bool) -> Result<()> {
     Ok(())
 }
 
+/// Drop this checkout's roots in the shared cache: VM disks always, the QEMU
+/// runtime only when asked. Entries stay for other checkouts until `kedra-lab gc`.
+fn unroot_shared(vm_runtime: bool) -> Result<()> {
+    let cache = Cache::locate()?;
+    let mut kinds = vec![CacheKind::VmDisk];
+    if vm_runtime {
+        kinds.push(CacheKind::QemuRuntime);
+    }
+    for name in cache.unroot(&kinds)? {
+        println!("dropped shared cache root {name}");
+    }
+    Ok(())
+}
+
+fn gc(dry_run: bool, remove: Option<&str>) -> Result<()> {
+    let cache = Cache::locate()?;
+    if let Some(name) = remove {
+        let (kind, key) = name
+            .split_once('/')
+            .and_then(|(kind, key)| Some((CacheKind::parse(kind)?, key)))
+            .ok_or_else(|| {
+                Error::Invalid(format!(
+                    "--remove takes KIND/KEY, KIND one of {}",
+                    CacheKind::ALL.map(CacheKind::name).join(", ")
+                ))
+            })?;
+        let freed = cache.remove(kind, key)?;
+        println!("removed {name} ({})", shared_cache::size(freed));
+        return Ok(());
+    }
+    let report = cache.gc(dry_run)?;
+    for line in &report.lines {
+        println!("{line}");
+    }
+    println!(
+        "{} {} in {}",
+        if dry_run { "would free" } else { "freed" },
+        shared_cache::size(report.freed),
+        cache.root().display()
+    );
+    Ok(())
+}
+
 fn clean(docker: &Docker, vm_runtime: bool) -> Result<()> {
     let checkout = kedra_container_tests::checkout_id();
     let cleaned = docker.clean_checkout()?;
@@ -446,7 +504,9 @@ fn clean(docker: &Docker, vm_runtime: bool) -> Result<()> {
             println!("removed {kind} {name}");
         }
     }
+    // Instances use the shared disks and runtime: remove them before the roots.
     clean_vm(vm_runtime)?;
+    unroot_shared(vm_runtime)?;
     // Only trees inside this checkout's target/; KEDRA_LAB_ARTIFACTS may point elsewhere.
     let root = artifact_root();
     if inside_target(&root) {
@@ -488,6 +548,16 @@ fn main() -> ExitCode {
             }
         };
     }
+    if let Command::Gc { dry_run, remove } = &cli.command {
+        return match gc(*dry_run, remove.as_deref()) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(Error::Interrupted) => ExitCode::from(130),
+            Err(error) => {
+                eprintln!("kedra-lab: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if matches!(cli.command, Command::PrepareSync) {
         return match builder::prepare_archiver(&artifact_root().join("cache")) {
             Ok(path) => {
@@ -502,7 +572,7 @@ fn main() -> ExitCode {
     }
     let outcome = Docker::connect().and_then(|docker| match cli.command {
         Command::Vm { .. } => unreachable!("dispatched without Docker"),
-        Command::PrepareSync => unreachable!("dispatched without Docker"),
+        Command::PrepareSync | Command::Gc { .. } => unreachable!("dispatched without Docker"),
         Command::Replay {
             image,
             output,

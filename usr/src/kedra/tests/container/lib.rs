@@ -20,6 +20,7 @@ pub mod native_derivation;
 pub mod report;
 pub mod scenario;
 pub mod session;
+pub mod shared_cache;
 pub mod vm;
 
 use std::fmt;

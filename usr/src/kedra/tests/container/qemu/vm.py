@@ -246,6 +246,8 @@ def create(directory, args):
                                       'keyring_password': secrets.token_hex(32)})
     run([args.runtime / 'bin/qemu-img', 'create', '-f', 'qcow2', '-F', 'qcow2', '-b', disk, directory / 'disk.qcow2'])
     shutil.copy2(args.runtime / 'firmware/AAVMF_VARS.ms.fd', directory / 'vars.fd')
+    # The shared runtime is sealed read-only; the variable store is written.
+    (directory / 'vars.fd').chmod(0o600)
     run(['uv', 'run', '--project', HERE / 'build-tools', '--locked', 'virt-fw-vars', '--inplace', directory / 'vars.fd',
          '--append-boot-filepath', launcher.AARCH64_SHIM])
     (directory / 'tpm').mkdir(mode=0o700)

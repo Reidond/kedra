@@ -339,6 +339,7 @@ checkout" allows. `shared_cache.rs` and `shared_store.rs` implement it.
 | VM base disks (`vm image`) | `entries/vm-disk/<key>/content` | the fixture's layers and config without its `kedra.checkout` label, the bootc builder pin and the disk recipe |
 | Host RPM store | `stores/rpm` | an engine store: RPM objects by content |
 | Engine store of full local builds | Docker volume `kedra-cache-<cache id>-engine`, labeled `kedra.cache=<cache id>` | an engine store: RPM objects, base images, runtime and builder roots, sources and package outputs, all input-addressed |
+| sccache compilation cache (mise.toml `SCCACHE_DIR`) | `sccache/` | sccache's own keys (compiler, arguments, inputs); bounded by `SCCACHE_CACHE_SIZE` (10G), which sccache enforces by evicting the least recently used entries; `kedra-lab gc` reports its size |
 
 **Entries.** The key is the SHA-256 of the entry kind and the canonical JSON of
 its declared inputs. A checkout that needs an entry takes the key's file lock in

@@ -9,3 +9,15 @@ rust = { version = "1.98.1", components = "rustfmt,clippy", profile = "minimal" 
 uv = "0.12.19"
 ruff = "0.16.9"
 "github:moznion/cccc" = "1.7.0"
+sccache = "0.18.0"
+
+# sccache caches compilations for every checkout in the shared cache
+# (tests/container/README.md "Shared cache"). It is optional: mise lists a
+# pinned tool that is not installed as missing and leaves it out of `tools`, so
+# RUSTC_WRAPPER is then empty, which Cargo treats as no wrapper.
+[env]
+RUSTC_WRAPPER = { value = "{% if tools.sccache is defined %}sccache{% endif %}", tools = true }
+# `<primary checkout>/.cache/kedra/sccache`, or under KEDRA_SHARED_CACHE.
+SCCACHE_DIR = "{% set shared = get_env(name='KEDRA_SHARED_CACHE', default='') %}{% if shared %}{{ shared }}{% else %}{{ exec(command='git rev-parse --path-format=absolute --git-common-dir', cache_key='kedra-shared-cache', cache_duration='1d') | dirname }}/.cache/kedra{% endif %}/sccache"
+# sccache evicts the least recently used entries above this size.
+SCCACHE_CACHE_SIZE = "10G"

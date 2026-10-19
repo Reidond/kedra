@@ -33,7 +33,10 @@ identity; never rename it.
   Local ISO builds stay available; unsigned local builds are for testing only.
 - Rust edition 2024, one workspace and lockfile, pinned toolchain, rustfmt/Clippy,
   flat `main.rs`/`lib.rs` (no `src/`) in `usr/src/kedra/crates/`. No TypeScript
-  toolchain (superseded). Tools are pinned in `mise.toml`.
+  toolchain (superseded). Tools are pinned in `mise.toml`, including sccache
+  (owner decision, 2026-10-19): once installed (`mise install`), mise wraps rustc
+  with it and caches every checkout's compilations in the shared cache; without it
+  builds run plain.
 - Owner decision (2026-10-06): the versioned `.kedra` package language
   ([PACKAGES.md](usr/src/kedra/docs/PACKAGES.md#language-v1)) is the one narrow
   language exception: Rust parses and checks data, inline author shell runs only in
@@ -142,8 +145,9 @@ one-shot containers with `--rm`, remove labeled objects once checks are recorded
 (`kedra-lab clean` does this for the harness). The one other allowed location is
 the gitignored shared cache `<primary checkout>/.cache/kedra/` (`KEDRA_SHARED_CACHE`
 overrides it; tests/container/README.md "Shared cache"): content-addressed
-artifacts every checkout reuses, each checkout's roots on them, and the shared
-engine store's volume labeled `kedra.cache=<cache id>`. `kedra-lab clean` drops
+artifacts every checkout reuses, each checkout's roots on them, sccache's
+compilation cache and the shared engine store's volume labeled
+`kedra.cache=<cache id>`. `kedra-lab clean` drops
 this checkout's roots; `kedra-lab gc` deletes what no checkout roots. Pulled
 images stay unlabeled; record their digests under `target/` and remove them once
 no checkout uses them. Delete
@@ -202,6 +206,8 @@ Rust or Python changes run all of it, on Linux for installed behavior; visible
 desktop changes add screenshots; boot, installer, update and Secure Boot changes
 add VM or manual tests. Documentation-only changes need review and a sign-off, no
 build. The release's harness run on each candidate does not replace local testing.
+The checks are the same with or without sccache: mise sets `RUSTC_WRAPPER` only when
+the pinned sccache is installed, and a check container without mise builds plain.
 
 ### Complexity gate
 

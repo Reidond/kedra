@@ -80,13 +80,7 @@ pub fn open(cache: &Cache, name: &str, access: &dyn Access) -> Result<Lock> {
     let mut shared = cache.store_lock(name, true)?;
     if !access.exists()? {
         drop(shared);
-        let exclusive = cache.store_lock(name, false)?;
-        if !access.exists()? {
-            access.sysroot(&["store", "init", "--store", access.store()])?;
-            eprintln!("kedra-lab: created the shared engine store {name}");
-        }
-        root(cache, name)?;
-        drop(exclusive);
+        create(cache, name, access)?;
         shared = cache.store_lock(name, true)?;
     }
     root(cache, name)?;
@@ -109,6 +103,26 @@ pub fn open(cache: &Cache, name: &str, access: &dyn Access) -> Result<Lock> {
         );
     }
     Ok(shared)
+}
+
+/// Create the store under the exclusive lock, unless another checkout creates
+/// it meanwhile (and then holds it shared for its build).
+fn create(cache: &Cache, name: &str, access: &dyn Access) -> Result<()> {
+    loop {
+        if let Some(_exclusive) = cache.try_store_lock(name)? {
+            if !access.exists()? {
+                access.sysroot(&["store", "init", "--store", access.store()])?;
+                eprintln!("kedra-lab: created the shared engine store {name}");
+            }
+            // Rooted before the lock is released, so GC never sees it unrooted.
+            return root(cache, name);
+        }
+        if access.exists()? {
+            return Ok(());
+        }
+        crate::cancel::check()?;
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
 }
 
 /// Root a store for this checkout without replacing an existing record.

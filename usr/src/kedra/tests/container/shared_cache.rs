@@ -57,15 +57,18 @@ pub enum Kind {
     QemuRuntime,
     /// A prepared VM base disk (`kedra-lab vm image`).
     VmDisk,
+    /// A resolved RPM lock of a full local build.
+    RpmLock,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 2] = [Kind::QemuRuntime, Kind::VmDisk];
+    pub const ALL: [Kind; 3] = [Kind::QemuRuntime, Kind::VmDisk, Kind::RpmLock];
 
     pub fn name(self) -> &'static str {
         match self {
             Kind::QemuRuntime => "qemu-runtime",
             Kind::VmDisk => "vm-disk",
+            Kind::RpmLock => "rpm-lock",
         }
     }
 

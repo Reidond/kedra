@@ -26,7 +26,7 @@ use testcontainers::runners::SyncRunner;
 use crate::builder::{self, Stage, content_key};
 use crate::docker::{self, Build, Docker, Exec};
 use crate::image::Target;
-use crate::shared_cache::Cache;
+use crate::shared_cache::{Cache, Kind};
 use crate::shared_store;
 use crate::{Result, artifact_root, invalid};
 
@@ -97,9 +97,38 @@ fn lock_objects(lock: &Path) -> Result<std::collections::BTreeSet<String>> {
         .collect()
 }
 
-/// Resolve (or reuse, per base digest) the stage's RPM lock, then materialize
-/// the foundation's offline repository as context files under `rpms/`. The RPMs
-/// live in the shared host RPM store, so every checkout fetches them once.
+/// Declared inputs of an RPM lock resolution, its shared cache key: the target,
+/// the Fedora base digest, the stage's lock inputs (`image/packages/`, the
+/// target policy) and the resolver source that writes the lock format.
+fn lock_inputs(snapshot: &Path, target: &Target, base: &str) -> Result<serde_json::Value> {
+    let mut files = Vec::new();
+    collect_files(&snapshot.join("usr/src/kedra/image/packages"), &mut files)?;
+    for path in [
+        "usr/src/kedra/image/package-policy.json",
+        "usr/src/kedra/crates/sysroot/catalog_lock.rs",
+        "usr/src/kedra/crates/sysroot-engine/rpm.rs",
+        "usr/src/kedra/crates/sysroot-engine/rpm_resolver.rs",
+    ] {
+        files.push(snapshot.join(path));
+    }
+    files.sort();
+    let mut digests = serde_json::Map::new();
+    for path in files {
+        let relative = path.strip_prefix(snapshot).unwrap_or(&path);
+        let digest = if path.is_file() {
+            builder::file_sha256(&path)?
+        } else {
+            "absent".to_owned()
+        };
+        digests.insert(relative.to_string_lossy().into_owned(), digest.into());
+    }
+    Ok(serde_json::json!({"target": target.id, "base": base, "files": digests}))
+}
+
+/// The stage's RPM lock from the shared cache (resolved once per declared
+/// inputs, by whichever checkout needs it first), then the foundation's offline
+/// repository as context files under `rpms/`. The RPMs live in the shared host
+/// RPM store, so every checkout fetches them once.
 fn locked_rpms(
     cache: &Path,
     snapshot: &Path,
@@ -119,10 +148,11 @@ fn locked_rpms(
     };
     let held = shared_store::open(&shared, shared_store::RPM, &host)?;
     let store = PathBuf::from(&host.path);
-    let digest = base.rsplit(':').next().unwrap_or_default();
-    let lock = context.join(format!("rpm-lock-{}.json", &digest[..digest.len().min(16)]));
     let image = snapshot.join("usr/src/kedra/image");
-    if !lock.is_file() {
+    let inputs = lock_inputs(snapshot, target, base)?;
+    let entry = shared.ensure(Kind::RpmLock, &inputs, |build| {
+        fs::create_dir(&build.content)?;
+        let lock = build.content.join("lock.json");
         eprintln!(
             "kedra-lab: resolving the RPM lock for {} on {base}",
             target.id
@@ -151,7 +181,9 @@ fn locked_rpms(
                 lock.as_os_str(),
             ],
         )?;
-    }
+        Ok(())
+    })?;
+    let lock = entry.content().join("lock.json");
     let repository = context.join("rpms");
     if repository.exists() {
         fs::remove_dir_all(&repository)?;

@@ -450,12 +450,12 @@ fn clean_vm(vm_runtime: bool) -> Result<()> {
     Ok(())
 }
 
-/// Drop this checkout's roots in the shared cache: VM disks and engine stores
-/// always, the QEMU runtime only when asked. Entries and stores stay for other
+/// Drop this checkout's roots in the shared cache: VM disks, RPM locks and
+/// engine stores always, the QEMU runtime only when asked. Entries and stores stay for other
 /// checkouts until `kedra-lab gc`.
 fn unroot_shared(vm_runtime: bool) -> Result<()> {
     let cache = Cache::locate()?;
-    let mut kinds = vec![CacheKind::VmDisk];
+    let mut kinds = vec![CacheKind::VmDisk, CacheKind::RpmLock];
     if vm_runtime {
         kinds.push(CacheKind::QemuRuntime);
     }

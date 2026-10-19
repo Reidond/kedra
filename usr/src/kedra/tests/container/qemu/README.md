@@ -7,21 +7,28 @@ The signed ARM image identity is `qemu-arm64` / `ghcr.io/reidond/kedra-qemu-arm6
 shared VM launcher (`usr/src/kedra/tests/common/qemu.py`), the same one the Linux
 boot-level drivers use, here with HVF and the private runtime's firmware.
 
-The runtime and first disposable disk are prepared once. A running desktop stays
+The runtime and each disposable disk are prepared once for every checkout of the
+repository (the [shared cache](../README.md#shared-cache)). A running desktop stays
 available for manual use, guest commands, screenshots and validated home sync.
 Cold builds take minutes; they are outside the edit/capture loop.
 
-Native QEMU data lives in this checkout's `target/kedra-lab/qemu/` (AGENTS.md
-"Artifacts stay in the checkout"; since 2026-10-18, before which it lived in
-`~/Library/Caches/kedra/qemu` and `~/.local/share/kedra/lab/<checkout-key>`):
-`runtime/` (the built QEMU, swtpm and firmware), `build/` (its build tree and
-the locked build tools' uv environment),
-`images/` (prepared disks), `instances/<name>/` (writable disks, firmware
-variables, TPM state, keys, sockets, serial and QEMU logs), `shots/` and `logs/`.
-Each checkout therefore prepares its own runtime, and `cargo clean` removes
-all of it. `kedra-lab clean` removes stopped instances (through `vm remove`, which
-refuses a running VM), `images/` and `build/`; it keeps `runtime/`, `shots/` and
-`logs/` unless `--vm-runtime` also removes the runtime.
+The runtime and the prepared base disks are entries of the shared cache
+(`<primary checkout>/.cache/kedra/entries/{qemu-runtime,vm-disk}/<key>/content`;
+since 2026-10-19, before which every checkout built its own): `vm tools prepare`
+builds the runtime once for its declared inputs (recipe, pins, host architecture
+and toolchain) and prints its path, and a checkout asking for the same runtime
+meanwhile waits and reuses it. The build tree (about 8 GB) lives in the entry's
+build area only while building and is deleted once the runtime is published; a
+failed build resumes from it. `vm image` keys a disk by the fixture's layers and
+config without the per-checkout label, so checkouts with the same fixture share
+one disk. Each checkout keeps its own data in `target/kedra-lab/qemu/` (AGENTS.md
+"Artifacts stay in the checkout"): `instances/<name>/` (the writable overlay disk
+over the shared base disk, firmware variables, TPM state, keys, sockets, serial
+and QEMU logs), `shots/`, `logs/` and `build/build-tools-venv` (the locked build
+tools' uv environment). `kedra-lab clean` removes stopped instances (through
+`vm remove`, which refuses a running VM) and drops this checkout's roots on shared
+disks, and with `--vm-runtime` on the runtime; `kedra-lab gc` deletes entries no
+checkout roots.
 
 Instance sockets (`qmp.sock`, `tpm.sock`, `qga.sock`) are bound and reached by
 their names relative to the instance directory: `vm.py` runs QEMU and swtpm with
@@ -29,15 +36,17 @@ that directory as their working directory and enters it itself before any QMP
 call, because the absolute path below a worktree's `target/` exceeds the 104-byte
 `AF_UNIX` limit.
 
-Set `KEDRA_QEMU_HOME` to an absolute directory to place all native runtime,
-build, image and retained-instance data below another root; `KEDRA_LAB_ARTIFACTS`
-moves it with the other harness artifacts (`<artifacts>/qemu`). `kedra-lab clean`
-leaves a home outside this checkout's `target/` alone. Explicit `--runtime` and
-`--workdir` arguments take precedence.
+Set `KEDRA_QEMU_HOME` to an absolute directory to place the retained-instance
+data below another root; `KEDRA_LAB_ARTIFACTS` moves it with the other harness
+artifacts (`<artifacts>/qemu`). `kedra-lab clean` leaves a home outside this
+checkout's `target/` alone. `vm tools prepare --runtime DIR [--workdir DIR]`
+builds a runtime outside the shared cache, and `--runtime` on the instance
+commands uses it.
 
 ```sh
 cargo build -p kedra-container-tests --bin kedra-lab --locked
 target/debug/kedra-lab vm tools check
+# Prints the shared runtime's path (run-hvf.py takes it as --runtime):
 target/debug/kedra-lab vm tools prepare
 target/debug/kedra-lab prepare-sync
 target/debug/kedra-lab vm image --image stable --overlay worktree
@@ -56,7 +65,8 @@ was shared by every checkout, and a newer build from another checkout was reused
 for older sources (observed as a `sysroot` compile error). The disk builder's
 Podman cache is likewise the per-checkout `kedra-qemu-<checkout>-podman-cache`.
 
-A prepared runtime is reused after its receipts/hashes pass. Preparation installs
+A prepared runtime is reused after its shared cache receipt and its own
+receipts/hashes pass; a tampered or corrupt entry is refused, not rebuilt. Preparation installs
 no Homebrew tools: Xcode (including its Metal component), Ninja, pkg-config,
 Autoconf/Automake/libtool and the glib/pixman/libslirp/json-glib/OpenSSL/libtasn1
 libraries must already be present. Python build dependencies come from the pinned

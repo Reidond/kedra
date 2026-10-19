@@ -139,7 +139,12 @@ and bind mounts point only there; only Docker's image store and toolchain caches
 live elsewhere. Label containers, volumes and built images `kedra.checkout=<id>`
 (the first 12 hex digits of the SHA-256 of `git rev-parse --show-toplevel`), run
 one-shot containers with `--rm`, remove labeled objects once checks are recorded
-(`kedra-lab clean` does this for the harness). Pulled images stay unlabeled; record
+(`kedra-lab clean` does this for the harness). The one other allowed location is
+the gitignored shared cache `<primary checkout>/.cache/kedra/` (`KEDRA_SHARED_CACHE`
+overrides it; tests/container/README.md "Shared cache"): content-addressed
+artifacts every checkout reuses, each checkout's roots on them, and the shared
+engine store's volume labeled `kedra.cache=<cache id>`. `kedra-lab clean` drops
+this checkout's roots; `kedra-lab gc` deletes what no checkout roots. Pulled images stay unlabeled; record
 their digests under `target/` and remove them once no checkout uses them. Delete
 large `target/` subtrees no pending check needs (`chmod -R u+w` sealed store objects
 first). Stop and report before a run would leave under 100 GiB free.

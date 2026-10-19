@@ -65,6 +65,7 @@ means nobody has run it on the current code.
 | Signed update A→B, rollback hold, refusals | pass, aarch64 VM under HVF (at #52) | — |
 | Secure Boot VM boot and guest check | pass, aarch64 (HVF; TCG for `qemu-arm64/run.py`) | — |
 | `kedra-lab vm` with its state under `target/` | pass, aarch64 under HVF (at #64) | — |
+| Shared cache: concurrent reuse, tamper refusal, `gc` | pass, two and three worktrees, aarch64 under HVF | — |
 
 Evidence: the [release that published both targets](https://github.com/Reidond/kedra/actions/runs/39165178171)
 (`e9bb7a1`), the [only installer ISO release](https://github.com/Reidond/kedra/releases/tag/desktop-2e4781ee46070725),

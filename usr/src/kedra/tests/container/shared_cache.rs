@@ -19,6 +19,9 @@
 //!   checkout. `kedra-lab gc` deletes entries and stores no checkout roots.
 //! - `stores/`: engine stores every checkout shares; they keep their own
 //!   content addressing, locks and recovery.
+//! - `sccache/`: sccache's compilation cache (`SCCACHE_DIR` in mise.toml),
+//!   bounded by sccache itself (`SCCACHE_CACHE_SIZE`); GC reports its size.
+//!   `sccache.sock` is its server's socket (`SCCACHE_SERVER_UDS`).
 //!
 //! An entry is built once: the builder holds the key's lock exclusively, builds
 //! in the work area, seals the result, writes the receipt and publishes it with
@@ -48,7 +51,15 @@ const RECEIPT: &str = "receipt.json";
 const CONTENT: &str = "content";
 const RECEIPT_LIMIT: u64 = 64 * 1024 * 1024;
 /// Top-level directories of the cache; anything else there is reported as unknown.
-const LAYOUT: [&str; 5] = ["entries", "locks", "work", "roots", "stores"];
+const LAYOUT: [&str; 7] = [
+    "entries",
+    "locks",
+    "work",
+    "roots",
+    "stores",
+    "sccache",
+    "sccache.sock",
+];
 
 /// What an entry holds; each kind has its own declared inputs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -543,6 +554,16 @@ impl Cache {
         self.collect_entries(&rooted, dry_run, &mut report)?;
         self.collect_work(dry_run, &mut report)?;
         self.collect_host_stores(&rooted, dry_run, &mut report)?;
+        let sccache = self.root.join("sccache");
+        if sccache.exists() {
+            report.note(format!(
+                "keep sccache ({}; sccache evicts the least recently used entries above \
+                 SCCACHE_CACHE_SIZE; to empty it, run `sccache --stop-server` in a checkout, \
+                 then delete {})",
+                size(usage(&sccache)?),
+                sccache.display()
+            ));
+        }
         Ok(report)
     }
 

@@ -9,3 +9,24 @@ rust = { version = "1.98.1", components = "rustfmt,clippy", profile = "minimal" 
 uv = "0.12.19"
 ruff = "0.16.9"
 "github:moznion/cccc" = "1.7.0"
+sccache = "0.18.0"
+
+# The shared cache of every checkout (tests/container/README.md "Shared cache"):
+# `<primary checkout>/.cache/kedra`, or KEDRA_SHARED_CACHE. It is created here
+# because sccache binds its socket there before any kedra-lab command may have run.
+[vars]
+kedra_cache = '''{{ exec(command=`root="${KEDRA_SHARED_CACHE:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.cache/kedra}" && mkdir -p "$root" && printf %s "$root"`) }}'''
+
+# sccache caches compilations for every checkout in the shared cache. It is
+# optional: mise lists a pinned tool that is not installed as missing and leaves
+# it out of `tools`, so RUSTC_WRAPPER is then empty, which Cargo treats as no
+# wrapper. The server listens on a socket in the shared cache, not on sccache's
+# default 127.0.0.1:4226, so a server another project or another shared cache
+# started never serves these builds. A socket path must fit AF_UNIX (103 bytes
+# on macOS); with a longer cache path RUSTC_WRAPPER stays empty as well.
+[env]
+RUSTC_WRAPPER = { value = "{% if tools.sccache is defined and (vars.kedra_cache ~ '/sccache.sock') | length < 100 %}sccache{% endif %}", tools = true }
+SCCACHE_DIR = "{{ vars.kedra_cache }}/sccache"
+SCCACHE_SERVER_UDS = "{{ vars.kedra_cache }}/sccache.sock"
+# sccache evicts the least recently used entries above this size.
+SCCACHE_CACHE_SIZE = "10G"

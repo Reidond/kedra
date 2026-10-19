@@ -8,7 +8,7 @@ of entries; older ones are pruned and stay in Git. The complete worklog up to
 
 ## Current project status
 
-Last updated: 2026-10-19 (Europe/Kyiv), main `5f8bf4e`. One-page detail and
+Last updated: 2026-10-19 (Europe/Kyiv), main `a178be2`. One-page detail and
 evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
 
 - **Phase:** development before the first real installation. No non-disposable
@@ -16,7 +16,7 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
   `qemu-arm64` aarch64) build through one engine pipeline (RPM lock → foundation →
   packages → compose → derive → trust layer) and publish signed `stable` images to
   GHCR from the release workflow.
-- **Merged since 2026-10-14 (PRs #45–#64):** local testing with a required `signoff`
+- **Merged since 2026-10-14 (PRs #45–#65):** local testing with a required `signoff`
   status; compatibility reset; smaller `setup tpm-unlock` and agent launchers;
   data-driven managed home files; `sysroot derive`; Fedora RPM lock; local VM
   drivers on one launcher; bootc-enforced update signatures with a reduced helper;
@@ -27,7 +27,7 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
   workflow with every Docker job on the containerd store, content steps in recipe
   scripts and per-checkout harness objects with `kedra-lab clean` (#63); kedra-lab
   VM state under `target/kedra-lab/qemu` (#64); agent documentation cut to current
-  facts (#61).
+  facts (#61); one shared build cache for every checkout (#65).
 - **Published:** the release on `e9bb7a1` (2026-10-18, after #62 and #63) signed and
   published both targets (container harness on the exact candidates: qemu-arm64
   15/15, desktop 13/13). It is the first published image with the Codex and
@@ -42,7 +42,7 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
   desktop image; TPM enrollment and boot unlock; a real installation; the first
   binary-cache hit; `iso.yml` since #63; killed-process recovery of
   `sysroot home update`.
-- **Active work:** the shared build cache for all checkouts (SHARED-CACHE-01, open PR).
+- **Active work:** sccache pinned in mise.toml with its cache in the shared cache (SCCACHE-01, open PR).
 - **Next:** check that the next release with unchanged packages reports substituted
   closures; dispatch `iso.yml` for fresh media from the current `stable`; run the
   x86_64 VM drivers on a disposable KVM host; boot an engine-derived desktop image
@@ -245,3 +245,12 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
 - Remaining / blockers: full local images are still per checkout (each foundation carries its checkout's label and engine names), so a disk is shared only between checkouts with identical fixture layers; sharing full local images by key is a follow-up. `kedra-lab gc` deletes no Docker images. The engine's whole-command store lock serializes builds command by command (measured: a 6.5 min resolve held off another checkout's `lock repo`). Lock files in `locks/` stay (empty). x86_64 desktop full local builds not-run (no x86_64 engine).
 - Review fixes (Codex on PR65, 1af3436): (P1) the RPM-lock key named three resolver files from the stage's snapshot, while the resolver that runs is the host archiver built from the current checkout (a `build:<revision>` stage takes its snapshot from another commit); it now names the archiver's source key (every Rust source, Cargo.lock, the toolchain, the host platform; builder.rs `archiver_directory`). (P2) gc deleted an unrooted entry whose receipt parsed even if its content had been tampered with; it now runs the same verifier as a use and leaves a differing entry in place. Checked at 1af3436 on a scratch cache under `target/review/`: the lock receipt records `resolver: d904b1b3e218aecd`, a second checkout (disposable clone) with the same archiver key reused it; full local build and disk published (1936 s on a cold scratch cache, runtime 823 s in parallel); after this checkout dropped its roots, a one-byte tamper of the unrooted runtime made gc refuse it while it deleted the lock, disk, RPM store and engine volume (22.5 GiB), and after restoring the byte gc deleted it (218.5 MiB). The exact head's checks and sign-off are in the PR.
 - Next: owner review and merge; then `kedra-lab clean --vm-runtime` in old checkouts and `kedra-lab gc` reclaim the old per-checkout runtimes and build trees.
+
+### WL-20261019-SCCACHE-01 — 2026-10-19 — sccache pinned in mise.toml, cache in the shared cache
+- Agent / state: Claude Code (desktop app, owner's Mac; side session of the architecture-review orchestrator, follow-up of SHARED-CACHE-01 the owner approved); completed on the feature branch, PR open, not merged.
+- Scope / base: branch claude/sccache from main a178be2 (#65 merged). mise.toml, `usr/src/kedra/tests/container/shared_cache.rs` (layout and gc report), AGENTS.md (settled choices, artifact rule, checks), kedra-rust-workspace skill (plugin 0.3.54), tests/container/README.md. Local development only: no workflow reads mise.toml.
+- Completed: `sccache = "0.18.0"` in `[tools]` (the version measured in SHARED-CACHE-01; mise's registry resolves it to aqua:mozilla/sccache). `[env]`: `RUSTC_WRAPPER` renders `sccache` only when mise lists sccache among installed `tools` (`tools = true`), and is empty otherwise, which Cargo treats as no wrapper; `SCCACHE_DIR` is `<primary checkout>/.cache/kedra/sccache`, resolved like #65 (dirname of `git rev-parse --path-format=absolute --git-common-dir`, cached by mise for a day) or `$KEDRA_SHARED_CACHE/sccache`; `SCCACHE_CACHE_SIZE=10G`, which sccache enforces by evicting least recently used entries. `kedra-lab gc` now knows `sccache/` (no "unknown" report) and prints its size and how to empty it. mise behavior checked with mise 2026.10.1: a pinned tool that is not installed is listed as `(missing)`, absent from `tools` and not installed by `mise env` or an activated shell; `mise exec`/`mise run` install it unless `exec_auto_install`/`auto_install` are off (defaults on, as on the owner's Mac). The lab builder's Linux compiles (tests/container/builder.rs) do not use sccache.
+- Checks / evidence: pass — host, this worktree with sccache not installed: `mise env` gives `RUSTC_WRAPPER=""`, `SCCACHE_DIR=/Users/andriishafar/src/kedra/.cache/kedra/sccache` (the primary checkout's, from a worktree), `KEDRA_SHARED_CACHE=/tmp/x` gives `/tmp/x/sccache`; `MISE_EXEC_AUTO_INSTALL=false mise exec -- cargo build` builds; nothing installed on the host. pass — disposable rust:1.98.1 arm64 container with mise 2026.10.1 (checksum-verified) and a primary clone plus a worktree (logs `target/bench2/`): sccache missing, the worktree's release build 60 s and `test --no-run` 28 s plain; `mise install sccache` 3.7 s; then `RUSTC_WRAPPER=sccache`, `SCCACHE_DIR=/bench/primary/.cache/kedra/sccache` from both checkouts, max cache 10 GiB; primary (cold cache) 66 s / 33 s; second worktree 51 s / 25 s, 90 % hits (workspace crates miss on their path), cache 492 MB. The earlier run without mise (SHARED-CACHE-01) gave 75→56 s and 49→26 s; plain timings vary by about 15 s between runs. pass — `kedra-lab gc --dry-run` on a scratch cache reports `keep sccache (296.0 KiB; …)`. The exact head's checks and sign-off are in the PR.
+- Remaining / blockers: the gain is modest (about 10–25 % of a second worktree's compile; Clippy is not cached). The owner installs sccache with `mise install`; until then builds stay plain. The lab builder's container compiles could use the same cache through a volume; not done.
+- Review fix (Codex P2 on PR66): sccache clients reuse whatever server their endpoint reaches and do not reconfigure it, so a server on the default 127.0.0.1:4226 started by another project, or by a clone with another KEDRA_SHARED_CACHE, would have served these builds with its own directory. mise now sets `SCCACHE_SERVER_UDS=<shared cache>/sccache.sock` (`[vars] kedra_cache`, resolved once and created with `mkdir -p`, because binding the socket needs its directory before any kedra-lab command may have run), and leaves RUSTC_WRAPPER empty when that socket path would exceed AF_UNIX (100 characters or more). `kedra-lab gc` knows `sccache.sock`. Checked in a disposable rust:1.98.1 arm64 container (mise 2026.10.1, logs `target/bench3/`): with a foreign server on 127.0.0.1:4226 and its own cache, a fresh clone's worktree built through `<primary>/.cache/kedra/sccache.sock` (69 compile requests, cache in the shared cache) and the foreign server got none; with a 120-character KEDRA_SHARED_CACHE, RUSTC_WRAPPER rendered empty and the build passed plain. A first attempt without `mkdir -p` failed in the fresh clone (`Server startup failed: No such file or directory`).
+- Next: owner review and merge; `mise install` on the Mac to start using it.

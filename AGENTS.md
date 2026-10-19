@@ -10,8 +10,11 @@ checks show what is implemented and tested; never infer a feature from a design 
 a summary.
 
 The owner reviews and decides but does not develop here, so agents do the setup
-and chores themselves. At session start run `mise install` in the checkout. It
-installs the pinned tools, sccache included, once per machine, and is a no-op
+and chores themselves. At session start run `mise trust && mise install` in the
+checkout. mise refuses an untrusted `mise.toml`, and trust is recorded per
+checkout path, so every new worktree needs it once; trust only this repository's
+committed `mise.toml`, which runs one `git rev-parse` template. `mise install`
+installs the pinned tools, sccache included, once per machine and is a no-op
 after that. Agents also run the checks, clean up and verify GitHub/GHCR state
 (`gh api`). Hand the owner only what tooling blocks: a refused `signoff.py` run,
 as one exact command with `--checks` of at most 140 characters, merge approvals,

@@ -99,18 +99,24 @@ fn lock_objects(lock: &Path) -> Result<std::collections::BTreeSet<String>> {
 
 /// Declared inputs of an RPM lock resolution, its shared cache key: the target,
 /// the Fedora base digest, the stage's lock inputs (`image/packages/`, the
-/// target policy) and the resolver source that writes the lock format.
-fn lock_inputs(snapshot: &Path, target: &Target, base: &str) -> Result<serde_json::Value> {
+/// target policy) and the resolver that runs: the host archiver, named by the
+/// key of all its source inputs (every Rust source, `Cargo.lock`, the toolchain
+/// and the host platform; [`builder::prepare_archiver`]), not by the stage's
+/// sources, which a `build:<revision>` stage takes from another commit.
+fn lock_inputs(
+    snapshot: &Path,
+    target: &Target,
+    base: &str,
+    resolver: &Path,
+) -> Result<serde_json::Value> {
+    let resolver = resolver
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| invalid("the host archiver has no source key"))?;
     let mut files = Vec::new();
     collect_files(&snapshot.join("usr/src/kedra/image/packages"), &mut files)?;
-    for path in [
-        "usr/src/kedra/image/package-policy.json",
-        "usr/src/kedra/crates/sysroot/catalog_lock.rs",
-        "usr/src/kedra/crates/sysroot-engine/rpm.rs",
-        "usr/src/kedra/crates/sysroot-engine/rpm_resolver.rs",
-    ] {
-        files.push(snapshot.join(path));
-    }
+    files.push(snapshot.join("usr/src/kedra/image/package-policy.json"));
     files.sort();
     let mut digests = serde_json::Map::new();
     for path in files {
@@ -122,7 +128,12 @@ fn lock_inputs(snapshot: &Path, target: &Target, base: &str) -> Result<serde_jso
         };
         digests.insert(relative.to_string_lossy().into_owned(), digest.into());
     }
-    Ok(serde_json::json!({"target": target.id, "base": base, "files": digests}))
+    Ok(serde_json::json!({
+        "target": target.id,
+        "base": base,
+        "files": digests,
+        "resolver": resolver,
+    }))
 }
 
 /// The stage's RPM lock from the shared cache (resolved once per declared
@@ -149,7 +160,7 @@ fn locked_rpms(
     let held = shared_store::open(&shared, shared_store::RPM, &host)?;
     let store = PathBuf::from(&host.path);
     let image = snapshot.join("usr/src/kedra/image");
-    let inputs = lock_inputs(snapshot, target, base)?;
+    let inputs = lock_inputs(snapshot, target, base, &sysroot)?;
     let entry = shared.ensure(Kind::RpmLock, &inputs, |build| {
         fs::create_dir(&build.content)?;
         let lock = build.content.join("lock.json");

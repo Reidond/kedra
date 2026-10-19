@@ -640,10 +640,9 @@ impl Cache {
             report.note(format!("keep {label} (rooted meanwhile)"));
             return Ok(());
         }
-        if let Err(error) = read_receipt(&entry.path) {
-            report.note(format!(
-                "{label}: {error}; left in place (`kedra-lab gc --remove {label}` deletes it)"
-            ));
+        // A tampered, corrupt or unknown entry stays for inspection, rooted or not.
+        if let Err(error) = verify_entry(&entry) {
+            report.note(error.to_string());
             return Ok(());
         }
         let bytes = usage(&entry.path)?;
@@ -836,15 +835,30 @@ fn read_receipt(entry: &Path) -> Result<Receipt> {
 
 /// Refuse an entry that differs from its receipt or from the requested inputs.
 fn verify(entry: &Entry, inputs: &Value) -> Result<()> {
-    let refuse = |detail: String| {
-        invalid(format!(
-            "refusing shared cache entry {}: {detail}. It was not repaired; inspect it, then \
-             delete it with `kedra-lab gc --remove {}/{}`",
-            entry.path.display(),
-            entry.kind.name(),
-            entry.key
-        ))
-    };
+    let receipt = verify_entry(entry)?;
+    if receipt.inputs != canonical(inputs) {
+        return Err(refusal(
+            entry,
+            "its recorded inputs differ from the requested ones",
+        ));
+    }
+    Ok(())
+}
+
+fn refusal(entry: &Entry, detail: &str) -> crate::Error {
+    invalid(format!(
+        "refusing shared cache entry {}: {detail}. It was not repaired; inspect it, then \
+         delete it with `kedra-lab gc --remove {}/{}`",
+        entry.path.display(),
+        entry.kind.name(),
+        entry.key
+    ))
+}
+
+/// The receipt of an entry that equals it: the receipt names this entry, its
+/// inputs hash to the key, and the content matches it file by file.
+fn verify_entry(entry: &Entry) -> Result<Receipt> {
+    let refuse = |detail: String| refusal(entry, &detail);
     let metadata = entry.path.symlink_metadata()?;
     if !metadata.is_dir() {
         return Err(refuse("not a directory".into()));
@@ -853,7 +867,7 @@ fn verify(entry: &Entry, inputs: &Value) -> Result<()> {
     if receipt.kind != entry.kind.name() || receipt.key != entry.key {
         return Err(refuse("the receipt names another entry".into()));
     }
-    if key(entry.kind, &receipt.inputs) != entry.key || receipt.inputs != canonical(inputs) {
+    if key(entry.kind, &receipt.inputs) != entry.key {
         return Err(refuse("its recorded inputs differ from its key".into()));
     }
     let mut names = list(&entry.path)?;
@@ -865,7 +879,7 @@ fn verify(entry: &Entry, inputs: &Value) -> Result<()> {
     if let Some(path) = first_difference(&receipt.files, &observed) {
         return Err(refuse(format!("{path} differs from its receipt")));
     }
-    Ok(())
+    Ok(receipt)
 }
 
 fn first_difference(

@@ -415,7 +415,12 @@ fn prepare_disk(fixture: &DiskFixture) -> Result<crate::shared_cache::Entry> {
 
 fn instance_script(instance: &Instance, operation: &str) -> Result<Command> {
     // Only a new instance uses the given runtime; existing ones read theirs from state.
-    let verify = matches!(operation, "up" | "installer");
+    let exists = qemu_home()
+        .join("instances")
+        .join(&instance.name)
+        .join("state.json")
+        .exists();
+    let verify = !exists && matches!(operation, "up" | "installer");
     let mut command = script("vm.py");
     command
         .arg("--root")

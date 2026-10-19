@@ -45,8 +45,12 @@ means nobody has run it on the current code.
   the release workflow runs the container harness on each exact candidate before
   signing ([tests](../tests/README.md)). The harness labels every Docker object
   `kedra.checkout`, keeps per-checkout Cargo volumes and image tags, keeps
-  `kedra-lab vm` state in `target/kedra-lab/qemu`, and `kedra-lab clean` removes
+  `kedra-lab vm` instances in `target/kedra-lab/qemu`, and `kedra-lab clean` removes
   exactly that checkout's objects ([container harness](../tests/container/README.md)).
+  Every checkout shares one cache in `<primary checkout>/.cache/kedra`: the QEMU
+  runtime, VM base disks, RPM locks and the engine stores of full local builds,
+  built once, verified on use and deleted by `kedra-lab gc` once no checkout uses
+  them ([shared cache](../tests/container/README.md#shared-cache)).
 
 ## Tested, and where
 
@@ -84,8 +88,9 @@ each of which records its exact-head local checks. Per-change detail is in the
   fixture) still calls the removed agent and Bitwarden packing scripts, so it
   cannot run on main.
 - **Known limits:** the x86_64 Codex binary (258.7 MB) is close to the engine's
-  256 MiB per-file limit. Each checkout now builds its own `kedra-lab vm` runtime
-  (a long build), and `cargo clean` deletes it with any retained VM disks. The old
+  256 MiB per-file limit. Full local images and their VM disks are still built
+  per checkout: the foundation carries the checkout's label, so even two checkouts
+  of one commit derive different images. The old
   shared Docker volumes `kedra-lab-target-aarch64`, `kedra-lab-cargo-registry` and
   `kedra-qemu-podman-cache` belong to no checkout any more; the owner removes them.
 

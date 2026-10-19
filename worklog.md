@@ -8,7 +8,7 @@ of entries; older ones are pruned and stay in Git. The complete worklog up to
 
 ## Current project status
 
-Last updated: 2026-10-19 (Europe/Kyiv), main `8a48ed2`. One-page detail and
+Last updated: 2026-10-19 (Europe/Kyiv), main `5f8bf4e`. One-page detail and
 evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
 
 - **Phase:** development before the first real installation. No non-disposable
@@ -26,7 +26,8 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
   harness shadowing case on any Docker image store (#62); a simpler release
   workflow with every Docker job on the containerd store, content steps in recipe
   scripts and per-checkout harness objects with `kedra-lab clean` (#63); kedra-lab
-  VM state under `target/kedra-lab/qemu` (#64).
+  VM state under `target/kedra-lab/qemu` (#64); agent documentation cut to current
+  facts (#61).
 - **Published:** the release on `e9bb7a1` (2026-10-18, after #62 and #63) signed and
   published both targets (container harness on the exact candidates: qemu-arm64
   15/15, desktop 13/13). It is the first published image with the Codex and
@@ -41,7 +42,7 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
   desktop image; TPM enrollment and boot unlock; a real installation; the first
   binary-cache hit; `iso.yml` since #63; killed-process recovery of
   `sysroot home update`.
-- **Active work:** none besides this documentation trim (DOCS-TRIM-01, open PR).
+- **Active work:** the shared build cache for all checkouts (SHARED-CACHE-01, open PR).
 - **Next:** check that the next release with unchanged packages reports substituted
   closures; dispatch `iso.yml` for fresh media from the current `stable`; run the
   x86_64 VM drivers on a disposable KVM host; boot an engine-derived desktop image

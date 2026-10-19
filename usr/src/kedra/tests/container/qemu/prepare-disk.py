@@ -3,7 +3,12 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Build and cache a disposable ARM64 QCOW2 through the existing pinned bootc builder."""
+"""Build a disposable ARM64 QCOW2 through the existing pinned bootc builder.
+
+kedra-lab keys the disk in the shared cache by its declared inputs
+(`--inputs-output` writes them) and then builds it into the cache's staging
+directory (`--output`), which the cache seals and publishes.
+"""
 import argparse
 import base64
 import fcntl
@@ -184,26 +189,26 @@ def observe_native_fixture(parser, args, identity, native, engine_id, observer):
     return native_observation
 
 
-def disk_inputs(identity):
-    builder = json.loads((ROOT / 'usr/src/kedra/image/inputs.json').read_text())['platforms']['arm64']['builder']
+def metadata_sha256(identity, without_checkout=False):
+    """SHA-256 of the image's layers and config. build-disk.sh recomputes the full
+    form from the imported image; the shared cache keys a disk by the form without
+    the per-checkout ownership label, so checkouts with the same fixture share one disk."""
+    config = {name: identity['Config'].get(name) for name in ['Labels', 'Env', 'Cmd', 'Entrypoint', 'User', 'WorkingDir']}
+    if without_checkout:
+        config['Labels'] = {name: value for name, value in (config['Labels'] or {}).items() if name != 'kedra.checkout'}
     metadata = {'Architecture': identity['Architecture'], 'Os': identity['Os'], 'RootFS': identity['RootFS']['Layers'],
-                'Config': {name: identity['Config'].get(name) for name in ['Labels', 'Env', 'Cmd', 'Entrypoint', 'User', 'WorkingDir']}}
-    metadata_sha = hashlib.sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
-    return {'image_id': identity['Id'], 'builder': builder, 'recipe': digest(Path(__file__)),
-            'metadata_sha256': metadata_sha,
+                'Config': config}
+    return hashlib.sha256(json.dumps(metadata, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+
+
+def disk_inputs(identity):
+    """The disk's shared cache key: the fixture's content, the builder pin and the disk recipe."""
+    builder = json.loads((ROOT / 'usr/src/kedra/image/inputs.json').read_text())['platforms']['arm64']['builder']
+    return {'builder': builder, 'recipe': digest(Path(__file__)),
+            'content_sha256': metadata_sha256(identity, without_checkout=True),
             'containerfile': digest(HERE / 'disk-builder.Containerfile'),
             'script': digest(HERE / 'build-disk.sh'), 'signing_script': digest(HERE / 'sign-fixture.sh'),
             'build_ignore': digest(HERE / '.dockerignore')}
-
-
-def cached_disk_matches(output, disk, receipt, inputs, fixture_reference, native, native_observation):
-    saved = json.loads(receipt.read_text())
-    signing = None if native is None else validate_signing(
-        output, fixture_reference, native_observation, saved.get('imported_manifest_digest', ''))
-    return (saved.get('inputs') == inputs and saved.get('disk_sha256') == digest(disk)
-            and saved.get('native_observation') == native_observation
-            and saved.get('signing') == signing
-            and re.fullmatch(r'sha256:[a-f0-9]{64}', saved.get('imported_manifest_digest', '')))
 
 
 def build_builder_image(inputs):
@@ -250,7 +255,8 @@ def verify_native_import(container, output, fixture_reference, native_observatio
     return validate_signing(output, fixture_reference, native_observation, imported_digest)
 
 
-def build_disk(output, disk, receipt, inputs, observer_sha, fixture_reference, native, native_observation):
+def build_disk(output, image_id, metadata_sha, inputs, observer_sha, fixture_reference, native, native_observation):
+    disk, receipt = output / 'base.qcow2', output / 'image.json'
     tag = build_builder_image(inputs)
     token = secrets.token_hex(8)
     container = 'kedra-qemu-builder-' + token
@@ -271,14 +277,16 @@ def build_disk(output, disk, receipt, inputs, observer_sha, fixture_reference, n
              '--mount', f'type=volume,source={volume},target=/output', tag], stdout=subprocess.DEVNULL)
         if native is not None:
             run(['docker', 'cp', str(HERE / 'boot-check.py'), container + ':/tmp/kedra-native-boot-check.py'])
-        reference = fixture_reference or 'localhost/kedra-qemu-fixture:' + inputs['image_id'].removeprefix('sha256:')
-        stream_fixture_build(output, container, inputs['image_id'], [
-            'kedra-build-disk', reference, inputs['builder'], inputs['metadata_sha256'],
+        reference = fixture_reference or 'localhost/kedra-qemu-fixture:' + image_id.removeprefix('sha256:')
+        stream_fixture_build(output, container, image_id, [
+            'kedra-build-disk', reference, inputs['builder'], metadata_sha,
             'native' if native is not None else 'ordinary', observer_sha], native)
         pending, imported_digest = copy_built_disk(container, output)
         signing = None if native is None else verify_native_import(
             container, output, fixture_reference, native_observation, imported_digest)
-        saved = {'schema_version': 1, 'target': 'qemu-arm64', 'inputs': inputs, 'disk': str(disk),
+        # The disk path is relative to this receipt: the cache publishes the directory by renaming it.
+        saved = {'schema_version': 1, 'target': 'qemu-arm64', 'inputs': inputs, 'image_id': image_id,
+                 'metadata_sha256': metadata_sha, 'disk': disk.name,
                  'disk_sha256': digest(pending), 'preparation_seconds': time.monotonic() - started,
                  'imported_image': json.loads((output / 'imported-image.json').read_text()),
                  'imported_manifest_digest': imported_digest,
@@ -289,7 +297,6 @@ def build_disk(output, disk, receipt, inputs, observer_sha, fixture_reference, n
         temporary = output / 'image.pending.json'
         temporary.write_text(json.dumps(saved, indent=2) + '\n')
         os.replace(temporary, receipt)
-        print(receipt)
     finally:
         subprocess.run(['docker', 'rm', '-f', container], timeout=60, check=False, stdout=subprocess.DEVNULL)
         subprocess.run(['docker', 'volume', 'rm', volume], timeout=60, check=False, stdout=subprocess.DEVNULL)
@@ -302,13 +309,18 @@ def main():
     parser.add_argument('--image', required=True)
     parser.add_argument('--image-id', required=True)
     parser.add_argument('--engine-id', required=True)
-    parser.add_argument('--cache', required=True, type=Path)
     parser.add_argument('--native-provenance', action='store_true', help='Read verified native provenance from stdin')
     parser.add_argument('--fixture-reference')
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--inputs-output', type=Path, help="Write the disk's declared inputs to this new file")
+    mode.add_argument('--output', type=Path, help='Build the disk into this new directory')
+    parser.add_argument('--inputs', type=Path, help='With --output: the inputs the caller keyed the disk by')
+    parser.add_argument('--build-lock', type=Path, help='With --output: lock file serializing nested Podman builds')
     args = parser.parse_args()
+    if args.output and (args.inputs is None or args.build_lock is None):
+        parser.error('--output needs --inputs and --build-lock')
     native = read_native_provenance(parser, args)
     engine_id = select_local_engine(parser, args.engine_id)
-    args.cache.mkdir(parents=True, exist_ok=True)
     identity = inspect_fixture_image(parser, args)
     native_observation = None
     observer = (HERE / 'boot-check.py').read_text()
@@ -319,21 +331,22 @@ def main():
     if native is not None:
         inputs['native'] = native
         inputs['native_receipt_sha256'] = native_observation['native_receipt_sha256']
+        inputs['native_observation_sha256'] = hashlib.sha256(json.dumps(
+            native_observation, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         inputs['boot_observer_sha256'] = observer_sha
         inputs['fixture_reference'] = args.fixture_reference
-    key = hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
-    output = args.cache / 'images' / key
-    output.mkdir(parents=True, exist_ok=True)
-    # Nested Podman uses VM-wide shared memory; serialize these builds in this checkout.
-    with (args.cache / 'image-build.lock').open('w') as lock:
+    if args.inputs_output:
+        with args.inputs_output.open('x') as stream:
+            json.dump(inputs, stream, sort_keys=True)
+        return
+    if json.loads(args.inputs.read_text()) != inputs:
+        raise ValueError('the fixture image changed after its disk was keyed; run kedra-lab vm image again')
+    args.output.mkdir(mode=0o700)
+    # Nested Podman uses VM-wide shared memory; serialize these builds across checkouts.
+    with args.build_lock.open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        disk, receipt = output / 'base.qcow2', output / 'image.json'
-        if disk.is_file() and receipt.is_file():
-            if cached_disk_matches(output, disk, receipt, inputs, args.fixture_reference, native, native_observation):
-                print(receipt)
-                return
-            raise ValueError(f'cached image changed; inspect {output} before removing it')
-        build_disk(output, disk, receipt, inputs, observer_sha, args.fixture_reference, native, native_observation)
+        build_disk(args.output, args.image_id, metadata_sha256(identity), inputs, observer_sha, args.fixture_reference,
+                   native, native_observation)
 
 
 if __name__ == '__main__':

@@ -45,8 +45,12 @@ means nobody has run it on the current code.
   the release workflow runs the container harness on each exact candidate before
   signing ([tests](../tests/README.md)). The harness labels every Docker object
   `kedra.checkout`, keeps per-checkout Cargo volumes and image tags, keeps
-  `kedra-lab vm` state in `target/kedra-lab/qemu`, and `kedra-lab clean` removes
+  `kedra-lab vm` instances in `target/kedra-lab/qemu`, and `kedra-lab clean` removes
   exactly that checkout's objects ([container harness](../tests/container/README.md)).
+  Every checkout shares one cache in `<primary checkout>/.cache/kedra`: the QEMU
+  runtime, VM base disks, RPM locks and the engine stores of full local builds,
+  built once, verified on use and deleted by `kedra-lab gc` once no checkout uses
+  them ([shared cache](../tests/container/README.md#shared-cache)).
 
 ## Tested, and where
 
@@ -61,6 +65,7 @@ means nobody has run it on the current code.
 | Signed update A→B, rollback hold, refusals | pass, aarch64 VM under HVF (at #52) | — |
 | Secure Boot VM boot and guest check | pass, aarch64 (HVF; TCG for `qemu-arm64/run.py`) | — |
 | `kedra-lab vm` with its state under `target/` | pass, aarch64 under HVF (at #64) | — |
+| Shared cache: concurrent reuse, tamper refusal, `gc` | pass, two and three worktrees, aarch64 under HVF | — |
 
 Evidence: the [release that published both targets](https://github.com/Reidond/kedra/actions/runs/39165178171)
 (`e9bb7a1`), the [only installer ISO release](https://github.com/Reidond/kedra/releases/tag/desktop-2e4781ee46070725),
@@ -84,8 +89,9 @@ each of which records its exact-head local checks. Per-change detail is in the
   fixture) still calls the removed agent and Bitwarden packing scripts, so it
   cannot run on main.
 - **Known limits:** the x86_64 Codex binary (258.7 MB) is close to the engine's
-  256 MiB per-file limit. Each checkout now builds its own `kedra-lab vm` runtime
-  (a long build), and `cargo clean` deletes it with any retained VM disks. The old
+  256 MiB per-file limit. Full local images are still built per checkout (each
+  foundation carries its checkout's label), so a VM disk is shared only between
+  checkouts whose fixture layers are identical. The old
   shared Docker volumes `kedra-lab-target-aarch64`, `kedra-lab-cargo-registry` and
   `kedra-qemu-podman-cache` belong to no checkout any more; the owner removes them.
 

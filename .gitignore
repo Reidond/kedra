@@ -1,4 +1,6 @@
 /target/
+# Shared build cache of every checkout (kedra-lab; AGENTS.md "Artifacts stay in the checkout").
+/.cache/
 .DS_Store
 __pycache__/
 .sysroot-snapshots-v1/

@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use clap::{Args, Subcommand};
 
+use crate::shared_cache::{Cache, Kind};
 use crate::{Result, harness_dir};
 
 #[derive(Args)]
@@ -125,14 +126,18 @@ pub enum VmCommand {
 pub enum ToolsCommand {
     /// Read-only prerequisite and receipt checks; no GPU pass implied.
     Check {
+        /// A runtime outside the shared cache.
         #[arg(long)]
         runtime: Option<PathBuf>,
     },
-    /// Build locked native sources in a private prefix. Prerequisites must be installed.
+    /// Build locked native sources in a private prefix, or reuse the shared
+    /// cache's runtime for the same inputs, and print its path. Prerequisites
+    /// must be installed.
     Prepare {
+        /// Build into this directory instead of the shared cache.
         #[arg(long)]
         runtime: Option<PathBuf>,
-        #[arg(long)]
+        #[arg(long, requires = "runtime")]
         workdir: Option<PathBuf>,
         #[arg(long, default_value_t = 8)]
         jobs: u32,
@@ -153,11 +158,11 @@ fn script(name: &str) -> Command {
     command
 }
 
-/// The native QEMU home: the runtime (`runtime/`), its build tree (`build/`),
-/// prepared disks (`images/`), instances (`instances/`), shots and logs. It is
-/// `target/kedra-lab/qemu` of this checkout (AGENTS.md "Artifacts stay in the
-/// checkout"; `KEDRA_LAB_ARTIFACTS` moves it with the other artifacts), or
-/// `KEDRA_QEMU_HOME` when set.
+/// The native QEMU home: instances (`instances/`), shots, logs and the build
+/// tools' environment. It is `target/kedra-lab/qemu` of this checkout (AGENTS.md
+/// "Artifacts stay in the checkout"; `KEDRA_LAB_ARTIFACTS` moves it with the
+/// other artifacts), or `KEDRA_QEMU_HOME` when set. The runtime and prepared
+/// disks are entries of the shared cache ([`crate::shared_cache`]).
 pub fn qemu_home() -> PathBuf {
     std::env::var_os("KEDRA_QEMU_HOME")
         .filter(|path| !path.is_empty())
@@ -197,20 +202,231 @@ pub fn remove_instances() -> Result<Vec<String>> {
     Ok(names)
 }
 
-fn runtime(value: Option<&PathBuf>) -> Result<PathBuf> {
-    match value {
-        Some(path) => Ok(path.clone()),
-        None => Ok(qemu_home().join("runtime")),
+/// Homebrew libraries the runtime links and bundles (check-runtime.py's list).
+const RUNTIME_LIBRARIES: [&str; 6] = [
+    "glib-2.0",
+    "pixman-1",
+    "slirp",
+    "json-glib-1.0",
+    "openssl",
+    "libtasn1",
+];
+
+/// Declared inputs of the native runtime, its shared cache key: the recipe and
+/// pins prepare-runtime.py reads (patches included), the host architecture and
+/// the toolchain whose output the runtime bundles (Xcode, the Metal toolchain
+/// and the linked Homebrew libraries).
+fn runtime_inputs() -> Result<serde_json::Value> {
+    let qemu = harness_dir().join("qemu");
+    let mut names: Vec<String> = [
+        "inputs.json",
+        "angle-dependencies.json",
+        "prepare-runtime.py",
+        "build-tools/pyproject.toml",
+        "build-tools/uv.lock",
+    ]
+    .map(str::to_owned)
+    .into();
+    for entry in std::fs::read_dir(qemu.join("patches"))? {
+        let name = entry?.file_name().to_string_lossy().into_owned();
+        names.push(format!("patches/{name}"));
+    }
+    let mut recipe = serde_json::Map::new();
+    for name in names {
+        let digest = crate::builder::file_sha256(&qemu.join(&name))?;
+        recipe.insert(name, digest.into());
+    }
+    let mut libraries = serde_json::Map::new();
+    for name in RUNTIME_LIBRARIES {
+        libraries.insert(
+            name.into(),
+            probe("pkg-config", &["--modversion", name]).into(),
+        );
+    }
+    let metal = probe("xcrun", &["metal", "--version"]);
+    Ok(serde_json::json!({
+        "recipe": recipe,
+        "host": {"os": std::env::consts::OS, "arch": std::env::consts::ARCH},
+        "toolchain": {
+            "xcode": probe("xcodebuild", &["-version"]),
+            // Later lines name the user's installation directory.
+            "metal": metal.lines().next().unwrap_or_default(),
+            "libraries": libraries,
+        },
+    }))
+}
+
+/// Trimmed standard output of a toolchain probe, or `unavailable`.
+fn probe(program: &str, args: &[&str]) -> String {
+    match Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            String::from_utf8_lossy(&output.stdout).trim().to_owned()
+        }
+        _ => "unavailable".to_owned(),
     }
 }
 
+const NO_RUNTIME: &str = "has no QEMU runtime for this checkout's inputs";
+
+/// The runtime a command uses: an explicit `--runtime`, or the shared cache's
+/// runtime for the current inputs. `verify` refuses a missing, tampered or
+/// corrupt shared runtime and roots it for this checkout; without it the path
+/// is only computed (operations on existing instances read theirs from state).
+fn runtime(value: Option<&PathBuf>, verify: bool) -> Result<PathBuf> {
+    if let Some(path) = value {
+        return Ok(path.clone());
+    }
+    let cache = Cache::locate()?;
+    let inputs = runtime_inputs()?;
+    if !verify {
+        return Ok(cache.content_path(Kind::QemuRuntime, &inputs));
+    }
+    match cache.find(Kind::QemuRuntime, &inputs)? {
+        Some(entry) => Ok(entry.content()),
+        None => Err(crate::invalid(format!(
+            "the shared cache {} {NO_RUNTIME}; run `kedra-lab vm tools prepare`",
+            cache.root().display()
+        ))),
+    }
+}
+
+/// Build the runtime into the shared cache, or reuse the entry another
+/// checkout published for the same inputs. The build tree lives in the entry's
+/// work area, so a failed build resumes, and is deleted once the runtime is
+/// published.
+fn prepare_shared_runtime(jobs: u32) -> Result<ExitCode> {
+    let cache = Cache::locate()?;
+    let inputs = runtime_inputs()?;
+    let entry = cache.ensure(Kind::QemuRuntime, &inputs, |build| {
+        let status = execute(
+            script("prepare-runtime.py")
+                .arg("--runtime")
+                .arg(&build.content)
+                .arg("--workdir")
+                .arg(build.work.join("build"))
+                .arg("--jobs")
+                .arg(jobs.to_string()),
+        )?;
+        if status == ExitCode::SUCCESS {
+            Ok(())
+        } else {
+            Err(crate::invalid(
+                "prepare-runtime.py failed; run `kedra-lab vm tools prepare` again to resume its build",
+            ))
+        }
+    })?;
+    println!("{}", entry.content().display());
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The fixture image a VM disk is prepared from, with its native provenance
+/// (JSON for prepare-disk.py's standard input) and signing reference.
+struct DiskFixture {
+    reference: String,
+    image_id: String,
+    engine: String,
+    native: Option<(Vec<u8>, String)>,
+}
+
+impl DiskFixture {
+    fn command(&self) -> Command {
+        let mut command = script("prepare-disk.py");
+        command
+            .arg("--image")
+            .arg(&self.reference)
+            .arg("--image-id")
+            .arg(&self.image_id)
+            .arg("--engine-id")
+            .arg(&self.engine);
+        if let Some((_, fixture_reference)) = &self.native {
+            command
+                .arg("--native-provenance")
+                .arg("--fixture-reference")
+                .arg(fixture_reference);
+        }
+        command
+    }
+
+    /// Run prepare-disk.py, with the native provenance on standard input.
+    fn run(&self, command: &mut Command) -> Result<()> {
+        let status = match &self.native {
+            None => execute(command)?,
+            Some((provenance, _)) => {
+                command.stdin(Stdio::piped());
+                #[cfg(unix)]
+                command.process_group(0);
+                let mut child = command.spawn()?;
+                let result = child
+                    .stdin
+                    .take()
+                    .ok_or_else(|| crate::invalid("disk builder stdin is unavailable"))?
+                    .write_all(provenance);
+                if let Err(error) = result {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(error.into());
+                }
+                wait_child(&mut child)?
+            }
+        };
+        if status == ExitCode::SUCCESS {
+            Ok(())
+        } else {
+            Err(crate::invalid("prepare-disk.py failed"))
+        }
+    }
+}
+
+/// The VM base disk of a fixture from the shared cache: keyed by the fixture's
+/// content without its per-checkout label, so checkouts with the same image
+/// share one disk; built (serialized across checkouts) when absent.
+fn prepare_disk(fixture: &DiskFixture) -> Result<crate::shared_cache::Entry> {
+    let cache = Cache::locate()?;
+    let home = qemu_home();
+    std::fs::create_dir_all(&home)?;
+    let keyed = home.join(format!("disk-inputs-{}.json", crate::execution_id()));
+    let outcome = fixture.run(fixture.command().arg("--inputs-output").arg(&keyed));
+    let inputs = outcome.and_then(|()| {
+        serde_json::from_slice::<serde_json::Value>(&std::fs::read(&keyed)?)
+            .map_err(|error| crate::invalid(format!("disk inputs: {error}")))
+    });
+    let _ = std::fs::remove_file(&keyed);
+    let inputs = inputs?;
+    cache.ensure(Kind::VmDisk, &inputs, |build| {
+        std::fs::create_dir_all(&build.work)?;
+        let file = build.work.join("inputs.json");
+        std::fs::write(&file, inputs.to_string())?;
+        fixture.run(
+            fixture
+                .command()
+                .arg("--output")
+                .arg(&build.content)
+                .arg("--inputs")
+                .arg(&file)
+                .arg("--build-lock")
+                .arg(cache.lock_file("vm-disk-build")),
+        )
+    })
+}
+
 fn instance_script(instance: &Instance, operation: &str) -> Result<Command> {
+    // Only a new instance uses the given runtime; existing ones read theirs from state.
+    let exists = qemu_home()
+        .join("instances")
+        .join(&instance.name)
+        .join("state.json")
+        .exists();
+    let verify = !exists && matches!(operation, "up" | "installer");
     let mut command = script("vm.py");
     command
         .arg("--root")
         .arg(qemu_home())
         .arg("--runtime")
-        .arg(runtime(instance.runtime.as_ref())?)
+        .arg(runtime(instance.runtime.as_ref(), verify)?)
         .arg("--name")
         .arg(&instance.name)
         .arg(operation);
@@ -263,15 +479,32 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
     match command {
         VmCommand::Tools {
             command: ToolsCommand::Check { runtime: path },
-        } => execute(
-            script("check-runtime.py")
-                .arg("--runtime")
-                .arg(runtime(path.as_ref())?),
-        ),
+        } => {
+            // A present shared runtime is verified against its cache receipt first.
+            let checked = match path {
+                Some(path) => path,
+                None => match runtime(None, true) {
+                    Err(crate::Error::Invalid(message)) if message.contains(NO_RUNTIME) => {
+                        eprintln!("kedra-lab: {message}");
+                        runtime(None, false)?
+                    }
+                    other => other?,
+                },
+            };
+            execute(script("check-runtime.py").arg("--runtime").arg(checked))
+        }
         VmCommand::Tools {
             command:
                 ToolsCommand::Prepare {
-                    runtime: path,
+                    runtime: None,
+                    jobs,
+                    ..
+                },
+        } => prepare_shared_runtime(jobs),
+        VmCommand::Tools {
+            command:
+                ToolsCommand::Prepare {
+                    runtime: Some(path),
                     workdir,
                     jobs,
                 },
@@ -283,7 +516,7 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
             execute(
                 script("prepare-runtime.py")
                     .arg("--runtime")
-                    .arg(runtime(path.as_ref())?)
+                    .arg(path)
                     .arg("--workdir")
                     .arg(workdir)
                     .arg("--jobs")
@@ -347,41 +580,23 @@ pub fn run(command: VmCommand) -> Result<ExitCode> {
                 .image(&reference)?
                 .ok_or_else(|| crate::invalid("native fixture disappeared"))?
                 .0;
-            let mut command = script("prepare-disk.py");
-            command
-                .arg("--image")
-                .arg(reference)
-                .arg("--image-id")
-                .arg(image_id)
-                .arg("--engine-id")
-                .arg(docker.identity()?)
-                .arg("--cache")
-                .arg(qemu_home());
-            if let Some((provenance, fixture_reference)) = provenance {
-                command
-                    .arg("--native-provenance")
-                    .arg("--fixture-reference")
-                    .arg(fixture_reference)
-                    .stdin(Stdio::piped());
-                #[cfg(unix)]
-                command.process_group(0);
-                let mut child = command.spawn()?;
-                let data = serde_json::to_vec(&provenance)
-                    .map_err(|error| crate::invalid(error.to_string()))?;
-                let result = child
-                    .stdin
-                    .take()
-                    .ok_or_else(|| crate::invalid("disk builder stdin is unavailable"))?
-                    .write_all(&data);
-                if let Err(error) = result {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Err(error.into());
-                }
-                wait_child(&mut child)
-            } else {
-                execute(&mut command)
-            }
+            let native = match provenance {
+                Some((provenance, fixture_reference)) => Some((
+                    serde_json::to_vec(&provenance)
+                        .map_err(|error| crate::invalid(error.to_string()))?,
+                    fixture_reference,
+                )),
+                None => None,
+            };
+            let fixture = DiskFixture {
+                reference,
+                image_id,
+                engine: docker.identity()?,
+                native,
+            };
+            let entry = prepare_disk(&fixture)?;
+            println!("{}", entry.content().join("image.json").display());
+            Ok(ExitCode::SUCCESS)
         }
         VmCommand::Iso { image, output } => {
             let mut command = Command::new("uv");

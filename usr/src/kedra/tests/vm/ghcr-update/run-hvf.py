@@ -13,10 +13,11 @@ new disk with bootc-image-builder, which runs A's own bootc and policy. The kedr
 three times under HVF and UEFI Secure Boot; the guest reaches the registry as
 ghcr.io at 10.0.2.2. Nothing is installed on the Mac.
 
-  uv run usr/src/kedra/tests/vm/ghcr-update/run-hvf.py --binaries DIR --work NEW_DIRECTORY
+  uv run usr/src/kedra/tests/vm/ghcr-update/run-hvf.py --binaries DIR --work NEW_DIRECTORY --runtime RUNTIME
 
 DIR holds Linux aarch64 `sysroot` and `sysroot-helper` built from this commit.
-Prepare the runtime first with `kedra-lab vm tools prepare`.
+Prepare the runtime first with `kedra-lab vm tools prepare`, which prints the
+path to pass as --runtime (the shared cache's runtime for this checkout's inputs).
 """
 import argparse
 import json
@@ -212,8 +213,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--binaries', type=Path, required=True, help='Directory with Linux aarch64 sysroot and sysroot-helper')
     parser.add_argument('--work', type=Path, required=True, help='New directory for fixture, disk and evidence')
-    parser.add_argument('--runtime', type=Path, default=ROOT / 'target/kedra-lab/qemu/runtime',
-                        help='kedra-lab vm tools prepare runtime (default: this checkout\'s)')
+    parser.add_argument('--runtime', type=Path, required=True,
+                        help='The runtime path `kedra-lab vm tools prepare` prints')
     parser.add_argument('--keep-on-failure', action='store_true',
                         help='After a failure keep the Docker resources and generated keys for inspection')
     args = parser.parse_args()
@@ -224,6 +225,8 @@ def main():
     try:
         prepare(fixture, args)
         shutil.copy2(args.runtime / 'firmware/AAVMF_VARS.ms.fd', fixture.root / 'vars.fd')
+        # The shared runtime is sealed read-only; the variable store is written.
+        (fixture.root / 'vars.fd').chmod(0o600)
         run('uv', 'run', '--project', ROOT / 'usr/src/kedra/tests/container/qemu/build-tools', '--locked', 'virt-fw-vars',
             '--inplace', fixture.root / 'vars.fd', '--append-boot-filepath', qemu.AARCH64_SHIM, stdout=subprocess.DEVNULL)
         with (fixture.evidence / 'controller.log').open('wb') as log:

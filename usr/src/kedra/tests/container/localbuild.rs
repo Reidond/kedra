@@ -26,26 +26,120 @@ use testcontainers::runners::SyncRunner;
 use crate::builder::{self, Stage, content_key};
 use crate::docker::{self, Build, Docker, Exec};
 use crate::image::Target;
+use crate::shared_cache::{Cache, Kind};
+use crate::shared_store;
 use crate::{Result, artifact_root, invalid};
 
 const BASE_TAG: &str = "quay.io/fedora/fedora-bootc:44";
 
-/// Run the host `sysroot` with explicit arguments.
-fn host_sysroot(sysroot: &Path, args: &[&std::ffi::OsStr]) -> Result<()> {
+/// Run the host `sysroot` with explicit arguments; its standard output.
+fn host_sysroot(sysroot: &Path, args: &[&std::ffi::OsStr]) -> Result<Vec<u8>> {
     let output = Command::new(sysroot).args(args).output()?;
     if !output.status.success() {
         return Err(invalid(format!(
             "sysroot {} failed: {}",
-            args.first()
-                .map_or_else(String::new, |a| a.to_string_lossy().into_owned()),
+            args.iter()
+                .take(2)
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join(" "),
             String::from_utf8_lossy(&output.stderr).trim()
         )));
     }
-    Ok(())
+    Ok(output.stdout)
 }
 
-/// Resolve (or reuse, per base digest) the stage's RPM lock, then materialize
-/// the foundation's offline repository as context files under `rpms/`.
+/// The shared host RPM store, reached through the host `sysroot`.
+struct HostStore<'a> {
+    sysroot: &'a Path,
+    path: String,
+}
+
+impl shared_store::Access for HostStore<'_> {
+    fn store(&self) -> &str {
+        &self.path
+    }
+
+    fn sysroot(&self, args: &[&str]) -> Result<Vec<u8>> {
+        let args: Vec<&std::ffi::OsStr> = args.iter().map(|arg| arg.as_ref()).collect();
+        host_sysroot(self.sysroot, &args)
+    }
+
+    fn exists(&self) -> Result<bool> {
+        Ok(Path::new(&self.path).join("marker.json").is_file())
+    }
+
+    fn pins(&self) -> Result<shared_store::Pins> {
+        let path = Path::new(&self.path).join("roots/state.json");
+        serde_json::from_slice(&fs::read(&path)?)
+            .map_err(|error| invalid(format!("{}: {error}", path.display())))
+    }
+
+    fn usage(&self) -> Result<u64> {
+        crate::shared_cache::usage(Path::new(&self.path))
+    }
+}
+
+/// The objects of every RPM a lock pins.
+fn lock_objects(lock: &Path) -> Result<std::collections::BTreeSet<String>> {
+    let value: serde_json::Value = serde_json::from_slice(&fs::read(lock)?)
+        .map_err(|error| invalid(format!("{}: {error}", lock.display())))?;
+    value["rpms"]
+        .as_object()
+        .ok_or_else(|| invalid(format!("{} has no RPMs", lock.display())))?
+        .values()
+        .map(|rpm| {
+            rpm["object"]
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| invalid("an RPM pin has no object"))
+        })
+        .collect()
+}
+
+/// Declared inputs of an RPM lock resolution, its shared cache key: the target,
+/// the Fedora base digest, the stage's lock inputs (`image/packages/`, the
+/// target policy) and the resolver that runs: the host archiver, named by the
+/// key of all its source inputs (every Rust source, `Cargo.lock`, the toolchain
+/// and the host platform; [`builder::prepare_archiver`]), not by the stage's
+/// sources, which a `build:<revision>` stage takes from another commit.
+fn lock_inputs(
+    snapshot: &Path,
+    target: &Target,
+    base: &str,
+    resolver: &Path,
+) -> Result<serde_json::Value> {
+    let resolver = resolver
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| invalid("the host archiver has no source key"))?;
+    let mut files = Vec::new();
+    collect_files(&snapshot.join("usr/src/kedra/image/packages"), &mut files)?;
+    files.push(snapshot.join("usr/src/kedra/image/package-policy.json"));
+    files.sort();
+    let mut digests = serde_json::Map::new();
+    for path in files {
+        let relative = path.strip_prefix(snapshot).unwrap_or(&path);
+        let digest = if path.is_file() {
+            builder::file_sha256(&path)?
+        } else {
+            "absent".to_owned()
+        };
+        digests.insert(relative.to_string_lossy().into_owned(), digest.into());
+    }
+    Ok(serde_json::json!({
+        "target": target.id,
+        "base": base,
+        "files": digests,
+        "resolver": resolver,
+    }))
+}
+
+/// The stage's RPM lock from the shared cache (resolved once per declared
+/// inputs, by whichever checkout needs it first), then the foundation's offline
+/// repository as context files under `rpms/`. The RPMs live in the shared host
+/// RPM store, so every checkout fetches them once.
 fn locked_rpms(
     cache: &Path,
     snapshot: &Path,
@@ -54,11 +148,22 @@ fn locked_rpms(
     context: &Path,
 ) -> Result<(Vec<(String, PathBuf)>, PathBuf)> {
     let sysroot = builder::prepare_archiver(cache)?;
-    let store = cache.join("rpm-store");
-    let digest = base.rsplit(':').next().unwrap_or_default();
-    let lock = context.join(format!("rpm-lock-{}.json", &digest[..digest.len().min(16)]));
+    let shared = Cache::locate()?;
+    let host = HostStore {
+        sysroot: &sysroot,
+        path: shared
+            .store_path(shared_store::RPM)
+            .to_str()
+            .ok_or_else(|| invalid("the shared cache path is not UTF-8"))?
+            .to_owned(),
+    };
+    let held = shared_store::open(&shared, shared_store::RPM, &host)?;
+    let store = PathBuf::from(&host.path);
     let image = snapshot.join("usr/src/kedra/image");
-    if !lock.is_file() {
+    let inputs = lock_inputs(snapshot, target, base, &sysroot)?;
+    let entry = shared.ensure(Kind::RpmLock, &inputs, |build| {
+        fs::create_dir(&build.content)?;
+        let lock = build.content.join("lock.json");
         eprintln!(
             "kedra-lab: resolving the RPM lock for {} on {base}",
             target.id
@@ -87,11 +192,26 @@ fn locked_rpms(
                 lock.as_os_str(),
             ],
         )?;
-    }
+        Ok(())
+    })?;
+    let lock = entry.content().join("lock.json");
     let repository = context.join("rpms");
     if repository.exists() {
         fs::remove_dir_all(&repository)?;
     }
+    // A lock this checkout resolved earlier may name RPMs a prune removed since.
+    host_sysroot(
+        &sysroot,
+        &[
+            "catalog".as_ref(),
+            "lock".as_ref(),
+            "fetch".as_ref(),
+            "--store".as_ref(),
+            store.as_os_str(),
+            "--lock".as_ref(),
+            lock.as_os_str(),
+        ],
+    )?;
     host_sysroot(
         &sysroot,
         &[
@@ -118,6 +238,11 @@ fn locked_rpms(
             repository.join("packages").join(&name),
         ));
     }
+    let used = shared_store::Pins {
+        objects: lock_objects(&lock)?,
+        ..Default::default()
+    };
+    shared_store::finish(&shared, shared_store::RPM, &host, &used, held)?;
     Ok((files, lock))
 }
 
@@ -173,11 +298,12 @@ fn engine_string(value: &serde_json::Value, pointer: &str) -> Result<String> {
 /// the public preflight material image/release/material.py records for the
 /// release (including the run's single pin envelope), the lock's RPMs fetched
 /// into the container's store, then the stage's own
-/// image/catalog/build-packages.sh, the script the release build runs. Prints
-/// `{"definition": path}`, or `{}` when the target selects no package.
+/// image/catalog/build-packages.sh, the script the release build runs, in the
+/// shared engine store. Prints `{"definition": path, "pins": {...}}` with the
+/// images, roots and objects the build used, or `{}` when the target selects
+/// no package.
 const CATALOG: &str = r#"set -euo pipefail
-target=$1 foundation=$2 base=$3 revision=$4
-store=$HOME/store
+target=$1 foundation=$2 base=$3 revision=$4 store=$5
 image=/snapshot/usr/src/kedra/image
 work=$HOME/catalog
 lock=$HOME/rpm-lock.json
@@ -210,17 +336,23 @@ base_id=$(docker image inspect --format '{{.Id}}' "$base")
 "$image/catalog/build-packages.sh" --sysroot "$(command -v sysroot)" --store "$store" --target "$target" \
     --lock "$lock" --base-image "$base_id" --foundation "$foundation" --source-revision "$revision" \
     --inputs "$HOME/resolved-inputs.json" --pins "$pins" --work "$work" >&2
-jq -n --arg definition "$work/contribution/system.json" '{definition:$definition}'
+objects=$(jq -n -c --slurpfile lock "$lock" --slurpfile sources <(cat "$work"/*-source.json) \
+    --slurpfile builds <(cat "$work"/*-build.json) \
+    '[$lock[0].rpms[].object] + [$sources[].object] + [$builds[].result.outputs[]]')
+jq -n --arg definition "$work/contribution/system.json" --argjson objects "$objects" \
+    --slurpfile base "$work/base.json" --slurpfile roots <(cat "$work"/runtime.json "$work"/builder-*.json) \
+    '{definition:$definition,pins:{objects:$objects,images:[$base[0].image],rootfs:[$roots[].root]}}'
 "#;
 
 /// Build and contribute the stage's catalog packages in the engine container;
-/// the definition path in the container, or none when nothing is selected.
+/// the definition path in the container (none when nothing is selected) and
+/// what the build used from the shared engine store.
 fn catalog_definition(
     docker: &Docker,
     container: &str,
     target: &Target,
     build: &EngineBuild<'_>,
-) -> Result<Option<String>> {
+) -> Result<(Option<String>, shared_store::Pins)> {
     // The release material names the run's binaries and RPM lock; the catalog
     // author must be the binary that contributes.
     for (path, file, mode) in [
@@ -242,10 +374,83 @@ fn catalog_definition(
             build.foundation,
             build.base,
             build.revision,
+            ENGINE_STORE,
         ],
         120,
     )?;
-    Ok(result["definition"].as_str().map(str::to_owned))
+    let pins = match result.get("pins") {
+        Some(pins) => serde_json::from_value(pins.clone())
+            .map_err(|error| invalid(format!("catalog pins: {error}")))?,
+        None => shared_store::Pins::default(),
+    };
+    Ok((result["definition"].as_str().map(str::to_owned), pins))
+}
+
+/// Where the shared engine store's volume is mounted in the engine container,
+/// outside the builder's home so `useradd -m` still creates and owns that.
+const ENGINE_MOUNT: &str = "/var/cache/kedra-engine";
+const ENGINE_STORE: &str = "/var/cache/kedra-engine/store";
+
+/// The shared engine store, reached through `sysroot` in the engine container.
+struct EngineStore<'a> {
+    docker: &'a Docker,
+    container: &'a str,
+}
+
+impl EngineStore<'_> {
+    fn exec(&self, argv: &[&str], minutes: u64) -> Result<docker::Output> {
+        let mut exec = Exec::new(argv.iter().copied()).timeout(Duration::from_secs(minutes * 60));
+        exec.user = Some("kedra".into());
+        exec.env = vec![
+            ("HOME".into(), "/home/kedra".into()),
+            ("PATH".into(), "/usr/local/bin:/usr/bin:/bin".into()),
+            ("DOCKER_HOST".into(), "unix:///var/run/docker.sock".into()),
+        ];
+        self.docker.exec(self.container, &exec)
+    }
+}
+
+impl shared_store::Access for EngineStore<'_> {
+    fn store(&self) -> &str {
+        ENGINE_STORE
+    }
+
+    fn sysroot(&self, args: &[&str]) -> Result<Vec<u8>> {
+        let mut argv = vec!["sysroot"];
+        argv.extend(args);
+        let output = self.exec(&argv, 60)?;
+        if output.exit != 0 {
+            return Err(crate::Error::Command {
+                what: format!("{argv:?}"),
+                exit: output.exit,
+                stderr: output.stderr_text(),
+            });
+        }
+        Ok(output.stdout)
+    }
+
+    fn exists(&self) -> Result<bool> {
+        Ok(self
+            .exec(&["test", "-f", &format!("{ENGINE_STORE}/marker.json")], 1)?
+            .exit
+            == 0)
+    }
+
+    fn pins(&self) -> Result<shared_store::Pins> {
+        let output = self.exec(&["cat", &format!("{ENGINE_STORE}/roots/state.json")], 1)?;
+        serde_json::from_slice(&output.stdout)
+            .map_err(|error| invalid(format!("engine store roots: {error}")))
+    }
+
+    fn usage(&self) -> Result<u64> {
+        let output = self.exec(&["du", "-sk", ENGINE_STORE], 10)?;
+        let text = output.stdout_text();
+        text.split_whitespace()
+            .next()
+            .and_then(|kib| kib.parse::<u64>().ok())
+            .map(|kib| kib * 1024)
+            .ok_or_else(|| invalid(format!("du of the engine store: {text}")))
+    }
 }
 
 /// Key of a derived image: its foundation's key, plus what the engine steps read
@@ -314,6 +519,8 @@ fn engine_image(docker: &Docker, target: &Target, build: &EngineBuild<'_>) -> Re
         "kedra-lab: composing and deriving {} through the engine",
         target.id
     );
+    let shared = Cache::locate()?;
+    let volume = docker.shared_volume(&shared_store::engine_volume(&shared), &shared.id())?;
     let container = builder::builder_image(docker, &target.platform())?
         .with_cmd(["sleep", "infinity"])
         .with_label(docker::OWNER_LABEL, docker::OWNER)
@@ -335,6 +542,7 @@ fn engine_image(docker: &Docker, target: &Target, build: &EngineBuild<'_>) -> Re
             Mount::bind_mount(snapshot.to_string_lossy(), "/snapshot")
                 .with_access_mode(AccessMode::ReadOnly),
         )
+        .with_mount(Mount::volume_mount(volume, ENGINE_MOUNT))
         .with_startup_timeout(Duration::from_secs(120))
         .start()?;
     let id = container.id().to_owned();
@@ -348,20 +556,21 @@ fn engine_image(docker: &Docker, target: &Target, build: &EngineBuild<'_>) -> Re
     docker.run(
         &id,
         &Exec::new([
-            "sh",
-            "-ec",
-            "gid=$(stat -c %g /var/run/docker.sock); group=$(getent group \"$gid\" | cut -d: -f1); \
-             if [ -z \"$group\" ]; then groupadd -g \"$gid\" docker-host; group=docker-host; fi; \
-             useradd -m -u 1000 -G \"$group\" kedra",
+            "sh".to_owned(),
+            "-ec".to_owned(),
+            format!(
+                "gid=$(stat -c %g /var/run/docker.sock); group=$(getent group \"$gid\" | cut -d: -f1); \
+                 if [ -z \"$group\" ]; then groupadd -g \"$gid\" docker-host; group=docker-host; fi; \
+                 useradd -m -u 1000 -G \"$group\" kedra; chown kedra:kedra {ENGINE_MOUNT}"
+            ),
         ]),
     )?;
-    let store = "/home/kedra/store";
-    engine_json(
+    let store = ENGINE_STORE;
+    let access = EngineStore {
         docker,
-        &id,
-        &["sysroot", "store", "init", "--store", store],
-        5,
-    )?;
+        container: &id,
+    };
+    let held = shared_store::open(&shared, shared_store::ENGINE, &access)?;
     engine_json(
         docker,
         &id,
@@ -376,7 +585,7 @@ fn engine_image(docker: &Docker, target: &Target, build: &EngineBuild<'_>) -> Re
         ],
         60,
     )?;
-    let definition = catalog_definition(docker, &id, target, build)?;
+    let (definition, used) = catalog_definition(docker, &id, target, build)?;
     let context = "/home/kedra/composition";
     let mut compose = vec![
         "sysroot",
@@ -418,6 +627,19 @@ fn engine_image(docker: &Docker, target: &Target, build: &EngineBuild<'_>) -> Re
     tag.user = Some("kedra".into());
     tag.env = vec![("DOCKER_HOST".into(), "unix:///var/run/docker.sock".into())];
     docker.run(&id, &tag)?;
+    // The foundation is this build's own; the next prune collects it.
+    shared_store::Access::sysroot(
+        &access,
+        &[
+            "store",
+            "unpin-image",
+            "--store",
+            store,
+            "--image",
+            foundation,
+        ],
+    )?;
+    shared_store::finish(&shared, shared_store::ENGINE, &access, &used, held)?;
     container.rm()?;
     eprintln!("kedra-lab: derived {derived} (native identity {derivation})");
     Ok(())

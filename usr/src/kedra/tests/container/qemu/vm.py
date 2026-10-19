@@ -223,7 +223,8 @@ def create(directory, args):
     if args.image is None:
         raise ValueError('new instance needs --image pointing to a prepared image.json')
     image = json.loads(args.image.read_text())
-    disk = Path(image['disk'])
+    # Shared cache receipts name the disk relative to themselves.
+    disk = args.image.resolve().parent / image['disk']
     if image.get('schema_version') != 1 or image.get('target') != 'qemu-arm64' or sha256(disk) != image.get('disk_sha256'):
         raise ValueError('prepared disk receipt/checksum mismatch')
     display = re.fullmatch(r'(\d+)x(\d+)@([\d.]+)', args.display)
@@ -246,6 +247,8 @@ def create(directory, args):
                                       'keyring_password': secrets.token_hex(32)})
     run([args.runtime / 'bin/qemu-img', 'create', '-f', 'qcow2', '-F', 'qcow2', '-b', disk, directory / 'disk.qcow2'])
     shutil.copy2(args.runtime / 'firmware/AAVMF_VARS.ms.fd', directory / 'vars.fd')
+    # The shared runtime is sealed read-only; the variable store is written.
+    (directory / 'vars.fd').chmod(0o600)
     run(['uv', 'run', '--project', HERE / 'build-tools', '--locked', 'virt-fw-vars', '--inplace', directory / 'vars.fd',
          '--append-boot-filepath', launcher.AARCH64_SHIM])
     (directory / 'tpm').mkdir(mode=0o700)

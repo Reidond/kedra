@@ -33,6 +33,7 @@ The engine's architecture selects the default target: `qemu-arm64` (aarch64) on 
 | Retain failed containers (local only; refused when `CI` is set) | `KEDRA_LAB_KEEP=failed cargo test …` |
 | Remove one execution's containers | `kedra-lab clean --execution <id>` |
 | Remove everything this checkout's harness created | `kedra-lab clean` |
+| Delete shared cache entries and stores no checkout uses | `kedra-lab gc` (`--dry-run` reports only) |
 | Run the desktop and keep it | `cargo run -p kedra-container-tests --bin kedra-lab -- up` |
 
 Settings are environment variables for `cargo test`, or flags for `kedra-lab`:
@@ -44,7 +45,8 @@ Settings are environment variables for `cargo test`, or flags for `kedra-lab`:
 | `KEDRA_LAB_OVERLAY` / `--overlay` | `worktree` (layer the working tree), `none` | `worktree`; `none` for `build` |
 | `KEDRA_LAB_BINARIES` / `--binaries` | directory with Linux `sysroot` and `sysroot-helper` (overlays and full local builds; they must be the stage's own) | built in this checkout's Cargo volume |
 | `KEDRA_LAB_ARTIFACTS` | output directory | `target/kedra-lab` |
-| `KEDRA_QEMU_HOME` | native QEMU runtime and retained VM root | `target/kedra-lab/qemu` (see `qemu/README.md`) |
+| `KEDRA_QEMU_HOME` | native VM instances, shots and logs | `target/kedra-lab/qemu` (see `qemu/README.md`) |
+| `KEDRA_SHARED_CACHE` | absolute directory of the [shared cache](#shared-cache) | `<primary checkout>/.cache/kedra` |
 | `KEDRA_LAB_KEEP` | `never`, `failed`, `always` | `never` |
 
 One worker remains the default; one or two workers are supported. Every case still
@@ -157,7 +159,8 @@ cargo run -p kedra-container-tests --bin kedra-lab -- up
 | `exec [--root] -- CMD…` | Runs a command in the session, as the test account unless `--root`. |
 | `logs` | Saves the journal, unit, session and process state. |
 | `ls`, `down` | List this checkout's harness containers, and remove a retained environment. |
-| `clean` | Removes everything this checkout's harness created: every container, image and volume labeled `kedra.checkout=<id>`, its scoped image tags, the engine images its `sysroot derive` state binds (the engine refuses a `kedra-<kind>:<identity>` tag whose binding is gone, so they go together), and the large trees under `target/kedra-lab/` (`cache`, `derive`, `composition`, `native`; sealed store objects are made writable first). Run reports and screenshots stay. Pulled images stay unlabeled, because a label would change the image under test; each pull the harness makes is appended to `target/kedra-lab/pulled-images.txt` with the image ID and repository digests it resolved to, to remove by exact ID once no other checkout uses it. `clean` does not remove them: other checkouts and tools share pulled images by content and record their use nowhere this checkout can read, so deleting one could pull it from under a concurrent run. It also removes the native VM's stopped instances, prepared disks and runtime build tree (`target/kedra-lab/qemu`; `--vm-runtime` also removes the built QEMU runtime). `clean --execution <id>` removes only one execution's containers. |
+| `clean` | Removes everything this checkout's harness created: every container, image and volume labeled `kedra.checkout=<id>`, its scoped image tags, the engine images its `sysroot derive` state binds (the engine refuses a `kedra-<kind>:<identity>` tag whose binding is gone, so they go together), and the large trees under `target/kedra-lab/` (`cache`, `derive`, `composition`, `native`; sealed store objects are made writable first). Run reports and screenshots stay. Pulled images stay unlabeled, because a label would change the image under test; each pull the harness makes is appended to `target/kedra-lab/pulled-images.txt` with the image ID and repository digests it resolved to, to remove by exact ID once no other checkout uses it. `clean` does not remove them: other checkouts and tools share pulled images by content and record their use nowhere this checkout can read, so deleting one could pull it from under a concurrent run. It also removes the native VM's stopped instances (`target/kedra-lab/qemu`) and then drops this checkout's [shared cache](#shared-cache) roots on VM disks, RPM locks and engine stores (`--vm-runtime` also the root on the QEMU runtime); the entries stay for other checkouts until `gc`. `clean --execution <id>` removes only one execution's containers. |
+| `gc [--dry-run]` | Deletes [shared cache](#shared-cache) entries, abandoned build areas and shared engine stores that no checkout roots, after dropping the roots of checkouts that no longer exist, and reports the space freed. Corrupt or unknown entries are reported and left in place; `gc --remove KIND/KEY` deletes one named entry and every root on it. |
 | `image` | Resolves and builds the lab image, and prints its provenance. |
 
 A typical desktop change:
@@ -319,6 +322,58 @@ Actions:
 | `settle {for ≤ 30s}` | Waits, for redraws before a screenshot. |
 
 Control flow belongs in native tests or probes.
+
+## Shared cache
+
+Every checkout of this repository (the primary checkout and its worktrees)
+shares one cache of build artifacts, so a new worktree reuses what another
+already built instead of building its own: `<primary checkout>/.cache/kedra/`,
+where the primary checkout is the parent of `git rev-parse --git-common-dir`
+(`KEDRA_SHARED_CACHE`, an absolute directory, moves it). It is gitignored and the
+one location outside a checkout's `target/` that AGENTS.md "Artifacts stay in the
+checkout" allows. `shared_cache.rs` and `shared_store.rs` implement it.
+
+| Artifact | Location | Keyed by |
+|---|---|---|
+| Native QEMU runtime (`vm tools prepare`) | `entries/qemu-runtime/<key>/content` | the recipe and pins `prepare-runtime.py` reads (`inputs.json`, patches, the ANGLE and build-tools locks, the script), the host architecture and the toolchain the runtime bundles (Xcode, Metal toolchain, linked Homebrew library versions) |
+| VM base disks (`vm image`) | `entries/vm-disk/<key>/content` | the fixture's layers and config without its `kedra.checkout` label, the bootc builder pin and the disk recipe |
+| Host RPM store | `stores/rpm` | an engine store: RPM objects by content |
+| Engine store of full local builds | Docker volume `kedra-cache-<cache id>-engine`, labeled `kedra.cache=<cache id>` | an engine store: RPM objects, base images, runtime and builder roots, sources and package outputs, all input-addressed |
+
+**Entries.** The key is the SHA-256 of the entry kind and the canonical JSON of
+its declared inputs. A checkout that needs an entry takes the key's file lock in
+`locks/`; if the entry exists it verifies it against its `receipt.json` (the
+inputs, and the type, mode, size and SHA-256 of every file) and reuses it.
+Otherwise it builds into `work/<kind>-<key>/` (the runtime's build tree lives
+there, so a failed build resumes), seals the result read-only, writes the receipt
+and publishes the entry with one rename, then deletes the build area. Another
+checkout asking for the same key meanwhile waits on the lock and then reuses the
+entry. An entry that differs from its receipt (tampered, corrupt or unknown) is
+refused and left in place, never repaired; `kedra-lab gc --remove KIND/KEY`
+deletes it. Instances keep only their writable overlay disk, firmware variables
+and TPM in the checkout; the overlay's backing file is the shared base disk.
+
+**Stores.** Engine stores keep their own guarantees: content-addressed objects
+and an exclusive lock held by every `sysroot` command, so concurrent builds from
+several checkouts interleave command by command and reuse what another command
+admitted; a command killed mid-transaction leaves the store refusing until
+`store recover`, which kedra-lab runs at the start of every build (no command
+holds the engine lock between commands, so only killed commands' transactions
+can be left). kedra-lab adds what the engine leaves to its caller: a store is
+created only under the cache's exclusive store lock (`Store::create` is not safe
+against a concurrent creator), and builds hold that lock shared. Every admission
+pins, so each checkout records the images, roots and objects its latest build
+used; a build that finishes while no other build holds the store unpins what no
+checkout's record names and runs `store gc --delete`. Each full local build's
+foundation image is unpinned when the build ends.
+
+**Roots and GC.** `roots/<checkout id>/` (the id is the `kedra.checkout` label's)
+holds `checkout.json`, naming the checkout, and one file per entry or store the
+checkout uses. `kedra-lab clean` drops the checkout's roots on disks and stores,
+and with `--vm-runtime` on the runtime. `kedra-lab gc` drops the roots of
+checkouts whose directory no longer exists, then deletes unrooted entries,
+abandoned build areas and unrooted stores (the engine volume too), each only
+while it holds that entry's or store's lock, and reports the space freed.
 
 ## Isolation, cleanup and reports
 

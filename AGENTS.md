@@ -10,15 +10,47 @@ checks show what is implemented and tested; never infer a feature from a design 
 a summary.
 
 The owner reviews and decides but does not develop here, so agents do the setup
-and chores themselves. At session start run `mise trust && mise install` in the
-checkout. mise refuses an untrusted `mise.toml`, and trust is recorded per
-checkout path, so every new worktree needs it once; trust only this repository's
+and chores themselves. Before running checks, run `mise trust && mise install`
+in the Boat checkout described below. mise refuses an untrusted `mise.toml`, and
+trust is recorded per checkout path, so every new worktree needs it once; trust only this repository's
 committed `mise.toml`, which runs one `git rev-parse` template. `mise install`
 installs the pinned tools, sccache included, once per machine and is a no-op
 after that. Agents also run the checks, clean up and verify GitHub/GHCR state
 (`gh api`). Hand the owner only what tooling blocks: a refused `signoff.py` run,
 as one exact command with `--checks` of at most 140 characters, merge approvals,
 and settings that only exist in the GitHub UI.
+
+## Cloud sandboxes (Boat)
+
+Use a Boat sandbox for builds, tests, untrusted code, Docker, and long jobs.
+Never run them on this computer.
+Docs: https://docs.boat.dev/llms.txt. Prices and limits: run `boat limits`;
+never quote prices from memory.
+Source: https://docs.boat.dev/ai-tools#3-add-a-rule-to-agents-md.
+
+- Create: `id=$(boat new --json | jq -r 'select(.event=="ready") | .id')`.
+- One-shot job: `boat run --push . -- <command>` creates a sandbox, runs the
+  repository command, reports its cost and deletes it; it returns the command's
+  exit code. Set up the pinned tools before invoking checks.
+- Run: `boat exec "$id" --cwd kedra "mise exec -- cargo fmt --all -- --check"`
+  (30 s timeout; `--timeout 0` means no limit).
+- Server: `boat exec "$id" --detach "<server-command>"`, then
+  `boat exec "$id" --status <pid>`.
+- Copy files: `boat push "$id" ./kedra` (git-tracked and non-ignored files, to
+  `/home/user/kedra`) or clone the repo inside the sandbox.
+- Private URL for a port: `boat ssh "$id" "host 3000 --private"`.
+- Always pass the sandbox ID. `current` does not work in a non-interactive shell.
+- When done: `boat stop "$id"` keeps the disk for 14 days;
+  `boat delete "$id" --yes` erases it.
+
+Here, "local" checks and unsigned harness builds below mean an agent-managed
+checkout in Boat, not the owner's workstation. Keep their artifacts under that
+checkout's `target/` and retain the existing harness, sign-off and release gates.
+Use a sandbox with the required architecture and virtualization capabilities;
+report unavailable VM or hardware checks as not-run instead of running them on
+this computer or treating a container result as boot evidence. An SSH connection
+does not keep a sandbox alive: check `boat info "$id"` and extend its lifetime
+before long work.
 
 ## Repository layout
 

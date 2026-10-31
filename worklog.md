@@ -8,6 +8,10 @@ of entries; older ones are pruned and stay in Git. The complete worklog up to
 
 ## Current project status
 
+Agent execution policy update, 2026-10-31: `AGENTS.md` now routes agent-run builds,
+tests, Docker and long jobs to Boat. This is documentation only; the older product
+and release snapshot below is not a verification of current deployment state.
+
 Last updated: 2026-10-19 (Europe/Kyiv), main `a178be2`. One-page detail and
 evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
 
@@ -262,3 +266,11 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
 - Checks / evidence: not-run, documentation-only (no build needed per AGENTS.md).
 - Remaining / blockers: prune-cache has not run yet (it runs after a publication). Its first run shows whether the repository's package Actions access allows deleting versions. Release 39239240852 (a178be2) stopped at sign-image because main moved during the run, which is the exact-main guard working as designed.
 - Next: watch the first prune-cache result; merge this PR.
+
+### WL-20261031-BOAT-01 — 2026-10-31 — Run agent workloads in Boat
+- Agent / state: Codex; completed documentation change, not merged.
+- Scope / base: branch `codex/boat-agent-instructions` from main `21975748c1d02d4f4eaf3215bbd9300e2dbd3578`; `AGENTS.md` and this ledger only.
+- Completed: added the owner's requested Boat policy and its source link, sandbox lifecycle and command examples, explicit IDs, current limits, and cleanup guidance. Moved pinned-tool setup into the Boat checkout and clarified that agent-managed checks and unsigned harness builds run there while retaining the existing `target/`, harness, sign-off and release boundaries. Unavailable architecture, virtualization or hardware checks remain not-run; an SSH connection is not keep-alive.
+- Checks / evidence: pass — documentation review against https://docs.boat.dev/ai-tools#3-add-a-rule-to-agents-md and the installed Boat CLI; `git diff --check`. No build or runtime tests: documentation-only per AGENTS.md. Before editing, main's status endpoint had no statuses; latest release run [41167097802](https://github.com/Reidond/kedra/actions/runs/41167097802) on `2197574` was completed with failure. This change does not diagnose or repair that release.
+- Remaining / blockers: native VM/hardware behavior and Boat-hosted Kedra builds are not qualified by this documentation change; no deployment or publication performed.
+- Next: owner review and merge after the PR head's documentation sign-off; run future workload checks in a suitably capable Boat sandbox.

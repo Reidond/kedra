@@ -46,7 +46,7 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
   desktop image; TPM enrollment and boot unlock; a real installation; the first
   binary-cache hit; `iso.yml` since #63; killed-process recovery of
   `sysroot home update`.
-- **Active work:** sccache pinned in mise.toml with its cache in the shared cache (SCCACHE-01, open PR).
+- **Active work:** Rust crates moved to root `crates/` (ROOT-CRATES-01), first of three PRs that move system setup into `.kedra` modules under `system/` and flatten `usr/src/kedra/`.
 - **Next:** check that the next release with unchanged packages reports substituted
   closures; dispatch `iso.yml` for fresh media from the current `stable`; run the
   x86_64 VM drivers on a disposable KVM host; boot an engine-derived desktop image
@@ -274,3 +274,11 @@ evidence links: [usr/src/kedra/docs/STATUS.md](usr/src/kedra/docs/STATUS.md).
 - Checks / evidence: pass — documentation review against https://docs.boat.dev/ai-tools#3-add-a-rule-to-agents-md and the installed Boat CLI; `git diff --check`. No build or runtime tests: documentation-only per AGENTS.md. Before editing, main's status endpoint had no statuses; latest release run [41167097802](https://github.com/Reidond/kedra/actions/runs/41167097802) on `2197574` was completed with failure. This change does not diagnose or repair that release.
 - Remaining / blockers: native VM/hardware behavior and Boat-hosted Kedra builds are not qualified by this documentation change; no deployment or publication performed.
 - Next: owner review and merge after the PR head's documentation sign-off; run future workload checks in a suitably capable Boat sandbox.
+
+### WL-20261031-ROOT-CRATES-01 — 2026-10-31 — Rust workspace members move to root `crates/`
+- Agent / state: Claude Code (desktop app, owner's Mac; checks in Boat); in-progress.
+- Scope / base: branch `claude/kedra-setup-rust-root-161930` from main `bd063a2`; all targets. First of three owner-approved PRs: (1) crates to root `crates/`, (2) system setup as `.kedra` modules in a top-level `system/` directory with small file contents inline, root `etc/` and `usr/` payload removed, (3) flatten the rest of `usr/src/kedra/` to the root. Owner decisions (2026-10-31): widen the `.kedra` language from packages and image steps to the whole system declaration (recorded with PR 2, no evaluation added); move only the crates now; `tests/container` stays under `tests/`; agent builds and checks run in Boat.
+- Completed: `git mv usr/src/kedra/crates crates`; workspace members and path dependencies, the release path filter, `include_str!` paths in sysroot-core, e2e fixture paths, the harness's engine dependency and its binary-freshness file list now name `crates/`. The source plan skips root `crates/` as development source (a target overlay still refuses it); `e2e_source_targets` covers both. AGENTS.md layout and settled choices, README, ARCHITECTURE, ENGINE/PACKAGES links, image and installer READMEs and five kedra skills updated; plugin 0.3.55.
+- Checks / evidence: pending.
+- Remaining / blockers: release workflow and harness not exercised on this layout yet.
+- Next: run the full check list in Boat on the commit, record results, owner approves push, PR and sign-off.

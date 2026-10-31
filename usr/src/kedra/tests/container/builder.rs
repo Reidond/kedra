@@ -98,7 +98,7 @@ fn archiver_directory(cache: &Path) -> Result<PathBuf> {
             "Cargo.toml",
             "Cargo.lock",
             "rust-toolchain.toml",
-            "usr/src/kedra/crates",
+            "crates",
             "usr/src/kedra/image/release/targets.json",
             "usr/src/kedra/image/release/compatibility.json",
         ],

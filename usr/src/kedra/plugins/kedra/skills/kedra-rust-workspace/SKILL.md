@@ -7,7 +7,7 @@ description: Preserve Kedra's flat Rust workspace, pinned tooling, engine and pr
 
 Read AGENTS.md, usr/src/kedra/docs/ARCHITECTURE.md, upstream rust-router, domain-cli and the relevant topic skill. Owner choices override upstream scaffolding and test recommendations.
 
-Use edition 2024, resolver 3, one Cargo.lock and explicit binary/library paths. Crates live under usr/src/kedra/crates/, with no first-party src/ directory inside a crate:
+Use edition 2024, resolver 3, one Cargo.lock and explicit binary/library paths. Crates live under the root crates/, with no first-party src/ directory inside a crate:
 - `sysroot`: the user CLI, with engine adapters in `sysroot/engine.rs`.
 - `sysroot-core`: shared logic, the helper protocol (schema 3) and the embedded `image/release/targets.json` and `compatibility.json`.
 - `sysroot-linux`: Linux primitives (storage, trusted reads, file replacement, firmware) shared by the CLI and helper.

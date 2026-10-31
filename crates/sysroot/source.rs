@@ -271,6 +271,8 @@ impl Inputs {
                 }
             }
             "usr" => Ok(Some(("usr", rest))),
+            // The Rust workspace is development source, like usr/src/kedra/.
+            "crates" if shared => Ok(None),
             _ if shared && top.starts_with('.') => Ok(None),
             _ => Err(invalid(format!(
                 "unexpected directory {top}/ at {path}; only etc/ and usr/ form the image filesystem"

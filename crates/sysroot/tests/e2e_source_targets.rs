@@ -379,7 +379,8 @@ fn source_cli_resolves_the_root_filesystem_layout_and_refuses_others() {
     // Development files beside the image filesystem never become payload.
     f.write("README.md", "generated\n");
     f.write(".github/workflows/check.yml", "on: push\n");
-    f.write("usr/src/kedra/crates/fixture/main.rs", "fn main() {}\n");
+    f.write("usr/src/kedra/docs/fixture.md", "generated\n");
+    f.write("crates/fixture/main.rs", "fn main() {}\n");
     f.write(&format!("{overlay}/README.md"), "generated\n");
     f.commit("root-filesystem layout");
     let plan = f.plan("desktop");
@@ -424,5 +425,9 @@ fn source_cli_resolves_the_root_filesystem_layout_and_refuses_others() {
     f.refused_path(
         &format!("{overlay}/var/lib/fixture"),
         "unexpected directory var/",
+    );
+    f.refused_path(
+        &format!("{overlay}/crates/fixture/main.rs"),
+        "unexpected directory crates/",
     );
 }

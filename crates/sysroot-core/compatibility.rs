@@ -1,7 +1,7 @@
 //! The producer and installed helper share one minimum bootc version.
 use serde::Deserialize;
 
-const CONTRACT: &str = include_str!("../../image/release/compatibility.json");
+const CONTRACT: &str = include_str!("../../usr/src/kedra/image/release/compatibility.json");
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

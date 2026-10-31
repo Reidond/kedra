@@ -490,5 +490,5 @@ several top-level entries) contributes the extraction itself. This is public
 pre-signing work; production signers receive authenticated candidate material and
 never fetch sources or run recipes.
 
-See the [engine API](../crates/sysroot-engine/README.md), [composition](SYSTEM.md),
+See the [engine API](../../../../crates/sysroot-engine/README.md), [composition](SYSTEM.md),
 [architecture](ARCHITECTURE.md) and [current status](STATUS.md).

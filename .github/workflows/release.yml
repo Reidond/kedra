@@ -15,7 +15,7 @@ on:
       - etc/**
       - usr/**
       - '!usr/src/kedra/**'
-      - usr/src/kedra/crates/**
+      - crates/**
       - usr/src/kedra/image/**
       - usr/src/kedra/tests/container/**
 

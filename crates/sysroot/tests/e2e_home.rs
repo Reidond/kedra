@@ -399,8 +399,19 @@ fn capture_writes_the_providing_source_path_without_staging() {
 
     let output = f.sysroot(&["capture", ".config/undeclared", "--repo", repo]);
     assert!(String::from_utf8_lossy(&output.stderr).contains("not a managed home file"));
+    // A repository of its own, so the refusal holds even when the fixture
+    // lives inside another Kedra checkout (TMPDIR under its target/).
     let elsewhere = f.0.join("not-a-checkout");
     fs::create_dir(&elsewhere).unwrap();
+    let init = Command::new("git")
+        .args(["init", "-q", "--template="])
+        .arg(&elsewhere)
+        .output()
+        .unwrap();
+    assert!(init.status.success(), "{init:?}");
     let output = f.sysroot(&["capture", MAIN, "--repo", elsewhere.to_str().unwrap()]);
-    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("is not a Kedra checkout"),
+        "{output:?}"
+    );
 }

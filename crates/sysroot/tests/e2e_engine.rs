@@ -223,7 +223,10 @@ impl Fixture {
         for image in [BUILDER, RUNTIME] {
             let observed = run(Command::new("docker").args(["image", "inspect", image])).json();
             assert_eq!(observed[0]["Id"], image);
-            assert_eq!(observed[0]["Architecture"], "arm64");
+            assert_eq!(
+                observed[0]["Architecture"],
+                sysroot_engine::OCI_ARCHITECTURE
+            );
             assert_eq!(observed[0]["Os"], "linux");
             let admitted = self.store("add-image", store, &["--image", image]).json();
             assert_eq!(admitted["image"], image);
@@ -1276,7 +1279,7 @@ fn layer(entries: &[(&str, tar::EntryType, &[u8], Option<&str>)]) -> Vec<u8> {
 /// returns the image identity, the digest of its single manifest.
 fn oci_archive(path: &Path, layers: &[(Vec<u8>, &str, String)]) -> String {
     let config = serde_json::to_vec(&json!({
-        "architecture":"arm64","os":"linux","config":{},
+        "architecture":sysroot_engine::OCI_ARCHITECTURE,"os":"linux","config":{},
         "rootfs":{"type":"layers","diff_ids":layers.iter().map(|l| l.2.clone()).collect::<Vec<_>>()},
     }))
     .unwrap();

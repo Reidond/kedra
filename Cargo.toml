@@ -1,11 +1,11 @@
 [workspace]
 members = [
-    "usr/src/kedra/crates/sysroot",
-    "usr/src/kedra/crates/sysroot-core",
-    "usr/src/kedra/crates/sysroot-engine",
-    "usr/src/kedra/crates/sysroot-catalog",
-    "usr/src/kedra/crates/sysroot-helper",
-    "usr/src/kedra/crates/sysroot-linux",
+    "crates/sysroot",
+    "crates/sysroot-core",
+    "crates/sysroot-engine",
+    "crates/sysroot-catalog",
+    "crates/sysroot-helper",
+    "crates/sysroot-linux",
     "usr/src/kedra/tests/container",
 ]
 resolver = "3"
@@ -17,10 +17,10 @@ rust-version = "1.98"
 publish = false
 
 [workspace.dependencies]
-sysroot-core = { path = "usr/src/kedra/crates/sysroot-core" }
-sysroot-engine = { path = "usr/src/kedra/crates/sysroot-engine" }
-sysroot-catalog = { path = "usr/src/kedra/crates/sysroot-catalog" }
-sysroot-linux = { path = "usr/src/kedra/crates/sysroot-linux" }
+sysroot-core = { path = "crates/sysroot-core" }
+sysroot-engine = { path = "crates/sysroot-engine" }
+sysroot-catalog = { path = "crates/sysroot-catalog" }
+sysroot-linux = { path = "crates/sysroot-linux" }
 clap = { version = "4.6.6", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

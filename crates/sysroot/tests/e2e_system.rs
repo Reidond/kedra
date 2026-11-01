@@ -211,7 +211,7 @@ impl Fixture {
         let mut command = self.cli(&["system", operation, "--repo"]);
         command
             .arg(self.path("repo"))
-            .args(["--target", "qemu-arm64", "--store"])
+            .args(["--target", native_target(), "--store"])
             .arg(self.path("store"))
             .args(["--foundation", foundation])
             .env("GIT_DIR", self.path("ambient-missing-git"))
@@ -285,8 +285,17 @@ fn digest(path: &Path) -> String {
         .collect()
 }
 
+/// The fixture target of the host architecture; composition is native.
+fn native_target() -> &'static str {
+    if sysroot_engine::RPM_ARCHITECTURE == "aarch64" {
+        "qemu-arm64"
+    } else {
+        "desktop"
+    }
+}
+
 fn empty_definition() -> Value {
-    json!({"schema":1,"platform":"aarch64-linux","foundation":FOUNDATION,"provenance":{},
+    json!({"schema":1,"platform":sysroot_engine::PLATFORM,"foundation":FOUNDATION,"provenance":{},
         "outputs":{},"required_packages":[],"removed_packages":[],"files":[]})
 }
 
@@ -296,10 +305,10 @@ fn system_cli_refuses_unsupported_target_and_mismatched_authoring() {
     f.repository();
     // Composition is native: the target of the other architecture is refused
     // before any store or Docker use.
-    let foreign = if sysroot_engine::RPM_ARCHITECTURE == "aarch64" {
-        "desktop"
-    } else {
+    let foreign = if native_target() == "desktop" {
         "qemu-arm64"
+    } else {
+        "desktop"
     };
     let mut command = f.cli(&["system", "plan", "--repo"]);
     refused(
@@ -559,7 +568,7 @@ chmod 755 "$1/bin/hello"
     let source_manifest: Value =
         serde_json::from_slice(&files["usr/share/sysroot/source.json"].1).unwrap();
     assert_eq!(source_manifest["source_revision"], revision);
-    assert_eq!(source_manifest["target"]["id"], "qemu-arm64");
+    assert_eq!(source_manifest["target"]["id"], native_target());
     assert_eq!(
         fs::read_to_string(first.join("Containerfile")).unwrap(),
         format!(

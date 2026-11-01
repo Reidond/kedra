@@ -8,8 +8,8 @@ description: Add or change Kedra targets, shared and target overlays, package se
 The repository root is the image filesystem. Shared packages (the `system`
 foundation and the `.kedra` packages in usr/src/kedra/image/packages/catalog.kedra,
 selected by image/package-inputs.json) and root etc/ and usr/ are assembled first;
-etc/skel/ is the home baseline and the usr/src/kedra/ development tree never
-enters the image. Each target has a block in catalog.kedra (architecture, extra
+etc/skel/ is the home baseline; the crates/ and usr/src/kedra/ development
+trees never enter the image. Each target has a block in catalog.kedra (architecture, extra
 Fedora packages, `.kedra` packages and its image steps) and a
 usr/src/kedra/image/targets/<target>/ directory (target.toml and the etc/ and
 usr/ overlay), applied with explicit same-path replacement. Report replaced

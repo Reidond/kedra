@@ -1,6 +1,6 @@
 # Build and environment engine
 
-[`sysroot-engine`](../crates/sysroot-engine/README.md) is the reusable
+[`sysroot-engine`](../../../../crates/sysroot-engine/README.md) is the reusable
 ordinary-user Rust library for immutable source objects, deterministic build
 graphs, isolated builds, runtime closures, retained profiles, static composition
 and recovery. The CLI exposes `sysroot build`, `store`, `run`, `profile`,
@@ -246,6 +246,6 @@ Engine/package rollback does not roll back systemd service state, databases,
 writable home, credentials, bootc deployments or registry tags. A bundle hash is
 content integrity, not publisher identity.
 
-Use the [library guide](../crates/sysroot-engine/README.md) for concrete APIs and
+Use the [library guide](../../../../crates/sysroot-engine/README.md) for concrete APIs and
 CLI examples, [SYSTEM](SYSTEM.md) for composition, [PACKAGES](PACKAGES.md) for
 authoring, and [STATUS](STATUS.md) for checks actually run.

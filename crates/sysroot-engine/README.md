@@ -11,7 +11,7 @@ aarch64 or x86_64 Linux, inside store root filesystems; no container daemon is
 involved. Planning/data types remain separate from Unix filesystem/execution code.
 Darwin and Windows execution, cross-architecture builds, `.nix`/nixpkgs
 compatibility and whole-OS construction are not supported. The [engine
-contract](../../docs/ENGINE.md) describes identities, roots and limits.
+contract](../../usr/src/kedra/docs/ENGINE.md) describes identities, roots and limits.
 
 ## Direct typed API
 
@@ -67,7 +67,7 @@ let source_object = source_identity(&files)?;
 ## Package frontend
 
 The owner-approved `.kedra` frontend lives in `sysroot-catalog::language`, outside
-this engine ([language contract](../../docs/PACKAGES.md#language-v1)). Its public
+this engine ([language contract](../../usr/src/kedra/docs/PACKAGES.md#language-v1)). Its public
 Rust path is explicit and typed:
 
 ```rust,ignore
@@ -158,7 +158,7 @@ When those commands select the language reader, they require an explicit input
 root, entry, target, lock and target policy; `fmt` instead operates only on its
 named files. Plan/build additionally require a catalog policy and either an exact
 role-resolution record or explicit builder/runtime identities. See the [package
-guide](../../docs/PACKAGES.md) for complete commands and schemas.
+guide](../../usr/src/kedra/docs/PACKAGES.md) for complete commands and schemas.
 
 ## Verification
 
@@ -177,7 +177,7 @@ cargo test -p sysroot --test e2e_engine --locked -- --include-ignored --test-thr
 ```
 
 Results of these and the other checks are recorded in [project
-status](../../docs/STATUS.md).
+status](../../usr/src/kedra/docs/STATUS.md).
 
 ## Integrity and recovery
 
@@ -193,7 +193,7 @@ read-only root, private `/tmp` and `/build`, a cleared environment,
 not mounted. Memory and process count are not bounded. The declared builder root is
 the coarse userspace foundation. Host kernel, CPU and ambient process details are
 not a universal purity/reproducibility guarantee. See the
-[engine contract](../../docs/ENGINE.md#execution-and-integrity) for roots.
+[engine contract](../../usr/src/kedra/docs/ENGINE.md#execution-and-integrity) for roots.
 
 Bundle import requires an independently expected whole-bundle hash, validates
 allowlisted members and complete references, then registers dependencies first.
@@ -225,8 +225,8 @@ and verified runtime closures over a retained Fedora foundation. `NativeDefiniti
 and `NativeStep` add closed declarations for GLib compilation, systemd links,
 initial account skeletons and generic initramfs regeneration. The model binds
 inputs and implementation; `sysroot derive` realizes them offline in BuildKit and
-validates the receipt. See [typed composition](../../docs/SYSTEM.md) and
-[native artifacts](../../docs/NATIVE.md).
+validates the receipt. See [typed composition](../../usr/src/kedra/docs/SYSTEM.md) and
+[native artifacts](../../usr/src/kedra/docs/NATIVE.md).
 
 ## Binary cache and temporary snapshots
 
@@ -238,7 +238,7 @@ validates the receipt. See [typed composition](../../docs/SYSTEM.md) and
 every staged object equals its record. `Store::build_with(.., Some(Substitution))`
 substitutes recorded nodes before building them and records cache misses. The
 registry is untrusted transport (`skopeo` with a private policy and home); see
-[the binary cache](../../docs/ENGINE.md#binary-cache).
+[the binary cache](../../usr/src/kedra/docs/ENGINE.md#binary-cache).
 
 ```sh
 sysroot store push --store STORE --object OUTPUT_ID --cache ghcr.io/OWNER/CACHE

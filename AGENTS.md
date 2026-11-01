@@ -55,15 +55,15 @@ before long work.
 ## Repository layout
 
 The root is the image filesystem: `etc/` and `usr/` are the shared payload,
-`etc/skel/` the home baseline. `usr/src/kedra/` is the development tree and never
-enters the image: `crates/` (workspace members, plus `tests/container/`), `image/`
+`etc/skel/` the home baseline. The development tree never enters the image: root
+`crates/` holds the Rust workspace members, and `usr/src/kedra/` holds `image/`
 (Containerfile, `assemble.sh`, `.kedra` packages, `targets/<target>/` overlays,
-release tooling, the closed `release/targets.json`), `installer/`, `tests/`,
-`plugins/`, `docs/`. The root also keeps `README.md`, this file, `CLAUDE.md`,
-`worklog.md`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `rustfmt.toml`,
-`.python-version`, `mise.toml`, `ruff.toml`, `cccc.toml` and dot directories; the
-source plan refuses any other top-level directory, other `usr/src/` content and
-unknown overlay files. `.github/workflows/release.yml` is bound into signed image
+release tooling, the closed `release/targets.json`), `installer/`, `tests/` (with
+the `tests/container/` workspace member), `plugins/`, `docs/`. The root also keeps
+`README.md`, this file, `CLAUDE.md`, `worklog.md`, `Cargo.toml`, `Cargo.lock`,
+`rust-toolchain.toml`, `rustfmt.toml`, `.python-version`, `mise.toml`, `ruff.toml`,
+`cccc.toml` and dot directories; the source plan refuses any other top-level
+directory, other `usr/src/` content and unknown overlay files. `.github/workflows/release.yml` is bound into signed image
 identity; never rename it.
 
 ## Settled choices
@@ -75,7 +75,7 @@ identity; never rename it.
   when the owner dispatches `iso.yml`, an installer ISO; no check or test workflow.
   Local ISO builds stay available; unsigned local builds are for testing only.
 - Rust edition 2024, one workspace and lockfile, pinned toolchain, rustfmt/Clippy,
-  flat `main.rs`/`lib.rs` (no `src/`) in `usr/src/kedra/crates/`. No TypeScript
+  flat `main.rs`/`lib.rs` (no `src/`) in root `crates/`. No TypeScript
   toolchain (superseded). Tools are pinned in `mise.toml`, including sccache
   (owner decision, 2026-10-19): once installed (`mise install`), mise wraps rustc
   with it and caches every checkout's compilations in the shared cache; without it

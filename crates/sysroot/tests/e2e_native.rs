@@ -387,7 +387,7 @@ impl Drop for Fixture {
 fn workspace_file(path: &str) -> Vec<u8> {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(5)
+        .nth(2)
         .unwrap();
     git(workspace, &["show", &format!("HEAD:{path}")]).stdout
 }

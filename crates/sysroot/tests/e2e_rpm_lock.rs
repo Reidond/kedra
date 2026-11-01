@@ -22,7 +22,7 @@ const BASE: &str = "quay.io/fedora/fedora-bootc@sha256:5c83705128303c5bca5134fbd
 const KEY: &str = "6d9f90a6";
 const INSTALLER: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../image/catalog/install-rpms.sh"
+    "/../../usr/src/kedra/image/catalog/install-rpms.sh"
 );
 /// Docker Official Images' Fedora 44 index (as tests/container/lab/inputs.Containerfile).
 const FEDORA: &str = "docker.io/library/fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80";

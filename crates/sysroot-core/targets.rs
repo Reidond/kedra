@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
-const TABLE: &str = include_str!("../../image/release/targets.json");
+const TABLE: &str = include_str!("../../usr/src/kedra/image/release/targets.json");
 
 /// One independently signed and published Kedra target.
 #[derive(Debug, Deserialize)]

@@ -28,7 +28,7 @@ path = "main.rs"
 harness = false
 
 [dependencies]
-sysroot-engine = { path = "../../crates/sysroot-engine" }
+sysroot-engine = { path = "../../../../../crates/sysroot-engine" }
 base64.workspace = true
 bytes = "1.11.1"
 clap.workspace = true

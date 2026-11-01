@@ -9,12 +9,15 @@ Read usr/src/kedra/docs/HOME.md, usr/src/kedra/docs/ARCHITECTURE.md ("Writable
 home") and references/state-model.md. Check usr/src/kedra/docs/STATUS.md for what
 actually passed.
 
-The image lists managed files in `usr/share/kedra/home-files.toml` (schema1):
-`path` plus optional `check` and `reload` argv with an absolute program and a
-`{file}` placeholder. `sysroot home` (crates/sysroot/home.rs, home/) knows no
+Managed files are `managed { content = file("./…"); check; reload; }` entries
+of a set's `home` in system/*.kedra; the source plan generates the image's list,
+`usr/share/kedra/home-files.toml` (schema1): `path` plus optional `check` and
+`reload` argv with an absolute program and a `{file}` placeholder. `sysroot
+derive` also runs each check on the image baseline (the `home_checks` step, as
+`nobody`, offline). `sysroot home` (crates/sysroot/home.rs, home/) knows no
 application. Never add app-specific Rust (version allow-lists, IPC clients,
-process-tree or service-unit checks, field projections); put behavior in the data
-file or in the application's own CLI. `sysroot doctor` runs the same checks on
+process-tree or service-unit checks, field projections); put behavior in the
+declaration or in the application's own CLI. `sysroot doctor` runs the same checks on
 live files as `home_file:<path>`.
 
 `update` merges with `git merge-file -p --diff3` over B (last applied baseline,
@@ -31,8 +34,9 @@ accounts get B from `/etc/skel/.local/state/kedra/home/applied/` (the `skel`
 derive step; the lab overlay repeats it in tests/container/lab/overlay-apply.sh);
 without B a differing file becomes a conflict, not an adoption.
 
-`capture` writes one live file to the checkout's source path (target overlay copy
-if the checkout has one, else `etc/skel/`) and never stages or commits; the owner
+`capture` writes one live file to the system/ file the installed image's source
+manifest records for it (a managed file is always a `file("./…")` resource;
+inline sources are refused) and never stages or commits; the owner
 picks lines with `git add -p`. Only declared files are read. Diffs show the
 owner's live content: review before staging, since staged text can become a
 public Git object. No symlinked or whole-home capture.

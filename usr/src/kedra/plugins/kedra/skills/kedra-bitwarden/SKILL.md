@@ -13,7 +13,7 @@ export a private key or generate a replacement because the vault is locked.
 ## Bundled package and SSH integration
 
 Bitwarden Desktop is the `bitwarden` catalog package
-(usr/src/kedra/image/packages/bitwarden.kedra) on both targets: the unchanged
+(system/packages/bitwarden.kedra) on both targets: the unchanged
 official Linux tarball per architecture (`bitwarden_2026.8.0_x64.tar.gz`,
 `_arm64.tar.gz`; the two differ only in the desktop-napi module name),
 SHA-256-pinned in packages.lock.json. Bitwarden publishes no signatures: compare a

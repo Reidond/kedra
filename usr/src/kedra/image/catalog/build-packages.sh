@@ -47,7 +47,8 @@ for name in sysroot store target lock base_id foundation revision inputs pins wo
         exit 2
     fi
 done
-language=(--input-root "$image/packages" --entry catalog.kedra --target "$target"
+# The catalog root: the checkout's system/ declarations.
+language=(--input-root "$(cd -- "$image/../../../.." && pwd)/system" --entry catalog.kedra --target "$target"
     --lock packages.lock.json --target-policy "$image/package-policy.json")
 mkdir -m 700 "$work"
 "$sysroot" store add-image --store "$store" --image "$base_id" > "$work/base.json"

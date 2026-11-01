@@ -271,7 +271,7 @@ def resolve_inputs(spec, args, plan, context):
     """
     base = resolve_base(spec, args.work)
     lock_path = args.work / 'rpm-lock.json'
-    run(BINARIES / 'sysroot', 'catalog', 'lock', 'resolve', '--input-root', ROOT / (IMAGE + 'packages'),
+    run(BINARIES / 'sysroot', 'catalog', 'lock', 'resolve', '--input-root', ROOT / 'system',
         '--entry', 'catalog.kedra', '--lock', 'packages.lock.json', '--target', spec['id'],
         '--target-policy', ROOT / (IMAGE + 'package-policy.json'), '--base', base, '--store', args.store,
         '--log-dir', args.work / 'rpm-resolution', '--output', lock_path, timeout=3600)

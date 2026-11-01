@@ -1,0 +1,39 @@
+language 1;
+// The QEMU virtual machine on Apple Silicon: serial console, display and input
+// in the initramfs, the GL renderer of its VirGL backend, and a guest agent
+// that grants the host no command, file or credential access.
+set qemu_guest {
+    fedora = ["qemu-guest-agent", "egl-utils"];
+    files = {
+        "/usr/lib/bootc/kargs.d/30-kedra-qemu-arm64-console.toml" = text """
+            # PL011 serial console for recovery and evidence capture (QEMU serial port);
+            # tty0 stays last so /dev/console remains the graphical console.
+            kargs = ["console=ttyAMA0,115200", "console=tty0"]
+            match-architectures = ["aarch64"]
+            """;
+        "/usr/lib/dracut/dracut.conf.d/40-kedra-qemu-graphics.conf" = text """
+            # The encrypted-root prompt runs before /usr is available. Include and load the
+            # native QEMU display and input drivers in the initramfs so Cocoa can display
+            # the prompt and deliver keyboard/tablet input.
+            force_drivers+=" virtio_gpu virtio_input "
+            """;
+        "/usr/lib/environment.d/70-kedra-qemu-arm64-graphics.conf" = text """
+            # Native QEMU 11 + VirGL/ANGLE Metal on Apple Silicon (qualified 2026-09-28).
+            # This backend exposes OpenGL ES through virgl, not Venus Vulkan. Keep GTK4 on
+            # its GL renderer; an explicit per-user renderer selection still takes priority.
+            GSK_RENDERER=${GSK_RENDERER:-gl}
+            """;
+        "/usr/lib/systemd/system/qemu-guest-agent.service.d/50-kedra-block-rpcs.conf" = text """
+            # A host guest-agent connection must not grant root command/file/password/key
+            # access. Fedora 44 defaults to no blocked RPCs; retain the explicit deny list.
+            [Service]
+            ExecStart=
+            ExecStart=/usr/bin/qemu-ga \
+              --method=virtio-serial \
+              --path=/dev/virtio-ports/org.qemu.guest_agent.0 \
+              -F${FSFREEZE_HOOK_PATHNAME} \
+              --block-rpcs=guest-exec,guest-exec-status,guest-file-close,guest-file-flush,guest-file-open,guest-file-read,guest-file-seek,guest-file-write,guest-set-user-password,guest-ssh-add-authorized-keys,guest-ssh-get-authorized-keys,guest-ssh-remove-authorized-keys \
+              $QEMU_GA_ARGS
+            """;
+    };
+}

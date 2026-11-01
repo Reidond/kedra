@@ -18,8 +18,8 @@ material with that preflight before it accepts realized outputs.
 
 ## Plan and compose
 
-The Kedra adapter resolves one committed source revision, including target overlay
-and home baselines, then observes an exact retained Fedora 44 image of the target's
+The Kedra adapter resolves one committed source revision, including the files and
+home baselines its `system/` declarations select, then observes an exact retained Fedora 44 image of the target's
 architecture, which must be the machine's own (`aarch64` for `qemu-arm64`,
 `x86_64` for `desktop`).
 All desired RPM names must already be present and removed names absent. Each

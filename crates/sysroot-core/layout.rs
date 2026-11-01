@@ -1,10 +1,9 @@
 //! Committed source layout.
 //!
-//! The repository root is the shared image filesystem: `etc/` and `usr/` are
-//! payload, `etc/skel/` is the home baseline, and `crates/` (the Rust
-//! workspace) and `usr/src/kedra/` are the development tree, which never enters
-//! the image. Package inputs and target
-//! overlays live under `usr/src/kedra/image/`.
+//! `system/` holds the `.kedra` modules that declare every target: packages,
+//! image files, the home baseline and image steps. `crates/` (the Rust
+//! workspace) and `usr/src/kedra/` are the development tree; nothing else is
+//! committed, and nothing enters an image except what `system/` declares.
 
-/// Package lists and per-target overlays.
+/// Independent package policy, image build and release tooling.
 pub const IMAGE: &str = "usr/src/kedra/image/";

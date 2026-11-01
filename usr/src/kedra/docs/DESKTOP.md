@@ -65,15 +65,16 @@ native application styling. This follows GLib's
 [vendor override mechanism](https://docs.gtk.org/gio/class.Settings.html#vendor-overrides)
 and GTK 3's [settings lookup](https://docs.gtk.org/gtk3/class.Settings.html).
 
-Shared defaults live under `etc/skel/.config/`; new accounts receive them as ordinary
-writable files. Target-specific monitor, scaling and hardware settings belong in a
-target overlay. Read the actual
-[niri configuration](../../../../etc/skel/.config/niri/config.kdl) and
-[Noctalia configuration](../../../../etc/skel/.config/noctalia/config.toml) for every
+Shared defaults are the `niri_desktop` set's home files
+([desktop.kedra](../../../../system/desktop.kedra)); new accounts receive them as
+ordinary writable files. Target-specific monitor, scaling and hardware settings
+belong in a set only that target uses. Read the actual
+[niri configuration](../../../../system/home/niri/config.kdl) and
+[Noctalia configuration](../../../../system/home/noctalia/config.toml) for every
 shortcut and appearance setting.
 
 The niri configuration, the Noctalia configuration and the Adwaita palette are plain
-[managed home files](HOME.md), declared in `usr/share/kedra/home-files.toml`.
+[managed home files](HOME.md), declared `managed` in `system/desktop.kedra`.
 `sysroot` has no niri- or Noctalia-specific code: after an OS update,
 `sysroot home update` merges the new image's defaults into your edits, validates the
 result with each application's own checker (`niri validate`,

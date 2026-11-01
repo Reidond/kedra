@@ -51,7 +51,16 @@ pub enum NativeStep {
         #[serde(default)]
         drivers: Vec<String>,
     },
+    /// Runs each declared check on its committed home baseline file, as `nobody`
+    /// with a scratch home and no network; `{file}` in an argument becomes the
+    /// baseline file's path. A check produces no output and changes nothing.
+    HomeChecks {
+        #[serde(deserialize_with = "crate::model::unique_map")]
+        checks: BTreeMap<String, Vec<String>>,
+    },
 }
+/// Placeholder a home check argument uses for the checked file's path.
+pub const CHECK_FILE: &str = "{file}";
 /// Picks the declared steps out of a verified parent composition, for example
 /// from a committed manifest among its files. It runs only after verification.
 pub type StepSelector<'a> = &'a dyn Fn(&SystemComposition) -> Result<Vec<NativeStep>>;
@@ -150,7 +159,7 @@ pub fn native_definition(
 /// Check and order a step declaration; authoring frontends call this to refuse
 /// an invalid declaration before anything is composed.
 pub fn normalize_native_steps(steps: &mut [NativeStep]) -> Result<()> {
-    if steps.is_empty() || steps.len() > 4 {
+    if steps.is_empty() || steps.len() > 5 {
         return Err(invalid("unsupported step count"));
     }
     let mut kinds = BTreeSet::new();
@@ -166,6 +175,7 @@ pub fn normalize_native_steps(steps: &mut [NativeStep]) -> Result<()> {
                 default_target,
             } => normalize_systemd(enable, disable, mask, default_target.as_deref())?,
             NativeStep::Initramfs { modules, drivers } => normalize_initramfs(modules, drivers)?,
+            NativeStep::HomeChecks { checks } => normalize_checks(checks)?,
             NativeStep::GlibSchemas | NativeStep::InitialSkel => {}
         }
     }
@@ -215,6 +225,17 @@ pub fn plan_native(
             "initial skeleton needs declared committed baseline files",
         ));
     }
+    for step in &definition.steps {
+        if let NativeStep::HomeChecks { checks } = step
+            && checks.keys().any(|path| {
+                !inputs
+                    .iter()
+                    .any(|input| input.path == format!("{HOME}{path}"))
+            })
+        {
+            return Err(invalid("home check names no committed baseline file"));
+        }
+    }
     let mut result = NativePlan {
         schema: 1,
         identity: String::new(),
@@ -253,7 +274,7 @@ fn selected(definition: &NativeDefinition, path: &str) -> bool {
         NativeStep::Systemd { .. } => {
             path.starts_with("/usr/lib/systemd/system/") || path.starts_with(SYSTEMD)
         }
-        NativeStep::InitialSkel => path.starts_with(HOME),
+        NativeStep::InitialSkel | NativeStep::HomeChecks { .. } => path.starts_with(HOME),
         NativeStep::Initramfs { .. } => {
             path.starts_with("/usr/lib/dracut/dracut.conf.d/")
                 || path.starts_with("/etc/dracut.conf.d/")
@@ -302,6 +323,25 @@ fn normalize_systemd(
     }
     Ok(())
 }
+/// Each check names a baseline file and an argv with an absolute program.
+fn normalize_checks(checks: &BTreeMap<String, Vec<String>>) -> Result<()> {
+    if checks.is_empty() || checks.len() > 256 {
+        return Err(invalid("invalid home check count"));
+    }
+    for (path, argv) in checks {
+        plan::relative(path, false)?;
+        let program = argv.first().ok_or_else(|| invalid("empty home check"))?;
+        absolute(program)?;
+        if argv.len() > 64
+            || argv
+                .iter()
+                .any(|argument| argument.len() > 4096 || argument.bytes().any(|b| b < 32))
+        {
+            return Err(invalid("invalid home check argument"));
+        }
+    }
+    Ok(())
+}
 /// Dracut modules are named like `rootfs-block`; kernel drivers like `virtio_gpu`.
 fn normalize_initramfs(modules: &mut [String], drivers: &mut [String]) -> Result<()> {
     if modules.is_empty() || modules.len() > 64 || drivers.len() > 32 {
@@ -331,6 +371,7 @@ fn order(step: &NativeStep) -> u8 {
         NativeStep::Systemd { .. } => 1,
         NativeStep::InitialSkel => 2,
         NativeStep::Initramfs { .. } => 3,
+        NativeStep::HomeChecks { .. } => 4,
     }
 }
 fn unit(name: &str) -> Result<()> {
@@ -396,6 +437,7 @@ pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -
             NativeStep::Initramfs { drivers, .. } => {
                 validate_kernels(drivers, receipt, &artifacts)?
             }
+            NativeStep::HomeChecks { .. } => {}
         }
     }
     if !expected
@@ -411,12 +453,7 @@ pub fn validate_native_receipt(expected: &NativePlan, receipt: &NativeReceipt) -
 }
 fn validate_tools(expected: &NativePlan, receipt: &NativeReceipt) -> Result<()> {
     let tools = native_tools(expected);
-    if receipt
-        .tools
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>()
-        != tools
+    if receipt.tools.keys().cloned().collect::<BTreeSet<_>>() != tools
         || receipt.tools.values().any(|hash| !plan::hex(hash))
     {
         return Err(invalid("unexpected or invalid installed tool inventory"));
@@ -523,19 +560,24 @@ fn validate_systemd_links(
 
 /// Exact image executables whose resolved bytes the guest records. The executor
 /// itself is bound by `driver_sha256`; it runs on the image's own C library.
-pub fn native_tools(plan: &NativePlan) -> BTreeSet<&'static str> {
-    let mut tools = BTreeSet::from(["/usr/bin/rpm"]);
+pub fn native_tools(plan: &NativePlan) -> BTreeSet<String> {
+    let mut tools = BTreeSet::from(["/usr/bin/rpm".to_owned()]);
     for step in &plan.definition.steps {
         match step {
             NativeStep::GlibSchemas => {
-                tools.insert("/usr/bin/glib-compile-schemas");
+                tools.insert("/usr/bin/glib-compile-schemas".into());
             }
             NativeStep::Systemd { .. } => {
-                tools.insert("/usr/bin/systemctl");
+                tools.insert("/usr/bin/systemctl".into());
             }
             NativeStep::InitialSkel => {}
             NativeStep::Initramfs { .. } => {
-                tools.extend(["/usr/bin/dracut", "/usr/bin/lsinitrd", "/usr/sbin/modinfo"]);
+                tools.extend(
+                    ["/usr/bin/dracut", "/usr/bin/lsinitrd", "/usr/sbin/modinfo"].map(String::from),
+                );
+            }
+            NativeStep::HomeChecks { checks } => {
+                tools.extend(checks.values().filter_map(|argv| argv.first().cloned()));
             }
         }
     }
@@ -611,7 +653,7 @@ fn allowed_artifact(
                     });
                 }
             }
-            NativeStep::GlibSchemas => {}
+            NativeStep::GlibSchemas | NativeStep::HomeChecks { .. } => {}
         }
     }
     Ok(false)

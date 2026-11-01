@@ -12,13 +12,13 @@ Bundled official CLIs are OS-management tools: catalog packages with a private
 /usr/bin/claude, add aliases or shadow personal PATH commands; a libexec export
 never reaches PATH, so `--runtime user` cannot find the bundled one. Ordinary
 codex/claude belong to the user's independently updated setup. Codex 0.153.4 is
-the `codex` package (usr/src/kedra/image/packages/codex.kedra) on both targets.
+the `codex` package (system/packages/codex.kedra) on both targets.
 Claude is not bundled until the owner accepts its preinstallation terms.
 Authenticated model use, MCP and skills remain unqualified.
 
 ## Bundled Codex package
 
-The Codex archive is one SHA-256 pin per architecture in packages.lock.json
+The Codex archive is one SHA-256 pin per architecture in system/packages.lock.json
 (`by_architecture` in codex.kedra). Provenance is checked when a pin is added or
 bumped, not in builds: `uv run usr/src/kedra/image/packages/verify-codex.py`
 verifies the Sigstore bundles of codex, codex-code-mode-host and bwrap (identity

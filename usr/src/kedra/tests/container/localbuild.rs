@@ -98,7 +98,7 @@ fn lock_objects(lock: &Path) -> Result<std::collections::BTreeSet<String>> {
 }
 
 /// Declared inputs of an RPM lock resolution, its shared cache key: the target,
-/// the Fedora base digest, the stage's lock inputs (`image/packages/`, the
+/// the Fedora base digest, the stage's lock inputs (`system/`, the
 /// target policy) and the resolver that runs: the host archiver, named by the
 /// key of all its source inputs (every Rust source, `Cargo.lock`, the toolchain
 /// and the host platform; [`builder::prepare_archiver`]), not by the stage's
@@ -115,7 +115,7 @@ fn lock_inputs(
         .and_then(|name| name.to_str())
         .ok_or_else(|| invalid("the host archiver has no source key"))?;
     let mut files = Vec::new();
-    collect_files(&snapshot.join("usr/src/kedra/image/packages"), &mut files)?;
+    collect_files(&snapshot.join("system"), &mut files)?;
     files.push(snapshot.join("usr/src/kedra/image/package-policy.json"));
     files.sort();
     let mut digests = serde_json::Map::new();
@@ -175,7 +175,7 @@ fn locked_rpms(
                 "lock".as_ref(),
                 "resolve".as_ref(),
                 "--input-root".as_ref(),
-                image.join("packages").as_os_str(),
+                snapshot.join("system").as_os_str(),
                 "--entry".as_ref(),
                 "catalog.kedra".as_ref(),
                 "--lock".as_ref(),
@@ -309,7 +309,7 @@ work=$HOME/catalog
 lock=$HOME/rpm-lock.json
 context=$HOME/context
 pins=$HOME/catalog-pins.json
-if test "$(sysroot catalog pins --input-root "$image/packages" --entry catalog.kedra --target "$target" \
+if test "$(sysroot catalog pins --input-root /snapshot/system --entry catalog.kedra --target "$target" \
     --lock packages.lock.json --target-policy "$image/package-policy.json" | jq '.packages | length')" = 0; then
     echo '{}'
     exit 0
@@ -685,7 +685,7 @@ pub fn local(
         let source = snapshot.join("usr/src/kedra/image").join(name);
         if !source.is_file() {
             return Err(invalid(format!(
-                "this stage has no usr/src/kedra/image/{name}; local builds need the root-filesystem layout"
+                "this stage has no usr/src/kedra/image/{name}; local builds need the system/ layout"
             )));
         }
         fs::copy(&source, context.join(name))?;

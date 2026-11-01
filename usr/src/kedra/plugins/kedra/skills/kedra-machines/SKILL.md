@@ -1,20 +1,21 @@
 ---
 name: kedra-machines
-description: Add or change Kedra targets, shared and target overlays, package selection, home source provenance, cross-target checks and independent updates without a fleet framework.
+description: Add or change Kedra targets, the system/ sets they compose, package selection, home source provenance, cross-target checks and independent updates without a fleet framework.
 ---
 
 # One repository, separate target releases
 
-The repository root is the image filesystem. Shared packages (the `system`
-foundation and the `.kedra` packages in usr/src/kedra/image/packages/catalog.kedra,
-selected by image/package-inputs.json) and root etc/ and usr/ are assembled first;
-etc/skel/ is the home baseline; the crates/ and usr/src/kedra/ development
-trees never enter the image. Each target has a block in catalog.kedra (architecture, extra
-Fedora packages, `.kedra` packages and its image steps) and a
-usr/src/kedra/image/targets/<target>/ directory (target.toml and the etc/ and
-usr/ overlay), applied with explicit same-path replacement. Report replaced
-paths. Use native app includes for content composition, not an arbitrary deep
-merge. Start with two levels; add shared laptop profiles only when actual
+system/ declares every target (image/package-inputs.json names system/catalog.kedra):
+the `system` foundation, sets of packages, image files, home baseline and units
+(base, login, desktop, ssh-agent, qemu), and one target block each in
+catalog.kedra (architecture, image, hardware, os_release, hide_autostart, image
+steps, `use` of sets). Small files are inline `text`; larger and managed home
+files are `file("./…")` beside the module. Sets compose; a path declared twice is
+refused with both origins, never replaced, so target-only files go in a set only
+that target uses (qemu.kedra). The crates/ and usr/src/kedra/ development trees
+never enter the image, and any other committed path, root etc/ and usr/
+included, is refused. Use native app includes for content composition, not an
+arbitrary deep merge. Start with two levels; add shared laptop profiles only when actual
 repeated hardware policy warrants them. No machine-specific long-lived branches
 or repos.
 
@@ -55,10 +56,10 @@ modes, fixes archive ownership/time, and rejects known credential paths and
 private-key markers. It never reads live homes or claims to detect every secret;
 public input review remains necessary.
 
-Record each home file's source path/revision/target/content hash/mode. Shared
-keybindings normally go to etc/skel/, monitor settings to
-usr/src/kedra/image/targets/<target>/etc/skel/ (`sysroot home capture` picks the
-target copy when the checkout has one). Provenance compares layer and
+Record each home file's source path/revision/target/content hash/mode; the
+source manifest records the source file and declaring set (`origin`). Shared
+keybindings go to the desktop set's home files, monitor settings to a set only
+that target uses (`sysroot home capture` writes to the file the image recorded). Provenance compares layer and
 home-relative path. Do not infer ownership from the deployed filename alone. A
 target override can hide a common file; show scope and all affected targets
 before publication. Ambiguous scope requires an explicit reviewed choice, not

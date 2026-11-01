@@ -1,37 +1,45 @@
 # Managed home files
 
-Live home files are ordinary writable files. The image names the few it manages
-in one data file, [`usr/share/kedra/home-files.toml`](../../../share/kedra/home-files.toml),
-and `sysroot home` keeps them in step with the image's baseline without losing
-your edits. `sysroot` itself knows no application: each entry carries its own
-check and reload commands. The image currently manages niri's `config.kdl`,
-Noctalia's `config.toml` and the Noctalia Adwaita palette; an excerpt:
+Live home files are ordinary writable files. A set's `home` declares the home
+baseline, and its `managed` entries are the few files `sysroot home` keeps in step
+with the image's baseline without losing your edits. `sysroot` itself knows no
+application: each entry carries its own check and reload commands. The image
+currently manages niri's `config.kdl`, Noctalia's `config.toml` and the Noctalia
+Adwaita palette ([desktop.kedra](../../../../system/desktop.kedra)); an excerpt:
 
-```toml
-schema_version = 1
-
-[[file]]
-path = ".config/niri/config.kdl"
-check = ["/usr/bin/niri", "validate", "--config", "{file}"]
-
-[[file]]
-path = ".config/noctalia/config.toml"
-check = ["/usr/bin/noctalia", "config", "validate", "{file}"]
-reload = ["/usr/bin/systemctl", "--user", "try-restart", "kedra-noctalia.service"]
+```text
+home = {
+    ".config/niri/config.kdl" = managed {
+        content = file("./home/niri/config.kdl");
+        check = ["/usr/bin/niri", "validate", "--config", "{file}"];
+    };
+    ".config/noctalia/config.toml" = managed {
+        content = file("./home/noctalia/config.toml");
+        check = ["/usr/bin/noctalia", "config", "validate", "{file}"];
+        reload = ["/usr/bin/systemctl", "--user", "try-restart", "kedra-noctalia.service"];
+    };
+};
 ```
 
-- `path` is relative to the home directory and to the image baseline in
-  `/usr/share/sysroot/home/default`, which comes from root `etc/skel/` and the
-  target overlay `usr/src/kedra/image/targets/<target>/etc/skel/`.
+- The path is relative to the home directory and to the image baseline in
+  `/usr/share/sysroot/home/default`. A plain `home` entry (inline text or a file)
+  only seeds new accounts; a `managed` entry must be a `file("./…")` resource,
+  which `capture` writes back to.
 - `check` validates a candidate before it replaces the live file. `{file}` is the
   candidate's path; the candidate sits in the live file's directory under a name
   no application loads (`.sysroot-check-<token>`), so relative includes resolve.
+  `sysroot derive` also runs each check on the image baseline, as `nobody` with a
+  scratch home and no network, so an image with an invalid baseline is not built.
 - `reload` runs once after the files that name it changed. niri needs none: it
   reloads its configuration itself when the file changes.
 - Both are argv with an absolute program, never shell text. Absent means none.
 
-To manage another file, add its baseline under `etc/skel/` and an entry here.
-Changing the data file needs an image update; it is not a home file.
+The source plan generates the image's list,
+`/usr/share/kedra/home-files.toml`, from the `managed` entries; changing it needs
+an image update.
+
+To manage another file, put it beside the module and declare it `managed` in a
+set the target uses.
 
 ## Commands
 
@@ -99,18 +107,18 @@ different one gets N beside it as `<file>.kedra-new` to merge by hand.
 
 ### capture
 
-`capture PATH --repo CHECKOUT` copies one live file into the checkout's source
-path for it: the target overlay's `etc/skel/` copy when the checkout has one for
-the installed target, otherwise the shared `etc/skel/`. It writes the working
+`capture PATH --repo CHECKOUT` copies one live file into the checkout's
+`system/` file the installed image built it from, as the image's source manifest
+records it (for example `system/home/niri/config.kdl`). It writes the working
 tree only; it never stages or commits. Pick the lines to keep with
 `git add -p -- <source path>` and discard the rest with `git restore`. The
-checkout must declare the installed target
-(`usr/src/kedra/image/targets/<target>/target.toml`).
+checkout must hold `system/catalog.kedra`.
 
 ## Privacy and safety
 
-- Only declared files are ever read. Credentials stay out unless a data-file
-  entry names them, which the source review of that file would show.
+- Only declared files are ever read. Credentials stay out unless a `managed`
+  entry names them, which the source review of that module would show; the
+  language refuses `.ssh`, `.codex`, `.claude`, `.cache` and credential files.
 - `status` diffs and `capture` copies show your live content to you. Review a
   diff before staging it: anything you stage can become a public Git object.
 - Writes go through `sysroot_linux::replace_file`: prepared privately beside the

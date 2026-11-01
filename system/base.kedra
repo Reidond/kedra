@@ -1,0 +1,20 @@
+language 1;
+// Settings every Kedra target shares: boot, management state and the welcome
+// document.
+set base {
+    files = {
+        "/usr/lib/bootc/kargs.d/20-kedra-console.toml" = text """
+            # Keep the login screen readable; boot messages remain available in the journal.
+            kargs = ["quiet"]
+            """;
+        "/usr/lib/tmpfiles.d/kedra-management.conf" = text """
+            d /var/lib/sysroot 0700 root root -
+            """;
+        "/usr/share/doc/kedra/START-HERE.md" = file("./doc/START-HERE.md");
+    };
+    systemd = systemd {
+        enable = ["NetworkManager.service", "bluetooth.service"];
+        // Updates are staged by `sysroot`, never fetched and applied behind the user.
+        mask = ["bootc-fetch-apply-updates.service", "bootc-fetch-apply-updates.timer"];
+    };
+}

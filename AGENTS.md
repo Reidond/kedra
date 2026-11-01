@@ -54,16 +54,20 @@ before long work.
 
 ## Repository layout
 
-The root is the image filesystem: `etc/` and `usr/` are the shared payload,
-`etc/skel/` the home baseline. The development tree never enters the image: root
-`crates/` holds the Rust workspace members, and `usr/src/kedra/` holds `image/`
-(Containerfile, `assemble.sh`, `.kedra` packages, `targets/<target>/` overlays,
-release tooling, the closed `release/targets.json`), `installer/`, `tests/` (with
-the `tests/container/` workspace member), `plugins/`, `docs/`. The root also keeps
-`README.md`, this file, `CLAUDE.md`, `worklog.md`, `Cargo.toml`, `Cargo.lock`,
-`rust-toolchain.toml`, `rustfmt.toml`, `.python-version`, `mise.toml`, `ruff.toml`,
-`cccc.toml` and dot directories; the source plan refuses any other top-level
-directory, other `usr/src/` content and unknown overlay files. `.github/workflows/release.yml` is bound into signed image
+`system/` declares every target in `.kedra` modules: `catalog.kedra` (the entry:
+foundation, builders, targets), sets of packages, image files, home baseline and
+units (`base`, `login`, `desktop`, `ssh-agent`, `qemu`), `packages/` recipes,
+`packages.lock.json`, and the larger files they reference (`home/`, `doc/`).
+Nothing enters an image unless a module there declares it. The development tree
+never enters the image: root `crates/` holds the Rust workspace members, and
+`usr/src/kedra/` holds `image/` (Containerfile, `assemble.sh`, package descriptor
+and policy, release tooling, the closed `release/targets.json`), `installer/`,
+`tests/` (with the `tests/container/` workspace member), `plugins/`, `docs/`. The
+root also keeps `README.md`, this file, `CLAUDE.md`, `worklog.md`, `Cargo.toml`,
+`Cargo.lock`, `rust-toolchain.toml`, `rustfmt.toml`, `.python-version`,
+`mise.toml`, `ruff.toml`, `cccc.toml` and dot directories; the source plan refuses
+any other committed path, including root `etc/` and `usr/` outside
+`usr/src/kedra/`. `.github/workflows/release.yml` is bound into signed image
 identity; never rename it.
 
 ## Settled choices
@@ -84,9 +88,14 @@ identity; never rename it.
   ([PACKAGES.md](usr/src/kedra/docs/PACKAGES.md#language-v1)) is the one narrow
   language exception: Rust parses and checks data, inline author shell runs only in
   admitted engine builders, no general configuration interpreter or deployment
-  authority.
-- Shared root-filesystem inputs, explicit target overlays, independent per-target
-  signed releases. Never guess the future XPS hardware or disk/device IDs.
+  authority. Owner decision (2026-10-31): the same language declares the whole
+  system, not only packages: image files (small ones inline), the home baseline
+  and managed home files with their checks, units, target metadata and
+  foundation edits, composed from sets by `use` without overrides; still data
+  only, with no evaluation, functions or conditionals.
+- Targets compose shared `system/` sets plus their own, with independent
+  per-target signed releases. Never guess the future XPS hardware or disk/device
+  IDs.
 - Live home files are writable: review and stage by line, keep unstaged and
   local-only changes, no read-only home symlinks.
 - Bundled agents are private binaries reached through `sysroot`, not plain

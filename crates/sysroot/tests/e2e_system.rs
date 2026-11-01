@@ -172,26 +172,49 @@ impl Fixture {
 
     fn repository(&self) -> String {
         self.git(&["init", "-q", "--template=", "-b", "fixture"]);
-        self.write_source(&format!("{IMAGE}/packages.list"), "bash\n");
-        self.write_source(&format!("{IMAGE}/remove.list"), "# none\n");
         self.write_source(
-            &format!("{IMAGE}/targets/qemu-arm64/packages.list"),
-            "# none\n",
+            &format!("{IMAGE}/package-inputs.json"),
+            r#"{"schema_version":1,"format":"kedra","entry":"system/catalog.kedra","lock":"system/packages.lock.json"}"#,
         );
-        self.write_source(&format!("{IMAGE}/targets/qemu-arm64/target.toml"),
-            "id='qemu-arm64'\narchitecture='aarch64'\nimage='ghcr.io/reidond/kedra-qemu-arm64'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n");
+        let required = json!([
+            "niri",
+            "noctalia",
+            "greetd",
+            "tuigreet",
+            "NetworkManager",
+            "pipewire",
+            "wireplumber",
+            "polkit",
+            "gnome-keyring",
+            "gnome-keyring-pam"
+        ]);
         self.write_source(
-            &format!("{IMAGE}/targets/desktop/packages.list"),
-            "# none\n",
+            &format!("{IMAGE}/package-policy.json"),
+            &json!({"schema_version":1,"namespace":"kedra","targets":["desktop","qemu-arm64"],
+                "repositories":["fedora","updates"],"required_packages":required})
+            .to_string(),
         );
-        self.write_source(&format!("{IMAGE}/targets/desktop/target.toml"),
-            "id='desktop'\narchitecture='x86_64'\nimage='ghcr.io/reidond/kedra-desktop'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n");
-        self.write_source("etc/kedra-fixture.conf", "baseline\n");
-        self.write_source("etc/committed-fixture.conf", "committed\n");
         self.write_source(
-            "etc/skel/.config/fixture/settings",
-            "writable-home-baseline\n",
+            "system/packages.lock.json",
+            r#"{"schema_version":1,"sources":{}}"#,
         );
+        let steps = "glib_schemas = true; systemd = systemd { default_target = \"graphical.target\"; }; skel = true; initramfs = initramfs { modules = [\"bootc\", \"ostree\", \"crypt\", \"dm\", \"rootfs-block\", \"qemu\"]; drivers = [\"virtio_dma_buf\", \"virtio_gpu\", \"virtio_input\"]; };";
+        let target = |id: &str, architecture: &str| {
+            format!(
+                "target \"{id}\" {{ architecture = \"{architecture}\"; image = \"ghcr.io/reidond/kedra-{id}\"; hardware = \"synthetic\"; foundation = system; use = [fixture]; {steps} }}\n"
+            )
+        };
+        self.write_source(
+            "system/catalog.kedra",
+            &format!(
+                "language 1;\nnamespace \"kedra\";\nfoundation system {{ fedora = 44; packages = {}; }}\n\
+                 set fixture {{\n    fedora = [\"bash\"];\n    files = {{\n        \"/etc/kedra-fixture.conf\" = text \"baseline\\n\";\n        \"/etc/committed-fixture.conf\" = file(\"./committed-fixture.conf\");\n    }};\n    home = {{\n        \".config/fixture/settings\" = text \"writable-home-baseline\\n\";\n    }};\n}}\n{}{}",
+                required,
+                target("qemu-arm64", "aarch64"),
+                target("desktop", "x86_64")
+            ),
+        );
+        self.write_source("system/committed-fixture.conf", "committed\n");
         self.commit()
     }
 
@@ -381,7 +404,7 @@ fn main() {
             files: vec![
                 SystemFile { path: "/etc/kedra-fixture.conf".into(), mode: 0o644,
                     provenance: "fixture.config".into(), priority: 10,
-                    replaces: Some("kedra-source:etc/kedra-fixture.conf".into()),
+                    replaces: Some("kedra-source:system/catalog.kedra".into()),
                     content: SystemContent::Bytes(format!("version={}\n", args[4]).into_bytes()) },
                 SystemFile { path: "/usr/lib/systemd/system/kedra-fixture.service".into(), mode: 0o644,
                     provenance: "fixture.unit".into(), priority: 0, replaces: None,
@@ -577,8 +600,14 @@ chmod 755 "$1/bin/hello"
         )
     );
 
-    f.write_source("etc/committed-fixture.conf", "uncommitted-must-not-enter\n");
-    f.write_source("etc/untracked-fixture.conf", "untracked-must-not-enter\n");
+    f.write_source(
+        "system/committed-fixture.conf",
+        "uncommitted-must-not-enter\n",
+    );
+    f.write_source(
+        "system/untracked-fixture.conf",
+        "untracked-must-not-enter\n",
+    );
     let repeated = f.path("context-repeat");
     let repeat = json_output(f.system(
         "compose",

@@ -90,7 +90,7 @@ def catalog_pins(root, binaries, target, destination):
     file, so no caller-supplied pin file or claimed hash is ever trusted.
     """
     process = subprocess.run([str(binaries / 'sysroot'), 'catalog', 'pins',
-                              '--input-root', str(root / (IMAGE + 'packages')),
+                              '--input-root', str(root / 'system'),
                               '--entry', 'catalog.kedra', '--lock', 'packages.lock.json',
                               '--target', target, '--target-policy', str(root / (IMAGE + 'package-policy.json'))],
                              stdin=subprocess.DEVNULL, capture_output=True, timeout=60, check=False)

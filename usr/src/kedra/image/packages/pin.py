@@ -57,7 +57,8 @@ def main():
     parser.add_argument('--name', required=True, help='pin name the .kedra archive refers to')
     parser.add_argument('--url', required=True)
     parser.add_argument('--sysroot', type=pathlib.Path, required=True, help='Linux sysroot binary')
-    parser.add_argument('--lock', type=pathlib.Path, default=HERE / 'packages.lock.json')
+    parser.add_argument('--lock', type=pathlib.Path,
+                        default=HERE.parents[4] / 'system/packages.lock.json')
     parser.add_argument('--archive', type=pathlib.Path, help='already downloaded archive of --url')
     parser.add_argument('--sha256', help='required archive SHA-256, for example a verified one')
     args = parser.parse_args()

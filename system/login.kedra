@@ -1,0 +1,24 @@
+language 1;
+// greetd with tuigreet starts the niri session through kedra-session.
+set login {
+    files = {
+        "/etc/greetd/config.toml" = text """
+            [terminal]
+            vt = 1
+
+            [default_session]
+            command = "/usr/bin/tuigreet --time --remember --cmd /usr/libexec/kedra-session"
+            user = "greetd"
+            """;
+        "/usr/libexec/kedra-session" = executable(text """
+            #!/bin/sh
+            # Preserve an explicit personal SSH agent; default new sessions to Bitwarden.
+            : "${SSH_AUTH_SOCK:=$HOME/.bitwarden-ssh-agent.sock}"
+            export SSH_AUTH_SOCK
+            exec /usr/bin/niri-session
+            """);
+    };
+    systemd = systemd {
+        enable = ["greetd.service"];
+    };
+}

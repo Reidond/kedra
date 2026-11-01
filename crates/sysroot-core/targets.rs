@@ -12,7 +12,7 @@ const TABLE: &str = include_str!("../../usr/src/kedra/image/release/targets.json
 pub struct Spec {
     #[serde(skip)]
     pub target: String,
-    /// Rust, RPM, `target.toml` and signed-scope architecture name.
+    /// Rust, RPM, `.kedra` target and signed-scope architecture name.
     pub architecture: String,
     /// OCI image configuration and bootc status architecture name.
     pub oci_architecture: String,
@@ -27,7 +27,7 @@ struct Table {
 }
 
 /// The embedded table; malformed or oversized input yields no enabled target.
-fn targets() -> &'static [Spec] {
+pub fn targets() -> &'static [Spec] {
     static TARGETS: OnceLock<Vec<Spec>> = OnceLock::new();
     TARGETS.get_or_init(|| {
         if TABLE.len() > 16_384 {

@@ -179,12 +179,9 @@ fn source_plan(repo: PathBuf, host: String, json: bool) -> Result<(), Box<dyn st
         println!("Remove packages: {}", plan.remove_packages.join(", "));
         for file in plan.files {
             println!(
-                "{} <- {} [{}]",
-                file.destination, file.source_path, file.mode
+                "{} <- {} ({}) [{}]",
+                file.destination, file.source_path, file.origin, file.mode
             );
-            if let Some(replaced) = file.replaces {
-                println!("  replaces {replaced}");
-            }
         }
         println!("Uncommitted edits are excluded and remain untouched.");
     }

@@ -237,7 +237,7 @@ impl<'a> Lexer<'a> {
         self.offset = delimiter + 3;
         if bytes
             .get(self.offset)
-            .is_some_and(|c| !b";,]} \n\t".contains(c))
+            .is_some_and(|c| !b";,]}) \n\t".contains(c))
         {
             return Err(self.error("literal", "raw closing delimiter must stand alone"));
         }

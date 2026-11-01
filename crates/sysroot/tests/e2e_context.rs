@@ -230,17 +230,27 @@ impl Fixture {
     fn repository(&self) {
         let repo = self.producer("repo");
         fs::create_dir(&repo).unwrap();
+        let required = r#"["niri","noctalia","greetd","tuigreet","NetworkManager","pipewire","wireplumber","polkit","gnome-keyring","gnome-keyring-pam"]"#;
+        let policy = format!(
+            r#"{{"schema_version":1,"namespace":"kedra","targets":["desktop","qemu-arm64"],"repositories":["fedora","updates"],"required_packages":{required}}}"#
+        );
+        let catalog = format!(
+            "language 1;\nnamespace \"kedra\";\nfoundation system {{ fedora = 44; packages = {required}; }}\n\
+             target \"qemu-arm64\" {{ architecture = \"aarch64\"; image = \"ghcr.io/reidond/kedra-qemu-arm64\"; hardware = \"synthetic\"; foundation = system; fedora = [\"bash\"];\n\
+             glib_schemas = true; systemd = systemd {{ default_target = \"graphical.target\"; }}; skel = true;\n\
+             initramfs = initramfs {{ modules = [\"bootc\", \"ostree\", \"crypt\", \"dm\", \"rootfs-block\", \"qemu\"]; drivers = [\"virtio_dma_buf\", \"virtio_gpu\", \"virtio_input\"]; }}; }}\n"
+        );
         for (path, bytes) in [
-            ("usr/src/kedra/image/packages.list", "bash\n"),
-            ("usr/src/kedra/image/remove.list", "# none\n"),
             (
-                "usr/src/kedra/image/targets/qemu-arm64/packages.list",
-                "# none\n",
+                "usr/src/kedra/image/package-inputs.json",
+                r#"{"schema_version":1,"format":"kedra","entry":"system/catalog.kedra","lock":"system/packages.lock.json"}"#,
             ),
+            ("usr/src/kedra/image/package-policy.json", policy.as_str()),
             (
-                "usr/src/kedra/image/targets/qemu-arm64/target.toml",
-                "id='qemu-arm64'\narchitecture='aarch64'\nimage='ghcr.io/reidond/kedra-qemu-arm64'\nfedora_release=44\ncandidate_target=true\nhardware_status='synthetic'\n",
+                "system/packages.lock.json",
+                r#"{"schema_version":1,"sources":{}}"#,
             ),
+            ("system/catalog.kedra", catalog.as_str()),
         ] {
             let path = repo.join(path);
             fs::create_dir_all(path.parent().unwrap()).unwrap();

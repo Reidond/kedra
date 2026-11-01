@@ -112,15 +112,10 @@ fn select(name: &str, options: &Options, home: &Path) -> Result<Selection> {
     let checkout = PathBuf::from(top.trim()).canonicalize()?;
     // --host only tells the agent which target to edit; it never selects a machine.
     let host = &options.host;
-    let declaration = checkout
-        .join(sysroot_core::layout::IMAGE)
-        .join("targets")
-        .join(host)
-        .join("target.toml");
-    if !host
-        .bytes()
-        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-        || !declaration.is_file()
+    if !checkout.join("system/catalog.kedra").is_file()
+        || !sysroot_core::targets::targets()
+            .iter()
+            .any(|spec| spec.target == *host)
     {
         return Err(format!(
             "{host:?} is not a target declared in {}",

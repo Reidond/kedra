@@ -1,4 +1,5 @@
-//! Versioned package input selection over one already frozen Git tree.
+//! Versioned system and package input selection over one already frozen Git
+//! tree: the `.kedra` modules under `system/` declare everything a target is.
 use crate::source::{Entry, Error, blob, git};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -8,6 +9,8 @@ use sysroot_catalog::language::{self, Lockfile, TargetPolicy};
 use sysroot_engine::NativeStep;
 
 const IMAGE: &str = "usr/src/kedra/image/";
+/// The admitted catalog root: every module and `file("./…")` resource.
+pub(crate) const SYSTEM: &str = "system/";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -30,9 +33,7 @@ pub(crate) struct Frontend {
 }
 
 pub(crate) struct Selection {
-    pub packages: BTreeSet<String>,
-    pub remove: BTreeSet<String>,
-    pub native_steps: Vec<sysroot_engine::NativeStep>,
+    pub intent: language::Intent,
     pub frontend: Frontend,
 }
 
@@ -101,27 +102,11 @@ fn require_image_steps(host: &str, steps: &[NativeStep]) -> Result<(), Error> {
     Ok(())
 }
 
-pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<Selection>, Error> {
+pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Selection, Error> {
     let descriptor_path = format!("{IMAGE}package-inputs.json");
-    let selected = tree.iter().any(|e| e.path == descriptor_path);
-    let has_language = tree
-        .iter()
-        .any(|e| e.path.starts_with(&format!("{IMAGE}packages/")) && e.path.ends_with(".kedra"));
-    if !selected {
-        if has_language {
-            return Err(invalid(
-                "new-language source lacks explicit package format descriptor",
-            ));
-        }
-        return Ok(None);
-    }
-    if tree.iter().any(|e| {
-        e.path == format!("{IMAGE}packages.list")
-            || e.path == format!("{IMAGE}remove.list")
-            || e.path.starts_with(&format!("{IMAGE}targets/")) && e.path.ends_with("/packages.list")
-    }) {
+    if !tree.iter().any(|e| e.path == descriptor_path) {
         return Err(invalid(
-            "source mixes authoritative language and package lists",
+            "source lacks the system/ declaration descriptor (usr/src/kedra/image/package-inputs.json)",
         ));
     }
     let descriptor_bytes = read(repo, tree, &descriptor_path)?;
@@ -129,14 +114,14 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
         .map_err(|_| invalid("invalid package format descriptor"))?;
     if descriptor.schema_version != 1
         || descriptor.format != "kedra"
-        || descriptor.entry != "packages/catalog.kedra"
-        || descriptor.lock != "packages/packages.lock.json"
+        || descriptor.entry != "system/catalog.kedra"
+        || descriptor.lock != "system/packages.lock.json"
     {
         return Err(invalid(
             "unsupported package format/version/entry descriptor",
         ));
     }
-    let root = format!("{IMAGE}packages/");
+    let root = SYSTEM;
     let policy_path = format!("{IMAGE}package-policy.json");
     let policy_bytes = read(repo, tree, &policy_path)?;
     let policy: TargetPolicy = serde_json::from_slice(&policy_bytes)
@@ -165,7 +150,7 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
             "package policy relaxes the independent Kedra target/base contract",
         ));
     }
-    let lock_path = format!("{IMAGE}{}", descriptor.lock);
+    let lock_path = descriptor.lock.clone();
     let lock_bytes = read(repo, tree, &lock_path)?;
     let lock: Lockfile =
         serde_json::from_slice(&lock_bytes).map_err(|_| invalid("invalid source pin lockfile"))?;
@@ -176,8 +161,8 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
     ]);
     let entry = descriptor
         .entry
-        .strip_prefix("packages/")
-        .ok_or_else(|| invalid("entry outside package root"))?;
+        .strip_prefix(SYSTEM)
+        .ok_or_else(|| invalid("entry outside the system/ root"))?;
     let mut pending = vec![entry.to_owned()];
     let mut modules = BTreeMap::new();
     let mut total = descriptor_bytes.len() + policy_bytes.len() + lock_bytes.len();
@@ -208,27 +193,30 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
     let intent = language::compile(&modules, entry, host, lock, &policy)
         .map_err(|e| Error::Invalid(e.to_string()))?;
     require_image_steps(host, &intent.native_steps)?;
+    let mut contents = Vec::new();
     for recipe in intent.recipes.values() {
-        let mut contents = vec![&recipe.build];
+        contents.push(&recipe.build);
         if let language::SourceIntent::Files(files) = &recipe.source {
             contents.extend(files.values());
         }
         contents.extend(recipe.files.values());
         contents.extend(recipe.replace_files.values());
         contents.extend(recipe.patches.iter().map(|p| &p.content));
-        for content in contents {
-            if let language::Content::File { path, .. } = content {
-                let full = format!("{root}{path}");
-                if inputs.contains_key(&full) {
-                    continue;
-                }
-                let bytes = read(repo, tree, &full)?;
-                total += bytes.len();
-                if total > language::MAX_TOTAL {
-                    return Err(invalid("committed resource bytes exceeded"));
-                }
-                inputs.insert(full, hash(&bytes));
+    }
+    contents.extend(intent.files.values().map(|file| &file.content));
+    contents.extend(intent.home.values().map(|home| &home.content));
+    for content in contents {
+        if let language::Content::File { path, .. } = content {
+            let full = format!("{root}{path}");
+            if inputs.contains_key(&full) {
+                continue;
             }
+            let bytes = read(repo, tree, &full)?;
+            total += bytes.len();
+            if total > language::MAX_TOTAL {
+                return Err(invalid("committed resource bytes exceeded"));
+            }
+            inputs.insert(full, hash(&bytes));
         }
     }
     if intent.remove.iter().any(|name| {
@@ -245,10 +233,7 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
         &serde_json::to_value(&intent).map_err(|_| invalid("cannot encode intent"))?,
     )
     .map_err(|_| invalid("cannot encode intent"))?;
-    Ok(Some(Selection {
-        packages: intent.packages.clone(),
-        remove: intent.remove.clone(),
-        native_steps: intent.native_steps.clone(),
+    Ok(Selection {
         frontend: Frontend {
             schema_version: 1,
             format: "kedra".into(),
@@ -262,5 +247,6 @@ pub(crate) fn select(repo: &Path, tree: &[Entry], host: &str) -> Result<Option<S
                 .map(|key| intent.recipes[key].name.clone())
                 .collect(),
         },
-    }))
+        intent,
+    })
 }

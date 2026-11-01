@@ -1,10 +1,11 @@
 //! Unprivileged source planning/assembly; never linked into the privileged helper.
-use serde::{Deserialize, Serialize};
+use crate::source_packages::SYSTEM;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::{fmt, path::Path, process::Command};
-use sysroot_core::layout;
+use sysroot_catalog::language::{Content, Intent, OsReleaseIntent};
 
 #[derive(Debug)]
 pub enum Error {
@@ -34,8 +35,7 @@ fn text(b: &[u8]) -> Result<&str, Error> {
     std::str::from_utf8(b).map_err(|_| invalid("input must be UTF-8"))
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Serialize)]
 pub struct Target {
     pub id: String,
     pub architecture: String,
@@ -46,13 +46,20 @@ pub struct Target {
 }
 #[derive(Debug, Serialize)]
 pub struct File {
+    /// The committed file that holds the bytes: a `file("./…")` resource, or
+    /// the module of an inline literal or a generated manifest.
     pub source_path: String,
+    /// The declaring set or target, `system/<module>#<declaration>`.
+    pub origin: String,
     pub destination: String,
-    pub git_blob: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_blob: Option<String>,
     pub sha256: String,
     pub mode: String,
-    pub replaces: Option<String>,
     pub home_baseline: bool,
+    /// Frozen with the plan; materialization checks them against `sha256`.
+    #[serde(skip)]
+    bytes: Vec<u8>,
 }
 #[derive(Debug, Serialize)]
 pub struct Plan {
@@ -65,8 +72,12 @@ pub struct Plan {
     /// The target's image steps (`sysroot derive`), declared in its `.kedra` block.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub native_steps: Vec<sysroot_engine::NativeStep>,
+    /// Foundation edits `image/assemble.sh` applies to RPM-owned files.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) package_frontend: Option<crate::source_packages::Frontend>,
+    pub os_release: Option<OsReleaseIntent>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub hide_autostart: BTreeMap<String, BTreeSet<String>>,
+    pub(crate) package_frontend: crate::source_packages::Frontend,
     pub files: Vec<File>,
 }
 pub(crate) struct Entry {
@@ -74,6 +85,11 @@ pub(crate) struct Entry {
     pub(crate) blob: String,
     pub(crate) path: String,
 }
+
+/// The managed home file list `sysroot home` reads, generated from the
+/// declarations' `managed` home files.
+pub const HOME_FILES: &str = "usr/share/kedra/home-files.toml";
+const HOME_BASELINE: &str = "usr/share/sysroot/home/default/";
 
 pub(crate) fn git(repo: &Path, args: &[&str]) -> Result<Vec<u8>, Error> {
     let mut command = Command::new("git");
@@ -108,6 +124,12 @@ fn safe_path(s: &str) -> bool {
         && !s.contains(['\\', ':'])
         && !s.chars().any(char::is_control)
         && s.split('/').all(|p| !matches!(p, "" | "." | ".." | ".git"))
+}
+fn sha256(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 fn private_payload(root: &str, rest: &str) -> bool {
@@ -170,31 +192,6 @@ pub(crate) fn blob(repo: &Path, entry: &Entry) -> Result<Vec<u8>, Error> {
     }
     git(repo, &["cat-file", "blob", &entry.blob])
 }
-fn package_list(repo: &Path, tree: &[Entry], path: &str) -> Result<BTreeSet<String>, Error> {
-    let entry = tree
-        .iter()
-        .find(|e| e.path == path)
-        .ok_or_else(|| invalid(format!("missing committed {path}")))?;
-    let bytes = blob(repo, entry)?;
-    let mut result = BTreeSet::new();
-    for line in text(&bytes)?.lines() {
-        let name = line.split('#').next().unwrap_or_default().trim();
-        if name.is_empty() {
-            continue;
-        }
-        if !name.as_bytes()[0].is_ascii_alphanumeric()
-            || !name
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"+._-".contains(&b))
-        {
-            return Err(invalid(format!(
-                "{path}: expected an RPM name, found {name:?}"
-            )));
-        }
-        result.insert(name.into());
-    }
-    Ok(result)
-}
 
 /// Resolve HEAD once; read its blobs without filters, hooks, index or working files.
 /// This plan describes committed inputs, not build success or deployment eligibility.
@@ -207,157 +204,52 @@ pub fn plan(repo: &Path, host: &str) -> Result<Plan, Error> {
     plan_committed(repo, host, revision, "committed HEAD only")
 }
 
-/// Committed input paths of one target. See `sysroot_core::layout`.
-struct Inputs {
-    target: String,
-    packages: [String; 2],
-    remove: String,
-    overlay: String,
-}
-
-impl Inputs {
-    fn new(host: &str) -> Self {
-        let image = layout::IMAGE;
-        Self {
-            target: format!("{image}targets/{host}/target.toml"),
-            packages: [
-                format!("{image}packages.list"),
-                format!("{image}targets/{host}/packages.list"),
-            ],
-            remove: format!("{image}remove.list"),
-            overlay: format!("{image}targets/{host}/"),
-        }
-    }
-
-    /// Payload root (`etc`, `usr` or `home`) and the path below it, for a path
-    /// relative to the shared root or the target overlay. Anything the layout
-    /// does not recognize is refused rather than silently left out.
-    fn payload<'a>(
-        &self,
-        shared: bool,
-        path: &str,
-        relative: &'a str,
-    ) -> Result<Option<(&'static str, &'a str)>, Error> {
-        let directory = |path: &str| invalid(format!("payload root must be a directory: {path}"));
-        if matches!(relative, "etc" | "usr" | "etc/skel") {
-            return Err(directory(path));
-        }
-        let Some((top, rest)) = relative.split_once('/') else {
-            // Root files are never payload; an overlay holds only its declarations.
-            if shared
-                || matches!(
-                    relative,
-                    "target.toml" | "packages.list" | "README.md" | ".gitkeep"
-                )
-            {
-                return Ok(None);
-            }
-            return Err(invalid(format!(
-                "unexpected file in target overlay: {path}"
-            )));
+/// Only `system/` declares what enters an image. Root `etc/` and `usr/` are no
+/// longer payload, so a committed file there is refused rather than ignored;
+/// `crates/`, `usr/src/kedra/` and dot directories are development source.
+fn refuse_payload_directories(tree: &[Entry]) -> Result<(), Error> {
+    for entry in tree {
+        let Some((top, rest)) = entry.path.split_once('/') else {
+            continue;
         };
-        match top {
-            "etc" => Ok(Some(match rest.strip_prefix("skel/") {
-                Some(home) => ("home", home),
-                None => ("etc", rest),
-            })),
-            "usr" if rest == "src" || rest.starts_with("src/") => {
-                if shared && rest.starts_with("src/kedra/") {
-                    Ok(None)
-                } else {
-                    Err(invalid(format!(
-                        "usr/src/ holds only the usr/src/kedra/ development tree: {path}"
-                    )))
-                }
-            }
-            "usr" => Ok(Some(("usr", rest))),
-            // The Rust workspace is development source, like usr/src/kedra/.
-            "crates" if shared => Ok(None),
-            _ if shared && top.starts_with('.') => Ok(None),
-            _ => Err(invalid(format!(
-                "unexpected directory {top}/ at {path}; only etc/ and usr/ form the image filesystem"
-            ))),
+        let development = matches!(top, "system" | "crates")
+            || top.starts_with('.')
+            || top == "usr" && rest.starts_with("src/kedra/");
+        if !development {
+            return Err(invalid(format!(
+                "unexpected committed path {}; image files and the home baseline are declared in system/*.kedra",
+                entry.path
+            )));
         }
     }
+    Ok(())
 }
 
-/// The committed target declaration, refused unless Kedra policy enables it.
-fn committed_target(
-    repo: &Path,
-    tree: &[Entry],
-    host: &str,
-    target_path: &str,
-) -> Result<Target, Error> {
-    let entry = tree
-        .iter()
-        .find(|e| e.path == target_path)
-        .ok_or_else(|| invalid(format!("missing committed {target_path}")))?;
-    let bytes = blob(repo, entry)?;
-    let target: Target =
-        toml::from_str(text(&bytes)?).map_err(|e| invalid(format!("{target_path}: {e}")))?;
-    if target.id != host
-        || target.fedora_release != 44
-        || target.image != format!("ghcr.io/reidond/kedra-{host}")
-    {
-        return Err(invalid(
-            "target identity, repository or Fedora release does not match Kedra policy",
-        ));
-    }
-    if !target.candidate_target {
-        return Err(invalid(format!("target {host} is disabled")));
-    }
-    if sysroot_core::targets::enabled(host, &target.architecture)
-        .is_none_or(|spec| spec.repository != target.image)
+/// The declared target, refused unless Kedra policy enables it.
+fn target(host: &str, intent: &Intent) -> Result<Target, Error> {
+    let missing = |field: &str| invalid(format!("target {host} declares no {field}"));
+    let architecture = intent
+        .architecture
+        .clone()
+        .ok_or_else(|| missing("architecture"))?;
+    let image = intent.image.clone().ok_or_else(|| missing("image"))?;
+    let hardware_status = intent.hardware.clone().ok_or_else(|| missing("hardware"))?;
+    if image != format!("ghcr.io/reidond/kedra-{host}")
+        || sysroot_core::targets::enabled(host, &architecture)
+            .is_none_or(|spec| spec.repository != image)
     {
         return Err(invalid(format!(
-            "target {host} with architecture {:?} is not enabled",
-            target.architecture
+            "target {host} with architecture {architecture:?} and image {image:?} is not enabled"
         )));
     }
-    Ok(target)
-}
-
-/// Package names one target installs and removes, and the package-language
-/// frontend record when the commit selects that language.
-struct PackageSets {
-    install: BTreeSet<String>,
-    remove: BTreeSet<String>,
-    native_steps: Vec<sysroot_engine::NativeStep>,
-    frontend: Option<crate::source_packages::Frontend>,
-}
-
-/// Package sets from the package language when the commit declares it and from
-/// the package lists otherwise. No package may be both installed and removed.
-fn package_sets(
-    repo: &Path,
-    tree: &[Entry],
-    host: &str,
-    inputs: &Inputs,
-) -> Result<PackageSets, Error> {
-    let packages = match crate::source_packages::select(repo, tree, host)? {
-        Some(selection) => PackageSets {
-            install: selection.packages,
-            remove: selection.remove,
-            native_steps: selection.native_steps,
-            frontend: Some(selection.frontend),
-        },
-        None => {
-            let mut install = package_list(repo, tree, &inputs.packages[0])?;
-            install.extend(package_list(repo, tree, &inputs.packages[1])?);
-            PackageSets {
-                install,
-                remove: package_list(repo, tree, &inputs.remove)?,
-                native_steps: Vec::new(),
-                frontend: None,
-            }
-        }
-    };
-    if let Some(package) = packages.install.intersection(&packages.remove).next() {
-        return Err(invalid(format!(
-            "package {package} is both installed and removed"
-        )));
-    }
-    Ok(packages)
+    Ok(Target {
+        id: host.into(),
+        architecture,
+        image,
+        fedora_release: 44,
+        candidate_target: true,
+        hardware_status,
+    })
 }
 
 fn contains_private_key(bytes: &[u8]) -> bool {
@@ -372,81 +264,123 @@ fn contains_private_key(bytes: &[u8]) -> bool {
     .any(|marker| bytes.windows(marker.len()).any(|window| window == *marker))
 }
 
-/// The image file one payload entry contributes, or `None` for a `.gitkeep`
-/// placeholder. Paths and contents that must not enter an image are refused.
-fn payload_file(repo: &Path, entry: &Entry, root: &str, rest: &str) -> Result<Option<File>, Error> {
-    if private_payload(root, rest) {
-        return Err(invalid(format!(
-            "credential/runtime path cannot enter image payload: {}",
-            entry.path
-        )));
+/// Committed bytes of declared content: an inline literal belongs to its
+/// module, a `file("./…")` resource to its own blob.
+struct Contents<'a> {
+    repo: &'a Path,
+    tree: &'a [Entry],
+}
+impl Contents<'_> {
+    fn file(&self, origin: &str, destination: String, content: &Content) -> Result<File, Error> {
+        let module = origin.split('#').next().unwrap_or_default();
+        let (source_path, git_blob, bytes, executable) = match content {
+            Content::Inline { bytes, executable } => (
+                format!("{SYSTEM}{module}"),
+                None,
+                bytes.as_bytes().to_vec(),
+                *executable,
+            ),
+            Content::File { path, executable } => {
+                let path = format!("{SYSTEM}{path}");
+                let entry = self
+                    .tree
+                    .iter()
+                    .find(|e| e.path == path)
+                    .ok_or_else(|| invalid(format!("missing committed {path}")))?;
+                let bytes = blob(self.repo, entry)?;
+                (path, Some(entry.blob.clone()), bytes, *executable)
+            }
+        };
+        if contains_private_key(&bytes) {
+            return Err(invalid(format!(
+                "private-key material cannot enter image payload: {destination}"
+            )));
+        }
+        Ok(File {
+            source_path,
+            origin: format!("{SYSTEM}{origin}"),
+            git_blob,
+            sha256: sha256(&bytes),
+            mode: if executable { "100755" } else { "100644" }.into(),
+            home_baseline: destination.starts_with(HOME_BASELINE),
+            destination,
+            bytes,
+        })
     }
-    if rest.split('/').any(|p| p == ".gitkeep") {
-        return Ok(None);
-    }
-    if root == "usr" && (rest == "etc" || rest.starts_with("etc/")) {
-        return Err(invalid(
-            "usr/etc is bootc-owned; use etc/ or application defaults",
-        ));
-    }
-    if root == "usr" && (rest == "share/sysroot" || rest.starts_with("share/sysroot/")) {
-        return Err(invalid(
-            "usr/share/sysroot is reserved for generated manifests and baselines",
-        ));
-    }
-    let bytes = blob(repo, entry)?;
-    if contains_private_key(&bytes) {
-        return Err(invalid(format!(
-            "private-key material cannot enter image payload: {}",
-            entry.path
-        )));
-    }
-    let destination = if root == "home" {
-        format!("usr/share/sysroot/home/default/{rest}")
-    } else {
-        format!("{root}/{rest}")
-    };
-    if !safe_path(&destination) {
-        return Err(invalid("unsafe payload path"));
-    }
-    Ok(Some(File {
-        source_path: entry.path.clone(),
-        destination,
-        git_blob: entry.blob.clone(),
-        sha256: Sha256::digest(&bytes)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect(),
-        mode: entry.mode.clone(),
-        replaces: None,
-        home_baseline: root == "home",
-    }))
 }
 
-/// Payload files by destination: the shared root first, then the target overlay,
-/// whose files record the shared file they replace.
+/// The generated `sysroot home` list: TOML whose strings and string arrays are
+/// written as JSON, which is valid TOML for these values.
+fn home_files(intent: &Intent) -> Result<Vec<u8>, Error> {
+    fn json(value: &impl Serialize) -> Result<String, Error> {
+        serde_json::to_string(value).map_err(|e| invalid(format!("home file list: {e}")))
+    }
+    let mut text = String::from(
+        "# Generated from the managed home files of system/*.kedra; do not edit.\nschema_version = 1\n",
+    );
+    for (path, home) in intent.home.iter().filter(|(_, home)| home.managed) {
+        text.push_str(&format!("\n[[file]]\npath = {}\n", json(path)?));
+        for (field, argv) in [("check", &home.check), ("reload", &home.reload)] {
+            if let Some(argv) = argv {
+                text.push_str(&format!("{field} = {}\n", json(argv)?));
+            }
+        }
+    }
+    Ok(text.into_bytes())
+}
+
+/// Image files and the home baseline by destination, from the declarations.
 fn payload_files(
     repo: &Path,
     tree: &[Entry],
-    inputs: &Inputs,
+    intent: &Intent,
+    entry: &str,
 ) -> Result<BTreeMap<String, File>, Error> {
-    let mut files: BTreeMap<String, File> = BTreeMap::new();
-    for prefix in ["", inputs.overlay.as_str()] {
-        for entry in tree {
-            let Some(relative) = entry.path.strip_prefix(prefix) else {
-                continue;
-            };
-            let Some((root, rest)) = inputs.payload(prefix.is_empty(), &entry.path, relative)?
-            else {
-                continue;
-            };
-            let Some(mut file) = payload_file(repo, entry, root, rest)? else {
-                continue;
-            };
-            file.replaces = files
-                .get(&file.destination)
-                .map(|previous| previous.source_path.clone());
-            files.insert(file.destination.clone(), file);
+    let contents = Contents { repo, tree };
+    let mut files = BTreeMap::new();
+    for (path, file) in &intent.files {
+        let rest = path.trim_start_matches('/');
+        let root = rest.split('/').next().unwrap_or_default();
+        if private_payload(root, rest.split_once('/').map_or("", |(_, r)| r)) || rest == HOME_FILES
+        {
+            return Err(invalid(format!(
+                "{path} cannot be declared: credential, runtime or generated path"
+            )));
+        }
+        files.insert(
+            rest.to_owned(),
+            contents.file(&file.origin, rest.to_owned(), &file.content)?,
+        );
+    }
+    for (path, home) in &intent.home {
+        if private_payload("home", path) {
+            return Err(invalid(format!(
+                "credential/runtime home path cannot enter image payload: {path}"
+            )));
+        }
+        let destination = format!("{HOME_BASELINE}{path}");
+        files.insert(
+            destination.clone(),
+            contents.file(&home.origin, destination, &home.content)?,
+        );
+    }
+    let bytes = home_files(intent)?;
+    files.insert(
+        HOME_FILES.into(),
+        File {
+            source_path: format!("{SYSTEM}{entry}"),
+            origin: format!("{SYSTEM}{entry}#{}", intent.target),
+            destination: HOME_FILES.into(),
+            git_blob: None,
+            sha256: sha256(&bytes),
+            mode: "100644".into(),
+            home_baseline: false,
+            bytes,
+        },
+    );
+    for path in files.keys() {
+        if !safe_path(path) {
+            return Err(invalid(format!("unsafe payload path {path}")));
         }
     }
     refuse_file_directory_collisions(&files)?;
@@ -471,19 +405,32 @@ fn plan_committed(
     input_scope: &'static str,
 ) -> Result<Plan, Error> {
     let tree = entries(repo, &revision)?;
-    let inputs = Inputs::new(host);
-    let target = committed_target(repo, &tree, host, &inputs.target)?;
-    let packages = package_sets(repo, &tree, host, &inputs)?;
-    let files = payload_files(repo, &tree, &inputs)?;
+    refuse_payload_directories(&tree)?;
+    let selection = crate::source_packages::select(repo, &tree, host)?;
+    let intent = selection.intent;
+    if let Some(package) = intent.packages.intersection(&intent.remove).next() {
+        return Err(invalid(format!(
+            "package {package} is both installed and removed"
+        )));
+    }
+    let entry = selection
+        .frontend
+        .entry
+        .strip_prefix(SYSTEM)
+        .unwrap_or_default()
+        .to_owned();
+    let files = payload_files(repo, &tree, &intent, &entry)?;
     Ok(Plan {
         schema_version: 1,
         source_revision: revision,
         input_scope,
-        target,
-        packages: packages.install.into_iter().collect(),
-        remove_packages: packages.remove.into_iter().collect(),
-        native_steps: packages.native_steps,
-        package_frontend: packages.frontend,
+        target: target(host, &intent)?,
+        packages: intent.packages.iter().cloned().collect(),
+        remove_packages: intent.remove.iter().cloned().collect(),
+        native_steps: intent.native_steps.clone(),
+        os_release: intent.os_release.clone(),
+        hide_autostart: intent.hide_autostart.clone(),
+        package_frontend: selection.frontend,
         files: files.into_values().collect(),
     })
 }
@@ -505,28 +452,23 @@ fn append<W: Write>(
     Ok(())
 }
 
-/// Read the exact validated blobs of a frozen plan, without resolving HEAD again.
-/// The generated manifest retains the existing source archive schema and bytes.
+/// Emit the exact bytes a frozen plan validated, without resolving HEAD again,
+/// then its provenance manifest.
 pub(crate) fn materialize(
-    repo: &Path,
     plan: &Plan,
     mut emit: impl FnMut(&str, &[u8], u32) -> Result<(), Error>,
 ) -> Result<(), Error> {
     for entry in &plan.files {
-        let bytes = git(repo, &["cat-file", "blob", &entry.git_blob])?;
-        let hash: String = Sha256::digest(&bytes)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
-        if hash != entry.sha256 {
-            return Err(invalid("Git object content changed during materialization"));
+        let bytes = &entry.bytes;
+        if sha256(bytes) != entry.sha256 {
+            return Err(invalid("frozen content changed during materialization"));
         }
         let mode = match entry.mode.as_str() {
             "100755" => 0o755,
             "100644" => 0o644,
             _ => return Err(invalid("unsupported frozen source mode")),
         };
-        emit(&entry.destination, &bytes, mode)?;
+        emit(&entry.destination, bytes, mode)?;
     }
     let manifest = serde_json::to_vec_pretty(plan)
         .map_err(|e| invalid(format!("manifest serialization: {e}")))?;
@@ -544,7 +486,7 @@ pub fn archive(repo: &Path, host: &str, output: &Path) -> Result<Plan, Error> {
         .open(output)?;
     let mut builder = tar::Builder::new(file);
     builder.follow_symlinks(false);
-    materialize(repo, &plan, |path, bytes, mode| {
+    materialize(&plan, |path, bytes, mode| {
         append(&mut builder, path, bytes, mode)
     })?;
     builder.finish()?;

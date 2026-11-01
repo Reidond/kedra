@@ -118,8 +118,10 @@ def language_material(root, source, pins, target):
     inputs = frontend.get('inputs')
     require(isinstance(inputs, dict) and 0 < len(inputs) <= 4227,
             'Missing bounded committed frontend inventory')
+    # The descriptor and policy live in the image tooling; modules, the source
+    # lock and their resources in the system/ catalog root.
     for path, expected in inputs.items():
-        require(isinstance(path, str) and path.startswith(IMAGE)
+        require(isinstance(path, str) and path.startswith((IMAGE, 'system/'))
                 and all(part not in ('', '.', '..') for part in path.split('/'))
                 and sha(read(root / path, 8 * 1024**2)) == expected,
                 'Frontend input differs from committed admission')

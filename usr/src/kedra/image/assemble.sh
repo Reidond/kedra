@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Foundation build step of the Containerfile, not a host package installer.
-# Image steps (GLib schemas, systemd units, skeleton, initramfs) are declared in
-# each target's .kedra block and applied later by `sysroot derive`.
+# Everything Kedra-specific is declared in system/*.kedra: files arrive in
+# payload.tar, foundation edits are read from the source manifest here, and
+# image steps (GLib schemas, systemd units, skeleton, initramfs, home checks)
+# are applied later by `sysroot derive`.
 set -euo pipefail
 test "$#" -eq 0 || { echo 'Unsupported Kedra assembly arguments' >&2; exit 1; }
 # Podman marks its build containers; a BuildKit build (the local lab build in
@@ -28,45 +30,56 @@ jq -e --slurpfile manifest "$manifest" '
     and .intent_sha256 == $manifest[0].package_frontend.intent_sha256' "$repository/lock.json" >/dev/null
 /bin/bash /tmp/kedra-install-rpms.sh "$repository" foundation
 install -D -m 0644 "$repository/lock.json" /usr/share/sysroot/rpm-lock.json
-# Its invisible capture window becomes a focused black tile under niri.
-# Keep the native launcher, but exclude this session from bridge autostart.
-bridge_autostart=/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop
-test -f "$bridge_autostart" && test ! -L "$bridge_autostart"
-bridge_updated=$(mktemp)
-# desktop-file-edit 0.28 rejects niri as an unregistered desktop name.
-awk '
-    /^\[/ {
-        if (entry && !excluded) print "NotShowIn=niri;"
-        entry = ($0 == "[Desktop Entry]")
-        if (entry) found = 1
-    }
-    entry && /^OnlyShowIn=/ { exit 1 }
-    entry && /^NotShowIn=/ {
-        if ($0 !~ /[=;]niri(;|$)/) {
-            if ($0 !~ /[=;]$/) $0 = $0 ";"
-            $0 = $0 "niri;"
+# Foundation edits of RPM-owned files that the target declares in
+# system/catalog.kedra: XDG autostart entries hidden from a desktop, and the
+# os-release names. The values are checked plain text without quotes,
+# backslashes or expansion characters.
+while IFS=$'\t' read -r entry desktop; do
+    autostart=/etc/xdg/autostart/$entry
+    test -f "$autostart" && test ! -L "$autostart"
+    updated=$(mktemp)
+    # desktop-file-edit 0.28 rejects names it has not registered, such as niri.
+    awk -v desktop="$desktop" '
+        /^\[/ {
+            if (entry && !excluded) print "NotShowIn=" desktop ";"
+            entry = ($0 == "[Desktop Entry]")
+            if (entry) found = 1
         }
-        excluded = 1
-    }
-    { print }
-    END {
-        if (!found) exit 1
-        if (entry && !excluded) print "NotShowIn=niri;"
-    }
-' "$bridge_autostart" > "$bridge_updated"
-cat "$bridge_updated" > "$bridge_autostart"
-rm "$bridge_updated"
+        entry && /^OnlyShowIn=/ { exit 1 }
+        entry && /^NotShowIn=/ {
+            if ($0 !~ ("[=;]" desktop "(;|$)")) {
+                if ($0 !~ /[=;]$/) $0 = $0 ";"
+                $0 = $0 desktop ";"
+            }
+            excluded = 1
+        }
+        { print }
+        END {
+            if (!found) exit 1
+            if (entry && !excluded) print "NotShowIn=" desktop ";"
+        }
+    ' "$autostart" > "$updated"
+    cat "$updated" > "$autostart"
+    rm "$updated"
+done < <(jq -r '.hide_autostart // {} | to_entries[] | .key as $entry | .value[] | [$entry, .] | @tsv' "$manifest")
+if jq -e 'has("os_release")' "$manifest" >/dev/null; then
+    release=$(mktemp)
+    awk -v name="$(jq -r '.os_release.name' "$manifest")" \
+        -v pretty="$(jq -r '.os_release.pretty_name' "$manifest")" '
+        /^NAME=/ { print "NAME=\"" name "\""; next }
+        /^PRETTY_NAME=/ { print "PRETTY_NAME=\"" pretty "\""; next }
+        { print }
+    ' /usr/lib/os-release > "$release"
+    cat "$release" > /usr/lib/os-release
+    rm "$release"
+fi
 # Recomputable build-time caches/logs are not installed machine state.
 rm -rf /var/lib/dnf /var/cache/swcatalog /var/cache/ldconfig
 rm -f /var/log/dnf5.log /var/log/dnf5.log.1
 chmod 0755 /usr/bin/sysroot /usr/libexec/sysroot/helper
-chmod 0755 /usr/libexec/kedra-session
+# The greeter's account comes from its RPM. Managed home files are validated by
+# `sysroot derive` with their declared checks.
 getent passwd greetd
-niri validate --config /usr/share/sysroot/home/default/.config/niri/config.kdl
-NOCTALIA_CONFIG_HOME=/usr/share/sysroot/home/default/.config \
-    NOCTALIA_STATE_HOME=/tmp/kedra-noctalia-validation noctalia config validate
-rm -rf /tmp/kedra-noctalia-validation
-sed -i 's/^NAME=.*/NAME="Kedra"/; s/^PRETTY_NAME=.*/PRETTY_NAME="Kedra (Fedora 44)"/' /usr/lib/os-release
 rpm -qa | sort > /usr/share/sysroot/packages.txt
 # Keep RPM content identity as well as display names: identical NEVRA is not
 # proof that a repository served identical signed package payloads.

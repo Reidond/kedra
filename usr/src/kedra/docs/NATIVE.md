@@ -3,7 +3,8 @@
 Static composition installs declared files and exact package closures. A separate
 closed native stage generates the caches and links required by existing Linux
 tools. It consumes a verified composition and an independently selected native
-derivation identity; no arbitrary command/script field is accepted.
+derivation identity; no arbitrary command/script field is accepted. The only
+commands a plan names are the declared checks of managed home files.
 
 The Rust `NativeStep` API supports:
 
@@ -18,17 +19,22 @@ The Rust `NativeStep` API supports:
   (`--no-hostonly`) initramfs with the image's own dracut configuration, adding
   the declared dracut modules and kernel drivers; refuse a result that lacks any
   of them.
+- Home checks: run each managed home file's declared `check` on its committed
+  baseline file (`{file}` becomes `/usr/share/sysroot/home/default/<path>`), as
+  `nobody` with a scratch home that is removed afterwards, offline. A failing
+  check refuses the derivation; a check that changes the image is refused like
+  any undeclared change.
 
-Each target declares its steps once, in its block of
-`image/packages/catalog.kedra` ([image steps](PACKAGES.md#image-steps)):
+Each target declares its steps in its block of `system/catalog.kedra`
+([image steps](PACKAGES.md#image-steps)); the sets it uses add their units, and
+its managed home files their checks:
 
 ```kedra
 target "desktop" {
     foundation = system;
+    use = [kedra];
     glib_schemas = true;
     systemd = systemd {
-        enable = ["NetworkManager.service", "bluetooth.service", "greetd.service"];
-        mask = ["bootc-fetch-apply-updates.service", "bootc-fetch-apply-updates.timer"];
         default_target = "graphical.target";
     };
     skel = true;
@@ -102,7 +108,7 @@ any change other than the declared outputs and selected unit links. It then
 re-checks the RPM rows and writes `/usr/share/sysroot/native-receipt.json` with
 output bytes/hash/mode, approved unit links, skeleton paths, kernel/driver/listing
 evidence and the hashes of the image tools it ran (`rpm`, `glib-compile-schemas`,
-`systemctl`, `dracut`, `lsinitrd`, `modinfo`). The executor runs on the image's own
+`systemctl`, `dracut`, `lsinitrd`, `modinfo`, and each home check's program). The executor runs on the image's own
 C library, which the RPM material binds.
 
 `build` then independently checks the result: owner/identity/parent labels, that

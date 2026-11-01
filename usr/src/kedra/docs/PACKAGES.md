@@ -1,7 +1,9 @@
-# Package declarations and delivery
+# System and package declarations
 
-Kedra declares all of its packages in `.kedra` files under
-`usr/src/kedra/image/packages/`. There are two kinds. Fedora RPM requests define
+Kedra declares everything an image contains in `.kedra` files under `system/`:
+packages, image files, the home baseline and managed home files, units, image
+steps and target metadata ([system declarations](#system-declarations)). There
+are two kinds of package. Fedora RPM requests define
 the bootc foundation. Source packages build into immutable engine objects and
 contribute selected commands, libraries and configuration to the composed image.
 
@@ -29,10 +31,11 @@ language exception the owner approved on 2026-10-06.
 - Inline author shell is opaque bytes until it runs as `build.sh` inside an
   admitted, isolated engine builder ([execution
   boundary](#resource-and-execution-boundary)). The language never evaluates it.
-- The language declares packages, package sets, Fedora requests and each target's
-  image steps, and nothing else. It is not a general Kedra configuration language,
-  does not replace typed system composition, and grants no deployment,
-  installation or signing authority. Installed helpers and production signers
+- The language declares packages, sets, Fedora requests, image files, the home
+  baseline and managed home files, unit operations, and each target's metadata,
+  image steps and foundation edits (owner decision 2026-10-31, widening the
+  2026-10-06 package scope). It stays data: it does not replace typed system
+  composition, and grants no deployment, installation or signing authority. Installed helpers and production signers
   never parse `.kedra` or run recipes.
 - It is not Nix: no Nix syntax or nixpkgs compatibility, no Fedora source
   rebuilds, no third-party repositories, no cross-compilation.
@@ -54,8 +57,8 @@ Six declaration kinds, each a block of `field = value;` assignments:
 |---|---|---|
 | `foundation NAME` | `fedora` (must be `44`), `packages` (RPM names) | `remove` (RPM names) |
 | `builder NAME` | `base` (a foundation), `packages` (compiler-only RPM names) | none |
-| `set NAME` | none | `packages` (package invocations), `fedora` and `remove` (RPM names), `use` (sets), `replace` (replacements) |
-| `target "NAME"` | `foundation` | everything a set takes, `architecture` (`"aarch64"` or `"x86_64"`) and the [image steps](#image-steps) `glib_schemas`, `systemd`, `skel`, `initramfs` |
+| `set NAME` | none | `packages` (package invocations), `fedora` and `remove` (RPM names), `use` (sets), `replace` (replacements), `files`, `home`, `systemd` (without `default_target`) ([system declarations](#system-declarations)) |
+| `target "NAME"` | `foundation` | everything a set takes, `architecture` (`"aarch64"` or `"x86_64"`), `image`, `hardware`, `os_release`, `hide_autostart` and the [image steps](#image-steps) `glib_schemas`, `systemd`, `skel`, `initramfs` |
 | `package NAME(b: Builder, f: Foundation)` | `version`, `summary`, `license`, `source`, `build` | `builder`, `runtime`, `build_requires`, `runtime_requires`, `build_deps`, `runtime_deps`, `env`, `files`, `replace_files`, `patches`, `timeout`, `replaces`; `export` and `config` statements |
 | `library NAME(b: Builder, f: Foundation)` | as `package` | as `package` |
 
@@ -77,7 +80,9 @@ and these closed constructors and built-ins:
 | `fedora("name")` | A Fedora requirement in `build_requires` or `runtime_requires`. |
 | `path(REFERENCE, "relative")` | A typed path into `self` (configuration only) or a declared dependency `deps.NAME`. |
 | `source_revision` | The independently verified source commit; configuration templates only. |
-| `systemd { … }`, `initramfs { … }` | Target image steps. |
+| `systemd { … }`, `initramfs { … }` | Target image steps; a set's `systemd` adds unit operations. |
+| `managed { content = file("./…"); check = [...]; reload = [...]; }` | A home file `sysroot home` manages ([HOME](HOME.md)). |
+| `os_release { name = "…"; pretty_name = "…"; }` | The names the foundation's os-release gives the image. |
 
 Packages publish outputs with `export command "NAME" = "relative/path";`,
 `export libexec`, `export library` and `export files`, and configuration with
@@ -173,8 +178,65 @@ valid module and driver names). The language allows a target without steps;
 Kedra's source plan requires all four for each of its targets, an initramfs with
 at least `bootc`, `ostree`, `crypt`, `dm` and `rootfs-block`, and for `qemu-arm64`
 also the `qemu` module and the `virtio_dma_buf`, `virtio_gpu` and `virtio_input`
-drivers. `sysroot source plan` records the checked steps as `native_steps` in the
-source manifest; they are part of the target's package intent and its hash.
+drivers. The units of the sets a target uses join its own `systemd` step (the
+same operation twice is one; conflicting operations are refused), and a target
+whose managed home files declare a `check` gets a `home_checks` step that runs
+those checks on the image baseline. `sysroot source plan` records the checked
+steps as `native_steps` in the source manifest; they are part of the target's
+package intent and its hash.
+
+### System declarations
+
+Sets and targets declare what the image contains besides packages:
+
+```kedra
+set login {
+    files = {
+        "/etc/greetd/config.toml" = text """
+            [terminal]
+            vt = 1
+            """;
+        "/usr/libexec/kedra-session" = executable(text """
+            #!/bin/sh
+            exec /usr/bin/niri-session
+            """);
+        "/usr/share/doc/kedra/START-HERE.md" = file("./doc/START-HERE.md");
+    };
+    home = {
+        ".config/niri/config.kdl" = managed {
+            content = file("./home/niri/config.kdl");
+            check = ["/usr/bin/niri", "validate", "--config", "{file}"];
+        };
+    };
+    systemd = systemd { enable = ["greetd.service"]; };
+}
+```
+
+- `files` maps absolute image paths under `/etc` or `/usr` to content: inline
+  `text`, an admitted `file("./…")`, or either wrapped in `executable(…)` for mode
+  0755. `/etc/skel`, `/usr/etc`, `/usr/src` and `/usr/share/sysroot` are refused;
+  Kedra's source plan also refuses credential paths (`/etc/shadow`, private SSH
+  host keys) and the generated `/usr/share/kedra/home-files.toml`.
+- `home` maps home-relative paths to content (seeding new accounts) or to
+  `managed { content; check; reload; }`. A managed file's content must be a
+  `file("./…")` resource, which `sysroot home capture` writes back to. `check`
+  and `reload` are argv lists with an absolute program; `{file}` in `check` is
+  the file to check. Private home paths are refused as for resources.
+- A path declared twice, by the target or any set it uses, is refused with both
+  origins: modules compose; they never override each other. A target's own
+  hardware or test settings belong in a set only that target uses.
+- `image` and `hardware` give the target's published repository and hardware
+  status; Kedra's source plan requires both, the release table's architecture and
+  repository, and builds the manifest's target record from them.
+- `os_release { name; pretty_name; }` and `hide_autostart = { "entry.desktop" =
+  ["niri"]; }` are foundation edits of RPM-owned files: `image/assemble.sh`
+  reads them from the source manifest after the RPMs are installed. Values are
+  printable text without quotes, backslashes or expansion characters.
+
+The source plan materializes these into the payload (home files below
+`/usr/share/sysroot/home/default/`), generates `/usr/share/kedra/home-files.toml`
+from the managed entries, and records each file's source: the resource it came
+from, or the module of an inline literal, with the declaring set as `origin`.
 
 ### Literals, resources and identity
 
@@ -182,7 +244,8 @@ Modules are UTF-8 with LF line ends; CRLF or NUL is refused with a conversion
 hint, never silently rewritten. A triple-quoted literal starts with `"""` and a
 line feed and ends with a line holding only spaces and `"""`; those spaces are the
 indentation prefix, removed from every non-empty line (a line lacking it is
-refused), and every line keeps its LF. A payload containing `"""` must use an
+refused), and every line keeps its LF. Only `;`, `,`, `]`, `}`, `)` or
+whitespace may follow the closing `"""`. A payload containing `"""` must use an
 ordinary escaped string. Literals have no interpolation or escape processing.
 
 Declared resource paths are unique relative ASCII POSIX paths without empty, `.`,
@@ -234,30 +297,29 @@ independently selected catalog policy (`--policy`).
 
 ## Source selection
 
-The committed `image/package-inputs.json` selects the language for a source
-commit:
+The committed `usr/src/kedra/image/package-inputs.json` names the language and
+its catalog root, `system/`:
 
 ```json
 {
   "schema_version": 1,
   "format": "kedra",
-  "entry": "packages/catalog.kedra",
-  "lock": "packages/packages.lock.json"
+  "entry": "system/catalog.kedra",
+  "lock": "system/packages.lock.json"
 }
 ```
 
 The source plan reads the descriptor, the target policy, the lock and every
 imported module and resource as raw committed blobs, with no checkout, Git filter,
-recipe or network access. The descriptor cannot coexist with `image/packages.list`,
-`image/remove.list` or a `targets/<target>/packages.list`; `.kedra` files without
-the descriptor are refused; an invalid new-format source never falls back to the
-lists. A commit with neither is read by the package-list reader. Kedra's source
+recipe or network access. A source without the descriptor is refused; there is
+no package-list reader and no other source of image files. Kedra's source
 plan also requires the policy's namespace `kedra`, exactly the targets `desktop`
 and `qemu-arm64`, and the required base packages (`niri`, `noctalia`, `greetd`,
 `tuigreet`, `NetworkManager`, `pipewire`, `wireplumber`, `polkit`, `gnome-keyring`,
 `gnome-keyring-pam`). It records the frontend inputs, their hashes, the builder
 requests, the selected packages and the intent hash (`package_frontend`) with
-`native_steps` in the source manifest, `/usr/share/sysroot/source.json`.
+`native_steps` in the source manifest, `/usr/share/sysroot/source.json`, and
+for each image file its destination, mode, hash, source file and declaring set.
 
 ## Fedora RPM lock
 
@@ -328,22 +390,22 @@ Data-producing commands print JSON on stdout and failures on stderr.
 
 ```sh
 sysroot catalog check \
-  --input-root usr/src/kedra/image/packages \
+  --input-root system \
   --entry catalog.kedra --target qemu-arm64 \
   --lock packages.lock.json \
   --target-policy usr/src/kedra/image/package-policy.json
 
-sysroot catalog fmt --check usr/src/kedra/image/packages/catalog.kedra
-sysroot catalog fmt usr/src/kedra/image/packages/catalog.kedra
+sysroot catalog fmt --check system/*.kedra system/packages/*.kedra
+sysroot catalog fmt system/catalog.kedra
 
 sysroot catalog pins \
-  --input-root usr/src/kedra/image/packages \
+  --input-root system \
   --entry catalog.kedra --target qemu-arm64 \
   --lock packages.lock.json \
   --target-policy usr/src/kedra/image/package-policy.json
 
 sysroot catalog plan --package codex --policy /private/catalog-policy.json \
-  --input-root usr/src/kedra/image/packages \
+  --input-root system \
   --entry catalog.kedra --target qemu-arm64 \
   --lock packages.lock.json \
   --target-policy usr/src/kedra/image/package-policy.json \
@@ -442,7 +504,7 @@ bumped, on a Linux machine:
 # Codex: the release workflow's Sigstore signatures on codex, its code-mode host
 # and bwrap, with the pinned Cosign 3.1.3, for each architecture.
 uv run usr/src/kedra/image/packages/verify-codex.py --version 0.153.4 --architecture aarch64
-# Then record the verified bytes (SHA-256 and src- object) in packages.lock.json.
+# Then record the verified bytes (SHA-256 and src- object) in system/packages.lock.json.
 uv run usr/src/kedra/image/packages/pin.py --name codex-aarch64 \
   --url https://github.com/openai/codex/releases/download/rust-v0.153.4/codex-package-aarch64-unknown-linux-musl.tar.gz \
   --sha256 <printed sha256> --sysroot target/release/sysroot

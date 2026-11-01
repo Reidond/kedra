@@ -17,11 +17,39 @@ use serde_json::{Value, json};
 use sysroot_engine::{PLATFORM, RPM_ARCHITECTURE, SystemContent, SystemDefinition, SystemFile};
 
 const FOUNDATION: &str = "sha256:9d6eb030a55f86232e7f6df46551d5394599b70b2ad7837a41a5cde300550e71";
-const BASELINE: &[&str] = &[
-    ".config/niri/config.kdl",
-    ".config/noctalia/config.toml",
-    ".config/noctalia/palettes/Adwaita.json",
+/// Committed home baseline files (`system/home/`) and the check each declares.
+const BASELINE: &[(&str, &str, &str)] = &[
+    (
+        ".config/niri/config.kdl",
+        "niri/config.kdl",
+        r#"["/usr/bin/niri", "validate", "--config", "{file}"]"#,
+    ),
+    (
+        ".config/noctalia/config.toml",
+        "noctalia/config.toml",
+        r#"["/usr/bin/noctalia", "config", "validate", "{file}"]"#,
+    ),
+    (
+        ".config/noctalia/palettes/Adwaita.json",
+        "noctalia/palettes/Adwaita.json",
+        "",
+    ),
 ];
+/// Image files and the home baseline the fixture target declares.
+const FIXTURE: &str = r#"
+set native {
+    fedora = ["bash"];
+    files = {
+        "/usr/share/glib-2.0/schemas/org.kedra.NativeFixture.gschema.xml" = text "<schemalist><schema id='org.kedra.NativeFixture' path='/org/kedra/native-fixture/'><key name='greeting' type='s'><default>'baseline'</default></key></schema></schemalist>\n";
+        "/usr/lib/systemd/system/sysroot-native-fixture.service" = text "[Unit]\nDescription=Native derivation fixture\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/usr/bin/printf native-fixture-ready\\n\n[Install]\nWantedBy=multi-user.target\n";
+        "/usr/lib/systemd/system/sysroot-native-masked.service" = text "[Unit]\nDescription=Native mask fixture\n[Service]\nType=oneshot\nExecStart=/usr/bin/true\n";
+    };
+    home = {
+        ".native-fixture" = text "derived-home-v1\n";
+{home}
+    };
+}
+"#;
 /// Declared image steps of the fixture target; `{extra}` adds invalid variants.
 const STEPS: &str = r#"
     glib_schemas = true;
@@ -239,6 +267,11 @@ impl Fixture {
 
     /// Commit the catalog with the declared steps and optional invalid variants.
     fn catalog(&self, enable: &str, mask: &str, extra: &str) {
+        self.catalog_with(enable, mask, extra, BASELINE);
+    }
+
+    /// The catalog declaring only `baseline` of the committed home files.
+    fn catalog_with(&self, enable: &str, mask: &str, extra: &str, baseline: &[(&str, &str, &str)]) {
         let policy: Value =
             serde_json::from_slice(&workspace_file("usr/src/kedra/image/package-policy.json"))
                 .unwrap();
@@ -253,15 +286,27 @@ impl Fixture {
             .replace("{enable}", enable)
             .replace("{mask}", mask)
             .replace("{extra}", extra);
+        let home: Vec<String> = baseline
+            .iter()
+            .map(|(path, source, check)| {
+                let check = if check.is_empty() {
+                    String::new()
+                } else {
+                    format!(" check = {check};")
+                };
+                format!(
+                    "        \"{path}\" = managed {{ content = file(\"./home/{source}\");{check} }};"
+                )
+            })
+            .collect();
+        let target = native_target();
         let catalog = format!(
-            "language 1;\nnamespace \"kedra\";\nfoundation system {{\n    fedora = 44;\n    packages = [{}];\n}}\ntarget \"{}\" {{\n    foundation = system;{steps}}}\n",
+            "language 1;\nnamespace \"kedra\";\nfoundation system {{\n    fedora = 44;\n    packages = [{}];\n}}\n{}\ntarget \"{target}\" {{\n    architecture = \"{}\";\n    image = \"ghcr.io/reidond/kedra-{target}\";\n    hardware = \"synthetic\";\n    foundation = system;\n    use = [native];{steps}}}\n",
             packages.join(", "),
-            native_target()
+            FIXTURE.replace("{home}", &home.join("\n")),
+            sysroot_engine::RPM_ARCHITECTURE
         );
-        self.source(
-            "usr/src/kedra/image/packages/catalog.kedra",
-            catalog.as_bytes(),
-        );
+        self.source("system/catalog.kedra", catalog.as_bytes());
         self.commit();
     }
 
@@ -271,41 +316,25 @@ impl Fixture {
             &self.producer("repo"),
             &["init", "-q", "--template=", "-b", "fixture"],
         );
-        let target = format!(
-            "usr/src/kedra/image/targets/{}/target.toml",
-            native_target()
+        self.source(
+            "usr/src/kedra/image/package-policy.json",
+            &workspace_file("usr/src/kedra/image/package-policy.json"),
         );
-        for path in ["usr/src/kedra/image/package-policy.json", &target] {
-            self.source(path, &workspace_file(path));
-        }
         for (name, contents) in [
             (
                 "usr/src/kedra/image/package-inputs.json",
-                "{\"schema_version\":1,\"format\":\"kedra\",\"entry\":\"packages/catalog.kedra\",\"lock\":\"packages/packages.lock.json\"}\n",
+                "{\"schema_version\":1,\"format\":\"kedra\",\"entry\":\"system/catalog.kedra\",\"lock\":\"system/packages.lock.json\"}\n",
             ),
             (
-                "usr/src/kedra/image/packages/packages.lock.json",
+                "system/packages.lock.json",
                 "{\"schema_version\":1,\"sources\":{}}\n",
             ),
-            (
-                "usr/share/glib-2.0/schemas/org.kedra.NativeFixture.gschema.xml",
-                "<schemalist><schema id='org.kedra.NativeFixture' path='/org/kedra/native-fixture/'><key name='greeting' type='s'><default>'baseline'</default></key></schema></schemalist>\n",
-            ),
-            (
-                "usr/lib/systemd/system/sysroot-native-fixture.service",
-                "[Unit]\nDescription=Native derivation fixture\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/usr/bin/printf native-fixture-ready\\n\n[Install]\nWantedBy=multi-user.target\n",
-            ),
-            (
-                "usr/lib/systemd/system/sysroot-native-masked.service",
-                "[Unit]\nDescription=Native mask fixture\n[Service]\nType=oneshot\nExecStart=/usr/bin/true\n",
-            ),
-            ("etc/skel/.native-fixture", "derived-home-v1\n"),
         ] {
             self.source(name, contents.as_bytes());
         }
         // These are reviewed product inputs from committed source, never the controller's home.
-        for relative in BASELINE {
-            let path = format!("etc/skel/{relative}");
+        for (_, source, _) in BASELINE {
+            let path = format!("system/home/{source}");
             self.source(&path, &workspace_file(&path));
         }
         self.catalog("", "", "");
@@ -393,10 +422,8 @@ fn workspace_file(path: &str) -> Vec<u8> {
 }
 
 fn reject_baseline_deletion(f: &Fixture) {
-    let missing = f.producer("repo/etc/skel").join(BASELINE[0]);
-    let original = fs::read(&missing).unwrap();
-    fs::remove_file(&missing).unwrap();
-    f.commit();
+    // The parent still has the first file; the new declaration drops it.
+    f.catalog_with("", "", "", &BASELINE[1..]);
     let context = f.path("deletion-context");
     let composition = f.compose(&context);
     let parent = composition["identity"].as_str().unwrap();
@@ -406,8 +433,7 @@ fn reject_baseline_deletion(f: &Fixture) {
         "refuses deletion of an inherited managed baseline file",
     );
     remove_fixture(&context).unwrap();
-    fs::write(missing, original).unwrap();
-    f.commit();
+    f.catalog("", "", "");
 }
 
 /// Invalid step declarations are refused when the source is planned, before

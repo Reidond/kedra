@@ -95,7 +95,7 @@ enum Command {
         #[arg(long)]
         output: Option<PathBuf>,
     },
-    /// Copy the working tree's account defaults (etc/skel payload) into the running account.
+    /// Copy the working tree's home baseline (declared in system/) into the running account.
     Sync {
         #[arg(long)]
         name: Option<String>,

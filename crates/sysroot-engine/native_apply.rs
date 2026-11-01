@@ -1,9 +1,10 @@
 //! In-image native executor. It runs as root only inside the offline derive
-//! build, from a read-only bind mount; the plan is data and supplies no commands.
+//! build, from a read-only bind mount. The plan is data: its only commands are
+//! declared home checks, run as `nobody` against the committed baseline.
 use crate::{
-    Error, MAX_JSON, NATIVE_EXECUTOR, NATIVE_OBSERVATION, NATIVE_PLAN, NATIVE_RECEIPT_PATH,
-    NativeArtifact, NativeArtifactKind, NativeKernel, NativePlan, NativeReceipt, NativeStep,
-    RPM_ARCHITECTURE, Result, SKEL_APPLIED, native_tools, plan, store,
+    CHECK_FILE, Error, MAX_JSON, NATIVE_EXECUTOR, NATIVE_OBSERVATION, NATIVE_PLAN,
+    NATIVE_RECEIPT_PATH, NativeArtifact, NativeArtifactKind, NativeKernel, NativePlan,
+    NativeReceipt, NativeStep, RPM_ARCHITECTURE, Result, SKEL_APPLIED, native_tools, plan, store,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -12,6 +13,7 @@ use std::{
     fs::{self, DirBuilder, File, Metadata, OpenOptions},
     io::{Read, Write},
     os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt},
+    os::unix::process::CommandExt,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -26,6 +28,8 @@ const SOURCE: &str = "/usr/share/sysroot/source.json";
 pub(crate) const RPM_FORMAT: &str =
     "%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{SHA256HEADER}\t%{PAYLOADSHA256}\n";
 const UNIT_TYPES: [&str; 5] = ["service", "socket", "timer", "target", "path"];
+/// Fedora's `nobody`, which runs home checks.
+const NOBODY: u32 = 65534;
 
 /// Readback exported from the throwaway observation stage.
 #[derive(Debug, Serialize, Deserialize)]
@@ -123,6 +127,10 @@ pub fn apply(plan_path: &Path) -> Result<()> {
                     outputs.expected.insert(output);
                     outputs.kernels.push(kernel);
                 }
+                true
+            }
+            NativeStep::HomeChecks { checks } => {
+                home_checks(checks)?;
                 true
             }
         };
@@ -381,7 +389,10 @@ fn tools_for(plan: &NativePlan) -> Result<BTreeMap<String, String>> {
     }
     native_tools(plan)
         .into_iter()
-        .map(|path| Ok((path.to_owned(), digest(Path::new(path))?)))
+        .map(|path| {
+            let hash = digest(Path::new(&path))?;
+            Ok((path, hash))
+        })
         .collect()
 }
 
@@ -396,6 +407,45 @@ fn rpm() -> Result<(String, String)> {
     let inventory = format!("{}\n", lines.join("\n"));
     let hash = plan::hash(inventory.as_bytes());
     Ok((inventory, hash))
+}
+
+/// Run each check unprivileged on its baseline file. Its scratch home is
+/// removed afterwards, so any other change still refuses the derivation.
+fn home_checks(checks: &BTreeMap<String, Vec<String>>) -> Result<()> {
+    let scratch = private_scratch("sysroot-native-check")?;
+    std::os::unix::fs::chown(&scratch, Some(NOBODY), Some(NOBODY))?;
+    let result = checks.iter().try_for_each(|(path, argv)| {
+        let file = format!("{BASELINE}/{path}");
+        let argv: Vec<String> = argv
+            .iter()
+            .map(|argument| argument.replace(CHECK_FILE, &file))
+            .collect();
+        let status = Command::new(&argv[0])
+            .args(&argv[1..])
+            .env_clear()
+            .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("LC_ALL", "C")
+            .env("HOME", &scratch)
+            .env("XDG_CONFIG_HOME", scratch.join("config"))
+            .env("XDG_CACHE_HOME", scratch.join("cache"))
+            .env("XDG_DATA_HOME", scratch.join("data"))
+            .env("XDG_STATE_HOME", scratch.join("state"))
+            .current_dir(&scratch)
+            // Dropping root this way also clears supplementary groups.
+            .uid(NOBODY)
+            .gid(NOBODY)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(fail(format!("home check of {path} failed: {status}")))
+        }
+    });
+    fs::remove_dir_all(&scratch)?;
+    result
 }
 
 fn private_scratch(prefix: &str) -> Result<PathBuf> {

@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
 //! Public `sysroot home` over a generated image root, home directory and Kedra
-//! checkout: status diffs, capture into the source path that provides a file,
+//! checkout: status diffs, capture into the system/ file the image built it from,
 //! and update's record, fast-forward, merge, check refusal, reload, conflict,
 //! resolution and link-refusal paths with real Git.
 use serde_json::Value;
@@ -349,19 +349,31 @@ fn capture_writes_the_providing_source_path_without_staging() {
         return;
     }
     f.baseline(MAIN, "shared\n");
-    f.baseline(PLAIN, "overlay\n");
+    f.baseline(THEME, "theme\n");
+    f.baseline(PLAIN, "plain\n");
     f.live(MAIN, "shared\nlocal line\n");
-    f.live(PLAIN, "overlay\n");
+    f.live(THEME, "theme\n");
+    f.live(PLAIN, "plain\nlocal\n");
+    // The image records the committed file each home file was built from.
+    let source = |path: &str, source: &str| {
+        serde_json::json!({"destination": format!("usr/share/sysroot/home/default/{path}"),
+            "source_path": source, "home_baseline": true})
+    };
+    f.image(
+        "usr/share/sysroot/source.json",
+        &serde_json::json!({"schema_version": 1, "target": {"id": "desktop"}, "files": [
+            source(MAIN, "system/home/app/main.conf"),
+            source(THEME, "system/home/app/theme.json"),
+            source(PLAIN, "system/catalog.kedra"),
+        ]})
+        .to_string(),
+    );
     fs::create_dir(f.checkout()).unwrap();
     assert!(f.git(&["init", "-q"]).status.success());
-    let overlay = format!("usr/src/kedra/image/targets/desktop/etc/skel/{PLAIN}");
     for (path, text) in [
-        (
-            "usr/src/kedra/image/targets/desktop/target.toml",
-            "id = 'desktop'\n",
-        ),
-        (&format!("etc/skel/{MAIN}"), "shared\n"),
-        (&overlay, "older overlay\n"),
+        ("system/catalog.kedra", "language 1;\n"),
+        ("system/home/app/main.conf", "shared\n"),
+        ("system/home/app/theme.json", "older theme\n"),
     ] {
         Fixture::write(&f.checkout().join(path), text);
     }
@@ -372,27 +384,32 @@ fn capture_writes_the_providing_source_path_without_staging() {
     let repo = repo.to_str().unwrap();
 
     let report = f.json(&["capture", MAIN, "--repo", repo, "--json"], true);
-    assert_eq!(report["source_path"], format!("etc/skel/{MAIN}"));
+    assert_eq!(report["source_path"], "system/home/app/main.conf");
     assert_eq!(report["written"], true);
     assert_eq!(
-        fs::read_to_string(f.checkout().join("etc/skel").join(MAIN)).unwrap(),
+        fs::read_to_string(f.checkout().join("system/home/app/main.conf")).unwrap(),
         "shared\nlocal line\n"
     );
-    let report = f.json(&["capture", PLAIN, "--repo", repo, "--json"], true);
-    assert_eq!(report["source_path"], overlay);
+    let report = f.json(&["capture", THEME, "--repo", repo, "--json"], true);
+    assert_eq!(report["source_path"], "system/home/app/theme.json");
     assert_eq!(
-        fs::read_to_string(f.checkout().join(&overlay)).unwrap(),
-        "overlay\n"
+        fs::read_to_string(f.checkout().join("system/home/app/theme.json")).unwrap(),
+        "theme\n"
     );
-    let report = f.json(&["capture", PLAIN, "--repo", repo, "--json"], true);
+    let report = f.json(&["capture", THEME, "--repo", repo, "--json"], true);
     assert_eq!(report["written"], false);
+    // An inline literal has no file of its own to capture into.
+    let output = f.sysroot(&["capture", PLAIN, "--repo", repo]);
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("not a capturable"),
+        "{output:?}"
+    );
 
     // The owner picks lines: nothing is staged or committed.
     let status = f.git(&["status", "--porcelain"]).stdout;
     let status = String::from_utf8(status).unwrap();
     assert_eq!(
-        status,
-        format!(" M etc/skel/{MAIN}\n M {overlay}\n"),
+        status, " M system/home/app/main.conf\n M system/home/app/theme.json\n",
         "{status}"
     );
     assert_eq!(f.git(&["rev-parse", "HEAD"]).stdout, head);

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
   "format": "kedra",
-  "entry": "packages/catalog.kedra",
-  "lock": "packages/packages.lock.json"
+  "entry": "system/catalog.kedra",
+  "lock": "system/packages.lock.json"
 }

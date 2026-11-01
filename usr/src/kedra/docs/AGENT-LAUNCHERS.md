@@ -21,7 +21,7 @@ CLI, which keeps its normal interaction, signals and exit status.
   `/usr/share/kedra/catalog-libexec/NAME`, the launcher of a catalog package's private
   `libexec` export, which is never on PATH ([exports and PATH](PACKAGES.md#exports-and-path)).
   Both images build the pinned official Codex package from
-  `usr/src/kedra/image/packages/codex.kedra` in the engine; the launcher `exec`s its
+  `system/packages/codex.kedra` in the engine; the launcher `exec`s its
   exact store output, so Codex finds its bundled helpers next to its real path.
 - **Claude is not bundled.** Anthropic's published policy for preinstalling Claude
   requires the owner's agreement to its Commercial Terms, unmodified binaries, its own
@@ -32,7 +32,7 @@ CLI, which keeps its normal interaction, signals and exit status.
   runtime fails; there is no bundled fallback.
 
 Bitwarden Desktop is also an engine-built catalog package
-(`usr/src/kedra/image/packages/bitwarden.kedra`), but an ordinary `bitwarden` command
+(`system/packages/bitwarden.kedra`), but an ordinary `bitwarden` command
 on PATH rather than a launcher runtime. Login shells and the user session point
 `SSH_AUTH_SOCK` at its SSH agent socket, `~/.bitwarden-ssh-agent.sock`, unless you set
 your own.
@@ -42,8 +42,8 @@ your own.
 The checkout is the Git work tree containing `--repo`, `SYSROOT_REPO` or
 `~/src/kedra`; the agent starts at its top level. Any clone or worktree works,
 whatever its remote; the launcher never fetches, clones, stashes, resets or locks it.
-Use separate worktrees for concurrent sessions. `--host` (default `desktop`) must name
-a target declared in that work tree (`usr/src/kedra/image/targets/<target>/target.toml`).
+Use separate worktrees for concurrent sessions. The work tree must hold
+`system/catalog.kedra`, and `--host` (default `desktop`) must name a release target.
 It only tells the agent which target to edit, through `SYSROOT_EDITING_TARGET`; it
 never selects a machine to run on or deploy to.
 

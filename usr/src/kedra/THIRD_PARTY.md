@@ -15,7 +15,7 @@ non-Fedora runtimes for their own architecture:
   are verified when the pin is added or bumped:
   `codex-package-x86_64-unknown-linux-musl` for desktop and
   `codex-package-aarch64-unknown-linux-musl` for qemu-arm64, both from the same
-  0.153.4 release (`usr/src/kedra/image/packages/codex.kedra`). Its license,
+  0.153.4 release (`system/packages/codex.kedra`). Its license,
   notices, component licenses and corresponding source ship as the
   `codex_licenses` and `codex_components` store outputs that
   `/usr/share/kedra/catalog.json` names.
@@ -23,7 +23,7 @@ non-Fedora runtimes for their own architecture:
   (`bitwarden_2026.8.0_x64.tar.gz` for desktop, `bitwarden_2026.8.0_arm64.tar.gz`
   for qemu-arm64) in the engine store, with its license files and matching client
   source in the `bitwarden_licenses` output
-  (`usr/src/kedra/image/packages/bitwarden.kedra`). The tarball has no package
+  (`system/packages/bitwarden.kedra`). The tarball has no package
   scripts.
 
 Each pin records an exact size and SHA-256 and was reviewed for distribution

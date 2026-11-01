@@ -1,0 +1,87 @@
+language 1;
+// The niri session with the Noctalia shell, and native styling for GTK, Qt and
+// KDE applications. Personal settings always take precedence over these.
+set niri_desktop {
+    files = {
+        "/usr/lib/systemd/user/kedra-noctalia.service" = text """
+            [Unit]
+            Description=Noctalia desktop shell for the Kedra session
+            PartOf=graphical-session.target
+            After=graphical-session.target
+
+            [Service]
+            Type=exec
+            ExecStart=/usr/bin/noctalia
+            Restart=on-failure
+            RestartSec=2
+            TimeoutStopSec=15
+            Slice=app.slice
+            """;
+        "/usr/lib/environment.d/60-kedra-desktop.conf" = text """
+            # Native Qt styling for the niri service and D-Bus/systemd-activated apps.
+            QT_QPA_PLATFORMTHEME=${QT_QPA_PLATFORMTHEME:-kde}
+            """;
+        "/usr/share/glib-2.0/schemas/90-kedra.gschema.override" = text """
+            # Image defaults only: explicit user preferences continue to take precedence.
+            # Keep libadwaita's native styling and allow apps to choose their default style.
+            [org.gnome.desktop.interface]
+            color-scheme='default'
+            accent-color='blue'
+            gtk-theme='adw-gtk3'
+            icon-theme='Adwaita'
+            cursor-theme='Adwaita'
+            cursor-size=24
+            font-name='Adwaita Sans 11'
+            document-font-name='Adwaita Sans 12'
+            monospace-font-name='Adwaita Mono 11'
+            """;
+        "/etc/gtk-3.0/settings.ini" = text """
+            # Fallback for GTK 3 clients without an XSettings provider.
+            # Personal ~/.config/gtk-3.0/settings.ini settings take precedence.
+            [Settings]
+            gtk-theme-name=adw-gtk3
+            gtk-icon-theme-name=Adwaita
+            gtk-cursor-theme-name=Adwaita
+            gtk-cursor-theme-size=24
+            gtk-font-name=Adwaita Sans 11
+            """;
+        "/etc/xdg/kdeglobals" = text """
+            # Native KDE defaults. Personal ~/.config/kdeglobals entries take precedence.
+            [General]
+            ColorScheme=BreezeLight
+            font=Adwaita Sans,11,-1,5,50,0,0,0,0,0
+            fixed=Adwaita Mono,11,-1,5,50,0,0,0,0,0
+            menuFont=Adwaita Sans,11,-1,5,50,0,0,0,0,0
+            toolBarFont=Adwaita Sans,11,-1,5,50,0,0,0,0,0
+            smallestReadableFont=Adwaita Sans,9,-1,5,50,0,0,0,0,0
+
+            [KDE]
+            widgetStyle=Breeze
+
+            [Icons]
+            Theme=breeze
+            """;
+    };
+    // `sysroot home` manages these files in every account: an image update
+    // merges them with the live copy, `check` validates a candidate before it
+    // replaces the live file (`{file}` is the candidate), `reload` runs once
+    // after a change, and `sysroot home capture` copies a live file back here.
+    home = {
+        // niri reloads its configuration itself when the file changes.
+        ".config/niri/config.kdl" = managed {
+            content = file("./home/niri/config.kdl");
+            check = ["/usr/bin/niri", "validate", "--config", "{file}"];
+        };
+        // Noctalia reads every *.toml in its directory at start, so a candidate
+        // named without that extension is never loaded by the running shell.
+        ".config/noctalia/config.toml" = managed {
+            content = file("./home/noctalia/config.toml");
+            check = ["/usr/bin/noctalia", "config", "validate", "{file}"];
+            reload = ["/usr/bin/systemctl", "--user", "try-restart", "kedra-noctalia.service"];
+        };
+        ".config/noctalia/palettes/Adwaita.json" = managed {
+            content = file("./home/noctalia/palettes/Adwaita.json");
+            reload = ["/usr/bin/systemctl", "--user", "try-restart", "kedra-noctalia.service"];
+        };
+    };
+}

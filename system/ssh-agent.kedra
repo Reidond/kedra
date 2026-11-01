@@ -1,0 +1,17 @@
+language 1;
+// Bitwarden's SSH agent is the default for sessions and login shells; an
+// explicit personal SSH_AUTH_SOCK is kept.
+set ssh_agent {
+    files = {
+        "/usr/lib/environment.d/60-kedra-bitwarden.conf" = text """
+            SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-${HOME}/.bitwarden-ssh-agent.sock}
+            """;
+        "/etc/profile.d/kedra-bitwarden.sh" = text """
+            # Login shells, including TTY sessions. Personal explicit agents take precedence.
+            if [ -n "${HOME:-}" ]; then
+                : "${SSH_AUTH_SOCK:=$HOME/.bitwarden-ssh-agent.sock}"
+                export SSH_AUTH_SOCK
+            fi
+            """;
+    };
+}

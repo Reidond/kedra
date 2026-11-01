@@ -142,7 +142,7 @@ def main():
     lock_path = work / 'rpm-lock.json'
     image = ROOT / 'usr/src/kedra/image'
     run('resolve-rpm-lock', [binaries / 'sysroot', 'catalog', 'lock', 'resolve',
-                             '--input-root', image / 'packages', '--entry', 'catalog.kedra',
+                             '--input-root', ROOT / 'system', '--entry', 'catalog.kedra',
                              '--lock', 'packages.lock.json', '--target', 'qemu-arm64',
                              '--target-policy', image / 'package-policy.json', '--base', args.base_image,
                              '--store', store, '--log-dir', work / 'rpm-resolution', '--output', lock_path],

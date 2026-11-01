@@ -483,44 +483,42 @@ fn assessment(explicit: Option<&Path>) -> Result<serde_json::Value> {
     }))
 }
 
-fn installed_target(image: &Image) -> Result<String> {
+/// The committed file the image built a managed home file from, as its source
+/// manifest records it: a `file("./…")` resource under `system/`.
+fn installed_source(image: &Image, path: &str) -> Result<String> {
     let bytes = image
-        .read(files::SOURCE, 1_048_576)?
+        .read(files::SOURCE, 4_194_304)?
         .ok_or("the image has no source manifest")?;
     let manifest: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|_| "the image source manifest is malformed")?;
-    let target = manifest["target"]["id"]
-        .as_str()
-        .filter(|id| {
-            !id.is_empty()
-                && id
-                    .bytes()
-                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    let destination = format!("{}/{path}", files::BASELINE);
+    let source = manifest["files"]
+        .as_array()
+        .and_then(|files| {
+            files
+                .iter()
+                .find(|file| file["destination"].as_str() == Some(destination.as_str()))
         })
-        .ok_or("the image source manifest names no valid target")?;
-    Ok(target.to_owned())
+        .and_then(|file| file["source_path"].as_str())
+        .ok_or_else(|| format!("the image source manifest has no source for ~/{path}"))?;
+    if !source.starts_with("system/") || source.ends_with(".kedra") || !files::valid_path(source) {
+        return Err(format!(
+            "~/{path} comes from {source}, not a capturable file(\"./…\") resource"
+        )
+        .into());
+    }
+    Ok(source.to_owned())
 }
 
-/// The checkout's top level, refused unless it declares the installed target.
-fn checkout(repo: &Path, target: &str) -> Result<PathBuf> {
+/// The checkout's top level, refused unless it holds Kedra's system declarations.
+fn checkout(repo: &Path) -> Result<PathBuf> {
     let (code, output) = git(repo, &["rev-parse", "--show-toplevel"])?;
     let top = String::from_utf8(output).map_err(|_| "checkout path is not UTF-8")?;
     let top = PathBuf::from(top.trim()).canonicalize()?;
-    let declaration = top.join(format!("usr/src/kedra/image/targets/{target}/target.toml"));
-    if code != 0 || !declaration.is_file() {
-        return Err(format!("{} is not a Kedra checkout for {target}", repo.display()).into());
+    if code != 0 || !top.join("system/catalog.kedra").is_file() {
+        return Err(format!("{} is not a Kedra checkout", repo.display()).into());
     }
     Ok(top)
-}
-
-/// The target overlay's copy when the checkout has one, else the shared skeleton.
-fn source_path(top: &Path, target: &str, path: &str) -> String {
-    let overlay = format!("usr/src/kedra/image/targets/{target}/etc/skel/{path}");
-    if std::fs::symlink_metadata(top.join(&overlay)).is_ok() {
-        overlay
-    } else {
-        format!("etc/skel/{path}")
-    }
 }
 
 /// Atomically replace one file in a real directory, keeping its mode and label.
@@ -540,9 +538,8 @@ fn capture(image: &Image, home: &Home, path: &str, repo: &Path, json: bool) -> R
     let live = home
         .read(path)?
         .ok_or_else(|| format!("~/{path} does not exist"))?;
-    let target = installed_target(image)?;
-    let top = checkout(repo, &target)?;
-    let relative = source_path(&top, &target, path);
+    let relative = installed_source(image, path)?;
+    let top = checkout(repo)?;
     let (parent, name) = split(&relative);
     open_components(&top, parent, true)?;
     let directory = Directory::open(&top.join(parent))?;

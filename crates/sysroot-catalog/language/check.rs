@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use sysroot_engine::NativeStep;
 
+mod system;
+pub use system::{FileIntent, HomeIntent, OsReleaseIntent};
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SourcePin {
@@ -48,6 +51,23 @@ pub struct Intent {
     pub selected: BTreeSet<String>,
     /// The target's image steps, applied by `sysroot derive` after composition.
     pub native_steps: Vec<NativeStep>,
+    /// Image files by absolute path, from the target and its sets.
+    #[serde(default)]
+    pub files: BTreeMap<String, FileIntent>,
+    /// The home baseline by home-relative path, from the target and its sets.
+    #[serde(default)]
+    pub home: BTreeMap<String, HomeIntent>,
+    /// The target's published image repository and hardware status.
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default)]
+    pub hardware: Option<String>,
+    /// Name the foundation's os-release gives the image.
+    #[serde(default)]
+    pub os_release: Option<OsReleaseIntent>,
+    /// Desktop names each XDG autostart entry is hidden from.
+    #[serde(default)]
+    pub hide_autostart: BTreeMap<String, BTreeSet<String>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -129,6 +149,8 @@ enum Type {
     Boolean,
     Systemd,
     Initramfs,
+    Managed,
+    OsRelease,
 }
 
 #[derive(Clone)]
@@ -146,6 +168,7 @@ struct Checker {
     active: BTreeSet<String>,
     selected_sets: BTreeSet<String>,
     requests: Vec<Request>,
+    system: system::Selection,
 }
 struct Request {
     origin: String,
@@ -369,9 +392,12 @@ impl Checker {
         for name in self.strings(&base, "remove")? {
             self.request(&foundation, name, false)?;
         }
-        self.intent.native_steps = self.native_steps(&definition)?;
+        let mut steps = self.native_steps(&definition)?;
+        self.target_metadata(&definition)?;
         let mut replacements = Vec::new();
         self.select_body(&target_key, &mut replacements, 0)?;
+        self.finish_system(&definition, &mut steps)?;
+        self.intent.native_steps = steps;
         let mut replaced = BTreeSet::new();
         for (origin, name, action, location) in replacements {
             if !matches!(action.as_str(), "include" | "remove")
@@ -486,7 +512,8 @@ impl Checker {
             None => Ok(Vec::new()),
         }
     }
-    /// The target's declared image steps in the engine's checked, ordered form.
+    /// The target's own image steps; `finish_system` adds its sets' units and
+    /// home checks and puts them in the engine's checked, ordered form.
     fn native_steps(&self, definition: &Definition) -> Result<Vec<NativeStep>> {
         let module = &definition.module;
         let fields = &definition.declaration.block.fields;
@@ -518,16 +545,6 @@ impl Checker {
                 drivers: self.step_strings(module, block, "drivers")?,
             });
         }
-        if !steps.is_empty() {
-            sysroot_engine::normalize_native_steps(&mut steps).map_err(|error| {
-                fail(
-                    module,
-                    definition.declaration.span,
-                    "image",
-                    &error.to_string(),
-                )
-            })?;
-        }
         Ok(steps)
     }
     fn select_body(
@@ -554,6 +571,7 @@ impl Checker {
                 self.select_body(&key, replacements, depth + 1)?;
             }
         }
+        self.collect_system(key, &definition)?;
         for name in self.strings(&definition, "fedora")? {
             self.request(key, name, true)?;
         }
@@ -1482,6 +1500,8 @@ impl Checker {
             "template" => self.typed_template(definition, value, block),
             "systemd" => self.typed_systemd(definition, value, block),
             "initramfs" => self.typed_initramfs(definition, value, block),
+            "managed" => self.typed_managed(definition, value, block),
+            "os_release" => self.typed_os_release(definition, value, block),
             _ => Err(self.error(
                 &definition.module,
                 value,
@@ -1670,7 +1690,12 @@ impl Checker {
         let (required, optional): (&[&str], &[&str]) = match d.kind.as_str() {
             "foundation" => (&["fedora", "packages"], &["remove"]),
             "builder" => (&["base", "packages"], &[]),
-            "set" => (&[], &["packages", "fedora", "remove", "use", "replace"]),
+            "set" => (
+                &[],
+                &[
+                    "packages", "fedora", "remove", "use", "replace", "files", "home", "systemd",
+                ],
+            ),
             "target" => (
                 &["foundation"],
                 &[
@@ -1684,6 +1709,12 @@ impl Checker {
                     "skel",
                     "initramfs",
                     "architecture",
+                    "files",
+                    "home",
+                    "image",
+                    "hardware",
+                    "os_release",
+                    "hide_autostart",
                 ],
             ),
             _ => (
@@ -1739,12 +1770,16 @@ impl Checker {
             "source" if ty == Type::Files => Type::Files,
             "source" => Type::Source,
             "build" => Type::Script,
+            "files" | "home" | "hide_autostart" if matches!(d.kind.as_str(), "set" | "target") => {
+                Type::Map
+            }
             "files" | "replace_files" => Type::Files,
             "env" | "build_deps" | "runtime_deps" => Type::Map,
             "timeout" => Type::Integer,
             "glib_schemas" | "skel" => Type::Boolean,
             "systemd" => Type::Systemd,
             "initramfs" => Type::Initramfs,
+            "os_release" => Type::OsRelease,
             _ => Type::String,
         };
         if ty != expected {
@@ -1776,6 +1811,9 @@ impl Checker {
         }
         if ty == Type::List && name != "replaces" {
             self.validate_items(definition, name, value)?;
+        }
+        if matches!(d.kind.as_str(), "set" | "target") {
+            self.validate_system_field(definition, name, value)?;
         }
         Ok(())
     }
@@ -2027,10 +2065,17 @@ pub fn compile(
             recipes: BTreeMap::new(),
             selected: BTreeSet::new(),
             native_steps: Vec::new(),
+            files: BTreeMap::new(),
+            home: BTreeMap::new(),
+            image: None,
+            hardware: None,
+            os_release: None,
+            hide_autostart: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         selected_sets: BTreeSet::new(),
         requests: Vec::new(),
+        system: system::Selection::default(),
     };
     checker.admit(modules, entry, policy)?;
     checker.imports(entry, &mut BTreeSet::new(), &mut BTreeSet::new(), 0)?;

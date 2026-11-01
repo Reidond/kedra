@@ -6,8 +6,8 @@ mod parser;
 pub use lower::{Images, Lowered, lower};
 
 pub use check::{
-    Binding, Content, ExportIntent, Intent, Lockfile, PatchIntent, RecipeIntent, SourceIntent,
-    SourcePin, TargetPolicy, TemplateIntent, compile,
+    Binding, Content, ExportIntent, FileIntent, HomeIntent, Intent, Lockfile, OsReleaseIntent,
+    PatchIntent, RecipeIntent, SourceIntent, SourcePin, TargetPolicy, TemplateIntent, compile,
 };
 pub use format::format;
 pub use parser::{Block, Declaration, Export, Import, Module, Span, Value, parse};

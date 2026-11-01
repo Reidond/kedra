@@ -6,7 +6,7 @@ precedence. Do not mix v4 noctalia-shell/Quickshell JSON examples into a v5 setu
 Confirm CLI flags against the packaged version before automation.
 
 Facts (2026-10-14, Fedora 44 noctalia-5.2.1-1; source: `noctalia config validate
---help` in the image, usr/share/kedra/home-files.toml, tests/container/home_files_tests.rs):
+--help` in the image, system/desktop.kedra, tests/container/home_files_tests.rs):
 
 - `noctalia config validate <file>` validates one file; with no path it merges
   every `*.toml` in the config directory plus the state overrides.

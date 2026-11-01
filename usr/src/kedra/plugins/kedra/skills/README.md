@@ -17,7 +17,7 @@ and usr/src/kedra/docs/STATUS.md provide current scope.
 | Codex/Claude launchers, bundled Codex, MCP and skills | kedra-agents |
 | Bitwarden, SSH, keyring, credentials | kedra-bitwarden |
 | niri, Noctalia, session, hardware | kedra-desktop |
-| Targets, shared/target overlays, provenance, scope | kedra-machines |
+| Targets, system/ sets, provenance, scope | kedra-machines |
 | Container tests, `kedra-lab`, screenshots | kedra-research and kedra-desktop |
 | End-to-end qualification and evidence | kedra-research |
 | Privilege, persistent state, privacy, Secure Boot/TPM, recovery | kedra-security |

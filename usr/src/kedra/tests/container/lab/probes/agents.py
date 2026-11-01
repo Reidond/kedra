@@ -28,9 +28,10 @@ catalog = json.loads(pathlib.Path('/usr/share/kedra/catalog.json').read_text())
 launcher = catalog['libexec']['codex']['launcher']
 with tempfile.TemporaryDirectory(prefix='kedra-agent-checkout-', dir=home) as temporary:
     repo = pathlib.Path(temporary)
-    definition = repo / 'usr/src/kedra/image/targets' / target['id'] / 'target.toml'
+    # A Kedra checkout holds its system declarations; the agent edits them.
+    definition = repo / 'system/catalog.kedra'
     definition.parent.mkdir(parents=True)
-    definition.write_text('\n'.join(f'{key} = {json.dumps(value)}' for key, value in target.items()) + '\n')
+    definition.write_text(f'language 1;\nnamespace "kedra";\n// fixture for {target["id"]}\n')
     environment = {**os.environ, 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'}
     for args in [['init', '-q', '--template='], ['config', 'user.name', 'Fixture'],
                  ['config', 'user.email', 'fixture@example.invalid'], ['config', 'commit.gpgsign', 'false'],

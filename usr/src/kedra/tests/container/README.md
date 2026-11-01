@@ -165,7 +165,7 @@ cargo run -p kedra-container-tests --bin kedra-lab -- up
 
 A typical desktop change:
 
-1. Edit `etc/skel/.config/niri/config.kdl` or another managed home file.
+1. Edit `system/home/niri/config.kdl` or another managed home file.
 2. Run `kedra-lab sync --shot changed` and inspect the PNG.
 3. Open a panel with `kedra-lab exec -- noctalia msg settings-toggle`.
 4. Run `kedra-lab shot settings` and look at the PNG.
@@ -174,8 +174,8 @@ Timings on an M2 Pro with OrbStack, cached layers: environment and session ready
 
 Sync stages the working tree's home baselines as a private image root inside the
 disposable `kedra-test` account and runs the production
-`sysroot home update --root` there, so only the files that
-`usr/share/kedra/home-files.toml` declares change. Guest edits are merged, not
+`sysroot home update --root` there, so only the files declared `managed` in
+`system/*.kedra` change. Guest edits are merged, not
 overwritten; a conflict leaves the live file and writes `<file>.kedra-new`
 ([managed home files](../../docs/HOME.md)). Each file's declared check runs
 before it is written and its reload afterwards (niri reloads itself; Noctalia

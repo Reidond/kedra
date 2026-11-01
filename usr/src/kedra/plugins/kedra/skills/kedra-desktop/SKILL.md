@@ -36,7 +36,7 @@ across layers. Connector names and refresh strings require actual inventory.
 Measured 2026-09-27 (niri 26.04, Noctalia 5.1.0, OrbStack 2.2.3 on an M2 Pro): the real session renders in a container. The harness README (usr/src/kedra/tests/container/README.md) has the details.
 
 - **How it runs.** `kedra-session` starts through the greetd PAM service with `PAMName=greetd`, which gives a real logind session. niri runs nested through its winit backend: `niri --session` drops `WAYLAND_DISPLAY` unless `WSL_DISTRO_NAME` is set (src/main.rs, v26.04). The parent is a headless sway (pixman). Rendering is llvmpipe; Noctalia, GTK 3/4, Qt and Electron (Bitwarden) render.
-- **Screenshots.** `kedra-lab up`, edit managed home defaults in etc/skel, then `kedra-lab sync --shot changed`. `up` prepares the host source archiver; a stale one requires `prepare-sync`. Sync runs `sysroot home update --root` over the working tree's baselines, so guest edits merge and each file's declared check and reload run; it does not compile Rust. PNG receipts read actual niri output scale and identify image/home source. The default output is 2560×1600 at scale 2, set by niri IPC. Show the owner the PNGs.
+- **Screenshots.** `kedra-lab up`, edit managed home defaults in system/home/, then `kedra-lab sync --shot changed`. `up` prepares the host source archiver; a stale one requires `prepare-sync`. Sync runs `sysroot home update --root` over the working tree's baselines, so guest edits merge and each file's declared check and reload run; it does not compile Rust. PNG receipts read actual niri output scale and identify image/home source. The default output is 2560×1600 at scale 2, set by niri IPC. Show the owner the PNGs.
 - **Input.** niri's virtual keyboard reaches foot, GTK 3 (wlrctl's standard keymap only) and GTK 4 (wtype, which sends a real Return). Xwayland (xwayland-satellite) and Qt 6.11 clients received no key events. A nested niri reads raw keycodes with its own keymap, so wtype through the parent compositor types wrong characters. Keyboard-driven Qt/Xwayland checks stay in the VM.
 - **Not the hardware.** Container screenshots show layout, theme and palette, not GPU, scaling-on-hardware or accessibility behavior. The kernel, uptime and hardware sensors are the host's.
 - **Renderer environment** (systemd 259, 2026-09-29): service-local renderer environment does not propagate to Noctalia through the user manager, so the lab sets software rendering through `environment.d` (tests/container/lab/tools.Containerfile). Its final image layer computes ldconfig/hwdb and runs `systemd-update-done`, preserving normal update conditions. Do not mask those services or label this renderer as GPU acceleration.
@@ -46,7 +46,7 @@ Measured 2026-09-27 (niri 26.04, Noctalia 5.1.0, OrbStack 2.2.3 on an M2 Pro): t
 Noctalia v5 uses curated TOML plus separate GUI-written overrides; older v4
 Quickshell/JSON commands are not interchangeable. The image manages
 `.config/noctalia/config.toml` and the Adwaita palette as ordinary home files
-(usr/share/kedra/home-files.toml, kedra-home); GUI overrides in
+(`managed` in system/desktop.kedra, kedra-home); GUI overrides in
 `~/.local/state/noctalia/settings.toml` win over them and are not managed. Do not
 decide a Git config update succeeded while a writable override still wins, and
 never clear the whole override file to force the source theme. Read
@@ -140,7 +140,7 @@ redacted hardware inventory and physical GPU/scaling/mode/audio/USB/network/susp
 checks. The potential XPS remains disabled until its exact CPU/GPU/Wi-Fi/camera/
 audio/dock are known. Another distribution's vendor certification is not Fedora
 qualification. Laptop battery/lid/external-display behavior has separate tests.
-Document measured workarounds in the target overlay with a reason/removal condition.
+Document measured workarounds in a set only that target uses, with a reason/removal condition.
 Primary references: [niri](https://niri-wm.github.io/niri/),
 [Fedora niri package](https://packages.fedoraproject.org/pkgs/niri/niri/),
 [Fedora Noctalia package](https://packages.fedoraproject.org/pkgs/noctalia/noctalia/),

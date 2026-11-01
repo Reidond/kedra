@@ -296,7 +296,7 @@ fn unapplied_build_inputs(from: &str, to: Option<&str>) -> Vec<String> {
         "--",
         "usr/src/kedra/image/Containerfile",
         "usr/src/kedra/image/assemble.sh",
-        "usr/src/kedra/image/packages",
+        "system",
         "usr/src/kedra/image/inputs.json",
         "usr/src/kedra/image/agents",
         "usr/src/kedra/image/bitwarden",

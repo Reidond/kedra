@@ -35,7 +35,7 @@ means nobody has run it on the current code.
   helper adds target/channel scope, downgrade refusal, explicit staging and a
   rollback hold ([UPDATES](UPDATES.md)).
 - **Managed home files:** `sysroot home status|capture|update` merges image changes
-  into the live files listed in `usr/share/kedra/home-files.toml` ([HOME](HOME.md)).
+  into the live files declared `managed` in `system/*.kedra` ([HOME](HOME.md)).
 - **Agents:** `sysroot codex` (bundled or user runtime) and `sysroot claude` (user
   runtime only; Claude is not bundled) ([AGENT-LAUNCHERS](AGENT-LAUNCHERS.md)).
 - **Installer:** local ISO builds, built once from the image-builder manifest, and

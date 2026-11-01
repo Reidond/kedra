@@ -36,7 +36,7 @@ def snapshot(directory):
             for p in directory.rglob('*') if p.is_file() and not p.is_symlink()}
 repo = args.work / 'checkout'
 repo.mkdir()
-declaration = 'usr/src/kedra/image/targets/desktop/target.toml'
+declaration = 'system/catalog.kedra'
 repo.joinpath(declaration).parent.mkdir(parents=True)
 shutil.copyfile(declaration, repo / declaration)
 environment = {'HOME': str(home), 'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'TERM': 'xterm-256color'}

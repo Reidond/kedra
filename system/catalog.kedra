@@ -1,11 +1,28 @@
 language 1;
+// Entry module: every Kedra target, composed from the sets of system/*.kedra.
+// Nothing enters an image unless a module here declares it.
 namespace "kedra";
 import {
     codex
-} from "./codex.kedra";
+} from "./packages/codex.kedra";
 import {
     bitwarden
-} from "./bitwarden.kedra";
+} from "./packages/bitwarden.kedra";
+import {
+    base
+} from "./base.kedra";
+import {
+    login
+} from "./login.kedra";
+import {
+    niri_desktop
+} from "./desktop.kedra";
+import {
+    ssh_agent
+} from "./ssh-agent.kedra";
+import {
+    qemu_guest
+} from "./qemu.kedra";
 foundation system {
     fedora = 44;
     packages = ["niri", "noctalia", "git", "openssh-clients", "skopeo", "bubblewrap", "gh", "foot", "fuzzel", "greetd", "tuigreet", "gnome-keyring", "gnome-keyring-pam", "polkit", "xdg-desktop-portal", "xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk", "xwayland-satellite", "xorg-x11-server-Xwayland", "pipewire", "pipewire-pulseaudio", "wireplumber", "NetworkManager", "NetworkManager-wifi", "bluez", "mesa-dri-drivers", "mesa-vulkan-drivers", "google-noto-sans-fonts", "google-noto-sans-mono-fonts", "adwaita-sans-fonts", "adwaita-mono-fonts", "adwaita-icon-theme", "adwaita-cursor-theme", "gsettings-desktop-schemas", "adw-gtk3-theme", "plasma-integration", "plasma-integration-qt5", "plasma-breeze", "plasma-breeze-qt5", "breeze-icon-theme", "kf6-qqc2-desktop-style", "kf5-qqc2-desktop-style", "wl-clipboard", "brightnessctl", "playerctl", "firefox", "nautilus", "seahorse", "gtk3"];
@@ -16,15 +33,29 @@ builder tools {
     base = system;
     packages = ["coreutils", "findutils", "glibc-common", "grep", "gzip", "tar"];
 }
+// The image every Kedra target shares.
+set kedra {
+    use = [base, login, niri_desktop, ssh_agent];
+    packages = [codex(builder: tools, runtime: system), bitwarden(builder: tools, runtime: system)];
+}
+// Hardware status is a claim about testing, never about the machine itself:
+// do not infer connector names, PCI IDs, disk IDs, usernames or UIDs.
 target "desktop" {
     architecture = "x86_64";
+    image = "ghcr.io/reidond/kedra-desktop";
+    hardware = "unverified";
     foundation = system;
-    fedora = [];
-    packages = [codex(builder: tools, runtime: system), bitwarden(builder: tools, runtime: system)];
+    use = [kedra];
+    os_release = os_release {
+        name = "Kedra";
+        pretty_name = "Kedra (Fedora 44)";
+    };
+    // Its invisible capture window becomes a focused black tile under niri.
+    hide_autostart = {
+        "org.kde.xwaylandvideobridge.desktop" = ["niri"];
+    };
     glib_schemas = true;
     systemd = systemd {
-        enable = ["NetworkManager.service", "bluetooth.service", "greetd.service"];
-        mask = ["bootc-fetch-apply-updates.service", "bootc-fetch-apply-updates.timer"];
         default_target = "graphical.target";
     };
     skel = true;
@@ -32,15 +63,22 @@ target "desktop" {
         modules = ["bootc", "ostree", "crypt", "dm", "rootfs-block", "systemd-cryptsetup", "tpm2-tss"];
     };
 }
+// A QEMU virtual machine on Apple Silicon; not a physical-hardware claim.
 target "qemu-arm64" {
     architecture = "aarch64";
+    image = "ghcr.io/reidond/kedra-qemu-arm64";
+    hardware = "virtual";
     foundation = system;
-    fedora = ["qemu-guest-agent", "egl-utils"];
-    packages = [codex(builder: tools, runtime: system), bitwarden(builder: tools, runtime: system)];
+    use = [kedra, qemu_guest];
+    os_release = os_release {
+        name = "Kedra";
+        pretty_name = "Kedra (Fedora 44)";
+    };
+    hide_autostart = {
+        "org.kde.xwaylandvideobridge.desktop" = ["niri"];
+    };
     glib_schemas = true;
     systemd = systemd {
-        enable = ["NetworkManager.service", "bluetooth.service", "greetd.service"];
-        mask = ["bootc-fetch-apply-updates.service", "bootc-fetch-apply-updates.timer"];
         default_target = "graphical.target";
     };
     skel = true;
